@@ -1,0 +1,205 @@
+{
+  "name": "Todo List Application",
+  "description": "Users manage personal todo lists with items that can be checked off.",
+  "actors": [
+    { "id": "user", "name": "User", "type": "user" },
+    { "id": "calendar", "name": "Calendar System", "type": "external" },
+    { "id": "system", "name": "System", "type": "system" }
+  ],
+  "aggregates": [
+    { "id": "todolist", "name": "TodoList" }
+  ],
+  "chapters": [
+    {
+      "name": "List Management",
+      "slices": [
+        {
+          "name": "Create List",
+          "actor": "user",
+          "aggregate": "todolist",
+          "ui": "POST /v1/lists",
+          "command": "CreateList(userId, listId, name)",
+          "events": ["ListCreated(listId, userId, name)"],
+          "read_models": ["TodoLists(listId, name, itemCount)"],
+          "tests": [
+            {
+              "name": "User creates a new list",
+              "given": [],
+              "when": "CreateList(userId=u-1, listId=list-1, name=Groceries)",
+              "then": ["ListCreated(listId=list-1, userId=u-1, name=Groceries)"]
+            },
+            {
+              "name": "Duplicate list name rejected",
+              "given": ["ListCreated(listId=list-1, userId=u-1, name=Groceries)"],
+              "when": "CreateList(userId=u-1, listId=list-2, name=Groceries)",
+              "then": ["Error: list name already exists"]
+            }
+          ]
+        },
+        {
+          "name": "Delete List",
+          "actor": "user",
+          "aggregate": "todolist",
+          "ui": "DELETE /v1/lists/{listId}",
+          "command": "DeleteList(listId)",
+          "events": ["ListDeleted(listId)"],
+          "read_models": ["TodoLists(listId, name, itemCount)"],
+          "tests": [
+            {
+              "name": "User deletes an existing list",
+              "given": ["ListCreated(listId=list-1, userId=u-1, name=Groceries)"],
+              "when": "DeleteList(listId=list-1)",
+              "then": ["ListDeleted(listId=list-1)"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Item Management",
+      "slices": [
+        {
+          "name": "Add Item",
+          "actor": "user",
+          "aggregate": "todolist",
+          "ui": "POST /v1/lists/{listId}/items",
+          "command": "AddItem(listId, itemId, title)",
+          "events": ["ItemAdded(listId, itemId, title)"],
+          "read_models": ["ListDetail(listId, name, items)"],
+          "tests": [
+            {
+              "name": "User adds an item to a list",
+              "given": ["ListCreated(listId=list-1, userId=u-1, name=Groceries)"],
+              "when": "AddItem(listId=list-1, itemId=item-1, title=Milk)",
+              "then": ["ItemAdded(listId=list-1, itemId=item-1, title=Milk)"]
+            },
+            {
+              "name": "Adding a fourth item is rejected",
+              "given": [
+                "ListCreated(listId=list-1, userId=u-1, name=Groceries)",
+                "ItemAdded(listId=list-1, itemId=item-1, title=Milk)",
+                "ItemAdded(listId=list-1, itemId=item-2, title=Eggs)",
+                "ItemAdded(listId=list-1, itemId=item-3, title=Bread)"
+              ],
+              "when": "AddItem(listId=list-1, itemId=item-4, title=Butter)",
+              "then": ["Error: maximum 3 items per list"]
+            }
+          ]
+        },
+        {
+          "name": "Complete Item",
+          "actor": "user",
+          "aggregate": "todolist",
+          "ui": "PATCH /v1/lists/{listId}/items/{itemId}",
+          "command": "CompleteItem(listId, itemId)",
+          "events": ["ItemCompleted(listId, itemId)"],
+          "read_models": ["ListDetail(listId, name, items)"],
+          "tests": [
+            {
+              "name": "User completes an item",
+              "given": [
+                "ListCreated(listId=list-1, userId=u-1, name=Groceries)",
+                "ItemAdded(listId=list-1, itemId=item-1, title=Milk)"
+              ],
+              "when": "CompleteItem(listId=list-1, itemId=item-1)",
+              "then": ["ItemCompleted(listId=list-1, itemId=item-1)"]
+            }
+          ]
+        },
+        {
+          "name": "Delete Item",
+          "actor": "user",
+          "aggregate": "todolist",
+          "ui": "DELETE /v1/lists/{listId}/items/{itemId}",
+          "command": "DeleteItem(listId, itemId)",
+          "events": ["ItemDeleted(listId, itemId)"],
+          "read_models": ["ListDetail(listId, name, items)"],
+          "tests": [
+            {
+              "name": "User deletes an item from a list",
+              "given": [
+                "ListCreated(listId=list-1, userId=u-1, name=Groceries)",
+                "ItemAdded(listId=list-1, itemId=item-1, title=Milk)"
+              ],
+              "when": "DeleteItem(listId=list-1, itemId=item-1)",
+              "then": ["ItemDeleted(listId=list-1, itemId=item-1)"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Views",
+      "slices": [
+        {
+          "name": "View All Lists",
+          "actor": "user",
+          "aggregate": "todolist",
+          "ui": "GET /v1/lists",
+          "read_models": ["TodoLists(listId, name, itemCount)"],
+          "tests": []
+        },
+        {
+          "name": "View List Detail",
+          "actor": "user",
+          "aggregate": "todolist",
+          "ui": "GET /v1/lists/{listId}",
+          "read_models": ["ListDetail(listId, name, items)"],
+          "tests": []
+        }
+      ]
+    },
+    {
+      "name": "Automations",
+      "slices": [
+        {
+          "name": "Auto-Complete List",
+          "actor": "system",
+          "aggregate": "todolist",
+          "automation": "OnAllItemsDone",
+          "trigger": "ItemCompleted",
+          "command": "CompleteList(listId)",
+          "events": ["ListCompleted(listId)"],
+          "read_models": ["TodoLists(listId, name, itemCount)"],
+          "tests": [
+            {
+              "name": "List completes when all items are done",
+              "given": [
+                "ListCreated(listId=list-1, userId=u-1, name=Groceries)",
+                "ItemAdded(listId=list-1, itemId=item-1, title=Milk)",
+                "ItemCompleted(listId=list-1, itemId=item-1)"
+              ],
+              "when": "CompleteList(listId=list-1)",
+              "then": ["ListCompleted(listId=list-1)"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "External Integrations",
+      "slices": [
+        {
+          "name": "Import Calendar Task",
+          "actor": "calendar",
+          "aggregate": "todolist",
+          "external_event": "ExternalTaskScheduled(listId, title, dueDate)",
+          "command": "AddItem(listId, itemId, title)",
+          "events": ["ItemAdded(listId, itemId, title)"],
+          "read_models": ["ListDetail(listId, name, items)"],
+          "tests": [
+            {
+              "name": "Calendar task imported as list item",
+              "given": [
+                "ExternalTaskScheduled(listId=list-1, title=Dentist, dueDate=2026-03-15)",
+                "ListCreated(listId=list-1, userId=u-1, name=Appointments)"
+              ],
+              "when": "AddItem(listId=list-1, itemId=item-5, title=Dentist)",
+              "then": ["ItemAdded(listId=list-1, itemId=item-5, title=Dentist)"]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -13,6 +13,12 @@ The visualization uses two kinds of swim lanes:
 - **Actor lanes** at the top — one row per actor (user, admin, external system), containing the real interfaces they use
 - **Aggregate lanes** in the middle — one row per DDD aggregate / event stream, containing commands and events
 
+## Why Event Modeling
+
+Most software projects suffer from **feature explosion** — each new feature adds coupling, and coupling makes the next feature more expensive. The cost curve steepens until deadlines slip, budgets explode, and teams build the wrong thing because of **bad communication**, **wrong assumptions**, and **misunderstood requirements**. Building the wrong thing is the most expensive mistake in any project.
+
+The root cause is never technology. No amount of architectural refinement fixes a communication problem. Event modeling solves this by providing a **shared language** that engineers, business experts, and AI agents all understand — five elements, four patterns, read left to right. One model, one truth, readable by anyone.
+
 ## When to Use
 
 - Documenting an existing system's behavior
@@ -34,6 +40,25 @@ The practice follows a natural progression:
 5. **Evolve** — Update the model as production reveals gaps. New events, new slices, revised read models.
 
 When extracting from existing code, you're doing Capture and Specify simultaneously — the code already tells you what commands produce what events. When modeling from scratch, start with Storm.
+
+## The V Pattern
+
+Every state-change slice follows a **V-shaped information flow**:
+
+1. User sees a **read model** (green) — "here's what the system knows"
+2. User submits a **command** (blue) — "here's what I want to happen"
+3. System records an **event** (orange) — "here's what happened"
+4. Event updates the **read model** (green) — ready for the next step
+
+The V shape is the heartbeat of the system. Read model feeds the UI, UI triggers a command, command produces an event, event updates the read model. Repeat. Every feature is one or more V's on the timeline.
+
+## Information Completeness
+
+**You cannot start implementation until the model is information complete.** Every field displayed in a read model must trace back to a field in an event. If a view shows "total price," there must be an event carrying that data. If a read model needs a "user email," you must know which event provides it.
+
+Missing information blocks work. A field with no source might depend on another team's API with a 3-month backlog — discovering this during implementation instead of during modeling is the most expensive mistake you can make.
+
+The `event_model.py` validator enforces field overlap between read models and events automatically. But information completeness goes further: verify that every piece of data in the model has a known origin, even if that origin is outside the system boundary.
 
 ## Tooling: event_model.py
 
@@ -232,8 +257,9 @@ When modeling a new system or discovering behavior before reading code, start by
 
 1. List everything that happens in the domain — past tense facts like `OrderPlaced`, `PaymentReceived`, `ItemShipped`
 2. Arrange events on a left-to-right timeline
-3. Don't worry about commands, read models, or aggregates yet — just events
-4. Group related events to discover natural aggregate boundaries
+3. Sketch rough screens — ugly wireframes showing what users see and what buttons they click. Spend no more than 2 minutes per screen. Screens drive read model discovery: what information does the user need to see?
+4. Don't worry about commands, read models, or aggregates yet — just events and screens
+5. Group related events to discover natural aggregate boundaries
 
 This phase is optional when extracting from code (Phase 1 covers discovery through code reading), but valuable when:
 - Starting a new feature with no existing code
@@ -295,7 +321,7 @@ For one workflow at a time, trace from trigger to completion:
 
 ### Phase 5: Define Test Specifications
 
-Each slice gets GWT tests with **concrete example data** — real IDs, real numbers, real outcomes:
+Define GWT tests **collaboratively with business experts** — not in isolation. Each slice gets GWT tests with **concrete example data** — real IDs, real numbers, real outcomes. Business knowledge becomes an executable specification in code:
 
 ```json
 {
@@ -339,6 +365,25 @@ Event models are living documents. When production reveals gaps:
 3. Re-validate and re-render to verify the model still tells a coherent story
 4. Treat the updated model as the specification for the fix
 
+## Slices as Work Items
+
+Each slice in the event model is a **natural work item** — independently buildable, testable, and assignable. The event model IS the backlog. Detailed Jira tickets are unnecessary when every slice already captures the interface, command, events, read models, and GWT acceptance criteria.
+
+Slices follow a simple status progression: **planned → in progress → done**. Pick the next planned slice, implement it, verify the GWT tests pass, mark it done. The model tracks what's been built and what remains.
+
+Because slices are independent — **events are the only contract between them** — multiple developers or agents can work on different slices in parallel without conflicts. Adding more people to the project makes it faster, not slower.
+
+## AI Agent Integration
+
+Event models are the perfect input for AI code generation. Each slice is **exactly the right level of abstraction** for an AI agent — small enough to fit in context, specific enough to produce correct code, and testable via GWT.
+
+The combination works like this:
+- **Static code generation** handles the repeatable boilerplate — every slice produces the same predictable structure (route, command handler, event, projection, test file)
+- **AI agents** handle the business logic — the part that varies between slices, guided by GWT tests as guardrails
+- **GWT tests are executable specifications** — defined collaboratively with business experts, they become the acceptance criteria that verify the agent built what was specified
+
+Each slice type (state change, state view, automation) follows a known pattern. Agents don't need to invent architecture — they fill in the business-specific details within a well-defined structure.
+
 ## Key Invariants
 
 - **Events are immutable facts** in past tense — never update, only append
@@ -356,7 +401,7 @@ Event models are living documents. When production reveals gaps:
 - **Names are CamelCase** — no spaces, e.g. `PlaceOrder` not `Place Order`
 - **GWT uses concrete data** — real IDs, real numbers, real outcomes
 - **Business language only** — no "DAO persisted" or "saga timed out"
-- **Each slice is independently buildable and testable**
+- **Each slice is independently buildable and testable** — events are the only contract between slices. No slice depends on another slice's internals. This independence enables parallel work by multiple developers or AI agents.
 - **One command per slice** — if there are 2 commands, break it into 2 slices
 - **Every event connects forward** — each event should either feed a read model (projection) or trigger an automation. Events that connect to nothing are dead ends (unless they cross the system boundary outward, e.g. publishing to Kafka for another bounded context).
 - **Read models grow progressively** — a single read model can accumulate fields as more events project into it. Don't invent separate read models per phase when one growing projection captures the domain.
