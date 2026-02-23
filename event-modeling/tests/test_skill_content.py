@@ -1,247 +1,243 @@
-"""Content evaluation: score SKILL.md against key concepts from the event modeling talk.
+"""Outcome evaluation: does the golden model correctly cover the product brief?
 
-Each test checks that SKILL.md covers an essential principle. Run before and after
-improvements to measure progress. Failing tests identify gaps in the skill's guidance.
+These tests verify that applying the event-modeling skill to a product brief produces
+a model with the right structural properties. They evaluate outcomes, not SKILL.md prose.
 """
 
-import re
+import json
+import sys
 from pathlib import Path
 
 import pytest
 
-SKILL_MD = Path(__file__).resolve().parent.parent / "SKILL.md"
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from event_model import EventModel, _parse_element, _parse_fields
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
-def _skill_text() -> str:
-    return SKILL_MD.read_text().lower()
+@pytest.fixture
+def model():
+    data = json.loads((FIXTURES / "todo_app_model.json").read_text())
+    return EventModel.model_validate(data)
 
 
-def _has_any(text: str, terms: list[str]) -> bool:
-    """Return True if any of the terms appear in the text."""
-    return any(term.lower() in text for term in terms)
+@pytest.fixture
+def brief():
+    return (FIXTURES / "todo_app_brief.md").read_text()
 
 
-def _has_all(text: str, terms: list[str]) -> bool:
-    """Return True if ALL terms appear in the text."""
-    return all(term.lower() in text for term in terms)
+@pytest.fixture
+def all_slices(model):
+    return [sl for ch in model.chapters for sl in ch.slices]
 
 
 # ---------------------------------------------------------------------------
-# Concept 1: Information Completeness
+# Requirement coverage: every brief requirement maps to a slice
+# ---------------------------------------------------------------------------
+
+class TestRequirementCoverage:
+    """Each requirement in the brief should be covered by at least one slice."""
+
+    REQUIREMENTS = [
+        ("create a named todo list", ["CreateList"]),
+        ("add items to a list", ["AddItem"]),
+        ("mark an item as done", ["CompleteItem"]),
+        ("delete an item", ["DeleteItem"]),
+        ("delete an entire todo list", ["DeleteList"]),
+        ("view all their todo lists", ["TodoLists"]),
+        ("view a single list with all its items", ["ListDetail"]),
+        ("automatically marked as completed", ["CompleteList", "OnAllItemsDone"]),
+        ("external calendar system can push", ["ExternalTaskScheduled"]),
+    ]
+
+    @pytest.mark.parametrize("description,expected_elements", REQUIREMENTS,
+                             ids=[r[0][:40] for r in REQUIREMENTS])
+    def test_requirement_has_slice(self, all_slices, description, expected_elements):
+        all_elements = set()
+        for sl in all_slices:
+            if sl.command:
+                all_elements.add(_parse_element(sl.command)[0])
+            for ev in sl.events:
+                all_elements.add(_parse_element(ev)[0])
+            for rm in sl.read_models:
+                all_elements.add(_parse_element(rm)[0])
+            if sl.automation:
+                all_elements.add(sl.automation)
+            if sl.external_event:
+                all_elements.add(_parse_element(sl.external_event)[0])
+
+        found = [e for e in expected_elements if e in all_elements]
+        assert found, (
+            f"Requirement '{description}' not covered — "
+            f"expected one of {expected_elements} in model elements"
+        )
+
+
+# ---------------------------------------------------------------------------
+# API coverage: every endpoint from the brief appears in the model
+# ---------------------------------------------------------------------------
+
+class TestApiCoverage:
+    ENDPOINTS = [
+        "POST /v1/lists",
+        "POST /v1/lists/{listId}/items",
+        "PATCH /v1/lists/{listId}/items/{itemId}",
+        "DELETE /v1/lists/{listId}/items/{itemId}",
+        "DELETE /v1/lists/{listId}",
+        "GET /v1/lists",
+        "GET /v1/lists/{listId}",
+    ]
+
+    @pytest.mark.parametrize("endpoint", ENDPOINTS)
+    def test_endpoint_has_slice(self, all_slices, endpoint):
+        uis = [sl.ui for sl in all_slices if sl.ui]
+        assert endpoint in uis, f"Endpoint '{endpoint}' not found in any slice ui field"
+
+
+# ---------------------------------------------------------------------------
+# Business rules: each rule is captured as a GWT test with an error scenario
+# ---------------------------------------------------------------------------
+
+class TestBusinessRuleCoverage:
+
+    def _all_tests(self, all_slices):
+        return [t for sl in all_slices for t in sl.tests]
+
+    def test_max_items_rule(self, all_slices):
+        tests = self._all_tests(all_slices)
+        error_tests = [t for t in tests
+                       if any("error" in clause.lower() or "maximum" in clause.lower()
+                              for clause in t.then)]
+        max_item_tests = [t for t in error_tests if "item" in t.name.lower()]
+        assert max_item_tests, "No GWT test enforces the max-3-items business rule"
+
+    def test_duplicate_name_rule(self, all_slices):
+        tests = self._all_tests(all_slices)
+        dup_tests = [t for t in tests if "duplicate" in t.name.lower()
+                     or "already exists" in " ".join(t.then).lower()]
+        assert dup_tests, "No GWT test enforces the unique-list-name business rule"
+
+
+# ---------------------------------------------------------------------------
+# Structural quality
+# ---------------------------------------------------------------------------
+
+class TestStructuralQuality:
+
+    def test_every_slice_has_a_name(self, all_slices):
+        unnamed = [i for i, sl in enumerate(all_slices) if not sl.name]
+        assert not unnamed, f"Slices at positions {unnamed} are missing names"
+
+    def test_one_command_per_slice(self, all_slices):
+        for sl in all_slices:
+            commands = [sl.command] if sl.command else []
+            assert len(commands) <= 1, f"Slice '{sl.name}' has multiple commands"
+
+    def test_state_change_slices_have_events(self, all_slices):
+        for sl in all_slices:
+            if sl.command:
+                assert sl.events, f"Slice '{sl.name}' has a command but no events"
+
+    def test_view_slices_have_no_commands(self, all_slices):
+        for sl in all_slices:
+            if not sl.command and not sl.events and sl.read_models:
+                assert sl.ui, f"View slice '{sl.name}' has read models but no ui"
+
+    def test_automation_slices_have_triggers(self, all_slices):
+        for sl in all_slices:
+            if sl.automation:
+                assert sl.trigger, f"Automation '{sl.automation}' has no trigger"
+
+
+# ---------------------------------------------------------------------------
+# Slice type coverage: model uses all four slice types when appropriate
+# ---------------------------------------------------------------------------
+
+class TestSliceTypeCoverage:
+
+    def test_has_state_change_slices(self, all_slices):
+        state_changes = [sl for sl in all_slices if sl.ui and sl.command and sl.events]
+        assert len(state_changes) >= 1
+
+    def test_has_view_only_slices(self, all_slices):
+        views = [sl for sl in all_slices
+                 if sl.ui and sl.read_models and not sl.command and not sl.events]
+        assert len(views) >= 1
+
+    def test_has_automation_slices(self, all_slices):
+        automations = [sl for sl in all_slices if sl.automation]
+        assert len(automations) >= 1
+
+    def test_has_external_event_slices(self, all_slices):
+        externals = [sl for sl in all_slices if sl.external_event]
+        assert len(externals) >= 1
+
+
+# ---------------------------------------------------------------------------
+# Information completeness: read model fields trace to event fields
 # ---------------------------------------------------------------------------
 
 class TestInformationCompleteness:
-    """Every read model field must trace to an event field. Missing data blocks work."""
 
-    def test_mentions_information_completeness(self):
-        text = _skill_text()
-        assert _has_any(text, [
-            "information complete",
-            "information completeness",
-        ]), "SKILL.md should explain information completeness as a principle"
-
-    def test_explains_blocked_work(self):
-        text = _skill_text()
-        assert _has_any(text, [
-            "cannot start implementation",
-            "blocked",
-            "cannot start with",
-            "must trace",
-        ]), "SKILL.md should explain that missing information blocks implementation"
-
-
-# ---------------------------------------------------------------------------
-# Concept 2: Slice Independence
-# ---------------------------------------------------------------------------
-
-class TestSliceIndependence:
-    """Slices are independent. Events are the only contract between them."""
-
-    def test_mentions_independence(self):
-        text = _skill_text()
-        assert _has_any(text, [
-            "independent",
-            "independently",
-        ]), "SKILL.md should state that slices are independent"
-
-    def test_events_as_contract(self):
-        text = _skill_text()
-        assert _has_any(text, [
-            "only contract",
-            "only coupling",
-            "only dependency",
-            "events are the only",
-            "sole contract",
-        ]), "SKILL.md should explain events are the only contract between slices"
+    def test_read_model_fields_sourced_from_events(self, all_slices):
+        for sl in all_slices:
+            if not sl.read_models or not sl.events:
+                continue
+            event_fields = set()
+            for ev in sl.events:
+                event_fields |= _parse_fields(ev)
+            for rm in sl.read_models:
+                rm_fields = _parse_fields(rm)
+                if rm_fields:
+                    overlap = rm_fields & event_fields
+                    rm_name = _parse_element(rm)[0]
+                    assert overlap, (
+                        f"Read model '{rm_name}' in '{sl.name}' shares no fields "
+                        f"with events — not information complete"
+                    )
 
 
 # ---------------------------------------------------------------------------
-# Concept 3: The WHY — Problem Statement
+# GWT quality: tests use concrete data, not schemas
 # ---------------------------------------------------------------------------
 
-class TestProblemStatement:
-    """Coupling and feature explosion as the problem event modeling solves."""
+class TestGwtQuality:
 
-    def test_mentions_coupling(self):
-        text = _skill_text()
-        assert _has_any(text, [
-            "coupling",
-            "coupled",
-        ]), "SKILL.md should explain coupling as a root problem"
+    def test_state_change_slices_have_tests(self, all_slices):
+        untested = []
+        for sl in all_slices:
+            if sl.command and sl.events and not sl.tests:
+                untested.append(sl.name)
+        assert not untested, f"State-change slices without tests: {untested}"
 
-    def test_mentions_feature_explosion_or_communication(self):
-        text = _skill_text()
-        assert _has_any(text, [
-            "feature explosion",
-            "bad communication",
-            "wrong assumptions",
-            "misunderstood requirements",
-            "build the wrong thing",
-        ]), "SKILL.md should explain the root cause (communication/requirements)"
-
-
-# ---------------------------------------------------------------------------
-# Concept 4: The V Pattern
-# ---------------------------------------------------------------------------
-
-class TestVPattern:
-    """V-shaped information flow: read model → command → event → read model."""
-
-    def test_mentions_v_pattern(self):
-        text = _skill_text()
-        assert _has_any(text, [
-            "v pattern",
-            "v-shape",
-            "v shape",
-            '"v"',
-        ]), "SKILL.md should describe the V pattern of information flow"
+    def test_all_gwt_have_concrete_data(self, all_slices):
+        for sl in all_slices:
+            for t in sl.tests:
+                all_clauses = t.given + [t.when] + t.then
+                has_values = any("=" in c for c in all_clauses)
+                assert has_values, (
+                    f"Test '{t.name}' in '{sl.name}' uses schema placeholders "
+                    f"instead of concrete data"
+                )
 
 
 # ---------------------------------------------------------------------------
-# Concept 5: AI Agent Integration
+# Automation wiring: triggers reference events that exist elsewhere
 # ---------------------------------------------------------------------------
 
-class TestAiIntegration:
-    """Slices are the right abstraction level for AI agents."""
+class TestAutomationWiring:
 
-    def test_mentions_ai_agents(self):
-        text = _skill_text()
-        assert _has_any(text, [
-            "ai agent",
-            "ai agents",
-            "code generation",
-            "coding agent",
-        ]), "SKILL.md should mention AI agents working with event models"
+    def test_trigger_references_existing_event(self, all_slices):
+        all_event_names = set()
+        for sl in all_slices:
+            for ev in sl.events:
+                all_event_names.add(_parse_element(ev)[0])
 
-    def test_mentions_abstraction_level(self):
-        text = _skill_text()
-        assert _has_any(text, [
-            "right abstraction",
-            "right level",
-            "perfect size",
-            "natural unit",
-        ]), "SKILL.md should explain why slices are the right abstraction for AI"
-
-
-# ---------------------------------------------------------------------------
-# Concept 6: Screens / UI Mockups
-# ---------------------------------------------------------------------------
-
-class TestScreenMockups:
-    """Sketching UIs is part of the modeling process."""
-
-    def test_mentions_screen_sketching(self):
-        text = _skill_text()
-        assert _has_any(text, [
-            "sketch",
-            "wireframe",
-            "mockup",
-            "screen",
-            "ui mockup",
-        ]), "SKILL.md should mention sketching screens as part of modeling"
-
-
-# ---------------------------------------------------------------------------
-# Concept 7: Business Rules as Guardrails
-# ---------------------------------------------------------------------------
-
-class TestBusinessRulesAsGuardrails:
-    """GWT tests as executable specs and guardrails for AI and developers."""
-
-    def test_gwt_as_executable_spec(self):
-        text = _skill_text()
-        assert _has_any(text, [
-            "executable spec",
-            "executable specification",
-            "the tests are the specification",
-            "tests are the spec",
-        ]), "SKILL.md should describe GWT tests as executable specifications"
-
-    def test_gwt_as_guardrails(self):
-        text = _skill_text()
-        assert _has_any(text, [
-            "guardrail",
-            "guard rail",
-            "acceptance criteria",
-        ]), "SKILL.md should describe GWT tests as guardrails"
-
-
-# ---------------------------------------------------------------------------
-# Concept 8: Collaborative Process
-# ---------------------------------------------------------------------------
-
-class TestCollaborativeProcess:
-    """Working with business experts, not solo engineering."""
-
-    def test_mentions_collaboration(self):
-        text = _skill_text()
-        assert _has_any(text, [
-            "business expert",
-            "domain expert",
-            "collaborat",
-            "together with",
-            "shared language",
-        ]), "SKILL.md should emphasize collaborative modeling with domain experts"
-
-
-# ---------------------------------------------------------------------------
-# Concept 9: Slices as Work Items
-# ---------------------------------------------------------------------------
-
-class TestSlicesAsWorkItems:
-    """Slices map to implementable work items with status tracking."""
-
-    def test_mentions_work_items(self):
-        text = _skill_text()
-        assert _has_any(text, [
-            "work item",
-            "backlog",
-            "ticket",
-            "task",
-        ]), "SKILL.md should describe slices as work items"
-
-    def test_mentions_status_tracking(self):
-        text = _skill_text()
-        assert _has_any(text, [
-            "planned",
-            "in progress",
-            "status",
-        ]), "SKILL.md should mention slice status tracking"
-
-
-# ---------------------------------------------------------------------------
-# Concept 10: Repeatable Code Patterns
-# ---------------------------------------------------------------------------
-
-class TestRepeatablePatterns:
-    """Slices produce predictable, boring, repeatable code structure."""
-
-    def test_mentions_repeatable_patterns(self):
-        text = _skill_text()
-        assert _has_any(text, [
-            "repeatable",
-            "repeating pattern",
-            "same structure",
-            "predictable",
-            "boring",
-        ]), "SKILL.md should explain that slices produce repeatable code patterns"
+        for sl in all_slices:
+            if sl.trigger:
+                trigger_name = _parse_element(sl.trigger)[0]
+                assert trigger_name in all_event_names, (
+                    f"Automation '{sl.automation}' trigger '{trigger_name}' "
+                    f"doesn't match any event in the model"
+                )
