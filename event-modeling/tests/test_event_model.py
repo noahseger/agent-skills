@@ -368,6 +368,61 @@ class TestInvalidModel:
         with pytest.raises(ValidationError, match="no provenance.*mystery"):
             EventModel.model_validate(data)
 
+    def test_event_provenance_strict_with_reads(self):
+        """Reads doesn't grant a free pass — untraced event fields are errors."""
+        data = {
+            "name": "Test",
+            "actors": [{"id": "u", "name": "User", "type": "user"},
+                       {"id": "s", "name": "Sys", "type": "system"}],
+            "aggregates": [{"id": "a", "name": "A"}],
+            "chapters": [{"name": "Ch", "slices": [
+                {
+                    "actor": "u", "aggregate": "a",
+                    "ui": "POST /items",
+                    "command": "AddItem(itemId, name)",
+                    "events": ["ItemAdded(itemId, name)"],
+                    "read_models": ["Inventory(itemId, stock)"],
+                },
+                {
+                    "actor": "s", "aggregate": "a",
+                    "automation": "OnItemAdded",
+                    "trigger": "ItemAdded(itemId, name)",
+                    "reads": ["Inventory"],
+                    "command": "EnrichItem(itemId, name, stock)",
+                    "events": ["ItemEnriched(itemId, name, stock, mystery)"],
+                },
+            ]}],
+        }
+        with pytest.raises(ValidationError, match="no provenance.*mystery"):
+            EventModel.model_validate(data)
+
+    def test_event_provenance_passes_when_fields_in_reads(self):
+        """Event fields that trace to consumed read model fields are valid."""
+        data = {
+            "name": "Test",
+            "actors": [{"id": "u", "name": "User", "type": "user"},
+                       {"id": "s", "name": "Sys", "type": "system"}],
+            "aggregates": [{"id": "a", "name": "A"}],
+            "chapters": [{"name": "Ch", "slices": [
+                {
+                    "actor": "u", "aggregate": "a",
+                    "ui": "POST /items",
+                    "command": "AddItem(itemId, name)",
+                    "events": ["ItemAdded(itemId, name)"],
+                    "read_models": ["Inventory(itemId, stock)"],
+                },
+                {
+                    "actor": "s", "aggregate": "a",
+                    "automation": "OnItemAdded",
+                    "trigger": "ItemAdded(itemId, name)",
+                    "reads": ["Inventory"],
+                    "command": "EnrichItem(itemId, name, stock)",
+                    "events": ["ItemEnriched(itemId, name, stock)"],
+                },
+            ]}],
+        }
+        EventModel.model_validate(data)
+
     def test_empty_chapter_rejected(self):
         data = {
             "name": "Test",

@@ -224,18 +224,12 @@ class EventModel(BaseModel):
                             f"{loc} reads unknown read model '{consumed_name}' — "
                             f"it must be declared in some slice's read_models"
                         )
-                # Provenance: two checks with different strictness.
-                #
-                # 1. Event connectivity — at least one event field must trace
-                #    to an input (command, trigger, external_event, reads, or
                 # Provenance checks:
                 #
-                # 1. Event strict — every event field must trace to an input
-                #    by name (command, trigger, external_event, reads).
-                #    Untraced fields are allowed ONLY when the slice declares
-                #    'reads' (handler had data access for transformations).
-                #    Untraced fields without reads → error.
-                #    Untraced fields with reads → warning (surfaced, not fatal).
+                # 1. Event strict — every event field must trace by name to
+                #    an input schema (command, trigger, external_event, reads).
+                #    Untraced fields → error.  Commands should declare their
+                #    full interface so every output field has a declared source.
                 #
                 # 2. Automation command strictness — every command argument must
                 #    trace to a non-command source (trigger, external_event,
@@ -264,29 +258,18 @@ class EventModel(BaseModel):
                         untraced = ev_fields - input_fields
                         if untraced:
                             ev_name = _parse_element(ev)[0]
-                            if not sl.reads:
-                                # No reads → untraced fields have no
-                                # declared data source.  Hard error.
-                                errors.append(
-                                    f"Event '{ev_name}' in {loc} has "
-                                    f"fields with no provenance: "
-                                    f"{', '.join(sorted(untraced))} — "
-                                    f"add 'reads' to declare the data "
-                                    f"source, or trace fields to "
-                                    f"command/trigger/external event"
-                                )
-                            else:
-                                reads_names = ", ".join(sl.reads)
-                                warnings.append(
-                                    f"Event '{ev_name}' in {loc}: "
-                                    f"{len(untraced)} field(s) derived "
-                                    f"from {reads_names} (not name-"
-                                    f"traced): "
-                                    f"{', '.join(sorted(untraced))}"
-                                )
+                            errors.append(
+                                f"Event '{ev_name}' in {loc} has "
+                                f"fields with no provenance: "
+                                f"{', '.join(sorted(untraced))} — "
+                                f"add these fields to the command, "
+                                f"trigger, external event, or a "
+                                f"consumed read model in 'reads'"
+                            )
                 # Automation command: every arg must trace to a non-command
                 # source.  The command handler receives data from the trigger,
-                # external event, or consumed read models — not from itself.
+                # external event, consumed read models, or its own events
+                # (output fields the handler computes).
                 if sl.automation and sl.command:
                     non_cmd_fields: set[str] = set()
                     non_cmd_fields |= _trigger_fields_union(sl)
@@ -294,6 +277,12 @@ class EventModel(BaseModel):
                         non_cmd_fields |= _parse_fields(sl.external_event)
                     non_cmd_fields |= reads_fields
                     non_cmd_fields |= output_fields
+                    # Event fields are valid outputs — the handler computes
+                    # them.  With projections as separate State View slices,
+                    # output_fields from read_models may be empty, but the
+                    # command still declares its full interface.
+                    for ev in sl.events:
+                        non_cmd_fields |= _parse_fields(ev)
                     cmd_fields = _parse_fields(sl.command)
                     cmd_untraced = cmd_fields - non_cmd_fields
                     if cmd_untraced and non_cmd_fields:
@@ -341,6 +330,7 @@ _IRREGULAR_PAST_WORDS = frozenset({
     "got", "forgot", "begot", "shot",           # -ot irregulars
     "sent", "went", "spent", "burnt", "meant",  # -nt irregulars
     "bent", "lent", "rent",
+    "built", "rebuilt",                          # -ilt irregulars
 })
 
 
