@@ -268,7 +268,8 @@ class EventModel(BaseModel):
                             )
                 # Automation command: every arg must trace to a non-command
                 # source.  The command handler receives data from the trigger,
-                # external event, or consumed read models — not from itself.
+                # external event, consumed read models, or its own events
+                # (output fields the handler computes).
                 if sl.automation and sl.command:
                     non_cmd_fields: set[str] = set()
                     non_cmd_fields |= _trigger_fields_union(sl)
@@ -276,6 +277,12 @@ class EventModel(BaseModel):
                         non_cmd_fields |= _parse_fields(sl.external_event)
                     non_cmd_fields |= reads_fields
                     non_cmd_fields |= output_fields
+                    # Event fields are valid outputs — the handler computes
+                    # them.  With projections as separate State View slices,
+                    # output_fields from read_models may be empty, but the
+                    # command still declares its full interface.
+                    for ev in sl.events:
+                        non_cmd_fields |= _parse_fields(ev)
                     cmd_fields = _parse_fields(sl.command)
                     cmd_untraced = cmd_fields - non_cmd_fields
                     if cmd_untraced and non_cmd_fields:
@@ -323,6 +330,7 @@ _IRREGULAR_PAST_WORDS = frozenset({
     "got", "forgot", "begot", "shot",           # -ot irregulars
     "sent", "went", "spent", "burnt", "meant",  # -nt irregulars
     "bent", "lent", "rent",
+    "built", "rebuilt",                          # -ilt irregulars
 })
 
 

@@ -1,0 +1,382 @@
+{
+  "name": "Pocket Chess — ChessCom Pipeline",
+  "description": "Every Chess.com game flows from game completion through cold storage on GCS, then syncs to a local 2TB NVMe drive with queryable indexes. Three chapters: cold storage aggregation, local sync with encoding, and incremental updates.",
+  "source_base": "https://github.com/noahseger/pocket-chess/blob/main",
+  "actors": [
+    { "id": "game_service", "name": "Game Service", "type": "external" },
+    { "id": "operator", "name": "Operator", "type": "user" },
+    { "id": "pipeline", "name": "History Pipeline", "type": "system" },
+    { "id": "encoder", "name": "Encoding Pipeline", "type": "system" },
+    { "id": "indexer", "name": "Index Builder", "type": "system" },
+    { "id": "updater", "name": "Update Detector", "type": "system" }
+  ],
+  "aggregates": [
+    { "id": "period", "name": "Period" },
+    { "id": "month", "name": "Month" },
+    { "id": "positions", "name": "Positions" }
+  ],
+  "chapters": [
+    {
+      "name": "ChessCom Cold Storage",
+      "slices": [
+        {
+          "name": "Receive Game",
+          "actor": "game_service",
+          "aggregate": "period",
+          "external_event": "ExternalGameCompleted(gameKey, endedAt, startedAt, variant, result, timeClass, ratingClass, origin, moveText, moveTimestamps, finalFen, whitePlayerKey, whitePlayerType, whiteRating, whiteResult, whiteRatingDiff, whiteClient, blackPlayerKey, blackPlayerType, blackRating, blackResult, blackRatingDiff, blackClient, timeControlBaseMs, timeControlIncrementMs, ecoCode, ecoFamilyId, lastBookPly, tournamentId, tournamentType, legacyId, rematchOf, bughouseSecondGameKey, vsComputerBotId, vsCoachId)",
+          "command": "BufferGame(period, gameKey, endedAt, startedAt, variant, result, timeClass, ratingClass, origin, moveText, moveTimestamps, finalFen, whitePlayerKey, whitePlayerType, whiteRating, whiteResult, whiteRatingDiff, whiteClient, blackPlayerKey, blackPlayerType, blackRating, blackResult, blackRatingDiff, blackClient, timeControlBaseMs, timeControlIncrementMs, ecoCode, ecoFamilyId, lastBookPly, tournamentId, tournamentType, legacyId, rematchOf, bughouseSecondGameKey, vsComputerBotId, vsCoachId)",
+          "events": ["GameBuffered(period, gameKey, endedAt, startedAt, variant, result, timeClass, ratingClass, origin, moveText, moveTimestamps, finalFen, whitePlayerKey, whitePlayerType, whiteRating, whiteResult, whiteRatingDiff, whiteClient, blackPlayerKey, blackPlayerType, blackRating, blackResult, blackRatingDiff, blackClient, timeControlBaseMs, timeControlIncrementMs, ecoCode, ecoFamilyId, lastBookPly, tournamentId, tournamentType, legacyId, rematchOf, bughouseSecondGameKey, vsComputerBotId, vsCoachId)"],
+          "tests": [
+            {
+              "name": "Completed game buffered into hourly period",
+              "given": ["ExternalGameCompleted(gameKey=g-abc-123, endedAt=2024-01-15T10:32:00Z, startedAt=2024-01-15T10:25:00Z, variant=chess, result=white_won, timeClass=blitz, ratingClass=2500, origin=live, moveText=e4e5Nf3Nc6Bb5, moveTimestamps=[180,178,175,172,168], finalFen=r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R, whitePlayerKey=uuid-magnus, whitePlayerType=human, whiteRating=3200, whiteResult=win, whiteRatingDiff=3, whiteClient=web, blackPlayerKey=uuid-hikaru, blackPlayerType=human, blackRating=3150, blackResult=lose, blackRatingDiff=-3, blackClient=ios, timeControlBaseMs=180000, timeControlIncrementMs=0, ecoCode=C65, ecoFamilyId=ruy_lopez, lastBookPly=4, tournamentId=null, tournamentType=null, legacyId=12345678, rematchOf=null, bughouseSecondGameKey=null, vsComputerBotId=null, vsCoachId=null)"],
+              "when": "BufferGame(period=2024-01-15-10, gameKey=g-abc-123, endedAt=2024-01-15T10:32:00Z, startedAt=2024-01-15T10:25:00Z, variant=chess, result=white_won, timeClass=blitz, ratingClass=2500, origin=live, moveText=e4e5Nf3Nc6Bb5, moveTimestamps=[180,178,175,172,168], finalFen=r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R, whitePlayerKey=uuid-magnus, whitePlayerType=human, whiteRating=3200, whiteResult=win, whiteRatingDiff=3, whiteClient=web, blackPlayerKey=uuid-hikaru, blackPlayerType=human, blackRating=3150, blackResult=lose, blackRatingDiff=-3, blackClient=ios, timeControlBaseMs=180000, timeControlIncrementMs=0, ecoCode=C65, ecoFamilyId=ruy_lopez, lastBookPly=4, tournamentId=null, tournamentType=null, legacyId=12345678, rematchOf=null, bughouseSecondGameKey=null, vsComputerBotId=null, vsCoachId=null)",
+              "then": ["GameBuffered(period=2024-01-15-10, gameKey=g-abc-123, endedAt=2024-01-15T10:32:00Z, startedAt=2024-01-15T10:25:00Z, variant=chess, result=white_won, timeClass=blitz, ratingClass=2500, origin=live, moveText=e4e5Nf3Nc6Bb5, moveTimestamps=[180,178,175,172,168], finalFen=r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R, whitePlayerKey=uuid-magnus, whitePlayerType=human, whiteRating=3200, whiteResult=win, whiteRatingDiff=3, whiteClient=web, blackPlayerKey=uuid-hikaru, blackPlayerType=human, blackRating=3150, blackResult=lose, blackRatingDiff=-3, blackClient=ios, timeControlBaseMs=180000, timeControlIncrementMs=0, ecoCode=C65, ecoFamilyId=ruy_lopez, lastBookPly=4, tournamentId=null, tournamentType=null, legacyId=12345678, rematchOf=null, bughouseSecondGameKey=null, vsComputerBotId=null, vsCoachId=null)"]
+            },
+            {
+              "name": "Bughouse game filtered out",
+              "given": ["ExternalGameCompleted(gameKey=g-bug-1, endedAt=2024-01-15T10:45:00Z, startedAt=2024-01-15T10:40:00Z, variant=bughouse, result=white_won, timeClass=bullet, ratingClass=1500, origin=live, moveText=e4, moveTimestamps=[60], finalFen=rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR, whitePlayerKey=uuid-p1, whitePlayerType=human, whiteRating=1500, whiteResult=win, whiteRatingDiff=5, whiteClient=web, blackPlayerKey=uuid-p2, blackPlayerType=human, blackRating=1500, blackResult=lose, blackRatingDiff=-5, blackClient=web, timeControlBaseMs=60000, timeControlIncrementMs=0, ecoCode=B00, ecoFamilyId=kings_pawn, lastBookPly=0, tournamentId=null, tournamentType=null, legacyId=99999999, rematchOf=null, bughouseSecondGameKey=g-bug-2, vsComputerBotId=null, vsCoachId=null)"],
+              "when": "BufferGame(period=2024-01-15-10, gameKey=g-bug-1, endedAt=2024-01-15T10:45:00Z, startedAt=2024-01-15T10:40:00Z, variant=bughouse, result=white_won, timeClass=bullet, ratingClass=1500, origin=live, moveText=e4, moveTimestamps=[60], finalFen=rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR, whitePlayerKey=uuid-p1, whitePlayerType=human, whiteRating=1500, whiteResult=win, whiteRatingDiff=5, whiteClient=web, blackPlayerKey=uuid-p2, blackPlayerType=human, blackRating=1500, blackResult=lose, blackRatingDiff=-5, blackClient=web, timeControlBaseMs=60000, timeControlIncrementMs=0, ecoCode=B00, ecoFamilyId=kings_pawn, lastBookPly=0, tournamentId=null, tournamentType=null, legacyId=99999999, rematchOf=null, bughouseSecondGameKey=g-bug-2, vsComputerBotId=null, vsCoachId=null)",
+              "then": ["Error: unsupported variant bughouse"]
+            }
+          ]
+        },
+        {
+          "name": "Project Buffered Games",
+          "actor": "pipeline",
+          "aggregate": "period",
+          "trigger": "GameBuffered(period, gameKey, endedAt, startedAt, variant, result, timeClass, ratingClass, origin, moveText, moveTimestamps, finalFen, whitePlayerKey, whitePlayerType, whiteRating, whiteResult, whiteRatingDiff, whiteClient, blackPlayerKey, blackPlayerType, blackRating, blackResult, blackRatingDiff, blackClient, timeControlBaseMs, timeControlIncrementMs, ecoCode, ecoFamilyId, lastBookPly, tournamentId, tournamentType, legacyId, rematchOf, bughouseSecondGameKey, vsComputerBotId, vsCoachId)",
+          "read_models": ["BufferedGames*(*period, gameKey, endedAt, startedAt, variant, result, timeClass, ratingClass, origin, moveText, moveTimestamps, finalFen, whitePlayerKey, whitePlayerType, whiteRating, whiteResult, whiteRatingDiff, whiteClient, blackPlayerKey, blackPlayerType, blackRating, blackResult, blackRatingDiff, blackClient, timeControlBaseMs, timeControlIncrementMs, ecoCode, ecoFamilyId, lastBookPly, tournamentId, tournamentType, legacyId, rematchOf, bughouseSecondGameKey, vsComputerBotId, vsCoachId)"],
+          "tests": [
+            {
+              "name": "Game appears in period partition after buffering",
+              "given": [
+                "GameBuffered(period=2024-01-15-10, gameKey=g-abc-123, endedAt=2024-01-15T10:32:00Z, startedAt=2024-01-15T10:25:00Z, variant=chess, result=white_won, timeClass=blitz, ratingClass=2500, origin=live, moveText=e4e5Nf3Nc6Bb5, moveTimestamps=[180,178,175,172,168], finalFen=r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R, whitePlayerKey=uuid-magnus, whitePlayerType=human, whiteRating=3200, whiteResult=win, whiteRatingDiff=3, whiteClient=web, blackPlayerKey=uuid-hikaru, blackPlayerType=human, blackRating=3150, blackResult=lose, blackRatingDiff=-3, blackClient=ios, timeControlBaseMs=180000, timeControlIncrementMs=0, ecoCode=C65, ecoFamilyId=ruy_lopez, lastBookPly=4, tournamentId=null, tournamentType=null, legacyId=12345678, rematchOf=null, bughouseSecondGameKey=null, vsComputerBotId=null, vsCoachId=null)"
+              ],
+              "when": "",
+              "then": ["BufferedGames(period=2024-01-15-10, gameKey=g-abc-123, endedAt=2024-01-15T10:32:00Z, startedAt=2024-01-15T10:25:00Z, variant=chess, result=white_won, timeClass=blitz, ratingClass=2500, origin=live, moveText=e4e5Nf3Nc6Bb5, moveTimestamps=[180,178,175,172,168], finalFen=r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R, whitePlayerKey=uuid-magnus, whitePlayerType=human, whiteRating=3200, whiteResult=win, whiteRatingDiff=3, whiteClient=web, blackPlayerKey=uuid-hikaru, blackPlayerType=human, blackRating=3150, blackResult=lose, blackRatingDiff=-3, blackClient=ios, timeControlBaseMs=180000, timeControlIncrementMs=0, ecoCode=C65, ecoFamilyId=ruy_lopez, lastBookPly=4, tournamentId=null, tournamentType=null, legacyId=12345678, rematchOf=null, bughouseSecondGameKey=null, vsComputerBotId=null, vsCoachId=null)"]
+            }
+          ]
+        },
+        {
+          "name": "Export Period",
+          "actor": "pipeline",
+          "aggregate": "period",
+          "automation": "PeriodExporter",
+          "trigger": "GameBuffered(period, gameKey, endedAt, startedAt, variant, result, timeClass, ratingClass, origin, moveText, moveTimestamps, finalFen, whitePlayerKey, whitePlayerType, whiteRating, whiteResult, whiteRatingDiff, whiteClient, blackPlayerKey, blackPlayerType, blackRating, blackResult, blackRatingDiff, blackClient, timeControlBaseMs, timeControlIncrementMs, ecoCode, ecoFamilyId, lastBookPly, tournamentId, tournamentType, legacyId, rematchOf, bughouseSecondGameKey, vsComputerBotId, vsCoachId)",
+          "reads": ["BufferedGames"],
+          "command": "ExportPeriod(period, gameCount, gcsPath, gameKey, endedAt, startedAt, variant, result, timeClass, ratingClass, origin, moveText, moveTimestamps, finalFen, whitePlayerKey, whitePlayerType, whiteRating, whiteResult, whiteRatingDiff, whiteClient, blackPlayerKey, blackPlayerType, blackRating, blackResult, blackRatingDiff, blackClient, timeControlBaseMs, timeControlIncrementMs, ecoCode, ecoFamilyId, lastBookPly, tournamentId, tournamentType, legacyId, rematchOf, bughouseSecondGameKey, vsComputerBotId, vsCoachId)",
+          "events": ["PeriodExported(period, gameCount, gcsPath, gameKey, endedAt, startedAt, variant, result, timeClass, ratingClass, origin, moveText, moveTimestamps, finalFen, whitePlayerKey, whitePlayerType, whiteRating, whiteResult, whiteRatingDiff, whiteClient, blackPlayerKey, blackPlayerType, blackRating, blackResult, blackRatingDiff, blackClient, timeControlBaseMs, timeControlIncrementMs, ecoCode, ecoFamilyId, lastBookPly, tournamentId, tournamentType, legacyId, rematchOf, bughouseSecondGameKey, vsComputerBotId, vsCoachId)"],
+          "tests": [
+            {
+              "name": "Mature period exported to GCS as hive-partitioned parquet",
+              "given": [
+                "GameBuffered(period=2024-01-15-10, gameKey=g-abc-123, endedAt=2024-01-15T10:32:00Z, startedAt=2024-01-15T10:25:00Z, variant=chess, result=white_won, timeClass=blitz, ratingClass=2500, origin=live, moveText=e4e5Nf3Nc6Bb5, moveTimestamps=[180,178,175,172,168], finalFen=r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R, whitePlayerKey=uuid-magnus, whitePlayerType=human, whiteRating=3200, whiteResult=win, whiteRatingDiff=3, whiteClient=web, blackPlayerKey=uuid-hikaru, blackPlayerType=human, blackRating=3150, blackResult=lose, blackRatingDiff=-3, blackClient=ios, timeControlBaseMs=180000, timeControlIncrementMs=0, ecoCode=C65, ecoFamilyId=ruy_lopez, lastBookPly=4, tournamentId=null, tournamentType=null, legacyId=12345678, rematchOf=null, bughouseSecondGameKey=null, vsComputerBotId=null, vsCoachId=null)",
+                "BufferedGames(period=2024-01-15-10, gameKey=g-abc-123, endedAt=2024-01-15T10:32:00Z, startedAt=2024-01-15T10:25:00Z, variant=chess, result=white_won, timeClass=blitz, ratingClass=2500, origin=live, moveText=e4e5Nf3Nc6Bb5, moveTimestamps=[180,178,175,172,168], finalFen=r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R, whitePlayerKey=uuid-magnus, whitePlayerType=human, whiteRating=3200, whiteResult=win, whiteRatingDiff=3, whiteClient=web, blackPlayerKey=uuid-hikaru, blackPlayerType=human, blackRating=3150, blackResult=lose, blackRatingDiff=-3, blackClient=ios, timeControlBaseMs=180000, timeControlIncrementMs=0, ecoCode=C65, ecoFamilyId=ruy_lopez, lastBookPly=4, tournamentId=null, tournamentType=null, legacyId=12345678, rematchOf=null, bughouseSecondGameKey=null, vsComputerBotId=null, vsCoachId=null)"
+              ],
+              "when": "ExportPeriod(period=2024-01-15-10, gameCount=847321, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=15/hour=10, gameKey=g-abc-123, endedAt=2024-01-15T10:32:00Z, startedAt=2024-01-15T10:25:00Z, variant=chess, result=white_won, timeClass=blitz, ratingClass=2500, origin=live, moveText=e4e5Nf3Nc6Bb5, moveTimestamps=[180,178,175,172,168], finalFen=r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R, whitePlayerKey=uuid-magnus, whitePlayerType=human, whiteRating=3200, whiteResult=win, whiteRatingDiff=3, whiteClient=web, blackPlayerKey=uuid-hikaru, blackPlayerType=human, blackRating=3150, blackResult=lose, blackRatingDiff=-3, blackClient=ios, timeControlBaseMs=180000, timeControlIncrementMs=0, ecoCode=C65, ecoFamilyId=ruy_lopez, lastBookPly=4, tournamentId=null, tournamentType=null, legacyId=12345678, rematchOf=null, bughouseSecondGameKey=null, vsComputerBotId=null, vsCoachId=null)",
+              "then": ["PeriodExported(period=2024-01-15-10, gameCount=847321, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=15/hour=10, gameKey=g-abc-123, endedAt=2024-01-15T10:32:00Z, startedAt=2024-01-15T10:25:00Z, variant=chess, result=white_won, timeClass=blitz, ratingClass=2500, origin=live, moveText=e4e5Nf3Nc6Bb5, moveTimestamps=[180,178,175,172,168], finalFen=r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R, whitePlayerKey=uuid-magnus, whitePlayerType=human, whiteRating=3200, whiteResult=win, whiteRatingDiff=3, whiteClient=web, blackPlayerKey=uuid-hikaru, blackPlayerType=human, blackRating=3150, blackResult=lose, blackRatingDiff=-3, blackClient=ios, timeControlBaseMs=180000, timeControlIncrementMs=0, ecoCode=C65, ecoFamilyId=ruy_lopez, lastBookPly=4, tournamentId=null, tournamentType=null, legacyId=12345678, rematchOf=null, bughouseSecondGameKey=null, vsComputerBotId=null, vsCoachId=null)"]
+            }
+          ]
+        },
+        {
+          "name": "Project Exported Periods",
+          "actor": "pipeline",
+          "aggregate": "period",
+          "trigger": "PeriodExported(period, gameCount, gcsPath, gameKey, endedAt, startedAt, variant, result, timeClass, ratingClass, origin, moveText, moveTimestamps, finalFen, whitePlayerKey, whitePlayerType, whiteRating, whiteResult, whiteRatingDiff, whiteClient, blackPlayerKey, blackPlayerType, blackRating, blackResult, blackRatingDiff, blackClient, timeControlBaseMs, timeControlIncrementMs, ecoCode, ecoFamilyId, lastBookPly, tournamentId, tournamentType, legacyId, rematchOf, bughouseSecondGameKey, vsComputerBotId, vsCoachId)",
+          "read_models": ["ExportedPeriods*(*period, gameCount, gcsPath)"],
+          "tests": [
+            {
+              "name": "Exported period tracked with game count and GCS path",
+              "given": [
+                "PeriodExported(period=2024-01-15-10, gameCount=847321, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=15/hour=10, gameKey=g-abc-123, endedAt=2024-01-15T10:32:00Z, startedAt=2024-01-15T10:25:00Z, variant=chess, result=white_won, timeClass=blitz, ratingClass=2500, origin=live, moveText=e4e5Nf3Nc6Bb5, moveTimestamps=[180,178,175,172,168], finalFen=r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R, whitePlayerKey=uuid-magnus, whitePlayerType=human, whiteRating=3200, whiteResult=win, whiteRatingDiff=3, whiteClient=web, blackPlayerKey=uuid-hikaru, blackPlayerType=human, blackRating=3150, blackResult=lose, blackRatingDiff=-3, blackClient=ios, timeControlBaseMs=180000, timeControlIncrementMs=0, ecoCode=C65, ecoFamilyId=ruy_lopez, lastBookPly=4, tournamentId=null, tournamentType=null, legacyId=12345678, rematchOf=null, bughouseSecondGameKey=null, vsComputerBotId=null, vsCoachId=null)"
+              ],
+              "when": "",
+              "then": ["ExportedPeriods(period=2024-01-15-10, gameCount=847321, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=15/hour=10)"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Local Sync and Index",
+      "slices": [
+        {
+          "name": "Request Month Sync",
+          "actor": "operator",
+          "aggregate": "month",
+          "ui": "CLI: sync --start YYYY-MM --months N",
+          "command": "SyncMonth(month, gcsPrefix, startPeriod, endPeriod)",
+          "events": ["MonthSyncStarted(month, gcsPrefix, startPeriod, endPeriod)"],
+          "tests": [
+            {
+              "name": "Operator requests January 2024 sync",
+              "given": [],
+              "when": "SyncMonth(month=2024-01, gcsPrefix=gs://chess-1-prod-games-history/parquet, startPeriod=2024-01-01-00, endPeriod=2024-01-31-23)",
+              "then": ["MonthSyncStarted(month=2024-01, gcsPrefix=gs://chess-1-prod-games-history/parquet, startPeriod=2024-01-01-00, endPeriod=2024-01-31-23)"]
+            }
+          ]
+        },
+        {
+          "name": "Download Month Periods",
+          "actor": "encoder",
+          "aggregate": "month",
+          "automation": "PeriodDownloader",
+          "trigger": "MonthSyncStarted(month, gcsPrefix, startPeriod, endPeriod)",
+          "reads": ["ExportedPeriods"],
+          "command": "DownloadMonthPeriods(month, gcsPrefix, startPeriod, endPeriod, period, gcsPath)",
+          "events": ["MonthPeriodsDownloaded(month, gcsPrefix, startPeriod, endPeriod, period, gcsPath)"],
+          "tests": [
+            {
+              "name": "All 744 hourly periods downloaded for January",
+              "given": [
+                "MonthSyncStarted(month=2024-01, gcsPrefix=gs://chess-1-prod-games-history/parquet, startPeriod=2024-01-01-00, endPeriod=2024-01-31-23)",
+                "ExportedPeriods(period=2024-01-15-10, gameCount=847321, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=15/hour=10)"
+              ],
+              "when": "DownloadMonthPeriods(month=2024-01, gcsPrefix=gs://chess-1-prod-games-history/parquet, startPeriod=2024-01-01-00, endPeriod=2024-01-31-23, period=2024-01-15-10, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=15/hour=10)",
+              "then": ["MonthPeriodsDownloaded(month=2024-01, gcsPrefix=gs://chess-1-prod-games-history/parquet, startPeriod=2024-01-01-00, endPeriod=2024-01-31-23, period=2024-01-15-10, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=15/hour=10)"]
+            }
+          ]
+        },
+        {
+          "name": "Project Sync Progress",
+          "actor": "encoder",
+          "aggregate": "month",
+          "trigger": ["MonthSyncStarted(month, gcsPrefix, startPeriod, endPeriod)", "MonthPeriodsDownloaded(month, gcsPrefix, startPeriod, endPeriod, period, gcsPath)"],
+          "read_models": ["SyncProgress(*month, gcsPrefix, startPeriod, endPeriod)"],
+          "tests": [
+            {
+              "name": "Sync progress shows month range after sync started",
+              "given": [
+                "MonthSyncStarted(month=2024-01, gcsPrefix=gs://chess-1-prod-games-history/parquet, startPeriod=2024-01-01-00, endPeriod=2024-01-31-23)"
+              ],
+              "when": "",
+              "then": ["SyncProgress(month=2024-01, gcsPrefix=gs://chess-1-prod-games-history/parquet, startPeriod=2024-01-01-00, endPeriod=2024-01-31-23)"]
+            },
+            {
+              "name": "Sync progress updates with downloaded period details",
+              "given": [
+                "MonthSyncStarted(month=2024-01, gcsPrefix=gs://chess-1-prod-games-history/parquet, startPeriod=2024-01-01-00, endPeriod=2024-01-31-23)",
+                "MonthPeriodsDownloaded(month=2024-01, gcsPrefix=gs://chess-1-prod-games-history/parquet, startPeriod=2024-01-01-00, endPeriod=2024-01-31-23, period=2024-01-15-10, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=15/hour=10)"
+              ],
+              "when": "",
+              "then": ["SyncProgress(month=2024-01, gcsPrefix=gs://chess-1-prod-games-history/parquet, startPeriod=2024-01-01-00, endPeriod=2024-01-31-23)"]
+            }
+          ]
+        },
+        {
+          "name": "Encode Month",
+          "actor": "encoder",
+          "aggregate": "month",
+          "automation": "MonthEncoder",
+          "trigger": "MonthPeriodsDownloaded(month, gcsPrefix, startPeriod, endPeriod, period, gcsPath)",
+          "reads": ["BufferedGames"],
+          "command": "EncodeMonth(month, gcsPath, localPath, gameCount, filteredCount, bytesPerGame, period, gameKey, endedAt, startedAt, variant, result, timeClass, ratingClass, origin, moveText, moveTimestamps, finalFen, whitePlayerKey, whitePlayerType, whiteRating, whiteResult, whiteRatingDiff, whiteClient, blackPlayerKey, blackPlayerType, blackRating, blackResult, blackRatingDiff, blackClient, timeControlBaseMs, timeControlIncrementMs, ecoCode, ecoFamilyId, lastBookPly, tournamentId, tournamentType, legacyId, rematchOf, bughouseSecondGameKey, vsComputerBotId, vsCoachId, moves, whitePlayerId, blackPlayerId, whiteRatingBand, blackRatingBand, timeControlId)",
+          "events": ["MonthEncoded(month, localPath, gameCount, filteredCount, bytesPerGame, gcsPath, period, gameKey, endedAt, startedAt, variant, result, timeClass, ratingClass, origin, moveText, moveTimestamps, finalFen, whitePlayerKey, whitePlayerType, whiteRating, whiteResult, whiteRatingDiff, whiteClient, blackPlayerKey, blackPlayerType, blackRating, blackResult, blackRatingDiff, blackClient, timeControlBaseMs, timeControlIncrementMs, ecoCode, ecoFamilyId, lastBookPly, tournamentId, tournamentType, legacyId, rematchOf, bughouseSecondGameKey, vsComputerBotId, vsCoachId, moves, whitePlayerId, blackPlayerId, whiteRatingBand, blackRatingBand, timeControlId)"],
+          "tests": [
+            {
+              "name": "January 2024 encoded to local parquet at 48 bytes per game",
+              "given": [
+                "MonthPeriodsDownloaded(month=2024-01, gcsPrefix=gs://chess-1-prod-games-history/parquet, startPeriod=2024-01-01-00, endPeriod=2024-01-31-23, period=2024-01-15-10, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=15/hour=10)",
+                "BufferedGames(period=2024-01-15-10, gameKey=g-abc-123, endedAt=2024-01-15T10:32:00Z, startedAt=2024-01-15T10:25:00Z, variant=chess, result=white_won, timeClass=blitz, ratingClass=2500, origin=live, moveText=e4e5Nf3Nc6Bb5, moveTimestamps=[180,178,175,172,168], finalFen=r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R, whitePlayerKey=uuid-magnus, whitePlayerType=human, whiteRating=3200, whiteResult=win, whiteRatingDiff=3, whiteClient=web, blackPlayerKey=uuid-hikaru, blackPlayerType=human, blackRating=3150, blackResult=lose, blackRatingDiff=-3, blackClient=ios, timeControlBaseMs=180000, timeControlIncrementMs=0, ecoCode=C65, ecoFamilyId=ruy_lopez, lastBookPly=4, tournamentId=null, tournamentType=null, legacyId=12345678, rematchOf=null, bughouseSecondGameKey=null, vsComputerBotId=null, vsCoachId=null)"
+              ],
+              "when": "EncodeMonth(month=2024-01, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=15/hour=10, localPath=data/2024-01_games.parquet, gameCount=167000000, filteredCount=25000000, bytesPerGame=48.1, period=2024-01-15-10, gameKey=g-abc-123, endedAt=2024-01-15T10:32:00Z, startedAt=2024-01-15T10:25:00Z, variant=chess, result=white_won, timeClass=blitz, ratingClass=2500, origin=live, moveText=e4e5Nf3Nc6Bb5, moveTimestamps=[180,178,175,172,168], finalFen=r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R, whitePlayerKey=uuid-magnus, whitePlayerType=human, whiteRating=3200, whiteResult=win, whiteRatingDiff=3, whiteClient=web, blackPlayerKey=uuid-hikaru, blackPlayerType=human, blackRating=3150, blackResult=lose, blackRatingDiff=-3, blackClient=ios, timeControlBaseMs=180000, timeControlIncrementMs=0, ecoCode=C65, ecoFamilyId=ruy_lopez, lastBookPly=4, tournamentId=null, tournamentType=null, legacyId=12345678, rematchOf=null, bughouseSecondGameKey=null, vsComputerBotId=null, vsCoachId=null, moves=[1,1,2,1,18], whitePlayerId=1, blackPlayerId=2, whiteRatingBand=32, blackRatingBand=31, timeControlId=7)",
+              "then": ["MonthEncoded(month=2024-01, localPath=data/2024-01_games.parquet, gameCount=167000000, filteredCount=25000000, bytesPerGame=48.1, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=15/hour=10, period=2024-01-15-10, gameKey=g-abc-123, endedAt=2024-01-15T10:32:00Z, startedAt=2024-01-15T10:25:00Z, variant=chess, result=white_won, timeClass=blitz, ratingClass=2500, origin=live, moveText=e4e5Nf3Nc6Bb5, moveTimestamps=[180,178,175,172,168], finalFen=r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R, whitePlayerKey=uuid-magnus, whitePlayerType=human, whiteRating=3200, whiteResult=win, whiteRatingDiff=3, whiteClient=web, blackPlayerKey=uuid-hikaru, blackPlayerType=human, blackRating=3150, blackResult=lose, blackRatingDiff=-3, blackClient=ios, timeControlBaseMs=180000, timeControlIncrementMs=0, ecoCode=C65, ecoFamilyId=ruy_lopez, lastBookPly=4, tournamentId=null, tournamentType=null, legacyId=12345678, rematchOf=null, bughouseSecondGameKey=null, vsComputerBotId=null, vsCoachId=null, moves=[1,1,2,1,18], whitePlayerId=1, blackPlayerId=2, whiteRatingBand=32, blackRatingBand=31, timeControlId=7)"]
+            }
+          ]
+        },
+        {
+          "name": "Project Game Catalog",
+          "actor": "encoder",
+          "aggregate": "month",
+          "trigger": "MonthEncoded(month, localPath, gameCount, filteredCount, bytesPerGame, gcsPath, period, gameKey, endedAt, startedAt, variant, result, timeClass, ratingClass, origin, moveText, moveTimestamps, finalFen, whitePlayerKey, whitePlayerType, whiteRating, whiteResult, whiteRatingDiff, whiteClient, blackPlayerKey, blackPlayerType, blackRating, blackResult, blackRatingDiff, blackClient, timeControlBaseMs, timeControlIncrementMs, ecoCode, ecoFamilyId, lastBookPly, tournamentId, tournamentType, legacyId, rematchOf, bughouseSecondGameKey, vsComputerBotId, vsCoachId, moves, whitePlayerId, blackPlayerId, whiteRatingBand, blackRatingBand, timeControlId)",
+          "read_models": ["GameCatalog(*month, localPath, gameCount, filteredCount, bytesPerGame)"],
+          "tests": [
+            {
+              "name": "Game catalog records month file stats after encoding",
+              "given": [
+                "MonthEncoded(month=2024-01, localPath=data/2024-01_games.parquet, gameCount=167000000, filteredCount=25000000, bytesPerGame=48.1, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=15/hour=10, period=2024-01-15-10, gameKey=g-abc-123, endedAt=2024-01-15T10:32:00Z, startedAt=2024-01-15T10:25:00Z, variant=chess, result=white_won, timeClass=blitz, ratingClass=2500, origin=live, moveText=e4e5Nf3Nc6Bb5, moveTimestamps=[180,178,175,172,168], finalFen=r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R, whitePlayerKey=uuid-magnus, whitePlayerType=human, whiteRating=3200, whiteResult=win, whiteRatingDiff=3, whiteClient=web, blackPlayerKey=uuid-hikaru, blackPlayerType=human, blackRating=3150, blackResult=lose, blackRatingDiff=-3, blackClient=ios, timeControlBaseMs=180000, timeControlIncrementMs=0, ecoCode=C65, ecoFamilyId=ruy_lopez, lastBookPly=4, tournamentId=null, tournamentType=null, legacyId=12345678, rematchOf=null, bughouseSecondGameKey=null, vsComputerBotId=null, vsCoachId=null, moves=[1,1,2,1,18], whitePlayerId=1, blackPlayerId=2, whiteRatingBand=32, blackRatingBand=31, timeControlId=7)"
+              ],
+              "when": "",
+              "then": ["GameCatalog(month=2024-01, localPath=data/2024-01_games.parquet, gameCount=167000000, filteredCount=25000000, bytesPerGame=48.1)"]
+            }
+          ]
+        },
+        {
+          "name": "Project Local Games",
+          "actor": "encoder",
+          "aggregate": "month",
+          "trigger": "MonthEncoded(month, localPath, gameCount, filteredCount, bytesPerGame, gcsPath, period, gameKey, endedAt, startedAt, variant, result, timeClass, ratingClass, origin, moveText, moveTimestamps, finalFen, whitePlayerKey, whitePlayerType, whiteRating, whiteResult, whiteRatingDiff, whiteClient, blackPlayerKey, blackPlayerType, blackRating, blackResult, blackRatingDiff, blackClient, timeControlBaseMs, timeControlIncrementMs, ecoCode, ecoFamilyId, lastBookPly, tournamentId, tournamentType, legacyId, rematchOf, bughouseSecondGameKey, vsComputerBotId, vsCoachId, moves, whitePlayerId, blackPlayerId, whiteRatingBand, blackRatingBand, timeControlId)",
+          "read_models": ["LocalGames*(*month, moves, whitePlayerId, blackPlayerId, whiteRatingBand, blackRatingBand, result, timeControlId)"],
+          "tests": [
+            {
+              "name": "Local games parquet row projected from encoded month",
+              "given": [
+                "MonthEncoded(month=2024-01, localPath=data/2024-01_games.parquet, gameCount=167000000, filteredCount=25000000, bytesPerGame=48.1, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=15/hour=10, period=2024-01-15-10, gameKey=g-abc-123, endedAt=2024-01-15T10:32:00Z, startedAt=2024-01-15T10:25:00Z, variant=chess, result=white_won, timeClass=blitz, ratingClass=2500, origin=live, moveText=e4e5Nf3Nc6Bb5, moveTimestamps=[180,178,175,172,168], finalFen=r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R, whitePlayerKey=uuid-magnus, whitePlayerType=human, whiteRating=3200, whiteResult=win, whiteRatingDiff=3, whiteClient=web, blackPlayerKey=uuid-hikaru, blackPlayerType=human, blackRating=3150, blackResult=lose, blackRatingDiff=-3, blackClient=ios, timeControlBaseMs=180000, timeControlIncrementMs=0, ecoCode=C65, ecoFamilyId=ruy_lopez, lastBookPly=4, tournamentId=null, tournamentType=null, legacyId=12345678, rematchOf=null, bughouseSecondGameKey=null, vsComputerBotId=null, vsCoachId=null, moves=[1,1,2,1,18], whitePlayerId=1, blackPlayerId=2, whiteRatingBand=32, blackRatingBand=31, timeControlId=7)"
+              ],
+              "when": "",
+              "then": ["LocalGames(month=2024-01, moves=[1,1,2,1,18], whitePlayerId=1, blackPlayerId=2, whiteRatingBand=32, blackRatingBand=31, result=white_won, timeControlId=7)"]
+            }
+          ]
+        },
+        {
+          "name": "Build Positions Index",
+          "actor": "indexer",
+          "aggregate": "positions",
+          "automation": "PositionsIndexer",
+          "trigger": "MonthEncoded(month, localPath, gameCount, filteredCount, bytesPerGame, gcsPath, period, gameKey, endedAt, startedAt, variant, result, timeClass, ratingClass, origin, moveText, moveTimestamps, finalFen, whitePlayerKey, whitePlayerType, whiteRating, whiteResult, whiteRatingDiff, whiteClient, blackPlayerKey, blackPlayerType, blackRating, blackResult, blackRatingDiff, blackClient, timeControlBaseMs, timeControlIncrementMs, ecoCode, ecoFamilyId, lastBookPly, tournamentId, tournamentType, legacyId, rematchOf, bughouseSecondGameKey, vsComputerBotId, vsCoachId, moves, whitePlayerId, blackPlayerId, whiteRatingBand, blackRatingBand, timeControlId)",
+          "command": "BuildPositionsIndex(month, localPath, gameCount, moves, indexPath, positionCount, maxPly)",
+          "events": ["PositionsIndexBuilt(month, indexPath, positionCount, maxPly, localPath, gameCount, moves)"],
+          "tests": [
+            {
+              "name": "Zobrist index built for January 2024 up to ply 20",
+              "given": [
+                "MonthEncoded(month=2024-01, localPath=data/2024-01_games.parquet, gameCount=167000000, filteredCount=25000000, bytesPerGame=48.1, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=15/hour=10, period=2024-01-15-10, gameKey=g-abc-123, endedAt=2024-01-15T10:32:00Z, startedAt=2024-01-15T10:25:00Z, variant=chess, result=white_won, timeClass=blitz, ratingClass=2500, origin=live, moveText=e4e5Nf3Nc6Bb5, moveTimestamps=[180,178,175,172,168], finalFen=r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R, whitePlayerKey=uuid-magnus, whitePlayerType=human, whiteRating=3200, whiteResult=win, whiteRatingDiff=3, whiteClient=web, blackPlayerKey=uuid-hikaru, blackPlayerType=human, blackRating=3150, blackResult=lose, blackRatingDiff=-3, blackClient=ios, timeControlBaseMs=180000, timeControlIncrementMs=0, ecoCode=C65, ecoFamilyId=ruy_lopez, lastBookPly=4, tournamentId=null, tournamentType=null, legacyId=12345678, rematchOf=null, bughouseSecondGameKey=null, vsComputerBotId=null, vsCoachId=null, moves=[1,1,2,1,18], whitePlayerId=1, blackPlayerId=2, whiteRatingBand=32, blackRatingBand=31, timeControlId=7)"
+              ],
+              "when": "BuildPositionsIndex(month=2024-01, localPath=data/2024-01_games.parquet, gameCount=167000000, moves=[1,1,2,1,18], indexPath=data/2024-01_positions.parquet, positionCount=534000000, maxPly=20)",
+              "then": ["PositionsIndexBuilt(month=2024-01, indexPath=data/2024-01_positions.parquet, positionCount=534000000, maxPly=20, localPath=data/2024-01_games.parquet, gameCount=167000000, moves=[1,1,2,1,18])"]
+            }
+          ]
+        },
+        {
+          "name": "Project Positions Index",
+          "actor": "indexer",
+          "aggregate": "positions",
+          "trigger": "PositionsIndexBuilt(month, indexPath, positionCount, maxPly, localPath, gameCount, moves)",
+          "read_models": ["PositionsIndex(*month, indexPath, positionCount, maxPly)"],
+          "tests": [
+            {
+              "name": "Positions index metadata projected after build",
+              "given": [
+                "PositionsIndexBuilt(month=2024-01, indexPath=data/2024-01_positions.parquet, positionCount=534000000, maxPly=20, localPath=data/2024-01_games.parquet, gameCount=167000000, moves=[1,1,2,1,18])"
+              ],
+              "when": "",
+              "then": ["PositionsIndex(month=2024-01, indexPath=data/2024-01_positions.parquet, positionCount=534000000, maxPly=20)"]
+            }
+          ]
+        },
+        {
+          "name": "View Sync Progress",
+          "actor": "operator",
+          "aggregate": "month",
+          "ui": "CLI: status",
+          "read_models": ["SyncProgress(*month, gcsPrefix, startPeriod, endPeriod)"],
+          "tests": [
+            {
+              "name": "Operator sees sync progress for January 2024",
+              "given": [
+                "SyncProgress(month=2024-01, gcsPrefix=gs://chess-1-prod-games-history/parquet, startPeriod=2024-01-01-00, endPeriod=2024-01-31-23)"
+              ],
+              "when": "",
+              "then": ["SyncProgress(month=2024-01, gcsPrefix=gs://chess-1-prod-games-history/parquet, startPeriod=2024-01-01-00, endPeriod=2024-01-31-23)"]
+            }
+          ]
+        },
+        {
+          "name": "View Game Catalog",
+          "actor": "operator",
+          "aggregate": "month",
+          "ui": "CLI: catalog",
+          "read_models": ["GameCatalog(*month, localPath, gameCount, filteredCount, bytesPerGame)"],
+          "tests": [
+            {
+              "name": "Operator sees catalog entry for January 2024",
+              "given": [
+                "GameCatalog(month=2024-01, localPath=data/2024-01_games.parquet, gameCount=167000000, filteredCount=25000000, bytesPerGame=48.1)"
+              ],
+              "when": "",
+              "then": ["GameCatalog(month=2024-01, localPath=data/2024-01_games.parquet, gameCount=167000000, filteredCount=25000000, bytesPerGame=48.1)"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Local Update",
+      "slices": [
+        {
+          "name": "Detect New Periods",
+          "actor": "updater",
+          "aggregate": "month",
+          "ui": "CronJob: hourly-update-check",
+          "reads": ["GameCatalog", "ExportedPeriods"],
+          "command": "DetectNewPeriods(month, lastSyncedPeriod, latestPeriod, newPeriodCount, localPath, gameCount, gcsPath)",
+          "events": ["NewPeriodsDetected(month, lastSyncedPeriod, latestPeriod, newPeriodCount, localPath, gameCount, gcsPath)"],
+          "tests": [
+            {
+              "name": "48 new hourly periods detected since last sync",
+              "given": [
+                "GameCatalog(month=2024-01, localPath=data/2024-01_games.parquet, gameCount=160000000, filteredCount=24000000, bytesPerGame=48.1)",
+                "ExportedPeriods(period=2024-01-31-23, gameCount=900000, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=31/hour=23)"
+              ],
+              "when": "DetectNewPeriods(month=2024-01, lastSyncedPeriod=2024-01-29-23, latestPeriod=2024-01-31-23, newPeriodCount=48, localPath=data/2024-01_games.parquet, gameCount=160000000, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=31/hour=23)",
+              "then": ["NewPeriodsDetected(month=2024-01, lastSyncedPeriod=2024-01-29-23, latestPeriod=2024-01-31-23, newPeriodCount=48, localPath=data/2024-01_games.parquet, gameCount=160000000, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=31/hour=23)"]
+            }
+          ]
+        },
+        {
+          "name": "Fetch Delta Periods",
+          "actor": "encoder",
+          "aggregate": "month",
+          "automation": "DeltaFetcher",
+          "trigger": "NewPeriodsDetected(month, lastSyncedPeriod, latestPeriod, newPeriodCount, localPath, gameCount, gcsPath)",
+          "reads": ["ExportedPeriods"],
+          "command": "FetchDeltaPeriods(month, lastSyncedPeriod, latestPeriod, newPeriodCount, gcsPath, period)",
+          "events": ["DeltaPeriodsFetched(month, lastSyncedPeriod, latestPeriod, newPeriodCount, gcsPath, period)"],
+          "tests": [
+            {
+              "name": "Delta periods fetched from GCS",
+              "given": [
+                "NewPeriodsDetected(month=2024-01, lastSyncedPeriod=2024-01-29-23, latestPeriod=2024-01-31-23, newPeriodCount=48, localPath=data/2024-01_games.parquet, gameCount=160000000, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=31/hour=23)",
+                "ExportedPeriods(period=2024-01-30-00, gameCount=850000, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=30/hour=00)"
+              ],
+              "when": "FetchDeltaPeriods(month=2024-01, lastSyncedPeriod=2024-01-29-23, latestPeriod=2024-01-31-23, newPeriodCount=48, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=30/hour=00, period=2024-01-30-00)",
+              "then": ["DeltaPeriodsFetched(month=2024-01, lastSyncedPeriod=2024-01-29-23, latestPeriod=2024-01-31-23, newPeriodCount=48, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=30/hour=00, period=2024-01-30-00)"]
+            }
+          ]
+        },
+        {
+          "name": "Merge Delta Into Month",
+          "actor": "encoder",
+          "aggregate": "month",
+          "automation": "DeltaMerger",
+          "trigger": "DeltaPeriodsFetched(month, lastSyncedPeriod, latestPeriod, newPeriodCount, gcsPath, period)",
+          "reads": ["BufferedGames", "GameCatalog"],
+          "command": "MergeDelta(month, gcsPath, period, localPath, gameCount, filteredCount, bytesPerGame, gameKey, endedAt, startedAt, variant, result, timeClass, ratingClass, origin, moveText, moveTimestamps, finalFen, whitePlayerKey, whitePlayerType, whiteRating, whiteResult, whiteRatingDiff, whiteClient, blackPlayerKey, blackPlayerType, blackRating, blackResult, blackRatingDiff, blackClient, timeControlBaseMs, timeControlIncrementMs, ecoCode, ecoFamilyId, lastBookPly, tournamentId, tournamentType, legacyId, rematchOf, bughouseSecondGameKey, vsComputerBotId, vsCoachId, moves, whitePlayerId, blackPlayerId, whiteRatingBand, blackRatingBand, timeControlId)",
+          "events": ["DeltaMerged(month, localPath, gameCount, filteredCount, bytesPerGame, gcsPath, period, gameKey, endedAt, startedAt, variant, result, timeClass, ratingClass, origin, moveText, moveTimestamps, finalFen, whitePlayerKey, whitePlayerType, whiteRating, whiteResult, whiteRatingDiff, whiteClient, blackPlayerKey, blackPlayerType, blackRating, blackResult, blackRatingDiff, blackClient, timeControlBaseMs, timeControlIncrementMs, ecoCode, ecoFamilyId, lastBookPly, tournamentId, tournamentType, legacyId, rematchOf, bughouseSecondGameKey, vsComputerBotId, vsCoachId, moves, whitePlayerId, blackPlayerId, whiteRatingBand, blackRatingBand, timeControlId)"],
+          "tests": [
+            {
+              "name": "7M new games merged and re-sorted into January parquet",
+              "given": [
+                "DeltaPeriodsFetched(month=2024-01, lastSyncedPeriod=2024-01-29-23, latestPeriod=2024-01-31-23, newPeriodCount=48, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=30/hour=00, period=2024-01-30-00)",
+                "BufferedGames(period=2024-01-30-00, gameKey=g-delta-1, endedAt=2024-01-30T00:15:00Z, startedAt=2024-01-30T00:05:00Z, variant=chess, result=draw, timeClass=rapid, ratingClass=2800, origin=live, moveText=d4d5c4e6, moveTimestamps=[900,895,888,880], finalFen=rnbqkbnr/ppp2ppp/4p3/3p4/2PP4/8/PP2PPPP/RNBQKBNR, whitePlayerKey=uuid-fabiano, whitePlayerType=human, whiteRating=2800, whiteResult=draw, whiteRatingDiff=0, whiteClient=web, blackPlayerKey=uuid-magnus, blackPlayerType=human, blackRating=2850, blackResult=draw, blackRatingDiff=0, blackClient=web, timeControlBaseMs=900000, timeControlIncrementMs=10000, ecoCode=D06, ecoFamilyId=queens_gambit, lastBookPly=3, tournamentId=null, tournamentType=null, legacyId=87654321, rematchOf=null, bughouseSecondGameKey=null, vsComputerBotId=null, vsCoachId=null)",
+                "GameCatalog(month=2024-01, localPath=data/2024-01_games.parquet, gameCount=160000000, filteredCount=24000000, bytesPerGame=48.1)"
+              ],
+              "when": "MergeDelta(month=2024-01, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=30/hour=00, period=2024-01-30-00, localPath=data/2024-01_games.parquet, gameCount=167000000, filteredCount=25050000, bytesPerGame=48.2, gameKey=g-delta-1, endedAt=2024-01-30T00:15:00Z, startedAt=2024-01-30T00:05:00Z, variant=chess, result=draw, timeClass=rapid, ratingClass=2800, origin=live, moveText=d4d5c4e6, moveTimestamps=[900,895,888,880], finalFen=rnbqkbnr/ppp2ppp/4p3/3p4/2PP4/8/PP2PPPP/RNBQKBNR, whitePlayerKey=uuid-fabiano, whitePlayerType=human, whiteRating=2800, whiteResult=draw, whiteRatingDiff=0, whiteClient=web, blackPlayerKey=uuid-magnus, blackPlayerType=human, blackRating=2850, blackResult=draw, blackRatingDiff=0, blackClient=web, timeControlBaseMs=900000, timeControlIncrementMs=10000, ecoCode=D06, ecoFamilyId=queens_gambit, lastBookPly=3, tournamentId=null, tournamentType=null, legacyId=87654321, rematchOf=null, bughouseSecondGameKey=null, vsComputerBotId=null, vsCoachId=null, moves=[0,0,3,2], whitePlayerId=3, blackPlayerId=4, whiteRatingBand=28, blackRatingBand=28, timeControlId=12)",
+              "then": ["DeltaMerged(month=2024-01, localPath=data/2024-01_games.parquet, gameCount=167000000, filteredCount=25050000, bytesPerGame=48.2, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=30/hour=00, period=2024-01-30-00, gameKey=g-delta-1, endedAt=2024-01-30T00:15:00Z, startedAt=2024-01-30T00:05:00Z, variant=chess, result=draw, timeClass=rapid, ratingClass=2800, origin=live, moveText=d4d5c4e6, moveTimestamps=[900,895,888,880], finalFen=rnbqkbnr/ppp2ppp/4p3/3p4/2PP4/8/PP2PPPP/RNBQKBNR, whitePlayerKey=uuid-fabiano, whitePlayerType=human, whiteRating=2800, whiteResult=draw, whiteRatingDiff=0, whiteClient=web, blackPlayerKey=uuid-magnus, blackPlayerType=human, blackRating=2850, blackResult=draw, blackRatingDiff=0, blackClient=web, timeControlBaseMs=900000, timeControlIncrementMs=10000, ecoCode=D06, ecoFamilyId=queens_gambit, lastBookPly=3, tournamentId=null, tournamentType=null, legacyId=87654321, rematchOf=null, bughouseSecondGameKey=null, vsComputerBotId=null, vsCoachId=null, moves=[0,0,3,2], whitePlayerId=3, blackPlayerId=4, whiteRatingBand=28, blackRatingBand=28, timeControlId=12)"]
+            }
+          ]
+        },
+        {
+          "name": "Rebuild Positions Index",
+          "actor": "indexer",
+          "aggregate": "positions",
+          "automation": "PositionsRebuilder",
+          "trigger": "DeltaMerged(month, localPath, gameCount, filteredCount, bytesPerGame, gcsPath, period, gameKey, endedAt, startedAt, variant, result, timeClass, ratingClass, origin, moveText, moveTimestamps, finalFen, whitePlayerKey, whitePlayerType, whiteRating, whiteResult, whiteRatingDiff, whiteClient, blackPlayerKey, blackPlayerType, blackRating, blackResult, blackRatingDiff, blackClient, timeControlBaseMs, timeControlIncrementMs, ecoCode, ecoFamilyId, lastBookPly, tournamentId, tournamentType, legacyId, rematchOf, bughouseSecondGameKey, vsComputerBotId, vsCoachId, moves, whitePlayerId, blackPlayerId, whiteRatingBand, blackRatingBand, timeControlId)",
+          "command": "RebuildPositionsIndex(month, localPath, gameCount, moves, indexPath, positionCount, maxPly)",
+          "events": ["PositionsIndexRebuilt(month, indexPath, positionCount, maxPly, localPath, gameCount, moves)"],
+          "tests": [
+            {
+              "name": "Positions index rebuilt after January delta merge",
+              "given": [
+                "DeltaMerged(month=2024-01, localPath=data/2024-01_games.parquet, gameCount=167000000, filteredCount=25050000, bytesPerGame=48.2, gcsPath=gs://chess-1-prod-games-history/parquet/year=2024/month=01/day=30/hour=00, period=2024-01-30-00, gameKey=g-delta-1, endedAt=2024-01-30T00:15:00Z, startedAt=2024-01-30T00:05:00Z, variant=chess, result=draw, timeClass=rapid, ratingClass=2800, origin=live, moveText=d4d5c4e6, moveTimestamps=[900,895,888,880], finalFen=rnbqkbnr/ppp2ppp/4p3/3p4/2PP4/8/PP2PPPP/RNBQKBNR, whitePlayerKey=uuid-fabiano, whitePlayerType=human, whiteRating=2800, whiteResult=draw, whiteRatingDiff=0, whiteClient=web, blackPlayerKey=uuid-magnus, blackPlayerType=human, blackRating=2850, blackResult=draw, blackRatingDiff=0, blackClient=web, timeControlBaseMs=900000, timeControlIncrementMs=10000, ecoCode=D06, ecoFamilyId=queens_gambit, lastBookPly=3, tournamentId=null, tournamentType=null, legacyId=87654321, rematchOf=null, bughouseSecondGameKey=null, vsComputerBotId=null, vsCoachId=null, moves=[0,0,3,2], whitePlayerId=3, blackPlayerId=4, whiteRatingBand=28, blackRatingBand=28, timeControlId=12)"
+              ],
+              "when": "RebuildPositionsIndex(month=2024-01, localPath=data/2024-01_games.parquet, gameCount=167000000, moves=[0,0,3,2], indexPath=data/2024-01_positions.parquet, positionCount=538000000, maxPly=20)",
+              "then": ["PositionsIndexRebuilt(month=2024-01, indexPath=data/2024-01_positions.parquet, positionCount=538000000, maxPly=20, localPath=data/2024-01_games.parquet, gameCount=167000000, moves=[0,0,3,2])"]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
