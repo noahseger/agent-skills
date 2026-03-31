@@ -82,7 +82,7 @@ The `event_model.py` validator enforces both directions:
 
 1. **Projection check (State Change / Automation)** — every `read_models` entry must share at least one field with the slice's events.
 2. **Projection check (State View) — strict** — every field in a State View's read model must appear in the union of trigger event fields and consumed read model fields (from `reads`). For multi-trigger State Views, the union of all trigger fields is used.
-3. **Provenance check** — every event field must be connected to its inputs: the command, trigger(s), external event, or consumed read model in `reads`. Fields that don't trace by name are flagged as warnings when `reads` is present, or errors when `reads` is empty. See [issue #2](https://github.com/noahseger/agent-skills/issues/2) for the strict provenance roadmap.
+3. **Provenance check** — every event field must be connected to its inputs: the command, trigger(s), external event, or consumed read model in `reads`. Fields that don't trace by name are flagged as warnings when `reads` is present, or errors when `reads` is empty.
 4. **Automation command strictness** — every field in an automation command must trace to a non-command source (trigger, external event, consumed read models). Commands receive data; they don't invent it.
 5. **Cross-reference check** — every read model name in `reads` must exist in some other slice's `read_models`.
 
