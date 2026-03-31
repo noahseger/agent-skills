@@ -180,7 +180,7 @@ class TestValidModel:
                 "slices": [{
                     "actor": "u", "aggregate": "a",
                     "ui": "POST /test",
-                    "command": "DoThing(id)",
+                    "command": "DoThing(id, result)",
                     "events": ["ThingCompleted(id, result)"],
                     "read_models": ["ThingView(id, result)"],
                 }],
@@ -204,6 +204,68 @@ class TestValidModel:
             }],
         }
         EventModel.model_validate(data)
+
+    def test_multi_trigger_state_view(self):
+        """State View with multiple triggers: RM fields covered by union."""
+        data = {
+            "name": "MultiTrigger",
+            "actors": [{"id": "u", "name": "User", "type": "user"},
+                       {"id": "s", "name": "System", "type": "system"}],
+            "aggregates": [{"id": "a", "name": "A"}],
+            "chapters": [{
+                "name": "Ch",
+                "slices": [
+                    {
+                        "actor": "u", "aggregate": "a",
+                        "ui": "POST /items",
+                        "command": "AddItem(itemId, name, price)",
+                        "events": ["ItemAdded(itemId, name, price)"],
+                        "read_models": ["CategoryRules(name, category)"],
+                    },
+                    {
+                        "actor": "s", "aggregate": "a",
+                        "automation": "OnItemAdded",
+                        "trigger": "ItemAdded(itemId, name, price)",
+                        "reads": ["CategoryRules"],
+                        "command": "Categorize(itemId)",
+                        "events": ["ItemCategorized(itemId, category)"],
+                    },
+                    {
+                        "name": "Project Catalog",
+                        "actor": "s", "aggregate": "a",
+                        "trigger": [
+                            "ItemAdded(itemId, name, price)",
+                            "ItemCategorized(itemId, category)",
+                        ],
+                        "read_models": ["Catalog(itemId, name, price, category)"],
+                    },
+                ],
+            }],
+        }
+        model = EventModel.model_validate(data)
+        assert len(model.chapters[0].slices) == 3
+
+    def test_multi_trigger_renders(self):
+        """Multi-trigger State Views produce valid SVG."""
+        data = {
+            "name": "MultiTrigger",
+            "actors": [{"id": "s", "name": "Sys", "type": "system"}],
+            "aggregates": [{"id": "a", "name": "A"}],
+            "chapters": [{
+                "name": "Ch",
+                "slices": [{
+                    "actor": "s", "aggregate": "a",
+                    "trigger": [
+                        "EventA(id, x)",
+                        "EventB(id, y)",
+                    ],
+                    "read_models": ["View(id, x, y)"],
+                }],
+            }],
+        }
+        model = EventModel.model_validate(data)
+        svg = render_svg(model)
+        assert "<svg" in svg
 
 
 # ---------------------------------------------------------------------------
@@ -271,6 +333,39 @@ class TestInvalidModel:
             read_models=["OtherView(userId, email)"],
         )
         with pytest.raises(ValidationError, match="shares no fields"):
+            EventModel.model_validate(data)
+
+    def test_state_view_strict_provenance(self):
+        """State View RM fields must ALL trace to trigger, not just one."""
+        data = {
+            "name": "Test",
+            "actors": [{"id": "s", "name": "Sys", "type": "system"}],
+            "aggregates": [{"id": "a", "name": "A"}],
+            "chapters": [{"name": "Ch", "slices": [{
+                "actor": "s", "aggregate": "a",
+                "trigger": "SmallEvent(id, status)",
+                "read_models": ["BigView(id, status, extra1, extra2, extra3)"],
+            }]}],
+        }
+        with pytest.raises(ValidationError, match="no provenance"):
+            EventModel.model_validate(data)
+
+    def test_multi_trigger_covers_all_fields(self):
+        """Multi-trigger union must cover ALL RM fields, not just some."""
+        data = {
+            "name": "Test",
+            "actors": [{"id": "s", "name": "Sys", "type": "system"}],
+            "aggregates": [{"id": "a", "name": "A"}],
+            "chapters": [{"name": "Ch", "slices": [{
+                "actor": "s", "aggregate": "a",
+                "trigger": [
+                    "EventA(id, x)",
+                    "EventB(id, y)",
+                ],
+                "read_models": ["View(id, x, y, mystery)"],
+            }]}],
+        }
+        with pytest.raises(ValidationError, match="no provenance.*mystery"):
             EventModel.model_validate(data)
 
     def test_empty_chapter_rejected(self):
