@@ -13,6 +13,12 @@ The visualization uses two kinds of swim lanes:
 - **Actor lanes** at the top — one row per actor (user, admin, external system), containing the real interfaces they use
 - **Aggregate lanes** in the middle — one row per DDD aggregate / event stream, containing commands and events
 
+## Why Event Modeling
+
+Most software projects suffer from **feature explosion** — each new feature adds coupling, and coupling makes the next feature more expensive. The cost curve steepens until deadlines slip, budgets explode, and teams build the wrong thing because of **bad communication**, **wrong assumptions**, and **misunderstood requirements**. Building the wrong thing is the most expensive mistake in any project.
+
+The root cause is never technology. No amount of architectural refinement fixes a communication problem. Event modeling solves this by providing a **shared language** that engineers, business experts, and AI agents all understand — five elements, four patterns, read left to right. One model, one truth, readable by anyone.
+
 ## When to Use
 
 - Documenting an existing system's behavior
@@ -34,6 +40,53 @@ The practice follows a natural progression:
 5. **Evolve** — Update the model as production reveals gaps. New events, new slices, revised read models.
 
 When extracting from existing code, you're doing Capture and Specify simultaneously — the code already tells you what commands produce what events. When modeling from scratch, start with Storm.
+
+## The V Pattern
+
+Every state-change slice follows a **V-shaped information flow**:
+
+1. User sees a **read model** (green) — "here's what the system knows"
+2. User submits a **command** (blue) — "here's what I want to happen"
+3. System records an **event** (orange) — "here's what happened"
+4. Event updates the **read model** (green) — ready for the next step
+
+The V shape is the heartbeat of the system. Read model feeds the UI, UI triggers a command, command produces an event, event updates the read model. Repeat. Every feature is one or more V's on the timeline.
+
+## Information Completeness
+
+**You cannot start implementation until the model is information complete.** Information completeness is checked **within each slice** — every field must be traceable to a data source that exists inside that slice.
+
+Two directions, both required:
+
+1. **Read model ← Event (projection):** Every field displayed in a read model must trace back to a field in an event. If a view shows "total price," there must be an event carrying that data.
+
+2. **Event ← Inputs (provenance):** Every field in an event must trace back to a data source within the slice. Those sources are:
+   - **Command parameters** — fields the actor provides (e.g. `PlaceOrder(customerId, items)`)
+   - **Trigger event** — for automation slices, the event that triggered the automation
+   - **External event** — for external event slices, the inbound event from outside the system
+   - **Consumed read models** — read models the slice reads to do its work, declared in GWT `given` clauses
+
+If an event contains a field that doesn't appear in any of these sources, the model has an information gap — that field's data comes from somewhere not captured in the model. This is the most common information completeness mistake: an event field that materializes from a hidden data source.
+
+**Example — automation consuming a read model:**
+
+An `OnOrderPlaced` automation triggers `ReserveInventory`. The trigger event `OrderPlaced` carries `orderId, items`. But the automation also needs current stock levels to decide which warehouse to reserve from. The `InventoryLevel` read model (with `sku, available, reserved`) appears in the GWT `given` clause. Now `InventoryReserved(orderId, items, warehouseId)` is information complete: `orderId` and `items` come from the trigger, `warehouseId` comes from the consumed `InventoryLevel` read model.
+
+**Example — hidden data source (antipattern):**
+
+A `StartSync` command takes `(bucket, path)` from the operator, but the `SyncStarted` event records `(bucket, path, remoteCount, localCount)`. Where do `remoteCount` and `localCount` come from? The command handler secretly reads remote and local state — but those data sources aren't declared anywhere in the slice. The fix: either move the computation to a downstream automation that explicitly consumes the read models, or add the consumed read models to the slice's GWT `given` clause so the data sources are visible.
+
+Missing information blocks work. A field with no source might depend on another team's API with a 3-month backlog — discovering this during implementation instead of during modeling is the most expensive mistake you can make.
+
+The `event_model.py` validator enforces both directions:
+
+1. **Projection check (State Change / Automation)** — every `read_models` entry must share at least one field with the slice's events.
+2. **Projection check (State View) — strict** — every field in a State View's read model must appear in the union of trigger event fields and consumed read model fields (from `reads`). For multi-trigger State Views, the union of all trigger fields is used.
+3. **Provenance check** — every event field must be connected to its inputs: the command, trigger(s), external event, or consumed read model in `reads`. Fields that don't trace by name are flagged as warnings when `reads` is present, or errors when `reads` is empty. See [issue #2](https://github.com/noahseger/agent-skills/issues/2) for the strict provenance roadmap.
+4. **Automation command strictness** — every field in an automation command must trace to a non-command source (trigger, external event, consumed read models). Commands receive data; they don't invent it.
+5. **Cross-reference check** — every read model name in `reads` must exist in some other slice's `read_models`.
+
+**Commands declare their full interface** — not just what they receive, but the complete set of fields the handler works with. For transformation steps like encoding or exporting, include both input and output field names in the command schema. This makes every event field traceable by name to a declared schema.
 
 ## Tooling: event_model.py
 
@@ -169,6 +222,45 @@ The model supports three kinds of slices:
 | **External event slice** | `external_event` + `command` + `events` | An event from outside the system boundary triggers an internal command |
 | **View-only slice** | `ui` + `read_models` (no command/events) | Actor queries a read model through an interface — no state change |
 | **Automation slice** | `automation` + `trigger` + `command` + `events` | An event triggers an automated side effect |
+| **State View slice** | `trigger` + `read_models` (no command/events/ui) | Event triggers a read model projection |
+
+**State View with reads:** A State View can declare `reads` to access data from consumed read models in addition to its trigger event. The trigger is the availability signal ("this data is ready"); the reads provide the actual data. The validator checks that every read model field appears in the union of trigger fields AND consumed read model fields.
+
+```json
+{
+  "name": "Project Archive Games",
+  "trigger": "PeriodExported(period, gameCount, gcsPath)",
+  "reads": ["BufferedGames"],
+  "read_models": ["ArchiveGames*(*period, gameCount, gcsPath, gameKey, endedAt, ...)"]
+}
+```
+
+**Multi-trigger State Views:** A State View's `trigger` field can be a single event string or a list of event strings. When a read model accumulates data from multiple event types (common in CQRS projections), list all the events the projection subscribes to. The validator checks that every read model field appears in the **union** of all trigger event fields.
+
+### Cardinality Notation
+
+Read models and fields use `*` to indicate cardinality and aggregate pointers:
+
+- **`ReadModel*`** — suffix `*` on the name indicates a collection (many rows), not a singleton
+- **`*field`** — prefix `*` on a field name indicates an aggregate pointer / partition key
+
+```json
+"read_models": ["BufferedGames*(*period, gameKey, endedAt, startedAt, variant, ...)"]
+```
+
+This says: BufferedGames is a collection partitioned by period, containing game records with all their fields. Downstream slices that `reads: ["BufferedGames"]` have access to the full schema.
+
+### Processor Naming
+
+Automation slices should use descriptive processor names that describe WHAT the automation does, not WHAT triggers it. The trigger event is already shown via the `trigger` field.
+
+| Instead of | Use |
+|-----------|-----|
+| `OnOrderPlaced` | `InventoryReserver` |
+| `OnPeriodAggregated` | `PeriodExporter` |
+| `OnMonthPeriodsDownloaded` | `MonthEncoder` |
+
+The `On*` naming duplicates information that's already in the trigger field and tells the reader nothing about what the processor actually does.
 
 ### Source Code Annotations
 
@@ -232,8 +324,9 @@ When modeling a new system or discovering behavior before reading code, start by
 
 1. List everything that happens in the domain — past tense facts like `OrderPlaced`, `PaymentReceived`, `ItemShipped`
 2. Arrange events on a left-to-right timeline
-3. Don't worry about commands, read models, or aggregates yet — just events
-4. Group related events to discover natural aggregate boundaries
+3. Sketch rough screens — ugly wireframes showing what users see and what buttons they click. Spend no more than 2 minutes per screen. Screens drive read model discovery: what information does the user need to see?
+4. Don't worry about commands, read models, or aggregates yet — just events and screens
+5. Group related events to discover natural aggregate boundaries
 
 This phase is optional when extracting from code (Phase 1 covers discovery through code reading), but valuable when:
 - Starting a new feature with no existing code
@@ -284,7 +377,7 @@ For one workflow at a time, trace from trigger to completion:
 | **Command** | CamelCase imperative, with schema | `PlaceOrder(customerId, items)` |
 | **Event** | CamelCase past tense, with schema | `OrderPlaced(orderId, items, total)` |
 | **Read Model** | CamelCase noun, with schema | `OrderSummary(orderId, status, total)` |
-| **Automation** | CamelCase "On" + trigger event | `OnOrderPlaced` |
+| **Automation** | CamelCase descriptive processor name | `InventoryReserver` |
 
 ### Phase 4: Organize
 
@@ -295,7 +388,7 @@ For one workflow at a time, trace from trigger to completion:
 
 ### Phase 5: Define Test Specifications
 
-Each slice gets GWT tests with **concrete example data** — real IDs, real numbers, real outcomes:
+Define GWT tests **collaboratively with business experts** — not in isolation. Each slice gets GWT tests with **concrete example data** — real IDs, real numbers, real outcomes. Business knowledge becomes an executable specification in code:
 
 ```json
 {
@@ -339,12 +432,32 @@ Event models are living documents. When production reveals gaps:
 3. Re-validate and re-render to verify the model still tells a coherent story
 4. Treat the updated model as the specification for the fix
 
+## Slices as Work Items
+
+Each slice in the event model is a **natural work item** — independently buildable, testable, and assignable. The event model IS the backlog. Detailed Jira tickets are unnecessary when every slice already captures the interface, command, events, read models, and GWT acceptance criteria.
+
+Slices follow a simple status progression: **planned → in progress → done**. Pick the next planned slice, implement it, verify the GWT tests pass, mark it done. The model tracks what's been built and what remains.
+
+Because slices are independent — **events are the only contract between them** — multiple developers or agents can work on different slices in parallel without conflicts. Adding more people to the project makes it faster, not slower.
+
+## AI Agent Integration
+
+Event models are the perfect input for AI code generation. Each slice is **exactly the right level of abstraction** for an AI agent — small enough to fit in context, specific enough to produce correct code, and testable via GWT.
+
+The combination works like this:
+- **Static code generation** handles the repeatable boilerplate — every slice produces the same predictable structure (route, command handler, event, projection, test file)
+- **AI agents** handle the business logic — the part that varies between slices, guided by GWT tests as guardrails
+- **GWT tests are executable specifications** — defined collaboratively with business experts, they become the acceptance criteria that verify the agent built what was specified
+
+Each slice type (state change, state view, automation) follows a known pattern. Agents don't need to invent architecture — they fill in the business-specific details within a well-defined structure.
+
 ## Key Invariants
 
 - **Events are immutable facts** in past tense — never update, only append
 - **Commands are imperative intents** — each produces one or a small cluster of events
 - **Read models are pure functions of events** — given same events, same view
-- **`read_models` in a slice are outputs** — projections built from the slice's events. The read model must share at least one field with the events (additive events carry all fields; destructive events carry only identifying fields). Read models **consumed** by a slice belong in GWT `given` clauses, not in the `read_models` field.
+- **`read_models` are outputs, `reads` are inputs** — `read_models` are projections built from the slice's events (produced). `reads` lists read models consumed by the slice's command (inputs from other slices). The read model in `read_models` must share at least one field with the events. The read model names in `reads` must exist in some other slice's `read_models`.
+- **Event fields must trace to declared sources** — every field in an event must come from: (1) the command, trigger, or external event, (2) a consumed read model declared in `reads`, or (3) a produced read model of the same slice (transformation output). The validator enforces this exhaustively. If a command handler reads external state, that state must be declared in `reads`.
 - **Not every event needs a read model** — terminal events that cross the system boundary outward (e.g. publishing to a Kafka topic for other bounded contexts) have no projection within this system. They are valid dead ends on the timeline.
 - **Read models feed interfaces** — they belong near the top, close to the entry points they serve
 - **External events represent inbound data from outside the system** — Kafka topics, webhooks, message queues. Use `external_event` (not `ui`) for these. They render as orange cards with dashed orange arrows.
@@ -356,7 +469,7 @@ Event models are living documents. When production reveals gaps:
 - **Names are CamelCase** — no spaces, e.g. `PlaceOrder` not `Place Order`
 - **GWT uses concrete data** — real IDs, real numbers, real outcomes
 - **Business language only** — no "DAO persisted" or "saga timed out"
-- **Each slice is independently buildable and testable**
+- **Each slice is independently buildable and testable** — events are the only contract between slices. No slice depends on another slice's internals. This independence enables parallel work by multiple developers or AI agents.
 - **One command per slice** — if there are 2 commands, break it into 2 slices
 - **Every event connects forward** — each event should either feed a read model (projection) or trigger an automation. Events that connect to nothing are dead ends (unless they cross the system boundary outward, e.g. publishing to Kafka for another bounded context).
 - **Read models grow progressively** — a single read model can accumulate fields as more events project into it. Don't invent separate read models per phase when one growing projection captures the domain.
@@ -388,4 +501,5 @@ Event models are living documents. When production reveals gaps:
 - **Dead-end events** — events that don't feed any read model or trigger any automation, with no justification (terminal boundary events are the exception)
 - **Invented read model names** — read models should use domain terms the team already uses. If you can't name it from the domain vocabulary, it may not be a real concept.
 - **Split projection slices** — separating "command → event" from "event → read model" into different slices. The read model is an output of the command slice; keep them together.
+- **Hidden data sources in events** — an event field that doesn't trace to any input within the slice (command, trigger, external event, or consumed read model in `given`). Example: `SyncStarted(bucket, path, remoteCount)` where `remoteCount` comes from querying an external system that isn't declared as a consumed read model. Fix: add the consumed read model to the GWT `given`, or move the computation to a downstream automation that explicitly consumes the read model.
 - **"Design" language** — saying "design the read models" or "architect the commands." Event modeling captures what happens; it doesn't prescribe what should happen.
