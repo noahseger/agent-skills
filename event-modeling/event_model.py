@@ -224,18 +224,12 @@ class EventModel(BaseModel):
                             f"{loc} reads unknown read model '{consumed_name}' — "
                             f"it must be declared in some slice's read_models"
                         )
-                # Provenance: two checks with different strictness.
-                #
-                # 1. Event connectivity — at least one event field must trace
-                #    to an input (command, trigger, external_event, reads, or
                 # Provenance checks:
                 #
-                # 1. Event strict — every event field must trace to an input
-                #    by name (command, trigger, external_event, reads).
-                #    Untraced fields are allowed ONLY when the slice declares
-                #    'reads' (handler had data access for transformations).
-                #    Untraced fields without reads → error.
-                #    Untraced fields with reads → warning (surfaced, not fatal).
+                # 1. Event strict — every event field must trace by name to
+                #    an input schema (command, trigger, external_event, reads).
+                #    Untraced fields → error.  Commands should declare their
+                #    full interface so every output field has a declared source.
                 #
                 # 2. Automation command strictness — every command argument must
                 #    trace to a non-command source (trigger, external_event,
@@ -264,26 +258,14 @@ class EventModel(BaseModel):
                         untraced = ev_fields - input_fields
                         if untraced:
                             ev_name = _parse_element(ev)[0]
-                            if not sl.reads:
-                                # No reads → untraced fields have no
-                                # declared data source.  Hard error.
-                                errors.append(
-                                    f"Event '{ev_name}' in {loc} has "
-                                    f"fields with no provenance: "
-                                    f"{', '.join(sorted(untraced))} — "
-                                    f"add 'reads' to declare the data "
-                                    f"source, or trace fields to "
-                                    f"command/trigger/external event"
-                                )
-                            else:
-                                reads_names = ", ".join(sl.reads)
-                                warnings.append(
-                                    f"Event '{ev_name}' in {loc}: "
-                                    f"{len(untraced)} field(s) derived "
-                                    f"from {reads_names} (not name-"
-                                    f"traced): "
-                                    f"{', '.join(sorted(untraced))}"
-                                )
+                            errors.append(
+                                f"Event '{ev_name}' in {loc} has "
+                                f"fields with no provenance: "
+                                f"{', '.join(sorted(untraced))} — "
+                                f"add these fields to the command, "
+                                f"trigger, external event, or a "
+                                f"consumed read model in 'reads'"
+                            )
                 # Automation command: every arg must trace to a non-command
                 # source.  The command handler receives data from the trigger,
                 # external event, or consumed read models — not from itself.
