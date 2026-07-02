@@ -88,6 +88,20 @@ The `event_model.py` validator enforces both directions:
 
 **Commands declare their full interface** — not just what they receive, but the complete set of fields the handler works with. For transformation steps like encoding or exporting, include both input and output field names in the command schema. This makes every event field traceable by name to a declared schema.
 
+## Finish the Model
+
+Event modeling earns its keep by moving discovery to the cheapest phase. A gap found while modeling costs a sentence; the same gap found during implementation costs a rewrite; found in production it costs an incident. Closing every loop now — so no one pays for it later — is the disciplined and genuinely *lazy* move.
+
+When a thread leads somewhere, follow it to the end:
+
+- An event feeds a read model or triggers an automation (see "Every event connects forward").
+- A read model that tracks a condition the domain reacts to — a count nearing a limit, a status, a deadline — has a slice that acts on that condition. State that leads nowhere is a gap one level up from a dead-end event. If an `IllegalMoveTally` reaches the count that ends the game, some slice must consume that threshold.
+- A domain rule you uncover while modeling — "a second illegal move forfeits the game," "an invoice unpaid after 30 days is written off" — gets captured, not shelved.
+
+**Don't put domain truths to a vote.** When the domain determines something and it traces to a source, model it — don't surface a real, traceable rule as an optional add-on. Flagging a rule you already understand instead of capturing it just relocates the decision, and the work, to a more expensive moment. Reserve questions for genuine forks: real disagreement, irreversible cost, or facts only a domain expert holds. Everything the domain already decides, you model.
+
+The same discipline runs in reverse — **invent nothing.** No event, read model, or slice that isn't a real domain concept (see "Invented read model names"). Model every real thing; add nothing spurious. Both halves serve one goal: minimize the total work the system demands over its life.
+
 ## Tooling: event_model.py
 
 The `event_model.py` script in this skill directory is the primary tool for creating and visualizing event models. It enforces a Pydantic schema with invariant validation and renders SVG diagrams.
@@ -472,6 +486,8 @@ Each slice type (state change, state view, automation) follows a known pattern. 
 - **Each slice is independently buildable and testable** — events are the only contract between slices. No slice depends on another slice's internals. This independence enables parallel work by multiple developers or AI agents.
 - **One command per slice** — if there are 2 commands, break it into 2 slices
 - **Every event connects forward** — each event should either feed a read model (projection) or trigger an automation. Events that connect to nothing are dead ends (unless they cross the system boundary outward, e.g. publishing to Kafka for another bounded context).
+- **State connects forward too** — a read model that tracks a condition the domain acts on (a threshold, status, or deadline) must have a slice that consumes it. A tally that reaches a process-ending count with nothing acting on it is a gap, exactly like a dead-end event.
+- **Finish the model — don't put domain truths to a vote** — when the domain determines something and it traces to a source, capture it. Modeling is the cheap phase to close gaps; a rule you noticed but shelved as "optional" resurfaces during implementation, the most expensive place to find it. Reserve questions for genuine forks, not for work you can already do.
 - **Read models grow progressively** — a single read model can accumulate fields as more events project into it. Don't invent separate read models per phase when one growing projection captures the domain.
 - **Capture, don't design** — event modeling discovers what happens in a system. Use language like "identify," "capture," "discover" — not "design" or "architect." The model records reality, it doesn't prescribe it.
 
@@ -503,3 +519,5 @@ Each slice type (state change, state view, automation) follows a known pattern. 
 - **Inline projections** — putting read models as outputs of state change slices instead of giving each projection its own State View slice. Projections are their own slices: a State View with a `trigger` (the event it subscribes to) and `read_models` (what it builds). State Change slices produce events; State View slices project events into read models.
 - **Hidden data sources in events** — an event field that doesn't trace to any input within the slice (command, trigger, external event, or consumed read model in `given`). Example: `SyncStarted(bucket, path, remoteCount)` where `remoteCount` comes from querying an external system that isn't declared as a consumed read model. Fix: add the consumed read model to the GWT `given`, or move the computation to a downstream automation that explicitly consumes the read model.
 - **"Design" language** — saying "design the read models" or "architect the commands." Event modeling captures what happens; it doesn't prescribe what should happen.
+- **Dead-end state** — a read model that tracks a condition the domain reacts to (a count nearing a limit, a status, a deadline) with no slice that consumes it. The same defect as a dead-end event, one level up.
+- **Punting a known rule** — flagging a real, traceable domain rule as an optional add-on instead of modeling it. Deferring a rule you already understand just moves the work to a more expensive phase. Model it; report what you modeled.

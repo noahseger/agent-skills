@@ -1,0 +1,543 @@
+{
+  "name": "Over-the-Board Chess — FIDE Game",
+  "description": "A single classical over-the-board game: a tournament pairing starts a game on a physical board and clock, players make moves and press the clock, the arbiter rules on incidents, and the game concludes by checkmate, resignation, draw agreement, or time forfeit before the result is recorded on the scoresheet.",
+  "actors": [
+    { "id": "pairing", "name": "Pairing System", "type": "external" },
+    { "id": "player", "name": "Player", "type": "user" },
+    { "id": "arbiter", "name": "Arbiter", "type": "admin" },
+    { "id": "spectator", "name": "Spectator", "type": "user" }
+  ],
+  "aggregates": [
+    { "id": "game", "name": "Game" },
+    { "id": "clock", "name": "Clock" }
+  ],
+  "chapters": [
+    {
+      "name": "Game Setup",
+      "slices": [
+        {
+          "name": "Receive Pairing",
+          "actor": "pairing",
+          "aggregate": "game",
+          "external_event": "ExternalPairingPublished(gameId, round, boardNumber, whitePlayerId, blackPlayerId, timeControl, baseMinutes, incrementSeconds)",
+          "command": "StartGame(gameId, round, boardNumber, whitePlayerId, blackPlayerId, timeControl, baseMinutes, incrementSeconds, fen, sideToMove, ply)",
+          "events": ["GameStarted(gameId, round, boardNumber, whitePlayerId, blackPlayerId, timeControl, baseMinutes, incrementSeconds, fen, sideToMove, ply)"],
+          "tests": [
+            {
+              "name": "Round 5 board 1 pairing starts a classical game",
+              "given": [],
+              "when": "StartGame(gameId=otb-2024-ct-r5-b1, round=5, boardNumber=1, whitePlayerId=gm-carlsen, blackPlayerId=gm-nepo, timeControl=classical, baseMinutes=90, incrementSeconds=30, fen=rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1, sideToMove=white, ply=0)",
+              "then": ["GameStarted(gameId=otb-2024-ct-r5-b1, round=5, boardNumber=1, whitePlayerId=gm-carlsen, blackPlayerId=gm-nepo, timeControl=classical, baseMinutes=90, incrementSeconds=30, fen=rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1, sideToMove=white, ply=0)"]
+            }
+          ]
+        },
+        {
+          "name": "Project Game Pairing",
+          "actor": "arbiter",
+          "aggregate": "game",
+          "trigger": "GameStarted(gameId, round, boardNumber, whitePlayerId, blackPlayerId, timeControl, baseMinutes, incrementSeconds, fen, sideToMove, ply)",
+          "read_models": ["GamePairing(gameId, round, boardNumber, whitePlayerId, blackPlayerId)"],
+          "tests": [
+            {
+              "name": "Pairing identity available after game started",
+              "given": ["GameStarted(gameId=otb-2024-ct-r5-b1, round=5, boardNumber=1, whitePlayerId=gm-carlsen, blackPlayerId=gm-nepo, timeControl=classical, baseMinutes=90, incrementSeconds=30, fen=rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1, sideToMove=white, ply=0)"],
+              "when": "",
+              "then": ["GamePairing(gameId=otb-2024-ct-r5-b1, round=5, boardNumber=1, whitePlayerId=gm-carlsen, blackPlayerId=gm-nepo)"]
+            }
+          ]
+        },
+        {
+          "name": "Start Clock",
+          "actor": "arbiter",
+          "aggregate": "clock",
+          "automation": "ClockStarter",
+          "trigger": "GameStarted(gameId, round, boardNumber, whitePlayerId, blackPlayerId, timeControl, baseMinutes, incrementSeconds, fen, sideToMove, ply)",
+          "command": "StartClock(gameId, baseMinutes, incrementSeconds, whiteTimeMs, blackTimeMs, runningSide)",
+          "events": ["ClockStarted(gameId, baseMinutes, incrementSeconds, whiteTimeMs, blackTimeMs, runningSide)"],
+          "tests": [
+            {
+              "name": "Arbiter starts White's clock at 90 minutes",
+              "given": ["GameStarted(gameId=otb-2024-ct-r5-b1, round=5, boardNumber=1, whitePlayerId=gm-carlsen, blackPlayerId=gm-nepo, timeControl=classical, baseMinutes=90, incrementSeconds=30, fen=rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1, sideToMove=white, ply=0)"],
+              "when": "StartClock(gameId=otb-2024-ct-r5-b1, baseMinutes=90, incrementSeconds=30, whiteTimeMs=5400000, blackTimeMs=5400000, runningSide=white)",
+              "then": ["ClockStarted(gameId=otb-2024-ct-r5-b1, baseMinutes=90, incrementSeconds=30, whiteTimeMs=5400000, blackTimeMs=5400000, runningSide=white)"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Play",
+      "slices": [
+        {
+          "name": "Make Move",
+          "actor": "player",
+          "aggregate": "game",
+          "ui": "Board",
+          "reads": ["GameState"],
+          "command": "PlayMove(gameId, ply, san, fromSquare, toSquare, piece, fen, sideToMove, isCheck, isCapture)",
+          "events": ["MovePlayed(gameId, ply, san, fromSquare, toSquare, piece, fen, sideToMove, isCheck, isCapture)"],
+          "tests": [
+            {
+              "name": "White opens with 1. e4",
+              "given": ["GameState(gameId=otb-2024-ct-r5-b1, ply=0, sideToMove=white, fen=rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1)"],
+              "when": "PlayMove(gameId=otb-2024-ct-r5-b1, ply=1, san=e4, fromSquare=e2, toSquare=e4, piece=pawn, fen=rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1, sideToMove=black, isCheck=false, isCapture=false)",
+              "then": ["MovePlayed(gameId=otb-2024-ct-r5-b1, ply=1, san=e4, fromSquare=e2, toSquare=e4, piece=pawn, fen=rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1, sideToMove=black, isCheck=false, isCapture=false)"]
+            },
+            {
+              "name": "A capture that gives check sets both flags",
+              "given": ["GameState(gameId=otb-2024-ct-r5-b1, ply=14, sideToMove=white, fen=r1bqk2r/pppp1Qpp/2n2n2/2b1p3/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 7)"],
+              "when": "PlayMove(gameId=otb-2024-ct-r5-b1, ply=15, san=Qxf7+, fromSquare=f5, toSquare=f7, piece=queen, fen=r1bqk2r/pppp1Qpp/2n2n2/2b1p3/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 7, sideToMove=black, isCheck=true, isCapture=true)",
+              "then": ["MovePlayed(gameId=otb-2024-ct-r5-b1, ply=15, san=Qxf7+, fromSquare=f5, toSquare=f7, piece=queen, fen=r1bqk2r/pppp1Qpp/2n2n2/2b1p3/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 7, sideToMove=black, isCheck=true, isCapture=true)"]
+            }
+          ]
+        },
+        {
+          "name": "Project Game State",
+          "actor": "arbiter",
+          "aggregate": "game",
+          "trigger": ["GameStarted(gameId, round, boardNumber, whitePlayerId, blackPlayerId, timeControl, baseMinutes, incrementSeconds, fen, sideToMove, ply)", "MovePlayed(gameId, ply, san, fromSquare, toSquare, piece, fen, sideToMove, isCheck, isCapture)", "IllegalMoveRuled(gameId, ply, offendingSide, illegalMoveCount, addedTimeMs, penalty, fen, sideToMove)"],
+          "read_models": ["GameState(gameId, ply, sideToMove, fen)"],
+          "tests": [
+            {
+              "name": "Board state advances after the opening move",
+              "given": ["MovePlayed(gameId=otb-2024-ct-r5-b1, ply=1, san=e4, fromSquare=e2, toSquare=e4, piece=pawn, fen=rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1, sideToMove=black, isCheck=false, isCapture=false)"],
+              "when": "",
+              "then": ["GameState(gameId=otb-2024-ct-r5-b1, ply=1, sideToMove=black, fen=rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1)"]
+            },
+            {
+              "name": "Board reverts when an illegal move is struck",
+              "given": ["IllegalMoveRuled(gameId=otb-2024-ct-r5-b1, ply=32, offendingSide=white, illegalMoveCount=1, addedTimeMs=120000, penalty=opponent_time_added, fen=r4rk1/pp3ppp/2p5/8/8/2P2N2/PP3PPP/R4RK1 w - - 4 17, sideToMove=white)"],
+              "when": "",
+              "then": ["GameState(gameId=otb-2024-ct-r5-b1, ply=32, sideToMove=white, fen=r4rk1/pp3ppp/2p5/8/8/2P2N2/PP3PPP/R4RK1 w - - 4 17)"]
+            }
+          ]
+        },
+        {
+          "name": "Press Clock",
+          "actor": "player",
+          "aggregate": "clock",
+          "ui": "Clock",
+          "reads": ["ClockState"],
+          "command": "PressClock(gameId, whiteTimeMs, blackTimeMs, runningSide)",
+          "events": ["ClockPressed(gameId, whiteTimeMs, blackTimeMs, runningSide)"],
+          "tests": [
+            {
+              "name": "White presses clock, increment banked, Black's clock runs",
+              "given": ["ClockState(gameId=otb-2024-ct-r5-b1, whiteTimeMs=5400000, blackTimeMs=5400000, runningSide=white)"],
+              "when": "PressClock(gameId=otb-2024-ct-r5-b1, whiteTimeMs=5412000, blackTimeMs=5400000, runningSide=black)",
+              "then": ["ClockPressed(gameId=otb-2024-ct-r5-b1, whiteTimeMs=5412000, blackTimeMs=5400000, runningSide=black)"]
+            }
+          ]
+        },
+        {
+          "name": "Project Clock State",
+          "actor": "arbiter",
+          "aggregate": "clock",
+          "trigger": ["ClockStarted(gameId, baseMinutes, incrementSeconds, whiteTimeMs, blackTimeMs, runningSide)", "ClockPressed(gameId, whiteTimeMs, blackTimeMs, runningSide)"],
+          "read_models": ["ClockState(gameId, whiteTimeMs, blackTimeMs, runningSide)"],
+          "tests": [
+            {
+              "name": "Clock initialized with White to move when started",
+              "given": ["ClockStarted(gameId=otb-2024-ct-r5-b1, baseMinutes=90, incrementSeconds=30, whiteTimeMs=5400000, blackTimeMs=5400000, runningSide=white)"],
+              "when": "",
+              "then": ["ClockState(gameId=otb-2024-ct-r5-b1, whiteTimeMs=5400000, blackTimeMs=5400000, runningSide=white)"]
+            },
+            {
+              "name": "Clock state reflects the running side after a press",
+              "given": ["ClockPressed(gameId=otb-2024-ct-r5-b1, whiteTimeMs=5412000, blackTimeMs=5400000, runningSide=black)"],
+              "when": "",
+              "then": ["ClockState(gameId=otb-2024-ct-r5-b1, whiteTimeMs=5412000, blackTimeMs=5400000, runningSide=black)"]
+            }
+          ]
+        },
+        {
+          "name": "Project Move List",
+          "actor": "arbiter",
+          "aggregate": "game",
+          "trigger": ["MovePlayed(gameId, ply, san, fromSquare, toSquare, piece, fen, sideToMove, isCheck, isCapture)", "IllegalMoveRuled(gameId, ply, offendingSide, illegalMoveCount, addedTimeMs, penalty, fen, sideToMove)"],
+          "read_models": ["MoveList*(gameId, ply, san, sideToMove, isCheck, isCapture)"],
+          "tests": [
+            {
+              "name": "Move recorded on the scoresheet",
+              "given": ["MovePlayed(gameId=otb-2024-ct-r5-b1, ply=1, san=e4, fromSquare=e2, toSquare=e4, piece=pawn, fen=rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1, sideToMove=black, isCheck=false, isCapture=false)"],
+              "when": "",
+              "then": ["MoveList(gameId=otb-2024-ct-r5-b1, ply=1, san=e4, sideToMove=black, isCheck=false, isCapture=false)"]
+            },
+            {
+              "name": "Illegal move at ply 33 struck; scoresheet reinstated to ply 32",
+              "given": [
+                "MoveList(gameId=otb-2024-ct-r5-b1, ply=32, san=Rf8, sideToMove=white, isCheck=false, isCapture=false)",
+                "MoveList(gameId=otb-2024-ct-r5-b1, ply=33, san=Kf1, sideToMove=black, isCheck=false, isCapture=false)",
+                "IllegalMoveRuled(gameId=otb-2024-ct-r5-b1, ply=32, offendingSide=white, illegalMoveCount=1, addedTimeMs=120000, penalty=opponent_time_added, fen=r4rk1/pp3ppp/2p5/8/8/2P2N2/PP3PPP/R4RK1 w - - 4 17, sideToMove=white)"
+              ],
+              "when": "",
+              "then": ["MoveList(gameId=otb-2024-ct-r5-b1, ply=32, san=Rf8, sideToMove=white, isCheck=false, isCapture=false)"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Draws and Resignation",
+      "slices": [
+        {
+          "name": "Offer Draw",
+          "actor": "player",
+          "aggregate": "game",
+          "ui": "Board",
+          "reads": ["GameState"],
+          "command": "OfferDraw(gameId, offeringSide, ply)",
+          "events": ["DrawOffered(gameId, offeringSide, ply)"],
+          "tests": [
+            {
+              "name": "White offers a draw on move 21",
+              "given": ["GameState(gameId=otb-2024-ct-r5-b1, ply=41, sideToMove=black, fen=r4rk1/pp3ppp/2p5/8/8/2P5/PP3PPP/R4RK1 b - - 0 21)"],
+              "when": "OfferDraw(gameId=otb-2024-ct-r5-b1, offeringSide=white, ply=41)",
+              "then": ["DrawOffered(gameId=otb-2024-ct-r5-b1, offeringSide=white, ply=41)"]
+            }
+          ]
+        },
+        {
+          "name": "Project Pending Draw Offer",
+          "actor": "arbiter",
+          "aggregate": "game",
+          "trigger": ["DrawOffered(gameId, offeringSide, ply)", "MovePlayed(gameId, ply, san, fromSquare, toSquare, piece, fen, sideToMove, isCheck, isCapture)", "DrawAgreed(gameId, offeringSide, result, termination)"],
+          "read_models": ["PendingDrawOffer(gameId, offeringSide, ply)"],
+          "tests": [
+            {
+              "name": "Draw offer is pending on the opponent",
+              "given": ["DrawOffered(gameId=otb-2024-ct-r5-b1, offeringSide=white, ply=41)"],
+              "when": "",
+              "then": ["PendingDrawOffer(gameId=otb-2024-ct-r5-b1, offeringSide=white, ply=41)"]
+            },
+            {
+              "name": "Offer withdrawn when the opponent replies with a move",
+              "given": [
+                "DrawOffered(gameId=otb-2024-ct-r5-b1, offeringSide=white, ply=41)",
+                "MovePlayed(gameId=otb-2024-ct-r5-b1, ply=42, san=Rd2, fromSquare=d8, toSquare=d2, piece=rook, fen=5rk1/pp3ppp/2p5/8/8/2P5/PP1r1PPP/R4RK1 w - - 1 22, sideToMove=white, isCheck=false, isCapture=false)"
+              ],
+              "when": "",
+              "then": ["PendingDrawOffer cleared — Black declined by playing 21...Rd2"]
+            },
+            {
+              "name": "Offer cleared once the draw is agreed",
+              "given": [
+                "DrawOffered(gameId=otb-2024-ct-r5-b1, offeringSide=white, ply=41)",
+                "DrawAgreed(gameId=otb-2024-ct-r5-b1, offeringSide=white, result=draw, termination=agreement)"
+              ],
+              "when": "",
+              "then": ["PendingDrawOffer cleared — offer accepted"]
+            }
+          ]
+        },
+        {
+          "name": "Accept Draw",
+          "actor": "player",
+          "aggregate": "game",
+          "ui": "Board",
+          "reads": ["PendingDrawOffer"],
+          "command": "AcceptDraw(gameId, offeringSide, result, termination)",
+          "events": ["DrawAgreed(gameId, offeringSide, result, termination)"],
+          "tests": [
+            {
+              "name": "Black accepts the pending draw offer",
+              "given": ["PendingDrawOffer(gameId=otb-2024-ct-r5-b1, offeringSide=white, ply=41)"],
+              "when": "AcceptDraw(gameId=otb-2024-ct-r5-b1, offeringSide=white, result=draw, termination=agreement)",
+              "then": ["DrawAgreed(gameId=otb-2024-ct-r5-b1, offeringSide=white, result=draw, termination=agreement)"]
+            },
+            {
+              "name": "Accepting with no offer pending does nothing",
+              "given": [],
+              "when": "AcceptDraw(gameId=otb-2024-ct-r5-b1, offeringSide=white, result=draw, termination=agreement)",
+              "then": ["No DrawAgreed — no draw offer is pending, there is nothing to accept"]
+            }
+          ]
+        },
+        {
+          "name": "Resign",
+          "actor": "player",
+          "aggregate": "game",
+          "ui": "Board",
+          "reads": ["GameState"],
+          "command": "Resign(gameId, resigningSide, result, termination)",
+          "events": ["GameResigned(gameId, resigningSide, result, termination)"],
+          "tests": [
+            {
+              "name": "Black resigns a lost endgame",
+              "given": ["GameState(gameId=otb-2024-ct-r5-b1, ply=76, sideToMove=black, fen=8/8/8/4k3/8/4K3/4P3/8 b - - 0 39)"],
+              "when": "Resign(gameId=otb-2024-ct-r5-b1, resigningSide=black, result=white_won, termination=resignation)",
+              "then": ["GameResigned(gameId=otb-2024-ct-r5-b1, resigningSide=black, result=white_won, termination=resignation)"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Arbiter Rulings",
+      "slices": [
+        {
+          "name": "Rule Illegal Move",
+          "actor": "arbiter",
+          "aggregate": "game",
+          "ui": "Arbiter Ruling",
+          "reads": ["MoveList", "IllegalMoveTally"],
+          "command": "RuleIllegalMove(gameId, ply, offendingSide, illegalMoveCount, addedTimeMs, penalty, fen, sideToMove)",
+          "events": ["IllegalMoveRuled(gameId, ply, offendingSide, illegalMoveCount, addedTimeMs, penalty, fen, sideToMove)"],
+          "tests": [
+            {
+              "name": "Illegal move struck, board reinstated to ply 32, two minutes added to Black",
+              "given": [
+                "MoveList(gameId=otb-2024-ct-r5-b1, ply=33, san=Kf1, sideToMove=black, isCheck=false, isCapture=false)",
+                "IllegalMoveTally(gameId=otb-2024-ct-r5-b1, offendingSide=white, illegalMoveCount=0)"
+              ],
+              "when": "RuleIllegalMove(gameId=otb-2024-ct-r5-b1, ply=32, offendingSide=white, illegalMoveCount=1, addedTimeMs=120000, penalty=opponent_time_added, fen=r4rk1/pp3ppp/2p5/8/8/2P2N2/PP3PPP/R4RK1 w - - 4 17, sideToMove=white)",
+              "then": ["IllegalMoveRuled(gameId=otb-2024-ct-r5-b1, ply=32, offendingSide=white, illegalMoveCount=1, addedTimeMs=120000, penalty=opponent_time_added, fen=r4rk1/pp3ppp/2p5/8/8/2P2N2/PP3PPP/R4RK1 w - - 4 17, sideToMove=white)"]
+            },
+            {
+              "name": "Second illegal move by the same player is ruled a loss",
+              "given": [
+                "MoveList(gameId=otb-2024-ct-r5-b1, ply=45, san=Bd4, sideToMove=black, isCheck=false, isCapture=false)",
+                "IllegalMoveTally(gameId=otb-2024-ct-r5-b1, offendingSide=white, illegalMoveCount=1)"
+              ],
+              "when": "RuleIllegalMove(gameId=otb-2024-ct-r5-b1, ply=44, offendingSide=white, illegalMoveCount=2, addedTimeMs=0, penalty=loss, fen=r5k1/pp3ppp/2p5/8/8/2P2N2/PP3PPP/R5K1 w - - 6 22, sideToMove=white)",
+              "then": ["IllegalMoveRuled(gameId=otb-2024-ct-r5-b1, ply=44, offendingSide=white, illegalMoveCount=2, addedTimeMs=0, penalty=loss, fen=r5k1/pp3ppp/2p5/8/8/2P2N2/PP3PPP/R5K1 w - - 6 22, sideToMove=white)"]
+            }
+          ]
+        },
+        {
+          "name": "Project Illegal Move Tally",
+          "actor": "arbiter",
+          "aggregate": "game",
+          "trigger": "IllegalMoveRuled(gameId, ply, offendingSide, illegalMoveCount, addedTimeMs, penalty)",
+          "read_models": ["IllegalMoveTally(gameId, offendingSide, illegalMoveCount)"],
+          "tests": [
+            {
+              "name": "Illegal move count tracked per player",
+              "given": ["IllegalMoveRuled(gameId=otb-2024-ct-r5-b1, ply=32, offendingSide=white, illegalMoveCount=1, addedTimeMs=120000, penalty=opponent_time_added, fen=r4rk1/pp3ppp/2p5/8/8/2P2N2/PP3PPP/R4RK1 w - - 4 17, sideToMove=white)"],
+              "when": "",
+              "then": ["IllegalMoveTally(gameId=otb-2024-ct-r5-b1, offendingSide=white, illegalMoveCount=1)"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Conclusion",
+      "slices": [
+        {
+          "name": "Claim Flag Fall",
+          "actor": "player",
+          "aggregate": "game",
+          "ui": "Clock",
+          "reads": ["ClockState"],
+          "command": "ClaimFlagFall(gameId, flaggedSide, result, termination)",
+          "events": ["TimeForfeited(gameId, flaggedSide, result, termination)"],
+          "tests": [
+            {
+              "name": "White claims Black's fallen flag",
+              "given": ["ClockState(gameId=otb-2024-ct-r5-b1, whiteTimeMs=63000, blackTimeMs=0, runningSide=black)"],
+              "when": "ClaimFlagFall(gameId=otb-2024-ct-r5-b1, flaggedSide=black, result=white_won, termination=time_forfeit)",
+              "then": ["TimeForfeited(gameId=otb-2024-ct-r5-b1, flaggedSide=black, result=white_won, termination=time_forfeit)"]
+            },
+            {
+              "name": "Premature flag claim is rejected while time remains",
+              "given": ["ClockState(gameId=otb-2024-ct-r5-b1, whiteTimeMs=63000, blackTimeMs=45000, runningSide=black)"],
+              "when": "ClaimFlagFall(gameId=otb-2024-ct-r5-b1, flaggedSide=black, result=white_won, termination=time_forfeit)",
+              "then": ["No TimeForfeited — blackTimeMs=45000 is above zero, no flag has fallen, claim rejected"]
+            }
+          ]
+        },
+        {
+          "name": "Adjudicate Board Outcome",
+          "actor": "arbiter",
+          "aggregate": "game",
+          "automation": "OutcomeAdjudicator",
+          "trigger": "MovePlayed(gameId, ply, san, fromSquare, toSquare, piece, fen, sideToMove, isCheck, isCapture)",
+          "reads": ["GameState"],
+          "command": "AdjudicateOutcome(gameId, ply, fen, result, termination)",
+          "events": ["BoardOutcomeAdjudicated(gameId, ply, fen, result, termination)"],
+          "tests": [
+            {
+              "name": "Checkmate on the board ends the game",
+              "given": ["GameState(gameId=otb-2024-ct-r5-b1, ply=6, sideToMove=white, fen=rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3)"],
+              "when": "AdjudicateOutcome(gameId=otb-2024-ct-r5-b1, ply=6, fen=rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3, result=black_won, termination=checkmate)",
+              "then": ["BoardOutcomeAdjudicated(gameId=otb-2024-ct-r5-b1, ply=6, fen=rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3, result=black_won, termination=checkmate)"]
+            },
+            {
+              "name": "Ordinary move leaves a live position — nothing adjudicated",
+              "given": ["GameState(gameId=otb-2024-ct-r5-b1, ply=8, sideToMove=white, fen=rnbqkb1r/ppp1pppp/3p1n2/8/3PP3/8/PPP2PPP/RNBQKBNR w KQkq - 0 4)"],
+              "when": "",
+              "then": ["No BoardOutcomeAdjudicated — position is neither checkmate nor stalemate, game continues"]
+            },
+            {
+              "name": "Stalemate on the board draws the game",
+              "given": ["GameState(gameId=otb-2024-ct-r5-b1, ply=103, sideToMove=black, fen=5k2/5P2/5K2/8/8/8/8/8 b - - 0 52)"],
+              "when": "AdjudicateOutcome(gameId=otb-2024-ct-r5-b1, ply=103, fen=5k2/5P2/5K2/8/8/8/8/8 b - - 0 52, result=draw, termination=stalemate)",
+              "then": ["BoardOutcomeAdjudicated(gameId=otb-2024-ct-r5-b1, ply=103, fen=5k2/5P2/5K2/8/8/8/8/8 b - - 0 52, result=draw, termination=stalemate)"]
+            },
+            {
+              "name": "Capture leaving king versus king is a dead position draw",
+              "given": ["GameState(gameId=otb-2024-ct-r5-b1, ply=118, sideToMove=black, fen=8/8/8/4k3/8/4K3/8/8 b - - 0 60)"],
+              "when": "AdjudicateOutcome(gameId=otb-2024-ct-r5-b1, ply=118, fen=8/8/8/4k3/8/4K3/8/8 b - - 0 60, result=draw, termination=insufficient_material)",
+              "then": ["BoardOutcomeAdjudicated(gameId=otb-2024-ct-r5-b1, ply=118, fen=8/8/8/4k3/8/4K3/8/8 b - - 0 60, result=draw, termination=insufficient_material)"]
+            }
+          ]
+        },
+        {
+          "name": "Forfeit on Second Illegal Move",
+          "actor": "arbiter",
+          "aggregate": "game",
+          "automation": "IllegalMoveForfeiter",
+          "trigger": "IllegalMoveRuled(gameId, ply, offendingSide, illegalMoveCount, addedTimeMs, penalty, fen, sideToMove)",
+          "reads": ["IllegalMoveTally"],
+          "command": "ForfeitGame(gameId, offendingSide, illegalMoveCount, result, termination)",
+          "events": ["IllegalMoveForfeited(gameId, offendingSide, illegalMoveCount, result, termination)"],
+          "tests": [
+            {
+              "name": "Tally reaching two illegal moves forfeits the game",
+              "given": [
+                "IllegalMoveRuled(gameId=otb-2024-ct-r5-b1, ply=44, offendingSide=white, illegalMoveCount=2, addedTimeMs=0, penalty=loss, fen=r5k1/pp3ppp/2p5/8/8/2P2N2/PP3PPP/R5K1 w - - 6 22, sideToMove=white)",
+                "IllegalMoveTally(gameId=otb-2024-ct-r5-b1, offendingSide=white, illegalMoveCount=2)"
+              ],
+              "when": "ForfeitGame(gameId=otb-2024-ct-r5-b1, offendingSide=white, illegalMoveCount=2, result=black_won, termination=illegal_move)",
+              "then": ["IllegalMoveForfeited(gameId=otb-2024-ct-r5-b1, offendingSide=white, illegalMoveCount=2, result=black_won, termination=illegal_move)"]
+            },
+            {
+              "name": "First illegal move does not forfeit",
+              "given": [
+                "IllegalMoveRuled(gameId=otb-2024-ct-r5-b1, ply=32, offendingSide=white, illegalMoveCount=1, addedTimeMs=120000, penalty=opponent_time_added, fen=r4rk1/pp3ppp/2p5/8/8/2P2N2/PP3PPP/R4RK1 w - - 4 17, sideToMove=white)",
+                "IllegalMoveTally(gameId=otb-2024-ct-r5-b1, offendingSide=white, illegalMoveCount=1)"
+              ],
+              "when": "",
+              "then": ["No IllegalMoveForfeited — illegalMoveCount below 2, game continues"]
+            }
+          ]
+        },
+        {
+          "name": "Project Game Result",
+          "actor": "arbiter",
+          "aggregate": "game",
+          "trigger": [
+            "GameResigned(gameId, resigningSide, result, termination)",
+            "DrawAgreed(gameId, offeringSide, result, termination)",
+            "BoardOutcomeAdjudicated(gameId, ply, fen, result, termination)",
+            "TimeForfeited(gameId, flaggedSide, result, termination)",
+            "IllegalMoveForfeited(gameId, offendingSide, result, termination)"
+          ],
+          "read_models": ["GameResult(gameId, result, termination)"],
+          "tests": [
+            {
+              "name": "Result settled after a draw agreement",
+              "given": ["DrawAgreed(gameId=otb-2024-ct-r5-b1, offeringSide=white, result=draw, termination=agreement)"],
+              "when": "",
+              "then": ["GameResult(gameId=otb-2024-ct-r5-b1, result=draw, termination=agreement)"]
+            },
+            {
+              "name": "Result settled after a resignation",
+              "given": ["GameResigned(gameId=otb-2024-ct-r5-b1, resigningSide=black, result=white_won, termination=resignation)"],
+              "when": "",
+              "then": ["GameResult(gameId=otb-2024-ct-r5-b1, result=white_won, termination=resignation)"]
+            },
+            {
+              "name": "Result settled after a second illegal move forfeit",
+              "given": ["IllegalMoveForfeited(gameId=otb-2024-ct-r5-b1, offendingSide=white, result=black_won, termination=illegal_move)"],
+              "when": "",
+              "then": ["GameResult(gameId=otb-2024-ct-r5-b1, result=black_won, termination=illegal_move)"]
+            },
+            {
+              "name": "Result settled after checkmate on the board",
+              "given": ["BoardOutcomeAdjudicated(gameId=otb-2024-ct-r5-b1, ply=6, fen=rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3, result=black_won, termination=checkmate)"],
+              "when": "",
+              "then": ["GameResult(gameId=otb-2024-ct-r5-b1, result=black_won, termination=checkmate)"]
+            },
+            {
+              "name": "Result settled after a time forfeit",
+              "given": ["TimeForfeited(gameId=otb-2024-ct-r5-b1, flaggedSide=black, result=white_won, termination=time_forfeit)"],
+              "when": "",
+              "then": ["GameResult(gameId=otb-2024-ct-r5-b1, result=white_won, termination=time_forfeit)"]
+            }
+          ]
+        },
+        {
+          "name": "Record Result",
+          "actor": "arbiter",
+          "aggregate": "game",
+          "ui": "Scoresheet",
+          "reads": ["GameResult", "GamePairing"],
+          "command": "RecordResult(gameId, result, termination, whitePlayerId, blackPlayerId, round, boardNumber)",
+          "events": ["ResultRecorded(gameId, result, termination, whitePlayerId, blackPlayerId, round, boardNumber)"],
+          "tests": [
+            {
+              "name": "Arbiter records the signed draw on the pairing sheet",
+              "given": [
+                "GameResult(gameId=otb-2024-ct-r5-b1, result=draw, termination=agreement)",
+                "GamePairing(gameId=otb-2024-ct-r5-b1, round=5, boardNumber=1, whitePlayerId=gm-carlsen, blackPlayerId=gm-nepo)"
+              ],
+              "when": "RecordResult(gameId=otb-2024-ct-r5-b1, result=draw, termination=agreement, whitePlayerId=gm-carlsen, blackPlayerId=gm-nepo, round=5, boardNumber=1)",
+              "then": ["ResultRecorded(gameId=otb-2024-ct-r5-b1, result=draw, termination=agreement, whitePlayerId=gm-carlsen, blackPlayerId=gm-nepo, round=5, boardNumber=1)"]
+            }
+          ]
+        },
+        {
+          "name": "Project Game Record",
+          "actor": "arbiter",
+          "aggregate": "game",
+          "trigger": "ResultRecorded(gameId, result, termination, whitePlayerId, blackPlayerId, round, boardNumber)",
+          "read_models": ["GameRecord*(gameId, round, boardNumber, whitePlayerId, blackPlayerId, result, termination)"],
+          "tests": [
+            {
+              "name": "Recorded game enters the tournament crosstable",
+              "given": ["ResultRecorded(gameId=otb-2024-ct-r5-b1, result=draw, termination=agreement, whitePlayerId=gm-carlsen, blackPlayerId=gm-nepo, round=5, boardNumber=1)"],
+              "when": "",
+              "then": ["GameRecord(gameId=otb-2024-ct-r5-b1, round=5, boardNumber=1, whitePlayerId=gm-carlsen, blackPlayerId=gm-nepo, result=draw, termination=agreement)"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Spectating",
+      "slices": [
+        {
+          "name": "Watch Broadcast",
+          "actor": "spectator",
+          "aggregate": "game",
+          "ui": "Broadcast",
+          "read_models": [
+            "GameState(gameId, ply, sideToMove, fen)",
+            "MoveList*(gameId, ply, san, sideToMove, isCheck, isCapture)"
+          ],
+          "tests": [
+            {
+              "name": "Spectator follows the live position and move list",
+              "given": [
+                "GameState(gameId=otb-2024-ct-r5-b1, ply=1, sideToMove=black, fen=rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1)",
+                "MoveList(gameId=otb-2024-ct-r5-b1, ply=1, san=e4, sideToMove=black, isCheck=false, isCapture=false)"
+              ],
+              "when": "",
+              "then": [
+                "GameState(gameId=otb-2024-ct-r5-b1, ply=1, sideToMove=black, fen=rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1)",
+                "MoveList(gameId=otb-2024-ct-r5-b1, ply=1, san=e4, sideToMove=black, isCheck=false, isCapture=false)"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "View Result",
+          "actor": "spectator",
+          "aggregate": "game",
+          "ui": "Crosstable",
+          "read_models": ["GameRecord*(gameId, round, boardNumber, whitePlayerId, blackPlayerId, result, termination)"],
+          "tests": [
+            {
+              "name": "Spectator reads the finished game from the crosstable",
+              "given": ["GameRecord(gameId=otb-2024-ct-r5-b1, round=5, boardNumber=1, whitePlayerId=gm-carlsen, blackPlayerId=gm-nepo, result=draw, termination=agreement)"],
+              "when": "",
+              "then": ["GameRecord(gameId=otb-2024-ct-r5-b1, round=5, boardNumber=1, whitePlayerId=gm-carlsen, blackPlayerId=gm-nepo, result=draw, termination=agreement)"]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
