@@ -762,6 +762,54 @@ def render_svg(model: EventModel) -> str:
 
     total_width = x_cursor + CHAPTER_PAD
 
+    # --- Cross-chapter / backward trigger connections ---
+    # The horizontal-arrow pass below only connects a trigger to its event when
+    # that event is produced earlier in the SAME chapter.  Multi-source
+    # projections (a read model fed by events from several chapters) and
+    # backward triggers therefore leave cards visually unconnected.  Map each
+    # event to its producing column, then flag the triggers the pass can't draw
+    # so they can be rendered as local dashed backreference cards instead.
+    event_producer: dict[str, tuple[int, int, str]] = {}  # name -> (chapter, col, label)
+    for gcol, (pci, psi, psl) in enumerate(columns):
+        for ev in psl.events:
+            en = _parse_element(ev)[0]
+            if en not in event_producer:
+                event_producer[en] = (pci, gcol, psl.name or model.chapters[pci].name)
+
+    def _backref_triggers(gcol: int, ci: int, sl: Slice):
+        """Backward triggers (producer at/after this column).  A forward arrow
+        can't point left, so these show as local backreference cards; forward
+        triggers are drawn as connector lines by the arrow pass instead."""
+        out = []
+        for t in _trigger_list(sl):
+            tn = _parse_element(t)[0]
+            prod = event_producer.get(tn)
+            if prod is None:
+                continue
+            pci, pcol, plabel = prod
+            if pcol < gcol:
+                continue  # forward -> connector line
+            label = model.chapters[pci].name if pci != ci else plabel
+            out.append((t, tn, label))
+        return out
+
+    backref_map = {id(sl): _backref_triggers(gcol, ci, sl)
+                   for gcol, (ci, si, sl) in enumerate(columns)}
+
+    # Forward trigger links that span chapters route through a dedicated
+    # horizontal channel above the read-model row, so their long lines clear
+    # intermediate cards.  Same-chapter forward links keep the short routing.
+    channel_lane: dict[tuple[int, int], int] = {}
+    for dcol, (dci, dsi, dsl) in enumerate(columns):
+        for t in _trigger_list(dsl):
+            prod = event_producer.get(_parse_element(t)[0])
+            if not prod:
+                continue
+            pci, pcol, _lbl = prod
+            if pcol < dcol and pci != dci and (pcol, dcol) not in channel_lane:
+                channel_lane[(pcol, dcol)] = len(channel_lane)
+    n_channel = len(channel_lane)
+
     # --- Annotation layout: compute max ref counts per card position ---
     max_cmd_refs = 0
     max_evt_refs = 0
@@ -850,6 +898,9 @@ def render_svg(model: EventModel) -> str:
     CONSUMED_BOTTOM_PAD = 12  # extra padding below backreference cards
     def _rm_row_height(sl: Slice) -> float:
         consumed_h = (len(sl.reads) * (CONSUMED_CARD_H + RM_STACK_GAP) + CONSUMED_BOTTOM_PAD) if sl.reads else 0
+        # automation backreference trigger cards share the read-model row
+        if sl.automation:
+            consumed_h += len(backref_map.get(id(sl), [])) * (CONSUMED_CARD_H + RM_STACK_GAP)
         produced_h = 0
         for rm in sl.read_models:
             produced_h += _card_height(rm, rm_w_layout) + RM_STACK_GAP
@@ -857,6 +908,10 @@ def render_svg(model: EventModel) -> str:
             produced_h -= RM_STACK_GAP
         return consumed_h + max(produced_h, CARD_H)
     rm_row_h = max((_rm_row_height(sl) for _, _, sl in columns), default=CARD_H) + rm_ref_extra
+    # Reserve the cross-chapter routing channel directly above the read models
+    channel_h = n_channel * 7 + (10 if n_channel else 0)
+    channel_top = y
+    y += channel_h
     read_model_row_y = y
     y += rm_row_h + ROW_GAP
 
@@ -1162,6 +1217,62 @@ def render_svg(model: EventModel) -> str:
                 parts.append(panel)
             produced_y_cursor += rm_h + RM_STACK_GAP
 
+        # Backreference trigger cards — connect projections/automations to
+        # triggers the horizontal-arrow pass can't draw (cross-chapter or
+        # backward).  Rendered local to the consuming column so every element
+        # visibly connects to all its triggers.
+        bt = backref_map.get(id(sl), [])
+        if bt and _is_state_view(sl):
+            first_rm_h = _card_height(sl.read_models[0], rm_w) if sl.read_models else CARD_H
+            rm_mid_y = read_model_row_y + consumed_stack_h + first_rm_h / 2
+            bt_h = 36  # compact cards so several triggers stack readably
+            n_bt = len(bt)
+            for bi, (t, tn, label) in enumerate(bt):
+                by = agg["evt"] + bi * (bt_h + RM_STACK_GAP)
+                parts.append(
+                    f'<rect x="{cx}" y="{by}" width="{CARD_W}" height="{bt_h}" rx="6" '
+                    f'fill="{EVENT_BG}" stroke="#fff" stroke-width="1.5" stroke-dasharray="5,3"/>'
+                )
+                parts.append(_text_block(cx + CARD_W / 2, by + bt_h / 2 - 5,
+                                         _camel_wrap(tn, max_chars=int(CARD_W / 6.5)),
+                                         font_size=10, fill="#fff", font_weight="600"))
+                parts.append(
+                    f'<text x="{cx + CARD_W / 2}" y="{by + bt_h / 2 + 10}" '
+                    f'font-family="Inter, Helvetica, Arial, sans-serif" font-size="7" '
+                    f'fill="#fff" text-anchor="middle" dominant-baseline="central" '
+                    f'opacity="0.8">← {_esc(label)}</text>'
+                )
+                # spread arrows so a lower card's arrow doesn't run through the card above
+                ax = cx + CARD_W / 2 + (bi - (n_bt - 1) / 2) * ARROW_SPREAD
+                parts.append(_arrow_up(ax, by, rm_mid_y, VIEW_BG, dashed=True))
+        elif bt and sl.automation:
+            rm_w_bt = CARD_W - RM_X_OFFSET - RM_RIGHT_PAD
+            cc_h = 38
+            base_y = read_model_row_y + consumed_stack_h
+            box_bottom = ui_row_y.get(sl.actor)
+            for bi, (t, tn, label) in enumerate(bt):
+                by = base_y + bi * (cc_h + RM_STACK_GAP)
+                parts.append(
+                    f'<rect x="{cx + RM_X_OFFSET}" y="{by}" width="{rm_w_bt}" height="{cc_h}" '
+                    f'rx="6" fill="{EVENT_BG}" stroke="#fff" stroke-width="1.5" stroke-dasharray="5,3"/>'
+                )
+                parts.append(_text_block(cx + RM_X_OFFSET + rm_w_bt / 2, by + cc_h / 2 - 5,
+                                         _camel_wrap(tn, max_chars=int(rm_w_bt / 6.5)),
+                                         font_size=9, fill="#fff", font_weight="600"))
+                parts.append(
+                    f'<text x="{cx + RM_X_OFFSET + rm_w_bt / 2}" y="{by + cc_h / 2 + 10}" '
+                    f'font-family="Inter, Helvetica, Arial, sans-serif" font-size="6" '
+                    f'fill="#fff" text-anchor="middle" dominant-baseline="central" '
+                    f'opacity="0.75">← {_esc(label)}</text>'
+                )
+                if box_bottom is not None:
+                    ax = cx + RM_X_OFFSET + rm_w_bt / 2
+                    parts.append(
+                        f'<line x1="{ax}" y1="{by}" x2="{ax}" y2="{box_bottom + max_ui_h}" '
+                        f'stroke="{AUTOMATION_COLOR}" stroke-width="1.5" stroke-dasharray="5,3" '
+                        f'marker-end="url(#arrowhead-{AUTOMATION_COLOR.strip("#")})"/>'
+                    )
+
         # --- Arrows ---
         # Down-flow arrows left of RM cards, up-flow arrows right
         x_down = cx + 15  # fixed: always left of RM cards (RM_X_OFFSET=30)
@@ -1261,96 +1372,109 @@ def render_svg(model: EventModel) -> str:
             f'stroke="#4CAF50" stroke-width="1.5" stroke-dasharray="8,4" opacity="0.6"/>'
         )
 
-    # --- Horizontal arrows: event → downstream slices (all-pairs within chapter) ---
-    # Pre-pass: count arrows per source (departures) and destination (arrivals)
-    dst_arrow_count: dict[int, int] = {}  # dst_col → count of arrows arriving
-    src_arrow_count: dict[int, int] = {}  # src_col → count of arrows departing
-
-    col_offset = 0
-    for ci, ch in enumerate(model.chapters):
-        for si, src_sl in enumerate(ch.slices):
-            src_col = col_offset + si
-            if not src_sl.events:
+    # --- Horizontal arrows: event → every downstream trigger (all forward pairs) ---
+    # Pre-pass counts only the short (same-chapter) links, for y-offset
+    # spreading; cross-chapter links get their own channel lane instead.
+    dst_arrow_count: dict[int, int] = {}
+    src_arrow_count: dict[int, int] = {}
+    for src_col, (sci, ssi, src_sl) in enumerate(columns):
+        if not src_sl.events:
+            continue
+        src_event_names = {_parse_element(ev)[0] for ev in src_sl.events}
+        for dst_col in range(src_col + 1, len(columns)):
+            dst_sl = columns[dst_col][2]
+            if not _trigger_list(dst_sl):
                 continue
-            src_event_names = {_parse_element(ev)[0] for ev in src_sl.events}
-            for sj in range(si + 1, len(ch.slices)):
-                dst_sl = ch.slices[sj]
-                dst_col = col_offset + sj
-                if not _trigger_list(dst_sl):
-                    continue
-                if _trigger_names(dst_sl) & src_event_names:
-                    dst_arrow_count[dst_col] = dst_arrow_count.get(dst_col, 0) + 1
-                    src_arrow_count[src_col] = src_arrow_count.get(src_col, 0) + 1
-        col_offset += len(ch.slices)
+            if (_trigger_names(dst_sl) & src_event_names) and (src_col, dst_col) not in channel_lane:
+                dst_arrow_count[dst_col] = dst_arrow_count.get(dst_col, 0) + 1
+                src_arrow_count[src_col] = src_arrow_count.get(src_col, 0) + 1
 
-    # Track indices during drawing
     dst_arrow_idx: dict[int, int] = {}
     src_arrow_idx: dict[int, int] = {}
+    for src_col, (sci, ssi, src_sl) in enumerate(columns):
+        if not src_sl.events:
+            continue
+        src_event_names = {_parse_element(ev)[0] for ev in src_sl.events}
+        src_agg = agg_lane_y[src_sl.aggregate]
+        src_evt_y = src_agg["evt"] + max_evt_h / 2
 
-    col_offset = 0
-    for ci, ch in enumerate(model.chapters):
-        for si, src_sl in enumerate(ch.slices):
-            src_col = col_offset + si
-            # Source must produce events (State Change, Automation, External)
-            if not src_sl.events:
+        for dst_col in range(src_col + 1, len(columns)):
+            dst_sl = columns[dst_col][2]
+            if not _trigger_list(dst_sl):
                 continue
-            src_event_names = {_parse_element(ev)[0] for ev in src_sl.events}
-            src_agg = agg_lane_y[src_sl.aggregate]
-            src_evt_y = src_agg["evt"] + max_evt_h / 2
+            if not (_trigger_names(dst_sl) & src_event_names):
+                continue
 
-            for sj in range(si + 1, len(ch.slices)):
-                dst_sl = ch.slices[sj]
-                dst_col = col_offset + sj
-                if not _trigger_list(dst_sl):
-                    continue
-                dst_trigger_names = _trigger_names(dst_sl)
-                if not (dst_trigger_names & src_event_names):
-                    continue
-
-                # Compute arrival offset to spread overlapping arrows at destination
-                arr_idx = dst_arrow_idx.get(dst_col, 0)
-                dst_arrow_idx[dst_col] = arr_idx + 1
-                total_dst = dst_arrow_count.get(dst_col, 1)
-                y_offset_dst = (arr_idx - (total_dst - 1) / 2) * ARROW_SPREAD
-
-                # Compute departure offset to spread overlapping arrows at source
-                dep_idx = src_arrow_idx.get(src_col, 0)
-                src_arrow_idx[src_col] = dep_idx + 1
-                total_src = src_arrow_count.get(src_col, 1)
-                y_offset_src = (dep_idx - (total_src - 1) / 2) * ARROW_SPREAD
-
-                # Route vertical segment in the gap right after the source column.
-                # Using midpoint of full span causes arrows to cross intermediate cards.
-                gap_x = col_x[src_col] + CARD_W + COL_GAP * 0.3 + dep_idx * 6
-
+            if (src_col, dst_col) in channel_lane:
+                # Cross-chapter forward link: route through the channel above
+                # the read-model row so the long line clears intermediate cards.
+                lane = channel_lane[(src_col, dst_col)]
+                lane_y = channel_top + 5 + lane * 7
+                gap_x = col_x[src_col] + CARD_W + COL_GAP * 0.3 + (lane % 3) * 5
                 if dst_sl.automation:
-                    # Automation arrow (purple): event → purple processor box
-                    box_mid_y = ui_row_y.get(dst_sl.actor, 0) + max_ui_h / 2 + y_offset_dst
-                    depart_y = src_evt_y + y_offset_src
+                    # Enter the processor box at its LEFT edge (a distinct
+                    # arrowhead), not the bottom — the bottom is where the
+                    # box's own arrow drops to its command, and a trigger
+                    # merged into that line reads as no trigger at all.
+                    box_left = col_x[dst_col]
+                    box_mid_y = ui_row_y.get(dst_sl.actor, 0) + max_ui_h / 2
+                    approach_x = box_left - 18
                     parts.append(
-                        f'<path d="M {col_x[src_col] + CARD_W} {depart_y} '
-                        f'L {gap_x} {depart_y} '
-                        f'L {gap_x} {box_mid_y} '
-                        f'L {col_x[dst_col] - 6} {box_mid_y}" '
+                        f'<path d="M {col_x[src_col] + CARD_W} {src_evt_y} '
+                        f'L {gap_x} {src_evt_y} L {gap_x} {lane_y} '
+                        f'L {approach_x} {lane_y} L {approach_x} {box_mid_y} '
+                        f'L {box_left - 6} {box_mid_y}" '
                         f'fill="none" stroke="{AUTOMATION_COLOR}" stroke-width="1.5" '
                         f'stroke-dasharray="6,3" '
                         f'marker-end="url(#arrowhead-{AUTOMATION_COLOR.strip("#")})"/>'
                     )
                 elif _is_state_view(dst_sl):
-                    # State View arrow (green dashed): event → first read model
-                    depart_y = src_evt_y + y_offset_src
-                    first_dst_rm_h = _card_height(dst_sl.read_models[0], rm_w_layout) if dst_sl.read_models else CARD_H
-                    dst_rm_y = read_model_row_y + first_dst_rm_h / 2 + y_offset_dst
+                    dst_x = (col_x[dst_col] + RM_X_OFFSET
+                             + (CARD_W - RM_X_OFFSET - RM_RIGHT_PAD) / 2 + (lane % 3) * 5)
                     parts.append(
-                        f'<path d="M {col_x[src_col] + CARD_W} {depart_y} '
-                        f'L {gap_x} {depart_y} '
-                        f'L {gap_x} {dst_rm_y} '
-                        f'L {col_x[dst_col] + RM_X_OFFSET + (CARD_W - RM_X_OFFSET - RM_RIGHT_PAD)} {dst_rm_y}" '
+                        f'<path d="M {col_x[src_col] + CARD_W} {src_evt_y} '
+                        f'L {gap_x} {src_evt_y} L {gap_x} {lane_y} '
+                        f'L {dst_x} {lane_y} L {dst_x} {read_model_row_y}" '
                         f'fill="none" stroke="{VIEW_BG}" stroke-width="1.5" '
                         f'stroke-dasharray="6,3" '
                         f'marker-end="url(#arrowhead-{VIEW_BG.strip("#")})"/>'
                     )
-        col_offset += len(ch.slices)
+                continue
+
+            # Same-chapter (short) forward link: existing routing
+            arr_idx = dst_arrow_idx.get(dst_col, 0)
+            dst_arrow_idx[dst_col] = arr_idx + 1
+            total_dst = dst_arrow_count.get(dst_col, 1)
+            y_offset_dst = (arr_idx - (total_dst - 1) / 2) * ARROW_SPREAD
+            dep_idx = src_arrow_idx.get(src_col, 0)
+            src_arrow_idx[src_col] = dep_idx + 1
+            total_src = src_arrow_count.get(src_col, 1)
+            y_offset_src = (dep_idx - (total_src - 1) / 2) * ARROW_SPREAD
+            gap_x = col_x[src_col] + CARD_W + COL_GAP * 0.3 + dep_idx * 6
+
+            if dst_sl.automation:
+                box_mid_y = ui_row_y.get(dst_sl.actor, 0) + max_ui_h / 2 + y_offset_dst
+                depart_y = src_evt_y + y_offset_src
+                parts.append(
+                    f'<path d="M {col_x[src_col] + CARD_W} {depart_y} '
+                    f'L {gap_x} {depart_y} L {gap_x} {box_mid_y} '
+                    f'L {col_x[dst_col] - 6} {box_mid_y}" '
+                    f'fill="none" stroke="{AUTOMATION_COLOR}" stroke-width="1.5" '
+                    f'stroke-dasharray="6,3" '
+                    f'marker-end="url(#arrowhead-{AUTOMATION_COLOR.strip("#")})"/>'
+                )
+            elif _is_state_view(dst_sl):
+                depart_y = src_evt_y + y_offset_src
+                first_dst_rm_h = _card_height(dst_sl.read_models[0], rm_w_layout) if dst_sl.read_models else CARD_H
+                dst_rm_y = read_model_row_y + first_dst_rm_h / 2 + y_offset_dst
+                parts.append(
+                    f'<path d="M {col_x[src_col] + CARD_W} {depart_y} '
+                    f'L {gap_x} {depart_y} L {gap_x} {dst_rm_y} '
+                    f'L {col_x[dst_col] + RM_X_OFFSET + (CARD_W - RM_X_OFFSET - RM_RIGHT_PAD)} {dst_rm_y}" '
+                    f'fill="none" stroke="{VIEW_BG}" stroke-width="1.5" '
+                    f'stroke-dasharray="6,3" '
+                    f'marker-end="url(#arrowhead-{VIEW_BG.strip("#")})"/>'
+                )
 
     # --- GWT section ---
     for col_idx, (_ci, _si, sl) in enumerate(columns):
