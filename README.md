@@ -24,6 +24,20 @@ python event-modeling/event_model.py init model.json
 
 Requires `pydantic` (no other dependencies).
 
+### [lazy](./.claude/skills/lazy/)
+
+A response contract: understand the problem, simplify, and answer in a fixed
+Pyramid Principle structure inside a 220-word budget.
+
+- **SKILL.md** — the laziness principles and the response template
+- **lazy-check.py** — a `Stop` hook that blocks a turn breaking the contract
+
+The hook only fires in sessions that actually loaded the skill, so it stays
+silent otherwise. It is wired for this repo in `.claude/settings.json`.
+
+This skill is installed under `.claude/skills/` because it is active while
+working in this repo, not just published from it.
+
 ## Installation
 
 Copy any skill directory into your project's `.claude/skills/` directory:
@@ -33,6 +47,26 @@ cp -r event-modeling /path/to/your/project/.claude/skills/
 ```
 
 Claude Code will automatically pick up skills from `.claude/skills/`.
+
+The `lazy` skill also needs its hook registered in that project's
+`.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/skills/lazy/lazy-check.py\""
+          }
+        ]
+      }
+    ]
+  }
+}
+```
 
 ## License
 

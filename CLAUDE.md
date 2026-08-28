@@ -7,6 +7,7 @@ Reusable Claude Code skills for software engineering agents.
 Each skill lives in its own directory with a `SKILL.md` (practice guide) and supporting tools.
 
 - `event-modeling/` — event modeling skill with Pydantic schema, validation, and SVG rendering
+- `.claude/skills/lazy/` — response contract skill plus its `Stop` hook, installed active for this repo
 
 ## Dependencies
 
