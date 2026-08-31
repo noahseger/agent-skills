@@ -9,6 +9,20 @@ Each skill lives in its own directory with a `SKILL.md` (practice guide) and sup
 - `event-modeling/` — event modeling skill with Pydantic schema, validation, and SVG rendering
 - `.claude/skills/lazy/` — response contract skill plus its `Stop` hook, installed active for this repo
 
+## The lazy skill is edited here, nowhere else
+
+`~/.claude/skills/lazy/` and `~/.codex/skills/lazy/` are symlinks into
+`.claude/skills/lazy/`, so this repo is the only copy. Edit it here, open a PR,
+and after merge publish it so teammates get the same version:
+
+```bash
+gns skills publish .claude/skills/lazy -m "<what changed>" --team architecture --public --force
+gns skills repair --key user.noah.skills.lazy
+```
+
+Editing `~/.claude/skills/lazy/` directly writes through the symlink into an
+unreviewed working copy of this repo. Commit it.
+
 ## Dependencies
 
 ```bash
