@@ -72,7 +72,7 @@ def main():
     if not required:
         return
 
-    failures = contract_failures(response, required)
+    failures = contract_failures(response, required, payload.get("cwd"))
     if failures:
         print(json.dumps({"decision": "block", "reason": reason_for(failures)}))
 
@@ -112,7 +112,7 @@ def required_headers():
 WORD_BUDGET = 220
 
 
-def contract_failures(response, required):
+def contract_failures(response, required, cwd=None):
     """Every way this response breaks the lazy contract, in reporting order."""
     failures = []
 
@@ -152,6 +152,14 @@ def contract_failures(response, required):
     if not ends_with_lone_period(response):
         failures.append("The response must end with a single period on its own line, nothing after it.")
 
+    # Every other check reads the response, so a file nobody renders is the one
+    # thing that can go missing and stay missing. Check the disk for this one.
+    if not root_problem_stated(cwd):
+        failures.append(
+            ".context/ROOT_PROBLEM.md is missing or empty in this workspace. Write the root "
+            "problem there, then answer."
+        )
+
     unfinished = UNCHECKED.findall(preface(body))
     if unfinished and not ASK.search(body):
         failures.append(
@@ -160,6 +168,24 @@ def contract_failures(response, required):
         )
 
     return failures
+
+
+def root_problem_stated(cwd):
+    """True when some ancestor of cwd carries a non-empty .context/ROOT_PROBLEM.md.
+
+    Walked upward rather than read from cwd directly: a shell `cd` during the
+    turn moves cwd into a subdirectory, and the workspace's root problem is
+    still the one that applies.
+    """
+    here = Path(cwd or ".").resolve()
+    for directory in (here, *here.parents):
+        candidate = directory / ".context" / "ROOT_PROBLEM.md"
+        try:
+            if candidate.read_text(encoding="utf-8", errors="replace").strip():
+                return True
+        except OSError:
+            continue
+    return False
 
 
 def preferred_address():
