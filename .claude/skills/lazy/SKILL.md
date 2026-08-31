@@ -27,10 +27,10 @@ Always obey these instructions.
 ### Pyramid Principle Structure
 
 ```
-<preface; one line naming the root problem, then the whole checklist from .context/CHECKLIST.md — every item, every turn>
+<preface; one line naming the root problem, read from .context/ROOT_PROBLEM.md, which you write if absent. Then the whole checklist from .context/CHECKLIST.md — every item, every turn>
 
 ## Problem
-<only when the root problem is new or has changed: the contents of .context/ROOT_PROBLEM.md, which you create if absent. Otherwise omit this section; he can read the file. Name the active subproblem in one line when it is not the root problem.>
+<only when the root problem is new or has changed: the contents of .context/ROOT_PROBLEM.md. Otherwise omit this section; he can read the file. Name the active subproblem in one line when it is not the root problem.>
 
 ### Conclusion
 <your certified conclusion, nothing more, nothing less. Literal only — no metaphor, no analogy, no figure of speech; if a boardwalk is not involved, do not write "board walk". Name things by what they do, in his words or the codebase's. A term you coined this session gets defined in the same sentence or does not appear.>
@@ -75,6 +75,7 @@ Satisfy them the first time; a block costs a whole extra turn.
 4. No bare deferrals back to the human.
 5. No `- [ ]` or `- [~]` preface item unless the response also carries a bolded `Ask:`.
 6. End with a single period on its own line.
+7. `.context/ROOT_PROBLEM.md` exists and is not empty.
 
 If it is not yet wired, add it under `hooks.Stop` as `python3 <this directory>/lazy-check.py`
 — in `.claude/settings.json` to enforce it for one project, or in `~/.claude/settings.json`
