@@ -31,7 +31,8 @@ Write the model in TypeScript instead of JSON. Names come from exports, fields a
 
 ```bash
 npx em init   model/                 # scaffold a model directory
-npx em render model/ -o model.svg    # draw it; --watch redraws on save
+npx em view   model/                 # live diagram in the browser; redraws on save
+npx em render model/ -o model.svg    # still picture; --watch redraws on save
 npx em proto  model/ -o proto        # one .proto per service
 ```
 
