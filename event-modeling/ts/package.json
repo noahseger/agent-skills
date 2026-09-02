@@ -1,0 +1,19 @@
+{
+  "name": "@noahseger/event-modeling",
+  "version": "0.1.0",
+  "type": "module",
+  "imports": {
+    "#em": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "npm run typecheck && node --test --experimental-strip-types 'test/*.test.ts'"
+  },
+  "dependencies": {
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.0",
+    "typescript": "^7.0.2"
+  }
+}
