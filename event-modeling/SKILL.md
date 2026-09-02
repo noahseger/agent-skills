@@ -81,12 +81,12 @@ Missing information blocks work. A field with no source might depend on another 
 The `event_model.py` validator enforces both directions:
 
 1. **Projection check (State Change / Automation)** — every `read_models` entry must share at least one field with the slice's events.
-2. **Projection check (State View) — strict** — every field in a State View's read model must appear in the union of trigger event fields and consumed read model fields (from `reads`). For multi-trigger State Views, the union of all trigger fields is used.
-3. **Provenance check** — every event field must be connected to its inputs: the command, trigger(s), external event, or consumed read model in `reads`. Fields that don't trace by name are flagged as warnings when `reads` is present, or errors when `reads` is empty.
-4. **Automation command strictness** — every field in an automation command must trace to a non-command source (trigger, external event, consumed read models). Commands receive data; they don't invent it.
-5. **Cross-reference check** — every read model name in `reads` must exist in some other slice's `read_models`.
+2. **Projection check (State View) — strict** — every field in a State View's read model must appear in the union of trigger event fields, consumed read model fields (from `reads`), and the fields the slice's `mapping` fills. For multi-trigger State Views, the union of all trigger fields is used.
+3. **Provenance check** — every event field must be connected to its inputs: the command, trigger(s), external event, consumed read model in `reads`, or an entry in `mapping`. A field that traces to none of these is an error.
+4. **Automation command strictness** — every field in an automation command must trace to a non-command source (trigger, polled or consumed read models, external event). Commands receive data; they don't invent it.
+5. **Cross-reference check** — every read model name in `reads` or `polls` must exist in some other slice's `read_models`.
 
-**Commands declare their full interface** — not just what they receive, but the complete set of fields the handler works with. For transformation steps like encoding or exporting, include both input and output field names in the command schema. This makes every event field traceable by name to a declared schema.
+**A command lists what the actor sends.** When the handler renames a field or computes one, say so in the slice's `mapping` (see "Fields the TypeScript model adds") instead of padding the command with output fields. Every event field then traces either by name or through the mapping.
 
 ## Finish the Model
 
@@ -102,9 +102,17 @@ When a thread leads somewhere, follow it to the end:
 
 The same discipline runs in reverse — **invent nothing.** No event, read model, or slice that isn't a real domain concept (see "Invented read model names"). Model every real thing; add nothing spurious. Both halves serve one goal: minimize the total work the system demands over its life.
 
+## Tooling: two ways in
+
+Write the model as TypeScript in `ts/`, or write the JSON directly and hand it to `event_model.py`. The TypeScript assembles to that same JSON, so the validator and the renderer below apply either way.
+
+Write TypeScript for a system you are about to build. The compiler and the assembler enforce most of this document: a reference is a value, so an unknown event cannot be written; a slice is a chain of calls, so an illegal combination of elements does not compile; a field nothing fills is an assembly error. The same model generates the protobuf for the service it describes. See `ts/README.md`.
+
+Write the JSON directly when extracting a model from a system that already exists, especially one written in another language. The TypeScript names interfaces as RPC methods it will generate. Inventing those for a service written in Go or Kotlin is the hallucinated-interface antipattern below. An extracted model names the real entry points: `POST /v1/orders`, `OrderService.PlaceOrder`, a Kafka topic.
+
 ## Tooling: event_model.py
 
-The `event_model.py` script in this skill directory is the primary tool for creating and visualizing event models. It enforces a Pydantic schema with invariant validation and renders SVG diagrams.
+The `event_model.py` script in this skill directory validates and renders the JSON. It enforces a Pydantic schema with invariant validation and renders SVG diagrams.
 
 ### Commands
 
@@ -121,7 +129,7 @@ The tool validates these invariants automatically:
 - **Events must be past tense** (e.g. OrderPlaced, UserRegistered — not PlaceOrder)
 - **External events must be past tense** (e.g. ExternalPaymentReceived — not ExternalReceivePayment)
 - **Commands must be imperative** (e.g. PlaceOrder, RegisterUser — not OrderPlaced)
-- **Automations must have a trigger** — every gear is driven by an event or a TODO-list read model
+- **Automations must have a trigger** — every gear is driven by an event (`trigger`) or a TODO-list read model (`polls`)
 - **GWT tests must include concrete example data** — real values like `userId=42, amount=59.98`
 - **Actor and aggregate references must exist** in the model's actor/aggregate lists
 - **Read model fields must overlap with events** — at least one field in a read model must exist in the slice's events. Additive events (e.g. ItemAdded) carry all view fields; destructive events (e.g. ItemRemoved, CartCleared) carry only identifying fields needed to update or delete rows
@@ -235,8 +243,57 @@ The model supports three kinds of slices:
 | **Command slice** | `ui` + `command` + `events` | Actor uses an interface to issue a command that produces events |
 | **External event slice** | `external_event` + `command` + `events` | An event from outside the system boundary triggers an internal command |
 | **View-only slice** | `ui` + `read_models` (no command/events) | Actor queries a read model through an interface — no state change |
-| **Automation slice** | `automation` + `trigger` + `command` + `events` | An event triggers an automated side effect |
+| **Automation slice** | `automation` + (`trigger` or `polls`) + `command` + `events` | An event, or a TODO-list read model, drives an automated command |
 | **State View slice** | `trigger` + `read_models` (no command/events/ui) | Event triggers a read model projection |
+
+### Automations: two forms
+
+An automation issues a command with no actor. One of two things drives it.
+
+| Form | JSON | TypeScript | Use it when |
+|---|---|---|---|
+| event-driven | `trigger` names the event | `.on(Event)` | One event is enough to decide, and the work is quick and safe to repeat |
+| todo list | `polls` names a read model | `.polls(ReadModel)` | The work is slow, can fail, calls another system, or must not run twice |
+
+A todo list is a read model of the work to do. A projection adds a row when the work becomes due and marks it done when the event that finishes it arrives. The processor reads the list on its own schedule and issues the command for each open row. This buys three things:
+
+- **Idempotence** — a row marked done is not processed again, so a retry or a restart is safe.
+- **Consistency** — the list is built from events, not from the processor's memory, so it is right after a crash.
+- **A state you can reason about** — the list shows what is pending, what is done, and what is stuck.
+
+An event-driven automation has none of this. If the handler fails after the event, the work is lost unless the transport replays it.
+
+```json
+{
+  "name": "PaymentProcessor",
+  "actor": "system",
+  "aggregate": "payment",
+  "automation": "PaymentProcessor",
+  "polls": "PaymentsToProcess",
+  "command": "ProcessPayment(bookingId, amount)",
+  "events": ["PaymentSucceeded(bookingId, amount)"],
+  "tests": []
+}
+```
+
+The read model in `polls` must exist in some slice's `read_models`. Its fields are inputs to the command, like `reads`.
+
+### Fields the TypeScript model adds
+
+The TypeScript model emits four fields beyond the example above. Hand-written JSON may use them too.
+
+- **`query`** (view slice) — the request fields of a view, drawn under the method on the interface card: `"ui": "TodoService/GetList", "query": ["listId"]`.
+- **`polls`** (automation slice) — the TODO-list read model that drives the automation, in place of `trigger`.
+- **`note`** (slice) and **`notes`** (model, declaration name to text) — prose attached to a slice or to a declaration. The renderer shows a note as a tooltip and marks the card with ⓘ.
+- **`mapping`** (slice) — per event, the fields the handler fills that do not flow by name, and where each came from: `{"from": "text"}` for a renamed field, `{"value": 0}` for a constant, `{"count": true}` for a tally of that event. A mapped field counts as traced in the provenance checks.
+
+```json
+{
+  "command": "AddItem(listId, itemId, text)",
+  "events": ["ItemAdded(listId, itemId, title)"],
+  "mapping": { "ItemAdded": { "title": { "from": "text" } } }
+}
+```
 
 **State View with reads:** A State View can declare `reads` to access data from consumed read models in addition to its trigger event. The trigger is the availability signal ("this data is ready"); the reads provide the actual data. The validator checks that every read model field appears in the union of trigger fields AND consumed read model fields.
 
@@ -423,7 +480,8 @@ Define GWT tests **collaboratively with business experts** — not in isolation.
 ### Phase 6: Generate the Diagram
 
 ```bash
-python event_model.py render model.json -o model.svg
+python event_model.py render model.json -o model.svg   # from JSON
+npx em render model/ -o model.svg                      # from the TypeScript model
 ```
 
 Open the SVG in a browser to review. Iterate on the model until the diagram clearly tells the story of the system.
@@ -478,7 +536,7 @@ Each slice type (state change, state view, automation) follows a known pattern. 
 - **View-only slices show read model consumption** — `ui` + `read_models` without command/events. They render a green dashed arrow from read model up to the interface.
 - **Actor swimlanes show real interfaces** — REST endpoints, RPC methods — NEVER made-up screen names
 - **Aggregate swimlanes contain commands and events** — grouped by DDD aggregate / event stream
-- **Automations are driven by events or TODO lists** — never standalone, always show the trigger
+- **Automations are driven by events or TODO lists** — never standalone; `trigger` names the event, `polls` names the TODO-list read model (see "Automations: two forms")
 - **Every state change appears on the timeline** — no hidden triggers or side effects
 - **Names are CamelCase** — no spaces, e.g. `PlaceOrder` not `Place Order`
 - **GWT uses concrete data** — real IDs, real numbers, real outcomes

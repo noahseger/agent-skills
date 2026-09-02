@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  python:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,3 +16,27 @@ jobs:
           python-version: "3.14"
       - run: pip install pydantic pytest
       - run: pytest event-modeling/tests/ -v
+
+  ts:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: event-modeling/ts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: event-modeling/ts/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      # The tests run event_model.py over the assembled model.
+      - run: pip install pydantic
+      - run: npm ci
+      # tsc, biome, node --test, buf lint
+      - run: npm test
+      # The checked-in proto has to be what the model generates right now.
+      - run: npm run proto -- examples/todo-app -o examples/proto
+      - run: git diff --exit-code examples/proto

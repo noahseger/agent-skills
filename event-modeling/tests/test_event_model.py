@@ -484,3 +484,93 @@ class TestInit:
         cmd_init(args)
         data = json.loads(out.read_text())
         EventModel.model_validate(data)
+
+
+# ---------------------------------------------------------------------------
+# Fields the TypeScript model emits natively: query, polls, note/notes, mapping
+# ---------------------------------------------------------------------------
+
+TS_EXAMPLE = Path(__file__).resolve().parent.parent / "ts" / "test" / "todo-app.json"
+
+
+class TestNativeFields:
+    CREATE = {
+        "name": "Create", "actor": "u", "aggregate": "a", "ui": "Svc/Create",
+        "command": "Create(id, text)", "events": ["Created(id, title)"],
+        "mapping": {"Created": {"title": {"from": "text"}}},
+    }
+    PROJECT = {
+        "actor": "s", "aggregate": "a", "trigger": ["Created(id, title)"],
+        "read_models": ["Table(*id, title, count)"],
+        "mapping": {"Created": {"count": {"count": True}}},
+    }
+    VIEW = {
+        "actor": "u", "aggregate": "a", "ui": "Svc/Get",
+        "read_models": ["Table(*id, title, count)"], "query": ["id"],
+    }
+    POLLER = {
+        "actor": "s", "aggregate": "a", "automation": "Poller", "polls": "Table",
+        "command": "Process(id)", "events": ["Processed(id)"],
+    }
+
+    def _model(self, *slices, **extra):
+        return {
+            "name": "Native",
+            "actors": [{"id": "u", "name": "User", "type": "user"},
+                       {"id": "s", "name": "System", "type": "system"}],
+            "aggregates": [{"id": "a", "name": "A"}],
+            "chapters": [{"name": "Ch", "slices": list(slices)}],
+            **extra,
+        }
+
+    def test_ts_example_validates_with_no_warnings(self):
+        model = EventModel.model_validate(json.loads(TS_EXAMPLE.read_text()))
+        assert model._warnings == []
+
+    def test_mapping_traces_a_renamed_field_and_a_computed_column(self):
+        EventModel.model_validate(self._model(self.CREATE, self.PROJECT, self.VIEW))
+
+    def test_renamed_field_without_mapping_is_an_error(self):
+        create = {k: v for k, v in self.CREATE.items() if k != "mapping"}
+        with pytest.raises(ValidationError, match="no provenance: title"):
+            EventModel.model_validate(self._model(create, self.PROJECT, self.VIEW))
+
+    def test_computed_column_without_mapping_is_an_error(self):
+        project = {k: v for k, v in self.PROJECT.items() if k != "mapping"}
+        with pytest.raises(ValidationError, match="no provenance from Created: count"):
+            EventModel.model_validate(self._model(self.CREATE, project, self.VIEW))
+
+    def test_mapping_from_must_name_a_field_the_handler_receives(self):
+        create = {**self.CREATE, "mapping": {"Created": {"title": {"from": "nope"}}}}
+        with pytest.raises(ValidationError, match="reads 'nope', which Create does not carry"):
+            EventModel.model_validate(self._model(create, self.PROJECT, self.VIEW))
+
+    def test_mapping_source_rejects_unknown_keys(self):
+        create = {**self.CREATE, "mapping": {"Created": {"title": {"form": "text"}}}}
+        with pytest.raises(ValidationError):
+            EventModel.model_validate(self._model(create, self.PROJECT, self.VIEW))
+
+    def test_polls_drives_an_automation_without_a_trigger(self):
+        model = EventModel.model_validate(self._model(self.CREATE, self.PROJECT, self.VIEW, self.POLLER))
+        assert model.chapters[0].slices[3].polls == "Table"
+
+    def test_polls_must_name_a_projected_read_model(self):
+        poller = {**self.POLLER, "polls": "Nope"}
+        with pytest.raises(ValidationError, match="reads unknown read model 'Nope'"):
+            EventModel.model_validate(self._model(self.CREATE, self.PROJECT, self.VIEW, poller))
+
+    def test_query_fields_draw_on_the_interface_card(self):
+        svg = render_svg(EventModel.model_validate(self._model(self.CREATE, self.PROJECT, self.VIEW)))
+        assert "Svc/Get" in svg and "(id)" in svg
+
+    def test_polls_draws_on_the_gear(self):
+        svg = render_svg(EventModel.model_validate(
+            self._model(self.CREATE, self.PROJECT, self.VIEW, self.POLLER)))
+        assert "polls: Table" in svg
+
+    def test_notes_are_tooltips(self):
+        create = {**self.CREATE, "note": "The first slice."}
+        data = self._model(create, self.PROJECT, self.VIEW, notes={"Created": "One per id."})
+        svg = render_svg(EventModel.model_validate(data))
+        assert "<title>One per id.</title>" in svg
+        assert "<title>The first slice.</title>" in svg

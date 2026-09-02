@@ -1,12 +1,9 @@
 // An assembled model -> the JSON `event_model.py` reads. This is the only place
 // that knows the render target's shape.
 //
-// The target predates the DSL, so some concepts are encoded rather than native:
-// streams are `aggregates`; a read model is `Name*(*key, field)`; a `.polls()`
-// automation has the read model as its `trigger`; and a command lists the
-// fields its mapping functions fill, which is SKILL.md's rule for a handler
-// that renames or computes. The DSL's own facts (`query`, `polls`, `note`,
-// `mapping`) ride along as extra keys, which pydantic ignores.
+// The target predates the DSL, so two concepts are encoded rather than native:
+// streams are `aggregates`, and a read model's key columns are `*field`.
+// Everything else (`query`, `polls`, `note`, `mapping`) the target reads as is.
 import type {
   ClauseData,
   DeclData,
@@ -69,14 +66,10 @@ function slug(name: string): string {
     .replace(/^-|-$/g, "")
 }
 
-/** `Name(field, field)`. Keys are `*field`; a read model is a table, so it is `Name*`. */
-function element(decl: DeclData, extraFields: string[] = []): string {
-  const fields = [
-    ...Object.keys(decl.fields).map((f) => (decl.keys.includes(f) ? `*${f}` : f)),
-    ...extraFields.filter((f) => !(f in decl.fields)),
-  ]
-  const name = decl.kind === "readModel" ? `${decl.name}*` : decl.name
-  return fields.length > 0 ? `${name}(${fields.join(", ")})` : `${name}`
+/** `Name(field, field)`, with a read model's key columns as `*field`. */
+function element(decl: DeclData): string {
+  const fields = Object.keys(decl.fields).map((f) => (decl.keys.includes(f) ? `*${f}` : f))
+  return fields.length > 0 ? `${decl.name}(${fields.join(", ")})` : `${decl.name}`
 }
 
 function value(v: unknown): string {
@@ -113,7 +106,11 @@ export function toJson(model: ModelData, streams: Map<string, DeclData[]>): Mode
       ? [...streams.keys()].map((name) => ({ id: slug(name), name }))
       : [{ id: "events", name: "Events" }]
   const laneOf = (slice: SliceData): string => {
-    const drawn = [slice.command, ...slice.emits.map((f) => f.event), ...slice.on.map((f) => f.event)]
+    const drawn = [
+      slice.command,
+      ...slice.emits.map((f) => f.event),
+      ...slice.on.map((f) => f.event),
+    ]
     // The command decides the lane, then what the slice emits, then what it hears.
     for (const d of drawn) {
       if (d === undefined) continue
@@ -152,15 +149,11 @@ export function toJson(model: ModelData, streams: Map<string, DeclData[]>): Mode
       }
       if (trigger && external) out.external_event = element(trigger)
       if ((trigger && !external && !slice.projects) || slice.polls) out.automation = out.name
-      if (slice.polls) out.trigger = element(slice.polls)
-      else if (trigger && !external) {
+      if (trigger && !external) {
         out.trigger = slice.projects ? slice.on.map((f) => element(f.event)) : element(trigger)
       }
       if (slice.command) {
-        // SKILL.md: a command declares every field its handler works with, so
-        // a field a function fills is listed and event_model.py can trace it.
-        const filled = slice.emits.flatMap((f) => Object.keys(f.mapping))
-        out.command = element(slice.command, filled)
+        out.command = element(slice.command)
         noted(slice.command)
       }
       if (slice.emits.length > 0) out.events = slice.emits.map((f) => element(f.event))
@@ -170,7 +163,6 @@ export function toJson(model: ModelData, streams: Map<string, DeclData[]>): Mode
       }
       if (slice.projects) out.read_models = [element(slice.projects)]
 
-      // The target's own keys first, in its order; the DSL's extra keys after.
       const json: SliceJson = { ...out, tests: slice.tests.map(test) }
       if (slice.query) json.query = Object.keys(slice.query)
       if (slice.polls) json.polls = slice.polls.name ?? ""

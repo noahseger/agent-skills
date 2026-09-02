@@ -1,6 +1,7 @@
 // The story starts with a user, the API they use, and what they do to lists.
-import { m } from "#em"
+
 import { z } from "zod"
+import { m } from "#em"
 
 // A person who keeps todo lists.
 export const User = m.actor()
@@ -10,7 +11,8 @@ export const TodoService = m.service("todo.v1")
 
 // A user creates a named list.
 export const CreateList = m.command({ userId: z.string(), listId: z.string(), name: z.string() })
-export const ListCreated = m.event({ listId: z.string(), userId: z.string(), name: z.string() })
+export const ListCreated = m
+  .event({ listId: z.string(), userId: z.string(), name: z.string() })
   .note("Names are unique per user.")
 export const DuplicateName = m.rejected("list name already exists")
 
