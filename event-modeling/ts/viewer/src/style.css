@@ -405,8 +405,13 @@ svg .note-dot {
   fill: transparent;
 }
 
-.slice-head:hover rect {
+.slice-head:hover rect,
+.slice-head.hover rect {
   fill: #eef2f7;
+}
+
+.slice-head.hover text {
+  fill: var(--ink);
 }
 
 .slice-head.selected rect {
