@@ -2,7 +2,18 @@
 import { computed } from "vue"
 import type { ModelJson } from "../../src/json.ts"
 import Card from "./Card.vue"
-import { type Box, type Column, LANE_PAD, type Layout, parse, path } from "./layout.ts"
+import {
+  type Box,
+  CARD_W,
+  COMPACT_H,
+  type Column,
+  type Edge,
+  LANE_PAD,
+  type Layout,
+  parse,
+  path,
+  STACK_GAP,
+} from "./layout.ts"
 
 // One slice at full width: its column as drawn on the canvas, the facts about
 // it, and every specification with room to read. The page scrolls.
@@ -24,28 +35,66 @@ const emit = defineEmits<{
 const chapter = computed(() => props.layout.chapters[props.column.chapter])
 
 // The column as drawn on the canvas, with the lanes this slice does not use
-// closed up, so the cards sit together.
+// closed up, so the cards sit together. What the slice reads is drawn on the
+// canvas from the read model's own card in another column; here it gets a
+// reference card of its own, just above whatever reads it.
 const local = computed(() => {
-  const mine = props.layout.boxes.filter((b) => b.column === props.column.index)
+  const index = props.column.index
+  const mine = props.layout.boxes.filter((b) => b.column === index)
   const within = (b: Box, r: { y: number; h: number }) => b.y >= r.y && b.y + b.h <= r.y + r.h
-  const boxes: Box[] = []
-  const lanes: { label: string; y: number; h: number }[] = []
-  let y = 0
+  const blocks: { label: string; boxes: Box[] }[] = []
   for (const r of props.layout.rows) {
     const inRow = mine.filter((b) => within(b, r))
     if (r.kind === "specs" || inRow.length === 0) continue
-    const top = Math.min(...inRow.map((b) => b.y)) - LANE_PAD - 10
-    const bottom = Math.max(...inRow.map((b) => b.y + b.h)) + LANE_PAD
-    for (const b of inRow) boxes.push({ ...b, y: b.y + y - top })
-    lanes.push({ label: r.label, y, h: bottom - top })
+    blocks.push({ label: r.label, boxes: inRow })
+  }
+
+  const s = props.column.slice
+  const consumer =
+    mine.find((b) => b.kind === "automation") ?? mine.find((b) => b.kind === "command")
+  const refs: Box[] = []
+  const extra: Edge[] = []
+  for (const name of [...(s.reads ?? []), ...(s.polls ? [s.polls] : [])]) {
+    const full = props.layout.boxes.find(
+      (b) => b.name === name && b.kind === "readModel" && !b.compact,
+    )
+    if (!full || !consumer) continue
+    const ref: Box = {
+      ...full,
+      id: `read:${name}`,
+      compact: true,
+      canonical: full.id,
+      column: index,
+      x: props.column.x + (props.column.w - CARD_W) / 2,
+      y: refs.length * (COMPACT_H + STACK_GAP),
+      w: CARD_W,
+      h: COMPACT_H,
+    }
+    refs.push(ref)
+    extra.push({ from: ref.id, to: consumer.id, dashed: true })
+  }
+  if (refs.length > 0) {
+    const at = blocks.findIndex((b) => b.boxes.some((b) => b.id === consumer?.id))
+    blocks.splice(Math.max(0, at), 0, { label: "Reads", boxes: refs })
+  }
+
+  const boxes: Box[] = []
+  const lanes: { label: string; y: number; h: number }[] = []
+  let y = 0
+  for (const block of blocks) {
+    const top = Math.min(...block.boxes.map((b) => b.y)) - LANE_PAD - 10
+    const bottom = Math.max(...block.boxes.map((b) => b.y + b.h)) + LANE_PAD
+    for (const b of block.boxes) boxes.push({ ...b, y: b.y + y - top })
+    lanes.push({ label: block.label, y, h: bottom - top })
     y += bottom - top
   }
-  return { boxes, lanes, height: y }
+  return { boxes, lanes, height: y, extra }
 })
 const byId = computed(() => new Map(local.value.boxes.map((b) => [b.id, b])))
-const edges = computed(() =>
-  props.layout.edges.filter((e) => !e.points && byId.value.has(e.from) && byId.value.has(e.to)),
-)
+const edges = computed(() => [
+  ...props.layout.edges.filter((e) => !e.points && byId.value.has(e.from) && byId.value.has(e.to)),
+  ...local.value.extra,
+])
 const specs = computed(() => props.layout.specs.filter((s) => s.column === props.column.index))
 const viewBox = computed(() => `${props.column.x} 0 ${props.column.w} ${local.value.height}`)
 
@@ -75,9 +124,9 @@ function cardClass(b: Box) {
   <section class="slice-view" aria-label="Slice">
     <header class="slice-header">
       <div class="crumbs">
-        <span class="chapter">{{ chapter?.name }}</span>
+        <span class="chapter">{{ chapter?.title }}</span>
         <span class="sep">›</span>
-        <span class="name">{{ column.label }}</span>
+        <span class="name">{{ column.title }}</span>
         <span v-if="column.noted" class="note-dot"></span>
       </div>
       <div class="controls">
@@ -114,57 +163,59 @@ function cardClass(b: Box) {
         />
       </svg>
 
-      <div class="facts">
-        <p v-if="slice.note" class="note"><span class="badge" aria-hidden="true">i</span>{{ slice.note }}</p>
-        <dl>
-          <template v-if="actor"><dt>Actor</dt><dd>{{ actor }}</dd></template>
-          <template v-if="slice.ui"><dt>Service</dt><dd>{{ slice.ui }}</dd></template>
-          <template v-if="slice.query?.length"><dt>Query</dt><dd>{{ slice.query.join(", ") }}</dd></template>
-          <template v-if="slice.polls">
-            <dt>Polls</dt>
-            <dd><button type="button" class="ref" @click="follow(slice.polls)">{{ slice.polls }}</button></dd>
-          </template>
-          <template v-if="slice.reads?.length">
-            <dt>Reads</dt>
-            <dd>
-              <button v-for="r in slice.reads" :key="r" type="button" class="ref" @click="follow(r)">{{ r }}</button>
-            </dd>
-          </template>
-          <template v-if="triggers.length">
-            <dt>On</dt>
-            <dd>
-              <button v-for="t in triggers" :key="t" type="button" class="ref" @click="follow(t)">{{ t }}</button>
-            </dd>
-          </template>
-        </dl>
-        <template v-if="slice.mapping">
-          <h3>Mapping</h3>
-          <dl v-for="(fields, event) in slice.mapping" :key="event">
-            <template v-for="(src, field) in fields" :key="field">
-              <dt>{{ event }}.{{ field }}</dt>
+      <div class="slice-right">
+        <div class="facts">
+          <p v-if="slice.note" class="note"><span class="badge" aria-hidden="true">i</span>{{ slice.note }}</p>
+          <dl>
+            <template v-if="actor"><dt>Actor</dt><dd>{{ actor }}</dd></template>
+            <template v-if="slice.ui"><dt>Service</dt><dd>{{ slice.ui }}</dd></template>
+            <template v-if="slice.query?.length"><dt>Query</dt><dd>{{ slice.query.join(", ") }}</dd></template>
+            <template v-if="slice.polls">
+              <dt>Polls</dt>
+              <dd><button type="button" class="ref" @click="follow(slice.polls)">{{ slice.polls }}</button></dd>
+            </template>
+            <template v-if="slice.reads?.length">
+              <dt>Reads</dt>
               <dd>
-                {{ src.from !== undefined ? `← ${src.from}` : src.count !== undefined ? `count of ${src.count}` : `= ${JSON.stringify(src.value)}` }}
+                <button v-for="r in slice.reads" :key="r" type="button" class="ref" @click="follow(r)">{{ r }}</button>
+              </dd>
+            </template>
+            <template v-if="triggers.length">
+              <dt>On</dt>
+              <dd>
+                <button v-for="t in triggers" :key="t" type="button" class="ref" @click="follow(t)">{{ t }}</button>
               </dd>
             </template>
           </dl>
-        </template>
-      </div>
-    </div>
-
-    <h3 v-if="specs.length" class="specs-title">Specifications</h3>
-    <div class="specs-grid">
-      <article v-for="spec in specs" :key="spec.title.join()" class="hspec">
-        <h4>{{ spec.title.join(" ") }}</h4>
-        <div v-for="step in spec.steps" :key="step.word" class="hstep">
-          <span class="word">{{ step.word }}</span>
-          <div class="hcards">
-            <div v-for="(card, i) in step.cards" :key="i" class="hcard" :class="card.kind" @pointerenter="emit('hover', card.name)" @pointerleave="emit('hover', null)">
-              <div class="hname">{{ card.name }}</div>
-              <div v-for="line in card.lines" :key="line" class="hline">{{ line }}</div>
-            </div>
-          </div>
+          <template v-if="slice.mapping">
+            <h3>Mapping</h3>
+            <dl v-for="(fields, event) in slice.mapping" :key="event">
+              <template v-for="(src, field) in fields" :key="field">
+                <dt>{{ event }}.{{ field }}</dt>
+                <dd>
+                  {{ src.from !== undefined ? `← ${src.from}` : src.count !== undefined ? `count of ${src.count}` : `= ${JSON.stringify(src.value)}` }}
+                </dd>
+              </template>
+            </dl>
+          </template>
         </div>
-      </article>
+
+        <h3 v-if="specs.length" class="specs-title">Specifications</h3>
+        <div class="specs-grid">
+          <article v-for="spec in specs" :key="spec.title.join()" class="hspec">
+            <h4>{{ spec.title.join(" ") }}</h4>
+            <div v-for="step in spec.steps" :key="step.word" class="hstep">
+              <span class="word">{{ step.word }}</span>
+              <div class="hcards">
+                <div v-for="(card, i) in step.cards" :key="i" class="hcard" :class="card.kind" @pointerenter="emit('hover', card.name)" @pointerleave="emit('hover', null)">
+                  <div class="hname">{{ card.name }}</div>
+                  <div v-for="line in card.lines" :key="line" class="hline">{{ line }}</div>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
     </div>
   </section>
 </template>

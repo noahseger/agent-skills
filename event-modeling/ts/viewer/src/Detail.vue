@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import type { ModelJson } from "../../src/json.ts"
-import { type Box, type Column, type Layout, parse, parseClause } from "./layout.ts"
+import { type Box, type Column, type Layout, parse, parseClause, words } from "./layout.ts"
 
 const props = defineProps<{
   box: Box | null
@@ -63,7 +63,7 @@ const groups = computed<Group[]>(() => {
         : []
     if (tests.length === 0) continue
     const chapter = props.layout.chapters[col.chapter]?.name ?? ""
-    out.push({ column: col.index, heading: `${chapter} › ${col.label}`, tests })
+    out.push({ column: col.index, heading: `${words(chapter)} › ${col.title}`, tests })
   }
   return out
 })
@@ -74,6 +74,8 @@ function source(s: { from?: string; value?: unknown; count?: string }): string {
   return `= ${JSON.stringify(s.value)}`
 }
 const isError = (clause: string) => clause.startsWith("Error:")
+/** The JSON says `Error:`; the model and the manual say rejected. */
+const show = (clause: string) => clause.replace(/^Error:/, "Rejected:")
 const mentions = (clause: string) =>
   props.box !== null && parseClause(clause).name === props.box.name
 </script>
@@ -82,7 +84,7 @@ const mentions = (clause: string) =>
   <aside class="detail" aria-label="Details">
     <header>
       <span class="kind" :class="box?.kind ?? 'slice'">{{ box ? KIND[box.kind] : "slice" }}</span>
-      <h2>{{ box ? box.name : column.label }}</h2>
+      <h2>{{ box ? box.name : column.title }}</h2>
       <button v-if="!open" class="open" type="button" title="Open the slice" @click="$emit('open')">Open</button>
       <button class="close" type="button" title="Close (Esc)" @click="$emit('close')">×</button>
     </header>
@@ -132,7 +134,7 @@ const mentions = (clause: string) =>
           <div class="step">
             <span class="word">then</span>
             <span>
-              <code v-for="c in t.then" :key="c" :class="{ rejected: isError(c), mark: mentions(c) }">{{ c }}</code>
+              <code v-for="c in t.then" :key="c" :class="{ rejected: isError(c), mark: mentions(c) }">{{ show(c) }}</code>
             </span>
           </div>
         </div>
