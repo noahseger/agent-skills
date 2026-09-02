@@ -72,7 +72,7 @@ function cardClass(b: Box) {
 </script>
 
 <template>
-  <section class="slice-view">
+  <section class="slice-view" aria-label="Slice">
     <header class="slice-header">
       <div class="crumbs">
         <span class="chapter">{{ chapter?.name }}</span>
@@ -81,8 +81,8 @@ function cardClass(b: Box) {
         <span v-if="column.noted" class="note-dot"></span>
       </div>
       <div class="controls">
-        <button type="button" :disabled="column.index <= first" @click="emit('step', -1)">←</button>
-        <button type="button" :disabled="column.index >= last" @click="emit('step', 1)">→</button>
+        <button type="button" aria-label="Previous slice" :disabled="column.index <= first" @click="emit('step', -1)">←</button>
+        <button type="button" aria-label="Next slice" :disabled="column.index >= last" @click="emit('step', 1)">→</button>
         <button type="button" class="canvas-btn" @click="emit('close')">Canvas</button>
       </div>
     </header>
@@ -107,6 +107,7 @@ function cardClass(b: Box) {
           :box="b"
           :class="cardClass(b)"
           @click.stop="emit('selectCard', b)"
+          @pick="emit('selectCard', b)"
           @link="emit('link', $event)"
           @pointerenter="emit('hover', b.name)"
           @pointerleave="emit('hover', null)"
@@ -114,7 +115,7 @@ function cardClass(b: Box) {
       </svg>
 
       <div class="facts">
-        <p v-if="slice.note" class="note"><span class="badge">i</span>{{ slice.note }}</p>
+        <p v-if="slice.note" class="note"><span class="badge" aria-hidden="true">i</span>{{ slice.note }}</p>
         <dl>
           <template v-if="actor"><dt>Actor</dt><dd>{{ actor }}</dd></template>
           <template v-if="slice.ui"><dt>Service</dt><dd>{{ slice.ui }}</dd></template>

@@ -108,9 +108,19 @@ function openSlice(column: number) {
   go({ column, view: "slice" })
 }
 
+// An exported page carries the model in a script tag: no server, no feed.
+const embedded = document.getElementById("model")
+const snapshot = embedded !== null
+
 // The last good model stays on screen while the error shows above it.
 let loaded = false
 async function refresh() {
+  if (embedded) {
+    model.value = JSON.parse(embedded.textContent ?? "null") as ModelJson
+    go(fromHash(), { push: false, zoom: !loaded })
+    loaded = true
+    return
+  }
   const res = await fetch("/model.json", { cache: "no-store" })
   if (res.ok) {
     model.value = (await res.json()) as ModelJson
@@ -139,14 +149,16 @@ function onKey(e: KeyboardEvent) {
 }
 onMounted(() => {
   refresh()
-  feed = new EventSource("/events")
-  feed.onopen = () => {
-    live.value = true
+  if (!snapshot) {
+    feed = new EventSource("/events")
+    feed.onopen = () => {
+      live.value = true
+    }
+    feed.onerror = () => {
+      live.value = false
+    }
+    feed.onmessage = () => refresh()
   }
-  feed.onerror = () => {
-    live.value = false
-  }
-  feed.onmessage = () => refresh()
   window.addEventListener("keydown", onKey)
   window.addEventListener("popstate", onPop)
 })
@@ -165,13 +177,13 @@ onUnmounted(() => {
       <span class="legend">
         <span v-for="[kind, label] in LEGEND" :key="kind" class="swatch" :class="kind">{{ label }}</span>
       </span>
-      <span class="status">
-        <span class="dot" :class="{ off: !live, error: error !== null }"></span>
-        {{ error !== null ? "assembly failed" : live ? "live" : "disconnected" }}
+      <span class="status" role="status">
+        <span class="dot" :class="{ off: !live && !snapshot, error: error !== null }" aria-hidden="true"></span>
+        {{ error !== null ? "assembly failed" : snapshot ? "snapshot" : live ? "live" : "disconnected" }}
       </span>
     </header>
-    <pre v-if="error !== null" class="error">{{ error }}</pre>
-    <div class="body">
+    <pre v-if="error !== null" class="error" role="alert">{{ error }}</pre>
+    <main class="body">
       <Nav
         v-if="drawn"
         :layout="drawn"
@@ -217,6 +229,6 @@ onUnmounted(() => {
         @open="openSlice(selectedColumn.index)"
         @goto="openSlice"
       />
-    </div>
+    </main>
   </div>
 </template>

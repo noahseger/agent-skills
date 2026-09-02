@@ -120,3 +120,20 @@ test("view serves the app, the model, and a change feed", async () => {
     server.kill()
   }
 })
+
+test("export writes one self-contained page carrying the model", () => {
+  const out = mkdtempSync(join(tmpdir(), "em-"))
+  try {
+    const run = em("export", EXAMPLE, "-o", join(out, "model.html"))
+    assert.equal(run.status, 0, run.stderr)
+    const html = readFileSync(join(out, "model.html"), "utf8")
+    assert.match(html, /<title>Todo List Application<\/title>/)
+    assert.match(html, /<script type="application\/json" id="model">/)
+    assert.match(html, /<script type="module">/)
+    assert.match(html, /<style>/)
+    assert.doesNotMatch(html, /src="\/assets|href="\/assets/, "nothing is fetched")
+    assert.ok(!existsSync(join(out, "assets")))
+  } finally {
+    rmSync(out, { recursive: true, force: true })
+  }
+})

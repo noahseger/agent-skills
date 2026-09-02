@@ -85,7 +85,14 @@ function down(e: PointerEvent) {
   moved = false
   dragging.value = true
 }
+function columnAt(clientX: number): number | null {
+  const box = el.value?.getBoundingClientRect()
+  if (!box) return null
+  const x = (clientX - box.left - view.value.x) / view.value.k
+  return props.layout.columns.find((c) => x >= c.x && x < c.x + c.w)?.index ?? null
+}
 function move(e: PointerEvent) {
+  hoverColumn.value = columnAt(e.clientX)
   if (!last) return
   const dx = e.clientX - last.x
   const dy = e.clientY - last.y
@@ -96,6 +103,10 @@ function move(e: PointerEvent) {
 function up() {
   last = null
   dragging.value = false
+}
+function leave() {
+  up()
+  hoverColumn.value = null
 }
 function background() {
   if (!moved) emit("clear")
@@ -158,16 +169,12 @@ function edgePath(i: number) {
 }
 function hoverCard(b: Box | null) {
   emit("hover", b?.name ?? null)
-  hoverColumn.value = b?.column ?? null
 }
 
 // A double click anywhere in a column opens that slice.
 function open(e: MouseEvent) {
-  const box = el.value?.getBoundingClientRect()
-  if (!box) return
-  const x = (e.clientX - box.left - view.value.x) / view.value.k
-  const col = props.layout.columns.find((c) => x >= c.x && x < c.x + c.w)
-  if (col) emit("openSlice", col.index)
+  const col = columnAt(e.clientX)
+  if (col !== null) emit("openSlice", col)
 }
 
 function firstSlice(chapter: number) {
@@ -197,10 +204,10 @@ const transform = computed(
     @pointerdown="down"
     @pointermove="move"
     @pointerup="up"
-    @pointerleave="up"
+    @pointerleave="leave"
     @wheel="wheel"
   >
-    <svg @click.self="background" @dblclick="open">
+    <svg role="img" :aria-label="`Event model canvas, ${layout.columns.length} slices`" @click.self="background" @dblclick="open">
       <defs>
         <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
@@ -214,9 +221,8 @@ const transform = computed(
         <g v-for="row in layout.rows" :key="row.id">
           <rect class="lane" :class="row.kind" :x="0" :y="row.y" :width="layout.width" :height="row.h" @click="background" />
           <line class="lane-line" :x1="0" :x2="layout.width" :y1="row.y" :y2="row.y" />
-          <text v-if="row.label" class="lane-label" :x="16" :y="row.y + 22">
-            {{ row.label }}<tspan v-if="row.sub" class="lane-kind"> ({{ row.sub }})</tspan>
-          </text>
+          <text v-if="row.label" class="lane-label" :x="16" :y="row.y + 22">{{ row.label }}</text>
+          <text v-if="row.sub" class="lane-kind" :x="16" :y="row.y + 37">{{ row.sub }}</text>
         </g>
         <line class="lane-line" :x1="0" :x2="layout.width" :y1="layout.height" :y2="layout.height" />
 
@@ -233,9 +239,11 @@ const transform = computed(
           <g
             class="slice-head"
             :class="{ selected: selectedColumn === col.index }"
+            role="button"
+            tabindex="0"
+            :aria-label="`Slice ${col.label}`"
             @click.stop="emit('selectSlice', col.index)"
-            @pointerenter="hoverColumn = col.index"
-            @pointerleave="hoverColumn = null"
+            @keydown.enter.stop="emit('openSlice', col.index)"
           >
             <rect :x="col.x + 4" :y="layout.nameY" :width="col.w - 8" :height="NAME_H" rx="10" />
             <text text-anchor="middle" :x="col.x + col.w / 2" :y="layout.nameY + NAME_H / 2 + 4.5">
@@ -269,6 +277,7 @@ const transform = computed(
           :box="box"
           :class="cardClass(box)"
           @click.stop="emit('selectCard', box)"
+          @pick="emit('selectCard', box)"
           @link="emit('link', $event)"
           @pointerenter="hoverCard(box)"
           @pointerleave="hoverCard(null)"

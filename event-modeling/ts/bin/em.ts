@@ -6,6 +6,7 @@
 //   render <path> -o out.svg      draw the diagram; --watch redraws on save
 //   proto  <path> -o dir          write one .proto per service
 //   view   <path> [--port n]      serve the live diagram; --no-open keeps the browser closed
+//   export <path> -o out.html     one self-contained page of the model, for sharing
 //
 // <path> is a model directory or a single module. Every command assembles the
 // model first, so an assembly error stops all of them the same way: its
@@ -18,6 +19,7 @@ import { fileURLToPath } from "node:url"
 import { parseArgs } from "node:util"
 
 import { assemble, load } from "../src/assemble.ts"
+import { exportHtml } from "../src/export.ts"
 import { generateProto } from "../src/proto.ts"
 import { type Snapshot, serve } from "../src/serve.ts"
 
@@ -26,7 +28,8 @@ const USAGE = `usage:
   em json   <path>
   em render <path> -o <out.svg> [--watch]
   em proto  <path> -o <dir>
-  em view   <path> [--port <n>] [--no-open]`
+  em view   <path> [--port <n>] [--no-open]
+  em export <path> -o <out.html>`
 
 const EVENT_MODEL_PY = fileURLToPath(new URL("../../event_model.py", import.meta.url))
 const VIEWER_DIST = fileURLToPath(new URL("../viewer/dist/", import.meta.url))
@@ -147,9 +150,19 @@ function assembleFresh(path: string): Snapshot {
   return run.status === 0 ? { json: run.stdout } : { error: run.stderr || run.stdout }
 }
 
-async function view(path: string): Promise<void> {
+function builtViewer(): void {
   if (!existsSync(join(VIEWER_DIST, "index.html")))
     throw new Error("The viewer is not built. Run `npm run build` in the package.")
+}
+
+async function exportPage(path: string, out: string): Promise<void> {
+  builtViewer()
+  writeFileSync(out, exportHtml(VIEWER_DIST, JSON.stringify(await assemble(path))))
+  console.log(`wrote ${out}`)
+}
+
+async function view(path: string): Promise<void> {
+  builtViewer()
   const server = await serve({
     dist: VIEWER_DIST,
     root: statSync(path).isDirectory() ? path : dirname(path),
@@ -180,6 +193,7 @@ async function main(): Promise<void> {
   else if (command === "render" && values.out) await render(path, values.out)
   else if (command === "proto" && values.out) await proto(path, values.out)
   else if (command === "view") await view(path)
+  else if (command === "export" && values.out) await exportPage(path, values.out)
   else usage()
 }
 

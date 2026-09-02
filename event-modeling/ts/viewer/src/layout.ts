@@ -140,11 +140,11 @@ export const TABLE_CHAR = 5.2
 export const TABLE_PAD = 12
 export const TABLE_MORE_W = 26
 export const SPEC_TITLE_LINE = 14
-export const SPEC_WORD_H = 20
+export const SPEC_WORD_H = 22
 export const SPEC_CARD_TITLE = 30
 export const SPEC_LINE_H = 13
-export const SPEC_GAP = 6
-export const SPEC_TEST_GAP = 20
+export const SPEC_GAP = 8
+export const SPEC_TEST_GAP = 26
 export const SPEC_TITLE_CHARS = 26
 
 const PAD_X = (COL_W - CARD_W) / 2
@@ -578,16 +578,15 @@ export function layout(model: ModelJson): Layout {
   // of a command or an automation. Edges that share an end fan out there, so
   // each one can be followed.
   const byId = new Map(boxes.map((b) => [b.id, b]))
-  const fan = (key: "from" | "to") => {
+  // Time runs right, so an edge leaving an element sits right of centre and
+  // an edge entering it sits left. Several at one end step further out.
+  const fan = (key: "from" | "to", direction: 1 | -1) => {
     const groups = new Map<string, Edge[]>()
     for (const e of crossing) groups.set(e[key], [...(groups.get(e[key]) ?? []), e])
-    return (e: Edge) => {
-      const group = groups.get(e[key]) ?? []
-      return (group.indexOf(e) - (group.length - 1) / 2) * FAN
-    }
+    return (e: Edge) => direction * (FAN + (groups.get(e[key])?.indexOf(e) ?? 0) * FAN)
   }
-  const fanFrom = fan("from")
-  const fanTo = fan("to")
+  const fanFrom = fan("from", 1)
+  const fanTo = fan("to", -1)
   crossing.forEach((e, i) => {
     const a = byId.get(e.from)
     const b = byId.get(e.to)
@@ -596,8 +595,8 @@ export function layout(model: ModelJson): Layout {
     const sx = a.x + a.w / 2 + fanFrom(e)
     const sy = a.kind === "event" ? a.y : a.y + a.h
     if (b.kind !== "readModel") {
-      const margin = (columns[b.column]?.x ?? 0) + 10 + fanTo(e)
-      const my = b.y + b.h / 2 + fanTo(e)
+      const margin = (columns[b.column]?.x ?? 0) + 10 - fanTo(e) - FAN
+      const my = b.y + b.h / 2 + fanTo(e) + FAN
       e.points = [
         [sx, sy],
         [sx, via],
@@ -645,7 +644,7 @@ export function layout(model: ModelJson): Layout {
         cy += SPEC_WORD_H
         for (const clause of clauses) {
           const { name, lines, error } = parseClause(clause)
-          const h = lines.length > 0 ? SPEC_CARD_TITLE + lines.length * SPEC_LINE_H + 2 : 24
+          const h = lines.length > 0 ? SPEC_CARD_TITLE + lines.length * SPEC_LINE_H + 6 : 26
           step.cards.push({
             kind: error ? "error" : (kinds.get(name) ?? "command"),
             name,
