@@ -479,12 +479,13 @@ export function layout(model: ModelJson): Layout {
     if (target && s.trigger && !s.external_event) targets.set(i, target)
   }
 
-  // What a slice reads is drawn back from the read model's own card, dashed.
+  // What a slice reads is drawn back from the read model's own card, dashed,
+  // into whatever decides: the automation when there is one, else the command.
   // Only a read model that is never drawn in full gets a reference card.
   const crossing: Edge[] = []
   for (const link of readLinks) {
     const c = consumers.get(link.column)
-    const consumer = link.polls ? c?.gear : (c?.command ?? c?.gear)
+    const consumer = c?.gear ?? c?.command
     if (!consumer) continue
     const source = first.get(`readModel:${link.name}`)
     if (source) {

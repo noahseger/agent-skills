@@ -148,16 +148,16 @@ test("an automation is in its actor's lane, and reads are drawn back from the re
     (b) => b.name === "ItemSearch" && b.kind === "readModel" && !b.compact,
   )
   assert.ok(search)
-  const reads = out.edges.find((e) => e.from === search.id && e.to === command.id)
+  const reads = out.edges.find((e) => e.from === search.id && e.to === gear.id)
   assert.ok(
     reads?.dashed && reads.points,
-    "a dashed, routed edge from the read model to the command",
+    "a dashed, routed edge from the read model to the automation",
   )
   const start = reads.points[0]
   assert.ok(start && start[0] > search.x + search.w / 2, "leaves the read model right of centre")
   assert.equal(start?.[1], search.y + search.h)
   const end = reads.points.at(-1)
-  assert.ok(end && end[0] === command.x && end[1] > command.y && end[1] < command.y + command.h)
+  assert.ok(end && end[0] === gear.x && end[1] > gear.y && end[1] < gear.y + gear.h)
   const trigger = out.edges.find((e) => e.to === gear.id && e.points)
   assert.ok(trigger?.points)
   const into = trigger.points.at(-1)
