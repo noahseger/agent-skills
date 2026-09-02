@@ -1,0 +1,429 @@
+{
+  "name": "Todo List Application",
+  "description": "Users manage personal todo lists.",
+  "actors": [
+    {
+      "id": "user",
+      "name": "User",
+      "type": "user"
+    },
+    {
+      "id": "system",
+      "name": "System",
+      "type": "system"
+    },
+    {
+      "id": "calendar",
+      "name": "Calendar",
+      "type": "external"
+    }
+  ],
+  "aggregates": [
+    {
+      "id": "items",
+      "name": "Items"
+    },
+    {
+      "id": "lists",
+      "name": "Lists"
+    }
+  ],
+  "chapters": [
+    {
+      "name": "ListManagement",
+      "slices": [
+        {
+          "name": "CreateList",
+          "actor": "user",
+          "aggregate": "lists",
+          "ui": "TodoService/CreateList",
+          "command": "CreateList(userId, listId, name)",
+          "events": [
+            "ListCreated(listId, userId, name)"
+          ],
+          "tests": [
+            {
+              "name": "User creates a new list",
+              "given": [],
+              "when": "CreateList(userId=u-1, listId=list-1, name=Groceries)",
+              "then": [
+                "ListCreated(listId=list-1, userId=u-1, name=Groceries)"
+              ]
+            },
+            {
+              "name": "Duplicate list name rejected",
+              "given": [
+                "ListCreated(listId=list-1, userId=u-1, name=Groceries)"
+              ],
+              "when": "CreateList(userId=u-1, listId=list-2, name=Groceries)",
+              "then": [
+                "Error: list name already exists"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "AddItem",
+          "actor": "user",
+          "aggregate": "items",
+          "ui": "TodoService/AddItem",
+          "command": "AddItem(userId, listId, itemId, text, title)",
+          "events": [
+            "ItemAdded(userId, listId, itemId, title)"
+          ],
+          "tests": [
+            {
+              "name": "User adds an item to a list",
+              "given": [
+                "ListCreated(listId=list-1, userId=u-1, name=Groceries)"
+              ],
+              "when": "AddItem(userId=u-1, listId=list-1, itemId=item-1, text=Milk)",
+              "then": [
+                "ItemAdded(userId=u-1, listId=list-1, itemId=item-1, title=Milk)"
+              ]
+            },
+            {
+              "name": "Adding a fourth item is rejected",
+              "given": [
+                "ItemAdded(userId=u-1, listId=list-1, itemId=item-1, title=Milk)",
+                "ItemAdded(userId=u-1, listId=list-1, itemId=item-2, title=Eggs)",
+                "ItemAdded(userId=u-1, listId=list-1, itemId=item-3, title=Bread)"
+              ],
+              "when": "AddItem(userId=u-1, listId=list-1, itemId=item-4, text=Butter)",
+              "then": [
+                "Error: maximum 3 items per list"
+              ]
+            }
+          ],
+          "mapping": {
+            "ItemAdded": {
+              "title": {
+                "from": "text"
+              }
+            }
+          }
+        },
+        {
+          "name": "CompleteItem",
+          "actor": "user",
+          "aggregate": "items",
+          "ui": "TodoService/CompleteItem",
+          "command": "CompleteItem(listId, itemId)",
+          "events": [
+            "ItemCompleted(listId, itemId)"
+          ],
+          "tests": [
+            {
+              "name": "User completes an item",
+              "given": [
+                "ItemAdded(userId=u-1, listId=list-1, itemId=item-1, title=Milk)"
+              ],
+              "when": "CompleteItem(listId=list-1, itemId=item-1)",
+              "then": [
+                "ItemCompleted(listId=list-1, itemId=item-1)"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "DeleteItem",
+          "actor": "user",
+          "aggregate": "items",
+          "ui": "TodoService/DeleteItem",
+          "command": "DeleteItem(listId, itemId)",
+          "events": [
+            "ItemDeleted(listId, itemId)"
+          ],
+          "tests": [
+            {
+              "name": "User deletes an item from a list",
+              "given": [
+                "ItemAdded(userId=u-1, listId=list-1, itemId=item-1, title=Milk)"
+              ],
+              "when": "DeleteItem(listId=list-1, itemId=item-1)",
+              "then": [
+                "ItemDeleted(listId=list-1, itemId=item-1)"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "DeleteList",
+          "actor": "user",
+          "aggregate": "lists",
+          "ui": "TodoService/DeleteList",
+          "command": "DeleteList(listId)",
+          "events": [
+            "ListDeleted(listId)"
+          ],
+          "tests": [
+            {
+              "name": "User deletes a list",
+              "given": [
+                "ListCreated(listId=list-1, userId=u-1, name=Groceries)"
+              ],
+              "when": "DeleteList(listId=list-1)",
+              "then": [
+                "ListDeleted(listId=list-1)"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Views",
+      "slices": [
+        {
+          "name": "TodoList",
+          "actor": "system",
+          "aggregate": "lists",
+          "trigger": [
+            "ListCreated(listId, userId, name)",
+            "ItemAdded(userId, listId, itemId, title)",
+            "ListCompleted(listId)",
+            "ListDeleted(listId)"
+          ],
+          "read_models": [
+            "TodoList*(*userId, *listId, name, itemCount, status)"
+          ],
+          "tests": [
+            {
+              "name": "A new list shows with no items",
+              "given": [
+                "ListCreated(listId=list-1, userId=u-1, name=Groceries)"
+              ],
+              "when": "",
+              "then": [
+                "TodoList(userId=u-1, listId=list-1, name=Groceries, itemCount=0, status=open)"
+              ]
+            },
+            {
+              "name": "Items are counted as they are added",
+              "given": [
+                "ListCreated(listId=list-1, userId=u-1, name=Groceries)",
+                "ItemAdded(userId=u-1, listId=list-1, itemId=item-1, title=Milk)",
+                "ItemAdded(userId=u-1, listId=list-1, itemId=item-2, title=Eggs)"
+              ],
+              "when": "",
+              "then": [
+                "TodoList(userId=u-1, listId=list-1, name=Groceries, itemCount=2, status=open)"
+              ]
+            },
+            {
+              "name": "A completed list shows as completed",
+              "given": [
+                "ListCreated(listId=list-1, userId=u-1, name=Groceries)",
+                "ListCompleted(listId=list-1)"
+              ],
+              "when": "",
+              "then": [
+                "TodoList(userId=u-1, listId=list-1, name=Groceries, itemCount=0, status=completed)"
+              ]
+            },
+            {
+              "name": "A deleted list shows as deleted",
+              "given": [
+                "ListCreated(listId=list-1, userId=u-1, name=Groceries)",
+                "ListDeleted(listId=list-1)"
+              ],
+              "when": "",
+              "then": [
+                "TodoList(userId=u-1, listId=list-1, name=Groceries, itemCount=0, status=deleted)"
+              ]
+            }
+          ],
+          "mapping": {
+            "ListCreated": {
+              "itemCount": {
+                "value": 0
+              },
+              "status": {
+                "value": "open"
+              }
+            },
+            "ItemAdded": {
+              "itemCount": {
+                "count": true
+              }
+            },
+            "ListCompleted": {
+              "status": {
+                "value": "completed"
+              }
+            },
+            "ListDeleted": {
+              "status": {
+                "value": "deleted"
+              }
+            }
+          }
+        },
+        {
+          "name": "ListTodoLists",
+          "actor": "user",
+          "aggregate": "items",
+          "ui": "TodoService/ListTodoLists",
+          "read_models": [
+            "TodoList*(*userId, *listId, name, itemCount, status)"
+          ],
+          "tests": [],
+          "query": [
+            "userId"
+          ]
+        },
+        {
+          "name": "ItemSearch",
+          "actor": "system",
+          "aggregate": "items",
+          "trigger": [
+            "ItemAdded(userId, listId, itemId, title)",
+            "ItemCompleted(listId, itemId)",
+            "ItemDeleted(listId, itemId)"
+          ],
+          "read_models": [
+            "ItemSearch*(*itemId, listId, title, done, deleted)"
+          ],
+          "tests": [
+            {
+              "name": "A completed item shows as done",
+              "given": [
+                "ItemAdded(userId=u-1, listId=list-1, itemId=item-1, title=Milk)",
+                "ItemCompleted(listId=list-1, itemId=item-1)"
+              ],
+              "when": "",
+              "then": [
+                "ItemSearch(itemId=item-1, listId=list-1, title=Milk, done=true, deleted=false)"
+              ]
+            },
+            {
+              "name": "An added item shows as not done",
+              "given": [
+                "ItemAdded(userId=u-1, listId=list-1, itemId=item-1, title=Milk)"
+              ],
+              "when": "",
+              "then": [
+                "ItemSearch(itemId=item-1, listId=list-1, title=Milk, done=false, deleted=false)"
+              ]
+            },
+            {
+              "name": "A deleted item shows as deleted",
+              "given": [
+                "ItemAdded(userId=u-1, listId=list-1, itemId=item-1, title=Milk)",
+                "ItemDeleted(listId=list-1, itemId=item-1)"
+              ],
+              "when": "",
+              "then": [
+                "ItemSearch(itemId=item-1, listId=list-1, title=Milk, done=false, deleted=true)"
+              ]
+            }
+          ],
+          "mapping": {
+            "ItemAdded": {
+              "done": {
+                "value": false
+              },
+              "deleted": {
+                "value": false
+              }
+            },
+            "ItemCompleted": {
+              "done": {
+                "value": true
+              }
+            },
+            "ItemDeleted": {
+              "deleted": {
+                "value": true
+              }
+            }
+          }
+        },
+        {
+          "name": "GetList",
+          "actor": "user",
+          "aggregate": "items",
+          "ui": "TodoService/GetList",
+          "read_models": [
+            "ItemSearch*(*itemId, listId, title, done, deleted)"
+          ],
+          "tests": [],
+          "query": [
+            "listId"
+          ]
+        },
+        {
+          "name": "SearchItems",
+          "actor": "user",
+          "aggregate": "items",
+          "ui": "TodoService/SearchItems",
+          "read_models": [
+            "ItemSearch*(*itemId, listId, title, done, deleted)"
+          ],
+          "tests": [],
+          "query": [
+            "text"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Automations",
+      "slices": [
+        {
+          "name": "ListCompleter",
+          "actor": "system",
+          "aggregate": "lists",
+          "automation": "ListCompleter",
+          "trigger": "ItemCompleted(listId, itemId)",
+          "command": "CompleteList(listId)",
+          "events": [
+            "ListCompleted(listId)"
+          ],
+          "reads": [
+            "ItemSearch"
+          ],
+          "tests": [
+            {
+              "name": "List completes when every item is done",
+              "given": [
+                "ItemAdded(userId=u-1, listId=list-1, itemId=item-1, title=Milk)",
+                "ItemCompleted(listId=list-1, itemId=item-1)"
+              ],
+              "when": "CompleteList(listId=list-1)",
+              "then": [
+                "ListCompleted(listId=list-1)"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Integrations",
+      "slices": [
+        {
+          "name": "AddItem",
+          "actor": "calendar",
+          "aggregate": "items",
+          "external_event": "TaskScheduled(userId, listId, itemId, text)",
+          "command": "AddItem(userId, listId, itemId, text, title)",
+          "events": [
+            "ItemAdded(userId, listId, itemId, title)"
+          ],
+          "tests": [],
+          "mapping": {
+            "ItemAdded": {
+              "title": {
+                "from": "text"
+              }
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "notes": {
+    "ListCreated": "Names are unique per user."
+  }
+}
