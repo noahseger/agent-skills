@@ -199,9 +199,8 @@ const transform = computed(
         <g v-for="row in layout.rows" :key="row.id">
           <rect class="lane" :class="row.kind" :x="0" :y="row.y" :width="layout.width" :height="row.h" @click="background" />
           <line class="lane-line" :x1="0" :x2="layout.width" :y1="row.y" :y2="row.y" />
-          <text v-if="row.label" class="lane-label" :x="16" :y="row.y + 22">{{ row.label }}</text>
-          <text v-if="row.label && row.kind !== 'specs'" class="lane-kind" :x="16" :y="row.y + 37">
-            {{ row.kind }}
+          <text v-if="row.label" class="lane-label" :x="16" :y="row.y + 22">
+            {{ row.label }}<tspan v-if="row.sub" class="lane-kind"> ({{ row.sub }})</tspan>
           </text>
         </g>
         <line class="lane-line" :x1="0" :x2="layout.width" :y1="layout.height" :y2="layout.height" />
@@ -211,9 +210,9 @@ const transform = computed(
             class="slice"
             :class="{ hover: hoverColumn === col.index, selected: selectedColumn === col.index }"
             :x="col.x + 4"
-            :y="layout.nameY"
+            :y="layout.nameY + NAME_H + 4"
             :width="col.w - 8"
-            :height="layout.height - layout.nameY - 4"
+            :height="layout.height - layout.nameY - NAME_H - 8"
             rx="10"
           />
           <g
@@ -266,7 +265,7 @@ const transform = computed(
             {{ line }}
           </text>
           <g v-for="step in spec.steps" :key="step.word">
-            <text class="spec-word" :x="spec.x" :y="step.y + 11">{{ step.word }}</text>
+            <text class="spec-word" :x="spec.x" :y="step.y + 10">{{ step.word }}</text>
             <g
               v-for="(card, ci) in step.cards"
               :key="ci"
@@ -277,13 +276,13 @@ const transform = computed(
               @pointerleave="emit('hover', null)"
             >
               <rect class="shape" :width="card.w" :height="card.h" rx="6" />
-              <text class="title" :x="10" :y="15">{{ card.name }}</text>
+              <text class="title" :x="10" :y="16">{{ card.name }}</text>
               <text
                 v-for="(line, li) in card.lines"
                 :key="li"
                 class="field"
                 :x="10"
-                :y="SPEC_CARD_TITLE + 4 + li * SPEC_LINE_H"
+                :y="SPEC_CARD_TITLE + li * SPEC_LINE_H"
               >
                 {{ line }}
               </text>

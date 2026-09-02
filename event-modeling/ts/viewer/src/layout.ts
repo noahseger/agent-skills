@@ -26,6 +26,10 @@ export interface Box {
   canonical?: string
   /** The element carries a note. */
   noted?: boolean
+  /** A screen's wireframe: the inputs it collects, the button it presses, the table it shows. */
+  form?: string[]
+  button?: string
+  table?: string[]
   column: number
   x: number
   y: number
@@ -44,6 +48,8 @@ export interface Edge {
 export interface Row {
   id: string
   label: string
+  /** What the lane is: Actor, System, or Stream. */
+  sub?: string
   kind: "actor" | "middle" | "stream" | "specs"
   y: number
   h: number
@@ -109,7 +115,7 @@ export interface Layout {
 export const COL_W = 220
 export const CARD_W = 168
 export const REF_W = 96
-export const LABEL_W = 132
+export const LABEL_W = 156
 export const HEADER_H = 56
 export const ARROW_H = 30
 export const NAME_H = 30
@@ -122,10 +128,14 @@ export const FIELD_H = 15
 export const COMPACT_H = 34
 export const CHANNEL_PAD = 10
 export const CHANNEL_STEP = 7
-export const CORNER = 8
+export const CORNER = 12
+export const FAN = 8
+export const INPUT_H = 22
+export const BUTTON_H = 28
+export const TABLE_H = 52
 export const SPEC_TITLE_LINE = 14
-export const SPEC_WORD_H = 16
-export const SPEC_CARD_TITLE = 22
+export const SPEC_WORD_H = 20
+export const SPEC_CARD_TITLE = 30
 export const SPEC_LINE_H = 13
 export const SPEC_GAP = 6
 export const SPEC_TEST_GAP = 20
@@ -196,9 +206,17 @@ export function wrap(text: string, max: number): string[] {
   return lines
 }
 
-export function cardHeight(box: Pick<Box, "fields" | "detail" | "compact">): number {
+export function cardHeight(
+  box: Pick<Box, "kind" | "fields" | "detail" | "compact" | "form" | "button" | "table">,
+): number {
   if (box.compact) return COMPACT_H
   const detail = box.detail === undefined ? 0 : 14
+  if (box.kind === "ui") {
+    const form = (box.form?.length ?? 0) * INPUT_H
+    const button = box.button === undefined ? 0 : BUTTON_H
+    const table = box.table === undefined ? 0 : TABLE_H
+    return TITLE_H + detail + form + button + table + 10
+  }
   return TITLE_H + detail + box.fields.length * FIELD_H + (box.fields.length > 0 ? 10 : 6)
 }
 
@@ -303,7 +321,14 @@ export function layout(model: ModelJson): Layout {
     column: number,
     kind: Kind,
     el: Element,
-    extra: { detail?: string; compact?: boolean; reference?: boolean } = {},
+    extra: {
+      detail?: string
+      compact?: boolean
+      reference?: boolean
+      form?: string[]
+      button?: string
+      table?: string[]
+    } = {},
   ): Placed => {
     const key = `${kind === "external" ? "event" : kind}:${el.name}`
     const earlier = extra.reference ? undefined : first.get(key)
@@ -314,6 +339,9 @@ export function layout(model: ModelJson): Layout {
       fields: el.fields,
       keys: el.keys,
       ...(extra.detail === undefined ? {} : { detail: extra.detail }),
+      ...(extra.form === undefined ? {} : { form: extra.form }),
+      ...(extra.button === undefined ? {} : { button: extra.button }),
+      ...(extra.table === undefined ? {} : { table: extra.table }),
       ...(extra.compact || earlier ? { compact: true } : {}),
       ...(earlier ? { canonical: earlier.id } : {}),
       ...(model.notes[el.name] === undefined ? {} : { noted: true }),
@@ -361,11 +389,20 @@ export function layout(model: ModelJson): Layout {
       const slash = s.ui.indexOf("/")
       const service = slash < 0 ? undefined : s.ui.slice(0, slash)
       const method = slash < 0 ? s.ui : s.ui.slice(slash + 1)
+      // The screen is drawn from the model: a form for the command it sends, a
+      // table for the read model it shows, with the query as its filters.
+      const commandFields = s.command ? parse(s.command).fields : []
+      const shown = s.read_models?.[0] ? parse(s.read_models[0]).fields : undefined
       ui = make(
         i,
         "ui",
         { name: method, fields: s.query ?? [], keys: [] },
-        service === undefined ? {} : { detail: service },
+        {
+          ...(service === undefined ? {} : { detail: service }),
+          form: s.command ? commandFields : (s.query ?? []),
+          ...(s.command ? { button: parse(s.command).name } : {}),
+          ...(shown === undefined ? {} : { table: shown }),
+        },
       )
       into(`actor:${s.actor}`, i, ui)
       useActor(s.actor)
@@ -466,11 +503,14 @@ export function layout(model: ModelJson): Layout {
 
   let y = HEADER_H + NAME_H
   const nameY = HEADER_H
-  const actorNames = new Map(model.actors.map((a) => [a.id, a.name]))
+  const actors = new Map(model.actors.map((a) => [a.id, a]))
   for (const id of actorIds) {
     const slot = `actor:${id}`
     const h = slotHeight(slot) + 2 * LANE_PAD
-    rows.push({ id: slot, label: actorNames.get(id) ?? id, kind: "actor", y, h })
+    const actor = actors.get(id)
+    const label = actor?.type === "system" ? "Automations" : (actor?.name ?? id)
+    const sub = actor?.type === "user" ? "Actor" : "System"
+    rows.push({ id: slot, label, sub, kind: "actor", y, h })
     const top = y + LANE_PAD
     place(slot, () => top)
     y += h
@@ -492,7 +532,7 @@ export function layout(model: ModelJson): Layout {
   for (const agg of model.aggregates) {
     const slot = `stream:${agg.id}`
     const h = Math.max(slotHeight(slot), COMPACT_H) + 2 * LANE_PAD
-    rows.push({ id: slot, label: agg.name, kind: "stream", y, h })
+    rows.push({ id: slot, label: agg.name, sub: "Stream", kind: "stream", y, h })
     const top = y + LANE_PAD
     place(slot, () => top)
     y += h
@@ -500,17 +540,28 @@ export function layout(model: ModelJson): Layout {
 
   // A crossing edge leaves the top of its event, runs along its own line in
   // the channel, and rises in the target's column: to the bottom of a read
-  // model, or up the left margin into the side of an automation.
+  // model, or up the left margin into the side of an automation. Edges that
+  // share an end fan out there, so each one can be followed.
   const byId = new Map(boxes.map((b) => [b.id, b]))
+  const fan = (key: "from" | "to") => {
+    const groups = new Map<string, Edge[]>()
+    for (const e of crossing) groups.set(e[key], [...(groups.get(e[key]) ?? []), e])
+    return (e: Edge) => {
+      const group = groups.get(e[key]) ?? []
+      return (group.indexOf(e) - (group.length - 1) / 2) * FAN
+    }
+  }
+  const fanFrom = fan("from")
+  const fanTo = fan("to")
   crossing.forEach((e, i) => {
     const a = byId.get(e.from)
     const b = byId.get(e.to)
     if (!a || !b) return
     const via = channelTop + CHANNEL_PAD + i * CHANNEL_STEP
-    const sx = a.x + a.w / 2
+    const sx = a.x + a.w / 2 + fanFrom(e)
     if (b.kind === "automation") {
-      const margin = (columns[b.column]?.x ?? 0) + 10
-      const my = b.y + b.h / 2
+      const margin = (columns[b.column]?.x ?? 0) + 10 + fanTo(e)
+      const my = b.y + b.h / 2 + fanTo(e)
       e.points = [
         [sx, a.y],
         [sx, via],
@@ -519,7 +570,7 @@ export function layout(model: ModelJson): Layout {
         [b.x, my],
       ]
     } else {
-      const tx = b.x + b.w / 2
+      const tx = b.x + b.w / 2 + fanTo(e)
       e.points = [
         [sx, a.y],
         [sx, via],
@@ -558,7 +609,7 @@ export function layout(model: ModelJson): Layout {
         cy += SPEC_WORD_H
         for (const clause of clauses) {
           const { name, lines, error } = parseClause(clause)
-          const h = SPEC_CARD_TITLE + lines.length * SPEC_LINE_H + (lines.length > 0 ? 6 : 0)
+          const h = lines.length > 0 ? SPEC_CARD_TITLE + lines.length * SPEC_LINE_H + 2 : 24
           step.cards.push({
             kind: error ? "error" : (kinds.get(name) ?? "command"),
             name,

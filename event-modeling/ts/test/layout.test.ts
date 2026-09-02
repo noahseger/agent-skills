@@ -135,7 +135,41 @@ test("an automation is in its actor's lane, reads dashed, and is entered from th
   assert.ok(out.edges.some((e) => e.from === ref.id && e.to === command.id && e.dashed))
   const trigger = out.edges.find((e) => e.to === gear.id && e.points)
   assert.ok(trigger?.points)
-  assert.deepEqual(trigger.points.at(-1), [gear.x, gear.y + gear.h / 2])
+  const end = trigger.points.at(-1)
+  assert.ok(end && end[0] === gear.x && end[1] > gear.y && end[1] < gear.y + gear.h)
+})
+
+test("lanes say what they are, and the system lane is the automations", () => {
+  const labels = out.rows.filter((r) => r.sub).map((r) => `${r.label} (${r.sub})`)
+  assert.deepEqual(labels, [
+    "User (Actor)",
+    "Automations (System)",
+    "Calendar (System)",
+    "Items (Stream)",
+    "Lists (Stream)",
+  ])
+})
+
+test("a screen is a wireframe of its command or its read model", () => {
+  const create = out.boxes.find((b) => b.kind === "ui" && b.name === "CreateList")
+  assert.deepEqual(create?.form, ["userId", "listId", "name"])
+  assert.equal(create?.button, "CreateList")
+  assert.equal(create?.table, undefined)
+  const list = out.boxes.find((b) => b.kind === "ui" && b.name === "ListTodoLists")
+  assert.deepEqual(list?.form, ["userId"])
+  assert.deepEqual(list?.table, ["userId", "listId", "name", "itemCount", "status"])
+  assert.equal(list?.button, undefined)
+})
+
+test("edges that share an end fan out there", () => {
+  const target = out.boxes.find(
+    (b) => b.kind === "readModel" && b.name === "TodoList" && !b.compact,
+  )
+  assert.ok(target)
+  const ends = out.edges
+    .filter((e) => e.to === target.id && e.points)
+    .map((e) => e.points?.at(-1)?.[0])
+  assert.equal(new Set(ends).size, ends.length, "each edge into TodoList has its own x")
 })
 
 test("a later appearance of an element is collapsed and points at the first", () => {
@@ -199,6 +233,6 @@ test("a path starts at one box's edge and ends at the other's", () => {
       [0, 100],
       [50, 100],
     ]),
-    "M0 0 L0 92 Q0 100 8 100 L50 100",
+    "M0 0 L0 88 Q0 100 12 100 L50 100",
   )
 })
