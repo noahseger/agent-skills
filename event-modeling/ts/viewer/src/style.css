@@ -121,8 +121,74 @@ body,
 
 .body {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: auto 1fr auto;
   min-height: 0;
+}
+
+/* navigation */
+.nav {
+  width: 220px;
+  overflow: auto;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  padding: 14px 10px 24px;
+  font-size: 13px;
+}
+
+.nav .chapter {
+  margin: 12px 8px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.nav .chapter:first-child {
+  margin-top: 0;
+}
+
+.nav .slice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.nav .slice:hover {
+  background: var(--bg);
+}
+
+.nav .slice.selected {
+  background: #dbeafe;
+  color: var(--command-ink);
+  font-weight: 600;
+}
+
+.nav .hint {
+  margin: 20px 8px 0;
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.note-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+svg .note-dot {
+  fill: var(--accent);
 }
 
 .canvas {
@@ -141,6 +207,18 @@ body,
   display: block;
   width: 100%;
   height: 100%;
+}
+
+.world {
+  transform-origin: 0 0;
+}
+
+.world.animate {
+  transition: transform 300ms ease;
+}
+
+.page {
+  fill: transparent;
 }
 
 .error {
@@ -165,8 +243,12 @@ body,
   fill: transparent;
 }
 
-.lane.stream:nth-of-type(odd) {
+.lane.stream {
   fill: #fbfbfc;
+}
+
+.lane.specs {
+  fill: #f8fafc;
 }
 
 .lane-line {
@@ -188,21 +270,59 @@ body,
   fill: var(--faint);
 }
 
-.chapter-title {
+/* chapters are arrows along the time line */
+.chapter path {
+  fill: var(--accent);
+}
+
+.chapter text {
   font-size: 13px;
   font-weight: 600;
-  fill: var(--ink);
+  fill: #ffffff;
 }
 
-.chapter-rule {
-  stroke: var(--ink);
+/* slices */
+.slice {
+  fill: transparent;
+  stroke: transparent;
   stroke-width: 1.5;
-  stroke-linecap: round;
+  pointer-events: none;
+  transition: fill 120ms ease, stroke 120ms ease;
 }
 
-.slice-name {
-  font-size: 11px;
-  fill: var(--faint);
+.slice.hover {
+  stroke: #cbd5e1;
+}
+
+.slice.selected {
+  fill: rgb(37 99 235 / 0.04);
+  stroke: var(--accent);
+}
+
+.slice-head {
+  cursor: pointer;
+}
+
+.slice-head rect {
+  fill: transparent;
+}
+
+.slice-head:hover rect {
+  fill: #eef2f7;
+}
+
+.slice-head.selected rect {
+  fill: #dbeafe;
+}
+
+.slice-head text {
+  font-size: 12px;
+  font-weight: 600;
+  fill: var(--muted);
+}
+
+.slice-head.selected text {
+  fill: var(--command-ink);
 }
 
 /* edges */
@@ -269,6 +389,67 @@ body,
   font-weight: 600;
 }
 
+.card .link rect {
+  fill: #ffffff;
+  stroke: var(--line);
+}
+
+.card .link text {
+  font-size: 11px;
+  fill: var(--accent);
+}
+
+.card .link:hover rect {
+  stroke: var(--accent);
+}
+
+.card .note-badge circle {
+  fill: var(--accent);
+  stroke: #ffffff;
+  stroke-width: 1.5;
+}
+
+.card .note-badge text {
+  font-size: 8px;
+  font-weight: 700;
+  fill: #ffffff;
+}
+
+.card.compact .title {
+  font-weight: 500;
+}
+
+/* specifications drawn under the slice */
+.spec-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  fill: var(--ink);
+}
+
+.spec-word {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  fill: var(--faint);
+}
+
+.card.spec {
+  cursor: default;
+}
+
+.card.spec .title {
+  font-size: 11px;
+}
+
+.card.spec .field {
+  font-size: 10px;
+}
+
+.card.error .shape { fill: #fee2e2; stroke: #ef4444; }
+.card.error .title { fill: #7f1d1d; }
+.card.error .field { fill: #991b1b; }
+
 .card.ui .shape { fill: var(--ui-fill); stroke: var(--ui-stroke); }
 .card.ui .title { fill: var(--ui-ink); }
 .card.command .shape { fill: var(--command-fill); stroke: var(--command-stroke); }
@@ -316,7 +497,8 @@ body,
   border-radius: 4px;
 }
 
-.detail .kind.ui { background: #f1f5f9; color: var(--ui-ink); }
+.detail .kind.ui,
+.detail .kind.slice { background: #f1f5f9; color: var(--ui-ink); }
 .detail .kind.command { background: var(--command-fill); color: var(--command-ink); }
 .detail .kind.event,
 .detail .kind.external { background: var(--event-fill); color: var(--event-ink); }

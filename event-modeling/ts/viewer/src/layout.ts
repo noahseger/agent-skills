@@ -3,12 +3,13 @@
 //
 // The canvas is the one from eventmodeling.org. Time runs left to right, one
 // column per slice, chapters in order. Actors are lanes along the top with
-// their screens and the events that arrive from outside. Commands, read models
-// and automations sit in the middle. Each stream is a lane at the bottom that
-// holds its events.
+// their screens, their automations, and the events that arrive from outside.
+// Commands and read models sit in the middle. Each stream is a lane below that
+// holds its events, and the specifications sit under the slice they belong to.
 import type { ModelJson, SliceJson } from "../../src/json.ts"
 
 export type Kind = "ui" | "external" | "command" | "event" | "readModel" | "automation"
+export type Pt = [number, number]
 
 export interface Box {
   id: string
@@ -19,8 +20,12 @@ export interface Box {
   keys: string[]
   /** A second line under the name: the service of a ui card. */
   detail?: string
-  /** A reference to a read model declared elsewhere: name only. */
+  /** Name only: a reference to a read model, or a later appearance of an element. */
   compact?: boolean
+  /** The first appearance of this element, when this card is a later one. */
+  canonical?: string
+  /** The element carries a note. */
+  noted?: boolean
   column: number
   x: number
   y: number
@@ -32,14 +37,14 @@ export interface Edge {
   from: string
   to: string
   dashed: boolean
-  /** The y of a horizontal run through the channel, for an edge between columns. */
-  via?: number
+  /** The route, corner by corner, for an edge between columns. */
+  points?: Pt[]
 }
 
 export interface Row {
   id: string
   label: string
-  kind: "actor" | "middle" | "stream"
+  kind: "actor" | "middle" | "stream" | "specs"
   y: number
   h: number
 }
@@ -48,6 +53,9 @@ export interface Column {
   index: number
   chapter: number
   slice: SliceJson
+  /** The slice's name, or the name of what it is about. */
+  label: string
+  noted: boolean
   x: number
   w: number
 }
@@ -58,24 +66,54 @@ export interface Chapter {
   w: number
 }
 
+export interface SpecCard {
+  kind: Kind | "error"
+  name: string
+  /** One `field = value` per line. */
+  lines: string[]
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+export interface SpecStep {
+  word: "given" | "when" | "then"
+  y: number
+  cards: SpecCard[]
+}
+
+export interface Spec {
+  column: number
+  title: string[]
+  x: number
+  y: number
+  w: number
+  h: number
+  steps: SpecStep[]
+}
+
 export interface Layout {
   width: number
   height: number
-  /** Where the slice names go, under the chapter header. */
+  /** Where the slice names go, under the chapter arrows. */
   nameY: number
   chapters: Chapter[]
   columns: Column[]
   rows: Row[]
   boxes: Box[]
   edges: Edge[]
+  specs: Spec[]
 }
 
-export const COL_W = 208
+export const COL_W = 220
 export const CARD_W = 168
+export const REF_W = 96
 export const LABEL_W = 132
-export const HEADER_H = 48
-export const NAME_H = 26
-export const CHAPTER_GAP = 40
+export const HEADER_H = 56
+export const ARROW_H = 30
+export const NAME_H = 30
+export const CHAPTER_GAP = 24
 export const LANE_PAD = 16
 export const STACK_GAP = 12
 export const SLOT_GAP = 32
@@ -85,6 +123,13 @@ export const COMPACT_H = 34
 export const CHANNEL_PAD = 10
 export const CHANNEL_STEP = 7
 export const CORNER = 8
+export const SPEC_TITLE_LINE = 14
+export const SPEC_WORD_H = 16
+export const SPEC_CARD_TITLE = 22
+export const SPEC_LINE_H = 13
+export const SPEC_GAP = 6
+export const SPEC_TEST_GAP = 20
+export const SPEC_TITLE_CHARS = 26
 
 const PAD_X = (COL_W - CARD_W) / 2
 
@@ -111,51 +156,119 @@ export function parse(element: string): Element {
   }
 }
 
+/** `Name(a=1, b=[x, y])` or `Error: message` -> a name and one line per field. */
+export function parseClause(clause: string): { name: string; lines: string[]; error: boolean } {
+  if (clause.startsWith("Error:")) {
+    return { name: "Rejected", lines: [clause.slice("Error:".length).trim()], error: true }
+  }
+  const open = clause.indexOf("(")
+  if (open < 0) return { name: clause.trim(), lines: [], error: false }
+  const lines: string[] = []
+  let depth = 0
+  let current = ""
+  for (const ch of clause.slice(open + 1, clause.lastIndexOf(")"))) {
+    if (ch === "[") depth++
+    if (ch === "]") depth--
+    if (ch === "," && depth === 0) {
+      lines.push(current)
+      current = ""
+    } else current += ch
+  }
+  if (current.trim().length > 0) lines.push(current)
+  return {
+    name: clause.slice(0, open).trim(),
+    lines: lines.map((l) => l.trim().replace("=", " = ")),
+    error: false,
+  }
+}
+
+/** Word wrap by character count. */
+export function wrap(text: string, max: number): string[] {
+  const lines: string[] = []
+  let line = ""
+  for (const word of text.split(/\s+/)) {
+    if (line.length > 0 && line.length + 1 + word.length > max) {
+      lines.push(line)
+      line = word
+    } else line = line.length > 0 ? `${line} ${word}` : word
+  }
+  if (line.length > 0) lines.push(line)
+  return lines
+}
+
 export function cardHeight(box: Pick<Box, "fields" | "detail" | "compact">): number {
   if (box.compact) return COMPACT_H
   const detail = box.detail === undefined ? 0 : 14
   return TITLE_H + detail + box.fields.length * FIELD_H + (box.fields.length > 0 ? 10 : 6)
 }
 
-/**
- * An SVG path from the edge of one box to the edge of another. With `via` it
- * runs vertically to that y, across, and vertically again, with rounded
- * corners; that keeps an edge between columns out of the cards in between.
- */
-export function path(a: Box, b: Box, via?: number): string {
+/** An SVG path from the edge of one box to the edge of another, in one column. */
+export function path(a: Box, b: Box): string {
   const up = a.y > b.y
   const sx = a.x + a.w / 2
   const sy = up ? a.y : a.y + a.h
   const tx = b.x + b.w / 2
   const ty = up ? b.y + b.h : b.y
   if (Math.abs(sx - tx) < 1) return `M${sx} ${sy} L${tx} ${ty}`
-  if (via === undefined || Math.abs(sx - tx) < 2 * CORNER) {
-    const dy = (ty - sy) / 2
-    return `M${sx} ${sy} C${sx} ${sy + dy} ${tx} ${ty - dy} ${tx} ${ty}`
-  }
-  const dx = tx > sx ? 1 : -1
-  const dy = via > sy ? 1 : -1
-  return [
-    `M${sx} ${sy}`,
-    `L${sx} ${via - dy * CORNER}`,
-    `Q${sx} ${via} ${sx + dx * CORNER} ${via}`,
-    `L${tx - dx * CORNER} ${via}`,
-    `Q${tx} ${via} ${tx} ${via + dy * CORNER}`,
-    `L${tx} ${ty}`,
-  ].join(" ")
+  const dy = (ty - sy) / 2
+  return `M${sx} ${sy} C${sx} ${sy + dy} ${tx} ${ty - dy} ${tx} ${ty}`
 }
 
-type Placed = Omit<Box, "x" | "y">
+/** An SVG path along the points, with rounded corners. */
+export function polyline(points: Pt[]): string {
+  const [first, ...rest] = points
+  if (!first) return ""
+  let d = `M${first[0]} ${first[1]}`
+  for (let i = 0; i < rest.length; i++) {
+    const corner = rest[i]
+    const next = rest[i + 1]
+    if (!corner) break
+    if (!next) {
+      d += ` L${corner[0]} ${corner[1]}`
+      break
+    }
+    const prev = i === 0 ? first : (rest[i - 1] as Pt)
+    const inX = Math.sign(corner[0] - prev[0])
+    const inY = Math.sign(corner[1] - prev[1])
+    const outX = Math.sign(next[0] - corner[0])
+    const outY = Math.sign(next[1] - corner[1])
+    const r = Math.min(
+      CORNER,
+      Math.hypot(corner[0] - prev[0], corner[1] - prev[1]) / 2,
+      Math.hypot(next[0] - corner[0], next[1] - corner[1]) / 2,
+    )
+    d += ` L${corner[0] - inX * r} ${corner[1] - inY * r}`
+    d += ` Q${corner[0]} ${corner[1]} ${corner[0] + outX * r} ${corner[1] + outY * r}`
+  }
+  return d
+}
+
+type Placed = Omit<Box, "x" | "y"> & { dx: number }
+
+function labelOf(s: SliceJson): string {
+  if (s.name) return s.name
+  if (s.command) return parse(s.command).name
+  if (s.read_models?.[0]) return parse(s.read_models[0]).name
+  if (s.automation) return s.automation
+  if (s.ui) return s.ui.slice(s.ui.indexOf("/") + 1)
+  if (s.external_event) return parse(s.external_event).name
+  return "slice"
+}
 
 export function layout(model: ModelJson): Layout {
   // A `reads` entry is a name. Its fields come from where the read model is drawn in full.
   const registry = new Map<string, Element>()
+  const kinds = new Map<string, Kind>()
   for (const chapter of model.chapters) {
     for (const slice of chapter.slices) {
       for (const rm of slice.read_models ?? []) {
         const el = parse(rm)
         if (!registry.has(el.name)) registry.set(el.name, el)
+        kinds.set(el.name, "readModel")
       }
+      for (const ev of slice.events ?? []) kinds.set(parse(ev).name, "event")
+      if (slice.command) kinds.set(parse(slice.command).name, "command")
+      if (slice.external_event) kinds.set(parse(slice.external_event).name, "external")
     }
   }
 
@@ -166,7 +279,15 @@ export function layout(model: ModelJson): Layout {
     if (ci > 0) x += CHAPTER_GAP
     const start = x
     for (const slice of chapter.slices) {
-      columns.push({ index: columns.length, chapter: ci, slice, x, w: COL_W })
+      columns.push({
+        index: columns.length,
+        chapter: ci,
+        slice,
+        label: labelOf(slice),
+        noted: slice.note !== undefined,
+        x,
+        w: COL_W,
+      })
       x += COL_W
     }
     if (chapter.slices.length === 0) x += COL_W
@@ -174,25 +295,35 @@ export function layout(model: ModelJson): Layout {
   })
   const width = x + PAD_X
 
+  // The first card of an element is drawn in full. Every later one is the name
+  // and a link back, so a read model or an event has one place to be read.
+  const first = new Map<string, Placed>()
   let next = 0
   const make = (
     column: number,
     kind: Kind,
     el: Element,
-    extra: { detail?: string; compact?: boolean } = {},
+    extra: { detail?: string; compact?: boolean; reference?: boolean } = {},
   ): Placed => {
+    const key = `${kind === "external" ? "event" : kind}:${el.name}`
+    const earlier = extra.reference ? undefined : first.get(key)
     const box: Placed = {
       id: `b${next++}`,
       kind,
       name: el.name,
       fields: el.fields,
       keys: el.keys,
-      ...extra,
+      ...(extra.detail === undefined ? {} : { detail: extra.detail }),
+      ...(extra.compact || earlier ? { compact: true } : {}),
+      ...(earlier ? { canonical: earlier.id } : {}),
+      ...(model.notes[el.name] === undefined ? {} : { noted: true }),
       column,
-      w: CARD_W,
+      dx: extra.reference ? COL_W - 10 - REF_W : PAD_X,
+      w: extra.reference ? REF_W : CARD_W,
       h: 0,
     }
     box.h = cardHeight(box)
+    if (!extra.reference && kind !== "ui" && !first.has(key)) first.set(key, box)
     return box
   }
 
@@ -208,6 +339,9 @@ export function layout(model: ModelJson): Layout {
   const edge = (from: Placed, to: Placed, dashed = false) =>
     edges.push({ from: from.id, to: to.id, dashed })
   const actorIds: string[] = []
+  const useActor = (id: string) => {
+    if (!actorIds.includes(id)) actorIds.push(id)
+  }
   const eventBoxes = new Map<string, Placed[]>()
   const targets = new Map<number, Placed>()
 
@@ -218,7 +352,8 @@ export function layout(model: ModelJson): Layout {
     let external: Placed | undefined
     let command: Placed | undefined
     let gear: Placed | undefined
-    const references: Placed[] = []
+    const reads: Placed[] = []
+    const polls: Placed[] = []
     const readModels: Placed[] = []
     const events: Placed[] = []
 
@@ -233,27 +368,39 @@ export function layout(model: ModelJson): Layout {
         service === undefined ? {} : { detail: service },
       )
       into(`actor:${s.actor}`, i, ui)
-      if (!actorIds.includes(s.actor)) actorIds.push(s.actor)
+      useActor(s.actor)
     }
     if (s.external_event) {
       external = make(i, "external", parse(s.external_event))
       into(`actor:${s.actor}`, i, external)
-      if (!actorIds.includes(s.actor)) actorIds.push(s.actor)
+      useActor(s.actor)
     }
-    for (const name of [...(s.reads ?? []), ...(s.polls ? [s.polls] : [])]) {
-      const el = registry.get(name) ?? { name, fields: [], keys: [] }
-      const ref = make(i, "readModel", el, { compact: true })
-      references.push(ref)
+    if (s.automation) {
+      gear = make(i, "automation", { name: s.automation, fields: [], keys: [] })
+      into(`actor:${s.actor}`, i, gear)
+      useActor(s.actor)
+    }
+    for (const name of s.reads ?? []) {
+      const ref = make(i, "readModel", registry.get(name) ?? { name, fields: [], keys: [] }, {
+        compact: true,
+        reference: true,
+      })
+      reads.push(ref)
+      into("middle:top", i, ref)
+    }
+    if (s.polls) {
+      const name = s.polls
+      const ref = make(i, "readModel", registry.get(name) ?? { name, fields: [], keys: [] }, {
+        compact: true,
+        reference: true,
+      })
+      polls.push(ref)
       into("middle:top", i, ref)
     }
     for (const rm of s.read_models ?? []) {
       const box = make(i, "readModel", parse(rm))
       readModels.push(box)
       into("middle:top", i, box)
-    }
-    if (s.automation) {
-      gear = make(i, "automation", { name: s.automation, fields: [], keys: [] })
-      into("middle:top", i, gear)
     }
     if (s.command) {
       command = make(i, "command", parse(s.command))
@@ -271,9 +418,10 @@ export function layout(model: ModelJson): Layout {
     if (ui && command) edge(ui, command)
     if (external && command) edge(external, command)
     if (ui && !command) for (const rm of readModels) edge(rm, ui)
-    const consumer = gear ?? command
-    if (consumer) for (const ref of references) edge(ref, consumer, true)
     if (gear && command) edge(gear, command)
+    const consumer = command ?? gear
+    if (consumer) for (const ref of reads) edge(ref, consumer, true)
+    if (gear) for (const ref of polls) edge(ref, gear, true)
     if (command) for (const ev of events) edge(command, ev)
 
     // What a trigger points at: the automation, or the read model it builds.
@@ -289,7 +437,8 @@ export function layout(model: ModelJson): Layout {
     const target = targets.get(col.index)
     const trigger = col.slice.trigger
     if (!target || !trigger) continue
-    for (const name of (Array.isArray(trigger) ? trigger : [trigger]).map((t) => parse(t).name)) {
+    const names = (Array.isArray(trigger) ? trigger : [trigger]).map((t) => parse(t).name)
+    for (const name of names) {
       const sources = eventBoxes.get(name) ?? []
       const before = sources.filter((b) => b.column < col.index).at(-1)
       const source = before ?? sources[0]
@@ -308,8 +457,8 @@ export function layout(model: ModelJson): Layout {
   const place = (slot: string, top: (stack: Placed[]) => number) => {
     for (const stack of slots.get(slot) ?? []) {
       let y = top(stack)
-      for (const b of stack) {
-        boxes.push({ ...b, x: (columns[b.column]?.x ?? 0) + PAD_X, y })
+      for (const { dx, ...b } of stack) {
+        boxes.push({ ...b, x: (columns[b.column]?.x ?? 0) + dx, y })
         y += b.h + STACK_GAP
       }
     }
@@ -337,12 +486,8 @@ export function layout(model: ModelJson): Layout {
   place("middle:bottom", () => bottomTop)
   y += middleH
 
-  if (crossing.length > 0) {
-    crossing.forEach((e, i) => {
-      e.via = y + CHANNEL_PAD + i * CHANNEL_STEP
-    })
-    y += 2 * CHANNEL_PAD + (crossing.length - 1) * CHANNEL_STEP
-  }
+  const channelTop = y
+  if (crossing.length > 0) y += 2 * CHANNEL_PAD + (crossing.length - 1) * CHANNEL_STEP
 
   for (const agg of model.aggregates) {
     const slot = `stream:${agg.id}`
@@ -353,5 +498,91 @@ export function layout(model: ModelJson): Layout {
     y += h
   }
 
-  return { width, height: y + LANE_PAD, nameY, chapters, columns, rows, boxes, edges }
+  // A crossing edge leaves the top of its event, runs along its own line in
+  // the channel, and rises in the target's column: to the bottom of a read
+  // model, or up the left margin into the side of an automation.
+  const byId = new Map(boxes.map((b) => [b.id, b]))
+  crossing.forEach((e, i) => {
+    const a = byId.get(e.from)
+    const b = byId.get(e.to)
+    if (!a || !b) return
+    const via = channelTop + CHANNEL_PAD + i * CHANNEL_STEP
+    const sx = a.x + a.w / 2
+    if (b.kind === "automation") {
+      const margin = (columns[b.column]?.x ?? 0) + 10
+      const my = b.y + b.h / 2
+      e.points = [
+        [sx, a.y],
+        [sx, via],
+        [margin, via],
+        [margin, my],
+        [b.x, my],
+      ]
+    } else {
+      const tx = b.x + b.w / 2
+      e.points = [
+        [sx, a.y],
+        [sx, via],
+        [tx, via],
+        [tx, b.y + b.h],
+      ]
+    }
+  })
+
+  // Specifications, under the slice they belong to.
+  const specs: Spec[] = []
+  const specsTop = y + LANE_PAD
+  let specsBottom = specsTop
+  for (const col of columns) {
+    let sy = specsTop
+    for (const t of col.slice.tests) {
+      const title = wrap(t.name, SPEC_TITLE_CHARS)
+      const spec: Spec = {
+        column: col.index,
+        title,
+        x: col.x + PAD_X,
+        y: sy,
+        w: CARD_W,
+        h: 0,
+        steps: [],
+      }
+      let cy = sy + title.length * SPEC_TITLE_LINE + SPEC_GAP
+      const steps: [SpecStep["word"], string[]][] = [
+        ["given", t.given],
+        ["when", t.when ? [t.when] : []],
+        ["then", t.then],
+      ]
+      for (const [word, clauses] of steps) {
+        if (clauses.length === 0) continue
+        const step: SpecStep = { word, y: cy, cards: [] }
+        cy += SPEC_WORD_H
+        for (const clause of clauses) {
+          const { name, lines, error } = parseClause(clause)
+          const h = SPEC_CARD_TITLE + lines.length * SPEC_LINE_H + (lines.length > 0 ? 6 : 0)
+          step.cards.push({
+            kind: error ? "error" : (kinds.get(name) ?? "command"),
+            name,
+            lines,
+            x: spec.x,
+            y: cy,
+            w: CARD_W,
+            h,
+          })
+          cy += h + SPEC_GAP
+        }
+        spec.steps.push(step)
+      }
+      spec.h = cy - sy
+      specs.push(spec)
+      sy = cy + SPEC_TEST_GAP
+    }
+    specsBottom = Math.max(specsBottom, sy)
+  }
+  if (specs.length > 0) {
+    const h = specsBottom - specsTop + LANE_PAD
+    rows.push({ id: "specs", label: "Specifications", kind: "specs", y, h })
+    y += h
+  }
+
+  return { width, height: y + LANE_PAD, nameY, chapters, columns, rows, boxes, edges, specs }
 }
