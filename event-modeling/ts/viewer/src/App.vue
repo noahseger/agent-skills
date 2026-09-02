@@ -5,16 +5,18 @@ import Canvas from "./Canvas.vue"
 import Detail from "./Detail.vue"
 import { type Box, layout } from "./layout.ts"
 import Nav from "./Nav.vue"
+import SliceView from "./SliceView.vue"
 
 const model = ref<ModelJson | null>(null)
 const error = ref<string | null>(null)
 const live = ref(false)
 
-/** A slice, and within it a card by kind and name. */
+/** A slice, within it a card by kind and name, and whether the slice is open at full width. */
 interface Selection {
   column: number
   kind?: Box["kind"]
   name?: string
+  view?: "slice"
 }
 const selection = ref<Selection | null>(null)
 const hovered = ref<string | null>(null)
@@ -34,6 +36,7 @@ const selectedColumn = computed(() => {
   const sel = selection.value
   return sel && drawn.value?.columns[sel.column] ? drawn.value.columns[sel.column] : null
 })
+const sliceOpen = computed(() => selection.value?.view === "slice")
 
 const LEGEND: [string, string][] = [
   ["ui", "screen"],
@@ -43,18 +46,24 @@ const LEGEND: [string, string][] = [
   ["automation", "automation"],
 ]
 
-// The URL hash is the selection, so every click is a history entry and a link.
+// The URL hash is the selection, so every click is a history entry and a link:
+// `#c3` is slice 3 on the canvas, `#s3` is slice 3 open, and `/kind/Name`
+// names a card in it.
 function hashOf(sel: Selection | null): string {
   if (!sel) return ""
   const card = sel.kind && sel.name ? `/${sel.kind}/${encodeURIComponent(sel.name)}` : ""
-  return `#c${sel.column}${card}`
+  return `#${sel.view === "slice" ? "s" : "c"}${sel.column}${card}`
 }
 function fromHash(): Selection | null {
-  const m = location.hash.match(/^#c(\d+)(?:\/(\w+)\/(.*))?$/)
+  const m = location.hash.match(/^#([cs])(\d+)(?:\/(\w+)\/(.*))?$/)
   if (!m) return null
-  const column = Number(m[1])
-  if (!m[2] || !m[3]) return { column }
-  return { column, kind: m[2] as Box["kind"], name: decodeURIComponent(m[3]) }
+  const sel: Selection = { column: Number(m[2]) }
+  if (m[1] === "s") sel.view = "slice"
+  if (m[3] && m[4]) {
+    sel.kind = m[3] as Box["kind"]
+    sel.name = decodeURIComponent(m[4])
+  }
+  return sel
 }
 function go(sel: Selection | null, options: { push?: boolean; zoom?: boolean } = {}) {
   selection.value = sel
@@ -62,18 +71,41 @@ function go(sel: Selection | null, options: { push?: boolean; zoom?: boolean } =
   if (options.push !== false && hash !== location.hash) {
     history.pushState(null, "", hash || location.pathname)
   }
-  if (options.zoom && sel) focus.value = { column: sel.column, seq: focus.value.seq + 1 }
+  if (options.zoom && sel && sel.view !== "slice") {
+    focus.value = { column: sel.column, seq: focus.value.seq + 1 }
+  }
 }
 function step(delta: number) {
   const count = drawn.value?.columns.length ?? 0
   if (count === 0) return
   const current = selection.value?.column ?? (delta > 0 ? -1 : count)
   const column = Math.min(count - 1, Math.max(0, current + delta))
-  go({ column }, { zoom: true })
+  go({ column, ...(sliceOpen.value ? { view: "slice" } : {}) }, { zoom: true })
+}
+function pick(box: Box) {
+  go({
+    column: box.column,
+    kind: box.kind,
+    name: box.name,
+    ...(sliceOpen.value ? { view: "slice" } : {}),
+  })
 }
 function follow(canonical: string) {
   const box = drawn.value?.boxes.find((b) => b.id === canonical)
-  if (box) go({ column: box.column, kind: box.kind, name: box.name }, { zoom: true })
+  if (box) {
+    go(
+      {
+        column: box.column,
+        kind: box.kind,
+        name: box.name,
+        ...(sliceOpen.value ? { view: "slice" } : {}),
+      },
+      { zoom: true },
+    )
+  }
+}
+function openSlice(column: number) {
+  go({ column, view: "slice" })
 }
 
 // The last good model stays on screen while the error shows above it.
@@ -96,8 +128,10 @@ function onKey(e: KeyboardEvent) {
   if (e.target instanceof HTMLInputElement) return
   if (e.key === "ArrowRight" || e.key === "ArrowDown") step(1)
   else if (e.key === "ArrowLeft" || e.key === "ArrowUp") step(-1)
-  else if (e.key === "Escape") go(null)
-  else return
+  else if (e.key === "Escape") {
+    const sel = selection.value
+    go(sel?.view === "slice" ? { column: sel.column } : null, { zoom: true })
+  } else return
   e.preventDefault()
 }
 onMounted(() => {
@@ -139,16 +173,29 @@ onUnmounted(() => {
         v-if="drawn"
         :layout="drawn"
         :selected-column="selection?.column ?? null"
-        @select="go({ column: $event }, { zoom: true })"
+        @select="openSlice"
+      />
+      <SliceView
+        v-if="drawn && model && sliceOpen && selectedColumn"
+        :layout="drawn"
+        :model="model"
+        :column="selectedColumn"
+        :selected-box="selectedBox?.id ?? null"
+        :hovered="hovered"
+        @select-card="pick"
+        @hover="hovered = $event"
+        @link="follow"
+        @step="step"
+        @close="go({ column: selectedColumn.index }, { zoom: true })"
       />
       <Canvas
-        v-if="drawn && model"
+        v-else-if="drawn && model"
         :layout="drawn"
         :selected-column="selection?.column ?? null"
         :selected-box="selectedBox?.id ?? null"
         :hovered="hovered"
         :focus="focus"
-        @select-card="go({ column: $event.column, kind: $event.kind, name: $event.name })"
+        @select-card="pick"
         @select-slice="go({ column: $event }, { zoom: true })"
         @link="follow"
         @hover="hovered = $event"
@@ -161,7 +208,10 @@ onUnmounted(() => {
         :column="selectedColumn"
         :layout="drawn"
         :model="model"
-        @close="go(null)"
+        :open="sliceOpen"
+        @close="go(sliceOpen ? { column: selectedColumn.index, view: 'slice' } : null)"
+        @open="openSlice(selectedColumn.index)"
+        @goto="openSlice"
       />
     </div>
   </div>

@@ -1,10 +1,17 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import type { ModelJson } from "../../src/json.ts"
-import { type Box, type Column, type Layout, parse } from "./layout.ts"
+import { type Box, type Column, type Layout, parse, parseClause } from "./layout.ts"
 
-const props = defineProps<{ box: Box | null; column: Column; layout: Layout; model: ModelJson }>()
-defineEmits<{ close: [] }>()
+const props = defineProps<{
+  box: Box | null
+  column: Column
+  layout: Layout
+  model: ModelJson
+  /** Whether the slice is already open at full width. */
+  open: boolean
+}>()
+defineEmits<{ close: []; open: []; goto: [column: number] }>()
 
 const KIND: Record<Box["kind"], string> = {
   ui: "screen",
@@ -36,12 +43,39 @@ const triggers = computed(() => {
   return t ? (Array.isArray(t) ? t : [t]).map((x) => parse(x).name).join(", ") : ""
 })
 
+// Every specification the element takes part in, grouped by chapter and slice.
+// With no element selected, the slice's own.
+interface Group {
+  column: number
+  heading: string
+  tests: { name: string; given: string[]; when: string; then: string[] }[]
+}
+const groups = computed<Group[]>(() => {
+  const name = props.box?.name
+  const out: Group[] = []
+  for (const col of props.layout.columns) {
+    const tests = name
+      ? col.slice.tests.filter((t) =>
+          [...t.given, t.when, ...t.then].some((c) => c && parseClause(c).name === name),
+        )
+      : col.index === props.column.index
+        ? col.slice.tests
+        : []
+    if (tests.length === 0) continue
+    const chapter = props.layout.chapters[col.chapter]?.name ?? ""
+    out.push({ column: col.index, heading: `${chapter} › ${col.label}`, tests })
+  }
+  return out
+})
+
 function source(s: { from?: string; value?: unknown; count?: string }): string {
   if (s.from !== undefined) return `← ${s.from}`
   if (s.count !== undefined) return `count of ${s.count}`
   return `= ${JSON.stringify(s.value)}`
 }
 const isError = (clause: string) => clause.startsWith("Error:")
+const mentions = (clause: string) =>
+  props.box !== null && parseClause(clause).name === props.box.name
 </script>
 
 <template>
@@ -49,6 +83,7 @@ const isError = (clause: string) => clause.startsWith("Error:")
     <header>
       <span class="kind" :class="box?.kind ?? 'slice'">{{ box ? KIND[box.kind] : "slice" }}</span>
       <h2>{{ box ? box.name : column.label }}</h2>
+      <button v-if="!open" class="open" type="button" title="Open the slice" @click="$emit('open')">Open</button>
       <button class="close" type="button" title="Close (Esc)" @click="$emit('close')">×</button>
     </header>
 
@@ -69,32 +104,39 @@ const isError = (clause: string) => clause.startsWith("Error:")
 
     <h3>Slice</h3>
     <dl>
-      <template v-if="slice.name"><dt>Name</dt><dd>{{ slice.name }}</dd></template>
+      <dt>Name</dt>
+      <dd>{{ column.label }}</dd>
       <template v-if="actor"><dt>Actor</dt><dd>{{ actor }}</dd></template>
       <template v-if="slice.ui"><dt>Service</dt><dd>{{ slice.ui }}</dd></template>
+      <template v-if="slice.query?.length"><dt>Query</dt><dd>{{ slice.query.join(", ") }}</dd></template>
       <template v-if="slice.polls"><dt>Polls</dt><dd>{{ slice.polls }}</dd></template>
       <template v-if="slice.reads?.length"><dt>Reads</dt><dd>{{ slice.reads.join(", ") }}</dd></template>
       <template v-if="triggers"><dt>On</dt><dd>{{ triggers }}</dd></template>
     </dl>
     <p v-if="slice.note" class="note" style="margin-top: 10px"><span class="badge">i</span>{{ slice.note }}</p>
 
-    <template v-if="slice.tests.length">
+    <template v-if="groups.length">
       <h3>Specifications</h3>
-      <div v-for="t in slice.tests" :key="t.name" class="spec">
-        <div class="name">{{ t.name }}</div>
-        <div v-if="t.given.length" class="step">
-          <span class="word">given</span>
-          <span><code v-for="g in t.given" :key="g">{{ g }}</code></span>
+      <template v-for="g in groups" :key="g.column">
+        <button v-if="box" type="button" class="group" @click="$emit('goto', g.column)">{{ g.heading }}</button>
+        <div v-for="t in g.tests" :key="t.name" class="spec">
+          <div class="name">{{ t.name }}</div>
+          <div v-if="t.given.length" class="step">
+            <span class="word">given</span>
+            <span><code v-for="c in t.given" :key="c" :class="{ mark: mentions(c) }">{{ c }}</code></span>
+          </div>
+          <div v-if="t.when" class="step">
+            <span class="word">when</span>
+            <span><code :class="{ mark: mentions(t.when) }">{{ t.when }}</code></span>
+          </div>
+          <div class="step">
+            <span class="word">then</span>
+            <span>
+              <code v-for="c in t.then" :key="c" :class="{ rejected: isError(c), mark: mentions(c) }">{{ c }}</code>
+            </span>
+          </div>
         </div>
-        <div v-if="t.when" class="step">
-          <span class="word">when</span>
-          <span><code>{{ t.when }}</code></span>
-        </div>
-        <div class="step">
-          <span class="word">then</span>
-          <span><code v-for="c in t.then" :key="c" :class="{ rejected: isError(c) }">{{ c }}</code></span>
-        </div>
-      </div>
+      </template>
     </template>
   </aside>
 </template>

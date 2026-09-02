@@ -6,7 +6,16 @@ import { test } from "node:test"
 import { fileURLToPath } from "node:url"
 
 import type { ModelJson } from "../src/json.ts"
-import { type Box, layout, parse, parseClause, path, polyline, wrap } from "../viewer/src/layout.ts"
+import {
+  type Box,
+  fitColumns,
+  layout,
+  parse,
+  parseClause,
+  path,
+  polyline,
+  wrap,
+} from "../viewer/src/layout.ts"
 
 const model: ModelJson = JSON.parse(
   readFileSync(fileURLToPath(new URL("./todo-app.json", import.meta.url)), "utf8"),
@@ -123,20 +132,42 @@ test("every edge joins two cards, and a projection is fed by each of its events"
   }
 })
 
-test("an automation is in its actor's lane, reads dashed, and is entered from the side", () => {
+test("an automation is in its actor's lane, and reads are drawn back from the read model", () => {
   const column = out.columns.find((c) => c.slice.automation)
   assert.ok(column)
   const gear = out.boxes.find((b) => b.column === column.index && b.kind === "automation")
-  const ref = out.boxes.find((b) => b.column === column.index && b.compact)
   const command = out.boxes.find((b) => b.column === column.index && b.kind === "command")
-  assert.ok(gear && ref && command)
+  assert.ok(gear && command)
   assert.equal(rowOf(gear)?.id, "actor:system")
-  assert.equal(ref.name, "ItemSearch")
-  assert.ok(out.edges.some((e) => e.from === ref.id && e.to === command.id && e.dashed))
+  assert.equal(
+    out.boxes.filter((b) => b.column === column.index && b.compact).length,
+    0,
+    "no reference card when the read model is drawn in full",
+  )
+  const search = out.boxes.find(
+    (b) => b.name === "ItemSearch" && b.kind === "readModel" && !b.compact,
+  )
+  assert.ok(search)
+  const reads = out.edges.find((e) => e.from === search.id && e.to === command.id)
+  assert.ok(
+    reads?.dashed && reads.points,
+    "a dashed, routed edge from the read model to the command",
+  )
+  assert.deepEqual(reads.points[0], [search.x + search.w / 2, search.y + search.h])
+  const end = reads.points.at(-1)
+  assert.ok(end && end[0] === command.x && end[1] > command.y && end[1] < command.y + command.h)
   const trigger = out.edges.find((e) => e.to === gear.id && e.points)
   assert.ok(trigger?.points)
-  const end = trigger.points.at(-1)
-  assert.ok(end && end[0] === gear.x && end[1] > gear.y && end[1] < gear.y + gear.h)
+  const into = trigger.points.at(-1)
+  assert.ok(into && into[0] === gear.x && into[1] > gear.y && into[1] < gear.y + gear.h)
+})
+
+test("a read model nothing draws in full still gets a reference card", () => {
+  const copy: ModelJson = JSON.parse(JSON.stringify(model))
+  for (const c of copy.chapters)
+    c.slices = c.slices.filter((s) => !s.read_models?.some((r) => r.startsWith("ItemSearch")))
+  const ref = layout(copy).boxes.find((b) => b.name === "ItemSearch")
+  assert.ok(ref?.compact && ref.canonical === undefined)
 })
 
 test("lanes say what they are, and the system lane is the automations", () => {
@@ -159,6 +190,16 @@ test("a screen is a wireframe of its command or its read model", () => {
   assert.deepEqual(list?.form, ["userId"])
   assert.deepEqual(list?.table, ["userId", "listId", "name", "itemCount", "status"])
   assert.equal(list?.button, undefined)
+  assert.ok(list?.tableColumns && list.tableColumns.length < 5 && list.tableMore)
+})
+
+test("a table shows the columns that fit and counts the rest", () => {
+  const { columns, more } = fitColumns(["userId", "listId", "name", "itemCount", "status"], 144)
+  assert.ok(columns.length >= 2 && columns.length < 5)
+  assert.equal(more, 5 - columns.length)
+  const last = columns.at(-1)
+  assert.ok(last && last.x + last.w <= 144 - 26, "room is left for the +n")
+  assert.deepEqual(fitColumns(["a"], 144), { columns: [{ name: "a", x: 0, w: 5.2 + 12 }], more: 0 })
 })
 
 test("edges that share an end fan out there", () => {
