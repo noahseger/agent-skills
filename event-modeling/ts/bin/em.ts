@@ -5,11 +5,12 @@
 //   json   <path>                 print the assembled JSON
 //   render <path> -o out.svg      draw the diagram; --watch redraws on save
 //   proto  <path> -o dir          write one .proto per service
+//   view   <path> [--port n]      serve the live diagram; --no-open keeps the browser closed
 //
 // <path> is a model directory or a single module. Every command assembles the
 // model first, so an assembly error stops all of them the same way: its
 // message, exit 1. render shells out to event_model.py, which owns the SVG.
-import { spawnSync } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, watch, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
@@ -18,14 +19,17 @@ import { parseArgs } from "node:util"
 
 import { assemble, load } from "../src/assemble.ts"
 import { generateProto } from "../src/proto.ts"
+import { type Snapshot, serve } from "../src/serve.ts"
 
 const USAGE = `usage:
   em init   <dir>
   em json   <path>
   em render <path> -o <out.svg> [--watch]
-  em proto  <path> -o <dir>`
+  em proto  <path> -o <dir>
+  em view   <path> [--port <n>] [--no-open]`
 
 const EVENT_MODEL_PY = fileURLToPath(new URL("../../event_model.py", import.meta.url))
+const VIEWER_DIST = fileURLToPath(new URL("../viewer/dist/", import.meta.url))
 
 const INDEX_TS = `import { m } from "@noahseger/event-modeling"
 
@@ -53,8 +57,14 @@ const TSCONFIG = `${JSON.stringify(
 )}\n`
 
 const { values, positionals } = parseArgs({
-  options: { out: { type: "string", short: "o" }, watch: { type: "boolean" } },
+  options: {
+    out: { type: "string", short: "o" },
+    watch: { type: "boolean" },
+    port: { type: "string" },
+    open: { type: "boolean", default: true },
+  },
   allowPositionals: true,
+  allowNegative: true,
 })
 const [command, path] = positionals
 
@@ -127,12 +137,49 @@ async function render(path: string, out: string): Promise<void> {
   })
 }
 
+/** The model, assembled in a fresh process so a saved module is read again. */
+function assembleFresh(path: string): Snapshot {
+  const run = spawnSync(
+    process.execPath,
+    [...process.execArgv, process.argv[1] ?? "", "json", path],
+    { encoding: "utf8" },
+  )
+  return run.status === 0 ? { json: run.stdout } : { error: run.stderr || run.stdout }
+}
+
+async function view(path: string): Promise<void> {
+  if (!existsSync(join(VIEWER_DIST, "index.html")))
+    throw new Error("The viewer is not built. Run `npm run build` in the package.")
+  const server = await serve({
+    dist: VIEWER_DIST,
+    root: statSync(path).isDirectory() ? path : dirname(path),
+    load: async () => assembleFresh(path),
+    port: Number(values.port ?? 5311),
+  })
+  console.log(`viewing ${path} at ${server.url}`)
+  if (values.open) openBrowser(server.url)
+}
+
+function openBrowser(url: string): void {
+  const [cmd, ...args] =
+    process.platform === "darwin"
+      ? ["open", url]
+      : process.platform === "win32"
+        ? ["cmd", "/c", "start", "", url]
+        : ["xdg-open", url]
+  if (cmd)
+    spawn(cmd, args, { stdio: "ignore", detached: true })
+      .on("error", () => {})
+      .unref()
+}
+
 async function main(): Promise<void> {
   if (!command || !path) usage()
   else if (command === "init") init(path)
   else if (command === "json") await json(path)
   else if (command === "render" && values.out) await render(path, values.out)
   else if (command === "proto" && values.out) await proto(path, values.out)
+  else if (command === "view") await view(path)
   else usage()
 }
 

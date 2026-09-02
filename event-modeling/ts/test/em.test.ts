@@ -1,6 +1,6 @@
 // The CLI, run as a user runs it: a fresh node process per command.
 import assert from "node:assert/strict"
-import { spawnSync } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -80,4 +80,43 @@ test("a missing argument prints usage and exits 2", () => {
   const run = em("render", EXAMPLE)
   assert.equal(run.status, 2)
   assert.match(run.stderr, /^usage:/)
+})
+
+test("view serves the app, the model, and a change feed", async () => {
+  const server = spawn(process.execPath, [
+    ...NODE_FLAGS,
+    here("../bin/em.ts"),
+    "view",
+    EXAMPLE,
+    "--port",
+    "0",
+    "--no-open",
+  ])
+  try {
+    const url = await new Promise<string>((resolve, reject) => {
+      let out = ""
+      server.stdout.on("data", (chunk: Buffer) => {
+        out += chunk.toString()
+        const match = out.match(/at (http:\/\/localhost:\d+)/)
+        if (match?.[1]) resolve(match[1])
+      })
+      server.stderr.on("data", (chunk: Buffer) => reject(new Error(chunk.toString())))
+      server.on("exit", (code) => reject(new Error(`exited ${code}: ${out}`)))
+    })
+    const page = await fetch(`${url}/`)
+    assert.equal(page.status, 200)
+    assert.match(await page.text(), /<div id="app">/)
+
+    const model = await fetch(`${url}/model.json`)
+    assert.equal(model.status, 200)
+    assert.deepEqual(await model.json(), JSON.parse(readFileSync(here("./todo-app.json"), "utf8")))
+
+    const feed = await fetch(`${url}/events`)
+    assert.equal(feed.headers.get("content-type"), "text/event-stream")
+    await feed.body?.cancel()
+
+    assert.equal((await fetch(`${url}/../package.json`)).status, 404)
+  } finally {
+    server.kill()
+  }
 })

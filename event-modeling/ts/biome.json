@@ -1,7 +1,14 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.11/schema.json",
   "files": {
-    "includes": ["**/*.ts", "**/*.json", "!**/node_modules", "!test/*.json"]
+    "includes": [
+      "**/*.ts",
+      "**/*.json",
+      "**/*.vue",
+      "!**/node_modules",
+      "!viewer/dist",
+      "!test/*.json"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -39,6 +46,21 @@
       },
       "assist": {
         "enabled": false
+      }
+    },
+    {
+      "includes": ["**/*.vue"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedVariables": "off",
+            "noUnusedImports": "off",
+            "noUnusedFunctionParameters": "off"
+          },
+          "style": {
+            "useVueMultiWordComponentNames": "off"
+          }
+        }
       }
     }
   ]

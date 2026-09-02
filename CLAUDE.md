@@ -8,6 +8,7 @@ Each skill lives in its own directory with a `SKILL.md` (practice guide) and sup
 
 - `event-modeling/` — event modeling skill with Pydantic schema, validation, and SVG rendering
 - `event-modeling/ts/` — the model as typed TypeScript; assembles to the JSON, generates the protobuf, `em` CLI
+- `event-modeling/ts/viewer/` — the live diagram `em view` serves; Vue over the assembled JSON, built by Vite into `viewer/dist`
 - `.claude/skills/lazy/` — response contract skill plus its `Stop` hook, installed active for this repo
 
 ## The lazy skill is edited here, nowhere else
@@ -34,7 +35,7 @@ pip install pydantic pytest
 
 ```bash
 pytest event-modeling/tests/ -v
-cd event-modeling/ts && npm test   # tsc, biome, node --test, buf lint
+cd event-modeling/ts && npm test   # tsc, biome, vite build, node --test, buf lint
 ```
 
 ## Test Harness
@@ -43,7 +44,8 @@ Three kinds:
 
 1. **Unit tests** (`tests/test_event_model.py`) — the Python tool's parsing, validation and rendering
 2. **TypeScript tests** (`ts/test/`) — `typecheck.ts` holds one `@ts-expect-error` per compiler check, so
-   `tsc` fails if a check stops firing; the rest cover assembly, the proto generator and the CLI.
+   `tsc` fails if a check stops firing; the rest cover assembly, the proto generator, the viewer's
+   layout (pure, no browser) and the CLI, including the `view` server.
    Biome does not format `typecheck.ts`: the directive binds to the next line, so reformatting a
    chain moves the error off it and silently disarms the check
 3. **Brief coverage** (`ts/test/brief-coverage.test.ts`) — whether the model answers the product

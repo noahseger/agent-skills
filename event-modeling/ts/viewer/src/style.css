@@ -1,0 +1,441 @@
+:root {
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --line: #e4e7eb;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --faint: #94a3b8;
+  --accent: #2563eb;
+  --danger: #b91c1c;
+
+  --ui-fill: #ffffff;
+  --ui-stroke: #94a3b8;
+  --ui-ink: #0f172a;
+  --command-fill: #dbeafe;
+  --command-stroke: #3b82f6;
+  --command-ink: #1e3a8a;
+  --event-fill: #ffedd5;
+  --event-stroke: #f97316;
+  --event-ink: #7c2d12;
+  --readModel-fill: #dcfce7;
+  --readModel-stroke: #22c55e;
+  --readModel-ink: #14532d;
+  --automation-fill: #f3e8ff;
+  --automation-stroke: #a855f7;
+  --automation-ink: #581c87;
+
+  --sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  height: 100%;
+  font-family: var(--sans);
+  color: var(--ink);
+  background: var(--bg);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
+}
+
+.top {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 12px 20px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+.top h1 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.top .description {
+  color: var(--muted);
+}
+
+.top .legend {
+  margin-left: auto;
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.top .swatch::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-right: 6px;
+  vertical-align: -1px;
+  border: 1px solid;
+}
+
+.top .swatch.ui::before { background: var(--ui-fill); border-color: var(--ui-stroke); }
+.top .swatch.command::before { background: var(--command-fill); border-color: var(--command-stroke); }
+.top .swatch.event::before { background: var(--event-fill); border-color: var(--event-stroke); }
+.top .swatch.readModel::before { background: var(--readModel-fill); border-color: var(--readModel-stroke); }
+.top .swatch.automation::before { background: var(--automation-fill); border-color: var(--automation-stroke); }
+
+.top .status {
+  margin-left: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.top .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+}
+
+.top .dot.off {
+  background: var(--faint);
+}
+
+.top .dot.error {
+  background: var(--danger);
+}
+
+.body {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  min-height: 0;
+}
+
+.canvas {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  cursor: grab;
+  user-select: none;
+}
+
+.canvas.dragging {
+  cursor: grabbing;
+}
+
+.canvas svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.error {
+  margin: 0;
+  padding: 12px 20px;
+  border-bottom: 1px solid #fecaca;
+  background: #fef2f2;
+  color: var(--danger);
+  font-family: var(--mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.empty {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+/* lanes */
+.lane {
+  fill: transparent;
+}
+
+.lane.stream:nth-of-type(odd) {
+  fill: #fbfbfc;
+}
+
+.lane-line {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.lane-label {
+  font-size: 12px;
+  font-weight: 600;
+  fill: var(--muted);
+}
+
+.lane-kind {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  fill: var(--faint);
+}
+
+.chapter-title {
+  font-size: 13px;
+  font-weight: 600;
+  fill: var(--ink);
+}
+
+.chapter-rule {
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.slice-name {
+  font-size: 11px;
+  fill: var(--faint);
+}
+
+/* edges */
+.edge {
+  fill: none;
+  stroke: #94a3b8;
+  stroke-width: 1.5;
+  transition: opacity 120ms ease;
+}
+
+.edge.dashed {
+  stroke-dasharray: 4 4;
+}
+
+.edge.dim {
+  opacity: 0.12;
+}
+
+.edge.lit {
+  stroke: var(--accent);
+}
+
+/* cards */
+.card {
+  cursor: pointer;
+  transition: opacity 120ms ease;
+}
+
+.card.dim {
+  opacity: 0.25;
+}
+
+.card .shape {
+  stroke-width: 1.25;
+  filter: drop-shadow(0 1px 1px rgb(15 23 42 / 0.06));
+}
+
+.card.selected .shape {
+  stroke-width: 2.5;
+}
+
+.card.lit .shape {
+  stroke: var(--accent);
+}
+
+.card .title {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.card .detail {
+  font-size: 10.5px;
+  fill: var(--muted);
+}
+
+.card .field {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  fill: var(--muted);
+}
+
+.card .field.key {
+  fill: var(--ink);
+  font-weight: 600;
+}
+
+.card.ui .shape { fill: var(--ui-fill); stroke: var(--ui-stroke); }
+.card.ui .title { fill: var(--ui-ink); }
+.card.command .shape { fill: var(--command-fill); stroke: var(--command-stroke); }
+.card.command .title { fill: var(--command-ink); }
+.card.event .shape,
+.card.external .shape { fill: var(--event-fill); stroke: var(--event-stroke); }
+.card.event .title,
+.card.external .title { fill: var(--event-ink); }
+.card.external .shape { stroke-dasharray: 5 3; }
+.card.readModel .shape { fill: var(--readModel-fill); stroke: var(--readModel-stroke); }
+.card.readModel .title { fill: var(--readModel-ink); }
+.card.automation .shape { fill: var(--automation-fill); stroke: var(--automation-stroke); }
+.card.automation .title { fill: var(--automation-ink); }
+
+.card .key-mark {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  fill: var(--faint);
+}
+
+/* detail panel */
+.detail {
+  width: 360px;
+  overflow: auto;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  padding: 18px 20px 32px;
+}
+
+.detail header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.detail .kind {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 4px;
+}
+
+.detail .kind.ui { background: #f1f5f9; color: var(--ui-ink); }
+.detail .kind.command { background: var(--command-fill); color: var(--command-ink); }
+.detail .kind.event,
+.detail .kind.external { background: var(--event-fill); color: var(--event-ink); }
+.detail .kind.readModel { background: var(--readModel-fill); color: var(--readModel-ink); }
+.detail .kind.automation { background: var(--automation-fill); color: var(--automation-ink); }
+
+.detail h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  flex: 1;
+}
+
+.detail .close {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.detail .close:hover {
+  background: var(--bg);
+}
+
+.detail h3 {
+  margin: 20px 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.detail .note {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+.detail table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+
+.detail td {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.detail td.name {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.detail td.hint {
+  color: var(--muted);
+  text-align: right;
+  font-size: 12px;
+}
+
+.detail dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  font-size: 13px;
+}
+
+.detail dt {
+  color: var(--muted);
+}
+
+.detail dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.spec {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.spec .name {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.spec .step {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 8px;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.spec .step .word {
+  color: var(--faint);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding-top: 2px;
+}
+
+.spec .step code {
+  font-family: var(--mono);
+  display: block;
+  color: var(--ink);
+  word-break: break-word;
+}
+
+.spec .step code.rejected {
+  color: var(--danger);
+}

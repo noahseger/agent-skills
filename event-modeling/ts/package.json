@@ -12,13 +12,16 @@
     "em": "bin/em.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p viewer",
     "lint": "biome check .",
     "lint:proto": "buf lint examples/proto",
     "json": "node --experimental-strip-types --disable-warning=ExperimentalWarning bin/em.ts json",
     "render": "node --experimental-strip-types --disable-warning=ExperimentalWarning bin/em.ts render",
     "proto": "node --experimental-strip-types --disable-warning=ExperimentalWarning bin/em.ts proto",
-    "test": "npm run typecheck && npm run lint && node --test --experimental-strip-types 'test/*.test.ts' && npm run lint:proto"
+    "view": "node --experimental-strip-types --disable-warning=ExperimentalWarning bin/em.ts view",
+    "build": "vite build viewer",
+    "viewer:dev": "vite viewer",
+    "test": "npm run typecheck && npm run lint && npm run build && node --test --experimental-strip-types 'test/*.test.ts' && npm run lint:proto"
   },
   "dependencies": {
     "zod": "^4.5.4"
@@ -27,6 +30,9 @@
     "@biomejs/biome": "^2.5.11",
     "@bufbuild/buf": "^1.72.0",
     "@types/node": "^26.4.0",
-    "typescript": "^7.0.2"
+    "@vitejs/plugin-vue": "^6.0.8",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2",
+    "vue": "^3.5.42"
   }
 }
