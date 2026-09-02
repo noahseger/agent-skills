@@ -66,7 +66,9 @@ function walk(dir: string): string[] {
 function exported(value: unknown): Exported | undefined {
   if (typeof value !== "object" || value === null || !(META in value)) return undefined
   const data: unknown = (value as { [META]: unknown })[META]
-  return typeof data === "object" && data !== null && "kind" in data ? (data as Exported) : undefined
+  return typeof data === "object" && data !== null && "kind" in data
+    ? (data as Exported)
+    : undefined
 }
 
 /**
@@ -136,9 +138,11 @@ function locate(chapter: ChapterData, index: number): Located[] {
     // Every declaration in the slice must be named before the heading can be,
     // so the anonymous location stands in until then.
     for (const [kind, d] of used(slice)) {
-      if (d.name === undefined) throw new Error(`${where} uses ${KIND_LABEL[kind]} that no module exports.`)
+      if (d.name === undefined)
+        throw new Error(`${where} uses ${KIND_LABEL[kind]} that no module exports.`)
     }
-    const heading = slice.command?.name ??
+    const heading =
+      slice.command?.name ??
       slice.projects?.name ??
       slice.polls?.name ??
       slice.service?.method ??
@@ -160,7 +164,8 @@ function used(slice: SliceData): [keyof typeof KIND_LABEL, { name?: string }][] 
   }
   for (const r of [...slice.reads, slice.polls, slice.projects]) if (r) out.push(["readModel", r])
   for (const t of slice.tests) {
-    for (const c of [...t.given, t.when, ...t.then]) if (c && "decl" in c) out.push([c.decl.kind, c.decl])
+    for (const c of [...t.given, t.when, ...t.then])
+      if (c && "decl" in c) out.push([c.decl.kind, c.decl])
   }
   return out
 }
@@ -188,7 +193,9 @@ function checkFilled({ slice, where }: Located): void {
     const filled = new Set(slice.on.flatMap((flow) => [...filledBy(flow, flow.event)]))
     for (const field of Object.keys(slice.projects.fields)) {
       if (!filled.has(field)) {
-        throw new Error(`${where}: ${slice.projects.name}.${field} is filled by nothing. No .on() writes it.`)
+        throw new Error(
+          `${where}: ${slice.projects.name}.${field} is filled by nothing. No .on() writes it.`,
+        )
       }
     }
   }
@@ -237,31 +244,41 @@ function checkConnected(located: Located[]): void {
     for (const t of slice.tests) {
       for (const g of t.given) {
         if (g.decl.kind !== "event")
-          throw new Error(`${where} gives ${g.decl.name}, ${KIND_LABEL[g.decl.kind]}; given takes events.`)
+          throw new Error(
+            `${where} gives ${g.decl.name}, ${KIND_LABEL[g.decl.kind]}; given takes events.`,
+          )
       }
       if (t.when && t.when.decl.kind !== "command")
-        throw new Error(`${where} has ${t.when.decl.name} as when, ${KIND_LABEL[t.when.decl.kind]}; when takes a command.`)
+        throw new Error(
+          `${where} has ${t.when.decl.name} as when, ${KIND_LABEL[t.when.decl.kind]}; when takes a command.`,
+        )
       if (slice.command) {
         for (const c of t.then) {
           if ("decl" in c && c.decl.kind !== "event")
-            throw new Error(`${where} expects ${c.decl.name}, ${KIND_LABEL[c.decl.kind]}; then takes events or a rejection.`)
+            throw new Error(
+              `${where} expects ${c.decl.name}, ${KIND_LABEL[c.decl.kind]}; then takes events or a rejection.`,
+            )
         }
       }
     }
     for (const f of slice.emits) {
       if (!consumed.has(f.event)) {
-        throw new Error(`${where} emits ${f.event.name}, which nothing consumes: no .on() and no given.`)
+        throw new Error(
+          `${where} emits ${f.event.name}, which nothing consumes: no .on() and no given.`,
+        )
       }
     }
     const given = slice.tests.flatMap((t) => t.given.map((g) => g.decl))
     for (const e of [...slice.on.map((f) => f.event), ...given]) {
-      if (!e.external && !emitted.has(e)) throw new Error(`${where} uses ${e.name}, which no slice emits.`)
+      if (!e.external && !emitted.has(e))
+        throw new Error(`${where} uses ${e.name}, which no slice emits.`)
     }
     if (slice.projects && !read.has(slice.projects)) {
       throw new Error(`${where} projects ${slice.projects.name}, which nothing reads.`)
     }
     for (const r of [...slice.reads, slice.polls]) {
-      if (r && !projected.has(r)) throw new Error(`${where} reads ${r.name}, which nothing projects.`)
+      if (r && !projected.has(r))
+        throw new Error(`${where} reads ${r.name}, which nothing projects.`)
     }
   }
 }

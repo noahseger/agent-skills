@@ -72,7 +72,11 @@ function decl<K extends DeclKind, F extends Fields>(kind: K, fields: F): Decl<K,
     [META]: data,
     __kind: kind,
     __fields: fields,
-    with: (values) => ({ [META]: { decl: data, data: schema.parse(values) }, __kind: kind, __fields: fields }),
+    with: (values) => ({
+      [META]: { decl: data, data: schema.parse(values) },
+      __kind: kind,
+      __fields: fields,
+    }),
     // A note is set once, right after the declaration, so nothing else holds
     // the object yet and mutating it aliases nobody.
     note(text) {
@@ -179,7 +183,8 @@ function probe(fields: Fields, map: (source: never) => object): Record<string, S
   const source = Object.fromEntries(Object.keys(fields).map((f) => [f, { [FIELD]: f }]))
   const mapping: Record<string, Source> = {}
   for (const [field, value] of Object.entries(map(source as never))) {
-    mapping[field] = value === COUNT ? { count: true } : isProbe(value) ? { from: value[FIELD] } : { value }
+    mapping[field] =
+      value === COUNT ? { count: true } : isProbe(value) ? { from: value[FIELD] } : { value }
   }
   return mapping
 }
@@ -310,7 +315,8 @@ function chain(data: SliceData) {
     reads: (readModel: ReadModelDecl) => next({ reads: [...data.reads, readModel[META]] }),
     service: (service: Service, method?: string) =>
       next({
-        service: method === undefined ? { service: service[META] } : { service: service[META], method },
+        service:
+          method === undefined ? { service: service[META] } : { service: service[META], method },
       }),
     command: (command: CommandDecl) => next({ command: command[META] }),
     emits: (event: EventDecl, map?: (source: never) => object) =>
@@ -349,10 +355,7 @@ export interface Model {
 }
 
 /** Chapters are listed because their order is the timeline. */
-function model(
-  name: string,
-  spec: { description?: string; chapters: readonly Chapter[] },
-): Model {
+function model(name: string, spec: { description?: string; chapters: readonly Chapter[] }): Model {
   return {
     [META]: {
       kind: "model",

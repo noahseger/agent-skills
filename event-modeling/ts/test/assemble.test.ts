@@ -5,8 +5,8 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
-import { m } from "#em"
 import { z } from "zod"
+import { m } from "#em"
 
 import { assemble, assembleModules, load } from "../src/assemble.ts"
 
@@ -16,7 +16,9 @@ const here = (path: string) => fileURLToPath(new URL(path, import.meta.url))
 function validate(json: unknown): void {
   const file = join(mkdtempSync(join(tmpdir(), "em-")), "model.json")
   writeFileSync(file, JSON.stringify(json))
-  const run = spawnSync("python3", [here("../../event_model.py"), "validate", file], { encoding: "utf8" })
+  const run = spawnSync("python3", [here("../../event_model.py"), "validate", file], {
+    encoding: "utf8",
+  })
   assert.equal(run.status, 0, run.stdout + run.stderr)
 }
 
@@ -50,7 +52,8 @@ function fixture() {
 }
 type Fixture = ReturnType<typeof fixture>
 
-const create = (f: Fixture) => m.slice().actor(f.User).service(f.Svc).command(f.Create).emits(f.Created)
+const create = (f: Fixture) =>
+  m.slice().actor(f.User).service(f.Svc).command(f.Create).emits(f.Created)
 const project = (f: Fixture) => m.slice().projects(f.Table).on(f.Created)
 const projectTable = project
 const view = (f: Fixture) => m.slice().actor(f.User).reads(f.Table).service(f.Svc, "Get")
@@ -75,7 +78,12 @@ test("a well-formed model assembles", () => {
 test("a declaration used in a slice that no module exports", () => {
   const { Created, ...f } = fixture()
   assert.throws(
-    () => assembled(f, [create({ ...f, Created }), project({ ...f, Created }), view({ ...f, Created })]),
+    () =>
+      assembled(f, [
+        create({ ...f, Created }),
+        project({ ...f, Created }),
+        view({ ...f, Created }),
+      ]),
     /slice #1 in 'Ch' uses an event that no module exports/,
   )
 })
@@ -92,7 +100,12 @@ test("an event field the command does not carry", () => {
   const f = fixture()
   const Created = m.event({ id: z.string(), name: z.string(), extra: z.string() })
   assert.throws(
-    () => assembled({ ...f, Created }, [create({ ...f, Created }), project({ ...f, Created }), view(f)]),
+    () =>
+      assembled({ ...f, Created }, [
+        create({ ...f, Created }),
+        project({ ...f, Created }),
+        view(f),
+      ]),
     /slice 'Create' in 'Ch': Created\.extra is filled by nothing\. Create does not carry it and no function sets it/,
   )
 })
@@ -108,7 +121,7 @@ test("a mapping function fills what the command does not carry", () => {
     .emits(Created, (c) => ({ extra: c.name }))
   const json = assembled({ ...f, Created }, [slice, project({ ...f, Created }), view(f)])
   assert.deepEqual(json.chapters[0]?.slices[0]?.mapping, { Created: { extra: { from: "name" } } })
-  assert.equal(json.chapters[0]?.slices[0]?.command, "Create(id, name, extra)")
+  assert.equal(json.chapters[0]?.slices[0]?.command, "Create(id, name)")
   validate(json)
 })
 
@@ -160,7 +173,11 @@ test("a read model nothing reads", () => {
 test("a read model nothing projects", () => {
   const f = fixture()
   const created = f.Created.with({ id: "1", name: "n" })
-  const slice = create(f).test("t", { given: created, when: f.Create.with({ id: "1", name: "n" }), then: created })
+  const slice = create(f).test("t", {
+    given: created,
+    when: f.Create.with({ id: "1", name: "n" }),
+    then: created,
+  })
   assert.throws(
     () => assembled(f, [slice, view(f)]),
     /slice 'Get' in 'Ch' reads Table, which nothing projects/,
@@ -190,7 +207,7 @@ test("two slices claiming one service method", () => {
   )
 })
 
-// --- Encodings the render target has no native word for ----------------------
+// --- What the render target reads natively, and what it encodes ---------------
 
 test("a .polls() automation has the read model as its trigger", () => {
   const f = fixture()
@@ -201,7 +218,7 @@ test("a .polls() automation has the read model as its trigger", () => {
   const json = assembled({ ...f, Process, Processed }, [create(f), processor, projection])
   const slice = json.chapters[0]?.slices[1]
   assert.equal(slice?.automation, "Processor")
-  assert.equal(slice?.trigger, "Table*(*id, name)")
+  assert.equal(slice?.trigger, undefined)
   assert.equal(slice?.polls, "Table")
   validate(json)
 })
@@ -225,7 +242,10 @@ test("a slice may read more than one read model", () => {
   const f = fixture()
   const Other = m.readModel({ id: m.key(z.string()), count: z.number() })
   const view = m.slice().actor(f.User).reads(f.Table).reads(Other).service(f.Svc, "Both")
-  const project = m.slice().projects(Other).on(f.Created, () => ({ count: 0 }))
+  const project = m
+    .slice()
+    .projects(Other)
+    .on(f.Created, () => ({ count: 0 }))
   const json = assembled({ ...f, Other }, [create(f), projectTable(f), project, view])
   assert.deepEqual(
     json.chapters[0]?.slices.at(-1)?.read_models?.map((r) => r.match(/^\w+/)?.[0]),

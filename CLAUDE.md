@@ -7,6 +7,7 @@ Reusable Claude Code skills for software engineering agents.
 Each skill lives in its own directory with a `SKILL.md` (practice guide) and supporting tools.
 
 - `event-modeling/` — event modeling skill with Pydantic schema, validation, and SVG rendering
+- `event-modeling/ts/` — the model as typed TypeScript; assembles to the JSON, generates the protobuf, `em` CLI
 - `.claude/skills/lazy/` — response contract skill plus its `Stop` hook, installed active for this repo
 
 ## The lazy skill is edited here, nowhere else
@@ -33,21 +34,27 @@ pip install pydantic pytest
 
 ```bash
 pytest event-modeling/tests/ -v
+cd event-modeling/ts && npm test   # tsc, biome, node --test, buf lint
 ```
 
 ## Test Harness
 
-Each skill has two kinds of tests:
+Three kinds:
 
-1. **Unit tests** (`test_event_model.py`) — validate the tool's logic (parsing, validation, rendering)
-2. **Content evaluation** (`test_skill_content.py`) — score the SKILL.md against key concepts the skill must teach
-
-Content tests check that SKILL.md covers essential principles. When improving a skill, run tests before and after to confirm the score improves.
+1. **Unit tests** (`tests/test_event_model.py`) — the Python tool's parsing, validation and rendering
+2. **TypeScript tests** (`ts/test/`) — `typecheck.ts` holds one `@ts-expect-error` per compiler check, so
+   `tsc` fails if a check stops firing; the rest cover assembly, the proto generator and the CLI.
+   Biome does not format `typecheck.ts`: the directive binds to the next line, so reformatting a
+   chain moves the error off it and silently disarms the check
+3. **Brief coverage** (`ts/test/brief-coverage.test.ts`) — whether the model answers the product
+   brief, which is the only thing left that no type system can decide
 
 ### Test Fixtures
 
-- **Product brief** (`fixtures/todo_app_brief.md`) — a plain-text product description, the real input an agent works from
-- **Golden model** (`fixtures/todo_app_model.json`) — the expected event model output from that brief, used for validation verification
+- **Product brief** (`tests/fixtures/todo_app_brief.md`) — a plain-text product description, the real input an agent works from
+- **The model** (`ts/examples/todo-app/`) — the model built from that brief. `ts/test/todo-app.json` is
+  what it assembles to, and `event_model.py validate` reports zero warnings on it
+- **Golden JSON** (`tests/fixtures/todo_app_model.json`) — a hand-written model of the same brief, for the Python tests
 
 ## Conventions
 

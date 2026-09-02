@@ -67,7 +67,7 @@
           "actor": "user",
           "aggregate": "items",
           "ui": "TodoService/AddItem",
-          "command": "AddItem(userId, listId, itemId, text, title)",
+          "command": "AddItem(userId, listId, itemId, text)",
           "events": [
             "ItemAdded(userId, listId, itemId, title)"
           ],
@@ -185,7 +185,7 @@
             "ListDeleted(listId)"
           ],
           "read_models": [
-            "TodoList*(*userId, *listId, name, itemCount, status)"
+            "TodoList(*userId, *listId, name, itemCount, status)"
           ],
           "tests": [
             {
@@ -265,7 +265,7 @@
           "aggregate": "items",
           "ui": "TodoService/ListTodoLists",
           "read_models": [
-            "TodoList*(*userId, *listId, name, itemCount, status)"
+            "TodoList(*userId, *listId, name, itemCount, status)"
           ],
           "tests": [],
           "query": [
@@ -282,7 +282,7 @@
             "ItemDeleted(listId, itemId)"
           ],
           "read_models": [
-            "ItemSearch*(*itemId, listId, title, done, deleted)"
+            "ItemSearch(*itemId, listId, title, done, deleted)"
           ],
           "tests": [
             {
@@ -345,7 +345,7 @@
           "aggregate": "items",
           "ui": "TodoService/GetList",
           "read_models": [
-            "ItemSearch*(*itemId, listId, title, done, deleted)"
+            "ItemSearch(*itemId, listId, title, done, deleted)"
           ],
           "tests": [],
           "query": [
@@ -358,7 +358,7 @@
           "aggregate": "items",
           "ui": "TodoService/SearchItems",
           "read_models": [
-            "ItemSearch*(*itemId, listId, title, done, deleted)"
+            "ItemSearch(*itemId, listId, title, done, deleted)"
           ],
           "tests": [],
           "query": [
@@ -407,7 +407,7 @@
           "actor": "calendar",
           "aggregate": "items",
           "external_event": "TaskScheduled(userId, listId, itemId, text)",
-          "command": "AddItem(userId, listId, itemId, text, title)",
+          "command": "AddItem(userId, listId, itemId, text)",
           "events": [
             "ItemAdded(userId, listId, itemId, title)"
           ],

@@ -23,9 +23,9 @@ import sys
 import textwrap
 from html import escape
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -58,6 +58,14 @@ class SourceRef(BaseModel):
     path: str
 
 
+class FieldSource(BaseModel):
+    """Where a handler got one field it fills: a source field, a constant, or a count."""
+    model_config = ConfigDict(extra="forbid")
+    from_: str | None = Field(default=None, alias="from")
+    value: Any = None
+    count: bool = False
+
+
 class Slice(BaseModel):
     """One vertical cut through the timeline. At most one command."""
     name: str | None = None
@@ -67,12 +75,18 @@ class Slice(BaseModel):
     external_event: str | None = None  # event arriving from outside the system boundary
     automation: str | None = None
     trigger: str | list[str] | None = None  # event(s) that drive the automation or State View projection
+    polls: str | None = None  # the TODO-list read model an automation works through instead of a trigger
     command: str | None = None
     events: list[str] = Field(default_factory=list)
     reads: list[str] = Field(default_factory=list)  # consumed read models (inputs)
     read_models: list[str] = Field(default_factory=list)  # produced read models (outputs)
+    query: list[str] = Field(default_factory=list)  # a view's request fields, drawn on the ui card
     tests: list[GivenWhenThen] = Field(default_factory=list)
     refs: dict[str, list[SourceRef]] = Field(default_factory=dict)
+    note: str | None = None
+    # Per event, the fields the handler fills that do not flow by name, and
+    # where each came from. A mapped field counts as traced.
+    mapping: dict[str, dict[str, FieldSource]] = Field(default_factory=dict)
 
 
 class Chapter(BaseModel):
@@ -94,6 +108,7 @@ class EventModel(BaseModel):
     actors: list[Actor]
     aggregates: list[Aggregate]
     chapters: list[Chapter]
+    notes: dict[str, str] = Field(default_factory=dict)  # declaration name → note text
 
     @model_validator(mode="after")
     def validate_references(self):
@@ -126,7 +141,7 @@ class EventModel(BaseModel):
                     errors.append(
                         f"{loc} references unknown aggregate '{sl.aggregate}'"
                     )
-                if sl.automation and not _trigger_list(sl):
+                if sl.automation and not _trigger_list(sl) and not sl.polls:
                     errors.append(
                         f"Automation '{sl.automation}' in {loc} has no trigger — "
                         f"automations MUST be driven by an event or a TODO-list read model"
@@ -175,9 +190,10 @@ class EventModel(BaseModel):
                 elif _is_state_view(sl):
                     trigger_fields = _trigger_fields_union(sl)
                     # State View projections can also draw from consumed
-                    # read models declared in 'reads' (data sources).
-                    sv_allowed = set(trigger_fields)
-                    for consumed in sl.reads:
+                    # read models declared in 'reads' (data sources), and a
+                    # field the mapping fills is traced by construction.
+                    sv_allowed = set(trigger_fields) | _mapped_fields(sl)
+                    for consumed in _consumed(sl):
                         consumed_name = _parse_element(consumed)[0]
                         if consumed_name in rm_registry:
                             sv_allowed |= rm_registry[consumed_name]
@@ -216,8 +232,8 @@ class EventModel(BaseModel):
                                         f"to a trigger event or consumed "
                                         f"read model"
                                     )
-                # Cross-reference: consumed read models must exist somewhere
-                for consumed in sl.reads:
+                # Cross-reference: consumed and polled read models must exist somewhere
+                for consumed in _consumed(sl):
                     consumed_name = _parse_element(consumed)[0]
                     if consumed_name not in rm_registry:
                         errors.append(
@@ -235,7 +251,7 @@ class EventModel(BaseModel):
                 #    trace to a non-command source (trigger, external_event,
                 #    reads).  The command receives data; it doesn't invent it.
                 reads_fields: set[str] = set()
-                for consumed in sl.reads:
+                for consumed in _consumed(sl):
                     consumed_name = _parse_element(consumed)[0]
                     if consumed_name in rm_registry:
                         reads_fields |= rm_registry[consumed_name]
@@ -255,16 +271,33 @@ class EventModel(BaseModel):
                         ev_fields = _parse_fields(ev)
                         if not ev_fields:
                             continue
-                        untraced = ev_fields - input_fields
+                        ev_name = _parse_element(ev)[0]
+                        untraced = ev_fields - input_fields - _mapped_fields(sl, ev_name)
                         if untraced:
-                            ev_name = _parse_element(ev)[0]
                             errors.append(
                                 f"Event '{ev_name}' in {loc} has "
                                 f"fields with no provenance: "
                                 f"{', '.join(sorted(untraced))} — "
                                 f"add these fields to the command, "
                                 f"trigger, external event, or a "
-                                f"consumed read model in 'reads'"
+                                f"consumed read model in 'reads', or "
+                                f"say in 'mapping' where each comes from"
+                            )
+                # A mapping that reads a source field names one the handler
+                # actually receives: the command for a state change, the
+                # trigger event for a projection.
+                for ev_name, targets in sl.mapping.items():
+                    if sl.command:
+                        source, owner = _parse_fields(sl.command), _parse_element(sl.command)[0]
+                    else:
+                        matching = [t for t in _trigger_list(sl) if _parse_element(t)[0] == ev_name]
+                        source = _parse_fields(matching[0]) if matching else set()
+                        owner = ev_name
+                    for target, src in targets.items():
+                        if src.from_ is not None and src.from_ not in source:
+                            errors.append(
+                                f"Mapping for '{ev_name}.{target}' in {loc} reads "
+                                f"'{src.from_}', which {owner} does not carry"
                             )
                 # Automation command: every arg must trace to a non-command
                 # source.  The command handler receives data from the trigger,
@@ -398,6 +431,33 @@ def _trigger_names(sl: Slice) -> set[str]:
     return {_parse_element(t)[0] for t in _trigger_list(sl)}
 
 
+def _consumed(sl: Slice) -> list[str]:
+    """The read models the slice takes as input: what it reads, and what it polls."""
+    if sl.polls and sl.polls not in sl.reads:
+        return sl.reads + [sl.polls]
+    return sl.reads
+
+
+def _mapped_fields(sl: Slice, event: str | None = None) -> set[str]:
+    """The target fields the mapping fills, for one event or for all of them."""
+    if event is not None:
+        return set(sl.mapping.get(event, {}))
+    return {field for targets in sl.mapping.values() for field in targets}
+
+
+def _ui_label(sl: Slice) -> str:
+    """The interface card's text: the entry point, with the query fields a view takes."""
+    if sl.query:
+        return f"{sl.ui}({', '.join(sl.query)})"
+    return sl.ui or ""
+
+
+def _note_for(model: EventModel, label: str) -> str | None:
+    """The note on the declaration a card shows. A ui card reads Service/Method and carries the service's note."""
+    name = _parse_element(label)[0]
+    return model.notes.get(name) or model.notes.get(name.split("/")[0])
+
+
 # ---------------------------------------------------------------------------
 # Source ref helpers
 # ---------------------------------------------------------------------------
@@ -474,11 +534,13 @@ def _element_card(
     label: str, fill: str, text_fill: str = "#fff",
     stroke: str | None = None, rx: int = 6,
     refs: list[tuple[str, str]] = (),
+    note: str | None = None,
 ) -> str:
     """Render a card with CamelCase name + optional (fields) schema below.
 
     refs: list of (label, url) pairs. Single ref wraps card in <a>.
     Multi-ref annotation panels are rendered separately by _ref_panel.
+    note: shown as a tooltip, with a mark in the corner so the reader knows it is there.
     """
     stroke_attr = f' stroke="{stroke}" stroke-width="1"' if stroke else ""
     name, fields = _parse_element(label)
@@ -521,6 +583,15 @@ def _element_card(
         )
 
     card_svg = "\n".join(parts)
+
+    if note:
+        card_svg = (
+            f'<g><title>{_esc(note)}</title>\n'
+            + card_svg
+            + f'\n<text x="{x + 6}" y="{y + 9}" font-size="9" '
+            f'fill="{text_fill}" opacity="0.7" dominant-baseline="central">ⓘ</text>'
+            + "\n</g>"
+        )
 
     # Single ref: wrap entire card in a clickable link
     if len(refs) == 1:
@@ -839,7 +910,7 @@ def render_svg(model: EventModel) -> str:
     max_rm_h = CARD_H
     for _, _, sl in columns:
         if sl.ui:
-            max_ui_h = max(max_ui_h, _card_height(sl.ui))
+            max_ui_h = max(max_ui_h, _card_height(_ui_label(sl)))
         if sl.external_event:
             max_ui_h = max(max_ui_h, _card_height(sl.external_event))
         if sl.command:
@@ -897,7 +968,8 @@ def render_svg(model: EventModel) -> str:
     rm_w_layout = CARD_W - RM_X_OFFSET - RM_RIGHT_PAD
     CONSUMED_BOTTOM_PAD = 12  # extra padding below backreference cards
     def _rm_row_height(sl: Slice) -> float:
-        consumed_h = (len(sl.reads) * (CONSUMED_CARD_H + RM_STACK_GAP) + CONSUMED_BOTTOM_PAD) if sl.reads else 0
+        consumed = _consumed(sl)
+        consumed_h = (len(consumed) * (CONSUMED_CARD_H + RM_STACK_GAP) + CONSUMED_BOTTOM_PAD) if consumed else 0
         # automation backreference trigger cards share the read-model row
         if sl.automation:
             consumed_h += len(backref_map.get(id(sl), [])) * (CONSUMED_CARD_H + RM_STACK_GAP)
@@ -1030,10 +1102,13 @@ def render_svg(model: EventModel) -> str:
             if sl.name:
                 name_x = col_x[col_idx] + CARD_W / 2
                 name_cy = slice_name_y + slice_name_row_h / 2
+                # The slice's own note is a tooltip on its heading.
+                title = f"<title>{_esc(sl.note)}</title>" if sl.note else ""
+                label = f"{sl.name} ⓘ" if sl.note else sl.name
                 parts.append(
                     f'<text x="{name_x}" y="{name_cy}" font-size="9" '
                     f'text-anchor="middle" dominant-baseline="central" '
-                    f'fill="#888" font-weight="500">{_esc(sl.name)}</text>'
+                    f'fill="#888" font-weight="500">{title}{_esc(label)}</text>'
                 )
 
     # Actor swimlane labels
@@ -1099,8 +1174,9 @@ def render_svg(model: EventModel) -> str:
         if sl.ui and sl.actor in ui_row_y:
             ui_refs = _lookup_refs(sl, sl.ui, sb)
             parts.append(
-                _element_card(cx, ui_row_y[sl.actor], CARD_W, max_ui_h, sl.ui, UI_BG,
-                              text_fill="#333", stroke=UI_STROKE, refs=ui_refs)
+                _element_card(cx, ui_row_y[sl.actor], CARD_W, max_ui_h, _ui_label(sl), UI_BG,
+                              text_fill="#333", stroke=UI_STROKE, refs=ui_refs,
+                              note=_note_for(model, sl.ui))
             )
             panel = _ref_panel(cx, ui_row_y[sl.actor] + max_ui_h, CARD_W, ui_refs)
             if panel:
@@ -1111,7 +1187,8 @@ def render_svg(model: EventModel) -> str:
             ext_refs = _lookup_refs(sl, sl.external_event, sb)
             parts.append(
                 _element_card(cx, ui_row_y[sl.actor], CARD_W, max_ui_h,
-                              sl.external_event, EVENT_BG, refs=ext_refs)
+                              sl.external_event, EVENT_BG, refs=ext_refs,
+                              note=_note_for(model, sl.external_event))
             )
             panel = _ref_panel(cx, ui_row_y[sl.actor] + max_ui_h, CARD_W, ext_refs)
             if panel:
@@ -1120,11 +1197,13 @@ def render_svg(model: EventModel) -> str:
         # Automation processor box in actor's swimlane (purple card)
         if sl.automation and sl.actor in ui_row_y:
             uy = ui_row_y[sl.actor]
-            # Build label: automation name + "on: TriggerName"
+            # Build label: automation name + "on: TriggerName", or "polls: ReadModel"
             auto_label = sl.automation
             if _trigger_list(sl):
                 trigger_label = ", ".join(_parse_element(t)[0] for t in _trigger_list(sl))
                 auto_label += f"\non: {trigger_label}"
+            elif sl.polls:
+                auto_label += f"\npolls: {_parse_element(sl.polls)[0]}"
             auto_lines = []
             for line in auto_label.split("\n"):
                 auto_lines.extend(_camel_wrap(line, max_chars=int(CARD_W / 7)))
@@ -1146,7 +1225,7 @@ def render_svg(model: EventModel) -> str:
             cmd_refs = _lookup_refs(sl, sl.command, sb)
             parts.append(
                 _element_card(cx, agg["cmd"], CARD_W, max_cmd_h, sl.command, COMMAND_BG,
-                              refs=cmd_refs)
+                              refs=cmd_refs, note=_note_for(model, sl.command))
             )
             panel = _ref_panel(cx, agg["cmd"] + max_cmd_h, CARD_W, cmd_refs)
             if panel:
@@ -1158,7 +1237,8 @@ def render_svg(model: EventModel) -> str:
             ex = cx + ei * 8
             ey = agg["evt"] + ei * 8
             parts.append(
-                _element_card(ex, ey, CARD_W, max_evt_h, ev, EVENT_BG, refs=ev_refs)
+                _element_card(ex, ey, CARD_W, max_evt_h, ev, EVENT_BG, refs=ev_refs,
+                              note=_note_for(model, ev))
             )
             panel = _ref_panel(ex, ey + max_evt_h, CARD_W, ev_refs)
             if panel:
@@ -1167,9 +1247,10 @@ def render_svg(model: EventModel) -> str:
         # Consumed read model cards (reads) — compact name-only with dashed border
         # Shows source chapter label when the RM is produced in a different chapter
         current_chapter_name = model.chapters[ci].name
-        consumed_card_count = len(sl.reads)
+        consumed = _consumed(sl)
+        consumed_card_count = len(consumed)
         consumed_card_h = 38  # height for name + source label
-        for ri, consumed_name in enumerate(sl.reads):
+        for ri, consumed_name in enumerate(consumed):
             rm_y = read_model_row_y + ri * (consumed_card_h + RM_STACK_GAP)
             rm_w = CARD_W - RM_X_OFFSET - RM_RIGHT_PAD
             name_lines = _camel_wrap(consumed_name, max_chars=int(rm_w / 6.5))
@@ -1210,7 +1291,7 @@ def render_svg(model: EventModel) -> str:
             rm_refs = _lookup_refs(sl, rm, sb)
             parts.append(
                 _element_card(cx + RM_X_OFFSET, rm_y, rm_w, rm_h, rm, VIEW_BG,
-                              refs=rm_refs)
+                              refs=rm_refs, note=_note_for(model, rm))
             )
             panel = _ref_panel(cx + RM_X_OFFSET, rm_y + rm_h, rm_w, rm_refs)
             if panel:
@@ -1309,9 +1390,9 @@ def render_svg(model: EventModel) -> str:
 
         # Consumed Read Model → Command (dashed green arrow straight down)
         consumed_card_h_arrow = 38  # must match consumed_card_h above
-        if sl.reads and sl.command:
+        if consumed and sl.command:
             rm_w = CARD_W - RM_X_OFFSET - RM_RIGHT_PAD
-            n_reads = len(sl.reads)
+            n_reads = len(consumed)
             for ri in range(n_reads):
                 # Spread multiple reads arrows horizontally so they don't stack
                 route_x_reads = cx + RM_X_OFFSET + rm_w / 2 + (ri - (n_reads - 1) / 2) * ARROW_SPREAD
@@ -1324,7 +1405,7 @@ def render_svg(model: EventModel) -> str:
                 )
 
         # Event → Read Model (trunk from event card right edge, branches LEFT into RMs)
-        consumed_stack_h_arrow = (len(sl.reads) * (38 + RM_STACK_GAP) + CONSUMED_BOTTOM_PAD) if sl.reads else 0
+        consumed_stack_h_arrow = (len(consumed) * (38 + RM_STACK_GAP) + CONSUMED_BOTTOM_PAD) if consumed else 0
         if sl.events and sl.read_models:
             route_x = cx + CARD_W  # right edge of event card
             evt_mid_y = agg["evt"] + max_evt_h / 2

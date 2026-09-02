@@ -46,7 +46,8 @@ interface JsonSchema {
 
 const snake = (name: string) => name.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase()
 const pascal = (name: string) => name.charAt(0).toUpperCase() + name.slice(1)
-const unmappable = (where: string, why: string) => new Error(`${where} has no protobuf type: ${why}`)
+const unmappable = (where: string, why: string) =>
+  new Error(`${where} has no protobuf type: ${why}`)
 
 /** The proto type of one schema. An object becomes a message nested in `parent`. */
 function typeOf(schema: JsonSchema, where: string, field: string, parent: Message): string {
@@ -165,7 +166,9 @@ export function generateProto(model: ModelData): ProtoFile[] {
   return [...byService].map(([service, slices]) => {
     const printed = new Set<DeclData>()
     const methods = slices.map((s) => methodOf(s, printed))
-    const rpcs = methods.map((m) => `  rpc ${m.name}(${m.name}Request) returns (${m.name}Response);\n`)
+    const rpcs = methods.map(
+      (m) => `  rpc ${m.name}(${m.name}Request) returns (${m.name}Response);\n`,
+    )
     const name = service.name ?? ""
     return {
       path: `${service.pkg.replaceAll(".", "/")}/${snake(name)}.proto`,

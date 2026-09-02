@@ -1,6 +1,7 @@
 // What the system knows about lists, and what it does on its own.
-import { m } from "#em"
+
 import { z } from "zod"
+import { m } from "#em"
 
 import {
   AddItem,
@@ -133,7 +134,12 @@ export const Views = m.chapter([
       }),
     }),
 
-  m.slice().actor(User).query({ listId: z.string() }).reads(ItemSearch).service(TodoService, "GetList"),
+  m
+    .slice()
+    .actor(User)
+    .query({ listId: z.string() })
+    .reads(ItemSearch)
+    .service(TodoService, "GetList"),
 
   m
     .slice()

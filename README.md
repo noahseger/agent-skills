@@ -10,6 +10,7 @@ Event modeling captures a system as a left-to-right timeline of commands, events
 
 - **SKILL.md** — Full practice guide covering Storm, Capture, Specify, Deliver, and Evolve phases
 - **event_model.py** — Pydantic schema with invariant validation + SVG diagram renderer
+- **ts/** — the model as typed TypeScript; it assembles to the JSON above and generates the protobuf
 
 ```bash
 # Validate a model
@@ -23,6 +24,18 @@ python event-modeling/event_model.py init model.json
 ```
 
 Requires `pydantic` (no other dependencies).
+
+#### [ts](./event-modeling/ts/)
+
+Write the model in TypeScript instead of JSON. Names come from exports, fields are Zod schemas, and a slice is a chain of calls that only compiles in a legal order. The worked example is `ts/examples/todo-app/`.
+
+```bash
+npx em init   model/                 # scaffold a model directory
+npx em render model/ -o model.svg    # draw it; --watch redraws on save
+npx em proto  model/ -o proto        # one .proto per service
+```
+
+`render` shells out to `event_model.py`. See `ts/README.md`.
 
 ### [lazy](./.claude/skills/lazy/)
 

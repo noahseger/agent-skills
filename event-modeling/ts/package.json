@@ -2,18 +2,30 @@
   "name": "@noahseger/event-modeling",
   "version": "0.1.0",
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "imports": {
     "#em": "./src/index.ts"
   },
+  "bin": {
+    "em": "bin/em.ts"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "npm run typecheck && node --test --experimental-strip-types 'test/*.test.ts' && npm run lint:proto",
-    "lint:proto": "buf lint examples/proto"
+    "lint": "biome check .",
+    "lint:proto": "buf lint examples/proto",
+    "json": "node --experimental-strip-types --disable-warning=ExperimentalWarning bin/em.ts json",
+    "render": "node --experimental-strip-types --disable-warning=ExperimentalWarning bin/em.ts render",
+    "proto": "node --experimental-strip-types --disable-warning=ExperimentalWarning bin/em.ts proto",
+    "test": "npm run typecheck && npm run lint && node --test --experimental-strip-types 'test/*.test.ts' && npm run lint:proto"
   },
   "dependencies": {
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.11",
+    "@bufbuild/buf": "^1.72.0",
     "@types/node": "^26.4.0",
     "typescript": "^7.0.2"
   }
