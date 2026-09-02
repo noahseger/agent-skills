@@ -126,8 +126,9 @@ let feed: EventSource | undefined
 const onPop = () => go(fromHash(), { push: false, zoom: true })
 function onKey(e: KeyboardEvent) {
   if (e.target instanceof HTMLInputElement) return
-  if (e.key === "ArrowRight" || e.key === "ArrowDown") step(1)
-  else if (e.key === "ArrowLeft" || e.key === "ArrowUp") step(-1)
+  // Left and right move between slices; up and down are left to the page.
+  if (e.key === "ArrowRight") step(1)
+  else if (e.key === "ArrowLeft") step(-1)
   else if (e.key === "Escape") {
     const sel = selection.value
     go(sel?.view === "slice" ? { column: sel.column } : null, { zoom: true })
