@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url"
 import { m } from "#em"
 import { z } from "zod"
 
-import { assemble, assembleModules } from "../src/assemble.ts"
+import { assemble, assembleModules, load } from "../src/assemble.ts"
 
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url))
 
@@ -23,6 +23,15 @@ function validate(json: unknown): void {
 test("the todo example assembles to the checked-in render target", async () => {
   const json = await assemble(here("../examples/todo-app"))
   assert.deepEqual(json, JSON.parse(readFileSync(here("./todo-app.json"), "utf8")))
+})
+
+test("load returns the named model the generators read", async () => {
+  const { model } = await load(here("../examples/todo-app"))
+  const first = model.chapters[0]?.slices[0]
+  assert.deepEqual(
+    [model.name, first?.name, first?.service?.service.name, first?.service?.service.pkg],
+    ["Todo List Application", "CreateList", "TodoService", "todo.v1"],
+  )
 })
 
 test("event_model.py accepts the render target", () => {

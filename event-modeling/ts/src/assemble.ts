@@ -17,20 +17,36 @@ import {
 
 export type { ModelJson }
 
+/** The named, checked model. The render target and the generators read this. */
+export interface Assembled {
+  model: ModelData
+  streams: Map<string, DeclData[]>
+}
+
 /** `path` is a model directory or a single module. */
 export async function assemble(path: string): Promise<ModelJson> {
-  const files = statSync(path).isDirectory() ? walk(path) : [path]
-  const modules: object[] = await Promise.all(
-    files.map((f) => import(pathToFileURL(resolve(f)).href) as Promise<object>),
-  )
-  return assembleModules(modules)
+  const { model, streams } = await load(path)
+  return toJson(model, streams)
 }
 
 /** The same, over module namespaces already in memory. */
 export function assembleModules(modules: readonly object[]): ModelJson {
-  const { model, streams } = nameExports(modules)
-  check(model)
+  const { model, streams } = loadModules(modules)
   return toJson(model, streams)
+}
+
+export async function load(path: string): Promise<Assembled> {
+  const files = statSync(path).isDirectory() ? walk(path) : [path]
+  const modules: object[] = await Promise.all(
+    files.map((f) => import(pathToFileURL(resolve(f)).href) as Promise<object>),
+  )
+  return loadModules(modules)
+}
+
+export function loadModules(modules: readonly object[]): Assembled {
+  const assembled = nameExports(modules)
+  check(assembled.model)
+  return assembled
 }
 
 function walk(dir: string): string[] {
