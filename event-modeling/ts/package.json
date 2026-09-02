@@ -7,7 +7,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "npm run typecheck && node --test --experimental-strip-types 'test/*.test.ts'"
+    "test": "npm run typecheck && node --test --experimental-strip-types 'test/*.test.ts' && npm run lint:proto",
+    "lint:proto": "buf lint examples/proto"
   },
   "dependencies": {
     "zod": "^4.5.4"

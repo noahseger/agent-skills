@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package todo.v1;
+
+service TodoService {
+  rpc CreateList(CreateListRequest) returns (CreateListResponse);
+  rpc AddItem(AddItemRequest) returns (AddItemResponse);
+  rpc CompleteItem(CompleteItemRequest) returns (CompleteItemResponse);
+  rpc DeleteItem(DeleteItemRequest) returns (DeleteItemResponse);
+  rpc DeleteList(DeleteListRequest) returns (DeleteListResponse);
+  rpc ListTodoLists(ListTodoListsRequest) returns (ListTodoListsResponse);
+  rpc GetList(GetListRequest) returns (GetListResponse);
+  rpc SearchItems(SearchItemsRequest) returns (SearchItemsResponse);
+}
+
+message CreateListRequest {
+  string user_id = 1;
+  string list_id = 2;
+  string name = 3;
+}
+
+message CreateListResponse {}
+
+message AddItemRequest {
+  string user_id = 1;
+  string list_id = 2;
+  string item_id = 3;
+  string text = 4;
+}
+
+message AddItemResponse {}
+
+message CompleteItemRequest {
+  string list_id = 1;
+  string item_id = 2;
+}
+
+message CompleteItemResponse {}
+
+message DeleteItemRequest {
+  string list_id = 1;
+  string item_id = 2;
+}
+
+message DeleteItemResponse {}
+
+message DeleteListRequest {
+  string list_id = 1;
+}
+
+message DeleteListResponse {}
+
+message ListTodoListsRequest {
+  string user_id = 1;
+}
+
+message TodoList {
+  string user_id = 1;
+  string list_id = 2;
+  string name = 3;
+  int32 item_count = 4;
+  string status = 5;
+}
+
+message ListTodoListsResponse {
+  repeated TodoList todo_list = 1;
+}
+
+message GetListRequest {
+  string list_id = 1;
+}
+
+message ItemSearch {
+  string item_id = 1;
+  string list_id = 2;
+  string title = 3;
+  bool done = 4;
+  bool deleted = 5;
+}
+
+message GetListResponse {
+  repeated ItemSearch item_search = 1;
+}
+
+message SearchItemsRequest {
+  string text = 1;
+}
+
+message SearchItemsResponse {
+  repeated ItemSearch item_search = 1;
+}
