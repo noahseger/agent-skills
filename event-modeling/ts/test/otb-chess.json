@@ -72,7 +72,9 @@
           "trigger": [
             "GameStarted(gameId, round, boardNumber, whitePlayerId, blackPlayerId, timeControl, baseMinutes, incrementSeconds, fen, sideToMove, ply)"
           ],
-          "read_models": ["GamePairing(*gameId, round, boardNumber, whitePlayerId, blackPlayerId)"],
+          "read_models": [
+            "GamePairing(*gameId, round, boardNumber, whitePlayerId, blackPlayerId)"
+          ],
           "tests": [
             {
               "name": "Pairing identity available after the game starts",
@@ -91,9 +93,13 @@
           "actor": "arbiter",
           "aggregate": "game",
           "ui": "ChessService/GetGamePairing",
-          "read_models": ["GamePairing(*gameId, round, boardNumber, whitePlayerId, blackPlayerId)"],
+          "read_models": [
+            "GamePairing(*gameId, round, boardNumber, whitePlayerId, blackPlayerId)"
+          ],
           "tests": [],
-          "query": ["gameId"],
+          "query": [
+            "gameId"
+          ],
           "note": "The arbiter checks who is on the board before the start signal."
         },
         {
@@ -133,7 +139,9 @@
           "events": [
             "MovePlayed(gameId, ply, san, fromSquare, toSquare, piece, fen, sideToMove, isCheck, isCapture)"
           ],
-          "reads": ["GameState"],
+          "reads": [
+            "GameState"
+          ],
           "tests": [
             {
               "name": "White opens with 1. e4",
@@ -161,7 +169,9 @@
                 "GameStarted(gameId=otb-2024-ct-r5-b1, round=5, boardNumber=1, whitePlayerId=gm-carlsen, blackPlayerId=gm-nepo, timeControl=classical, baseMinutes=90, incrementSeconds=30, fen=rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1, sideToMove=white, ply=0)"
               ],
               "when": "PlayMove(gameId=otb-2024-ct-r5-b1, ply=1, san=e5, fromSquare=e7, toSquare=e5, piece=pawn, fen=rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1, sideToMove=white, isCheck=false, isCapture=false)",
-              "then": ["Error: the other side is to move"]
+              "then": [
+                "Error: the other side is to move"
+              ]
             }
           ]
         },
@@ -174,7 +184,9 @@
             "MovePlayed(gameId, ply, san, fromSquare, toSquare, piece, fen, sideToMove, isCheck, isCapture)",
             "IllegalMoveRuled(gameId, ply, offendingSide, illegalMoveCount, addedTimeMs, penalty, fen, sideToMove)"
           ],
-          "read_models": ["GameState(*gameId, ply, sideToMove, fen)"],
+          "read_models": [
+            "GameState(*gameId, ply, sideToMove, fen)"
+          ],
           "tests": [
             {
               "name": "The board advances after the opening move",
@@ -207,8 +219,12 @@
           "aggregate": "clock",
           "ui": "ChessService/PressClock",
           "command": "PressClock(gameId, whiteTimeMs, blackTimeMs, runningSide)",
-          "events": ["ClockPressed(gameId, whiteTimeMs, blackTimeMs, runningSide)"],
-          "reads": ["ClockState"],
+          "events": [
+            "ClockPressed(gameId, whiteTimeMs, blackTimeMs, runningSide)"
+          ],
+          "reads": [
+            "ClockState"
+          ],
           "tests": [
             {
               "name": "White presses the clock, the increment is banked, Black's clock runs",
@@ -226,7 +242,9 @@
                 "ClockStarted(gameId=otb-2024-ct-r5-b1, baseMinutes=90, incrementSeconds=30, whiteTimeMs=5400000, blackTimeMs=5400000, runningSide=white)"
               ],
               "when": "PressClock(gameId=otb-2024-ct-r5-b1, whiteTimeMs=5400000, blackTimeMs=5412000, runningSide=white)",
-              "then": ["Error: only the side that has just moved may press the clock"]
+              "then": [
+                "Error: only the side that has just moved may press the clock"
+              ]
             }
           ],
           "note": "FIDE 6.2.1: pressing banks the increment and starts the opponent's clock."
@@ -239,7 +257,9 @@
             "ClockStarted(gameId, baseMinutes, incrementSeconds, whiteTimeMs, blackTimeMs, runningSide)",
             "ClockPressed(gameId, whiteTimeMs, blackTimeMs, runningSide)"
           ],
-          "read_models": ["ClockState(*gameId, whiteTimeMs, blackTimeMs, runningSide)"],
+          "read_models": [
+            "ClockState(*gameId, whiteTimeMs, blackTimeMs, runningSide)"
+          ],
           "tests": [
             {
               "name": "The clock starts with White's time running",
@@ -272,7 +292,9 @@
             "MovePlayed(gameId, ply, san, fromSquare, toSquare, piece, fen, sideToMove, isCheck, isCapture)",
             "IllegalMoveRuled(gameId, ply, offendingSide, illegalMoveCount, addedTimeMs, penalty, fen, sideToMove)"
           ],
-          "read_models": ["MoveList(*gameId, *ply, san, sideToMove, isCheck, isCapture, status)"],
+          "read_models": [
+            "MoveList(*gameId, *ply, san, sideToMove, isCheck, isCapture, status)"
+          ],
           "tests": [
             {
               "name": "A move is recorded on the scoresheet",
@@ -314,9 +336,13 @@
           "actor": "player",
           "aggregate": "game",
           "ui": "ChessService/GetMoveList",
-          "read_models": ["MoveList(*gameId, *ply, san, sideToMove, isCheck, isCapture, status)"],
+          "read_models": [
+            "MoveList(*gameId, *ply, san, sideToMove, isCheck, isCapture, status)"
+          ],
           "tests": [],
-          "query": ["gameId"],
+          "query": [
+            "gameId"
+          ],
           "note": "FIDE 8.1.1: each player keeps the scoresheet as the game goes on."
         }
       ]
@@ -330,8 +356,12 @@
           "aggregate": "game",
           "ui": "ChessService/OfferDraw",
           "command": "OfferDraw(gameId, offeringSide, ply)",
-          "events": ["DrawOffered(gameId, offeringSide, ply)"],
-          "reads": ["GameState"],
+          "events": [
+            "DrawOffered(gameId, offeringSide, ply)"
+          ],
+          "reads": [
+            "GameState"
+          ],
           "tests": [
             {
               "name": "White offers a draw on move 21",
@@ -339,7 +369,9 @@
                 "MovePlayed(gameId=otb-2024-ct-r5-b1, ply=41, san=Rd1, fromSquare=a1, toSquare=d1, piece=rook, fen=r4rk1/pp3ppp/2p5/8/8/2P5/PP3PPP/R4RK1 b - - 0 21, sideToMove=black, isCheck=false, isCapture=false)"
               ],
               "when": "OfferDraw(gameId=otb-2024-ct-r5-b1, offeringSide=white, ply=41)",
-              "then": ["DrawOffered(gameId=otb-2024-ct-r5-b1, offeringSide=white, ply=41)"]
+              "then": [
+                "DrawOffered(gameId=otb-2024-ct-r5-b1, offeringSide=white, ply=41)"
+              ]
             }
           ]
         },
@@ -352,11 +384,15 @@
             "MovePlayed(gameId, ply, san, fromSquare, toSquare, piece, fen, sideToMove, isCheck, isCapture)",
             "DrawAgreed(gameId, offeringSide, result, termination)"
           ],
-          "read_models": ["PendingDrawOffer(*gameId, offeringSide, ply, status)"],
+          "read_models": [
+            "PendingDrawOffer(*gameId, offeringSide, ply, status)"
+          ],
           "tests": [
             {
               "name": "The offer is pending on the opponent",
-              "given": ["DrawOffered(gameId=otb-2024-ct-r5-b1, offeringSide=white, ply=41)"],
+              "given": [
+                "DrawOffered(gameId=otb-2024-ct-r5-b1, offeringSide=white, ply=41)"
+              ],
               "when": "",
               "then": [
                 "PendingDrawOffer(gameId=otb-2024-ct-r5-b1, offeringSide=white, ply=41, status=pending)"
@@ -410,12 +446,18 @@
           "aggregate": "game",
           "ui": "ChessService/AcceptDraw",
           "command": "AcceptDraw(gameId, offeringSide, result, termination)",
-          "events": ["DrawAgreed(gameId, offeringSide, result, termination)"],
-          "reads": ["PendingDrawOffer"],
+          "events": [
+            "DrawAgreed(gameId, offeringSide, result, termination)"
+          ],
+          "reads": [
+            "PendingDrawOffer"
+          ],
           "tests": [
             {
               "name": "Black accepts the pending draw offer",
-              "given": ["DrawOffered(gameId=otb-2024-ct-r5-b1, offeringSide=white, ply=41)"],
+              "given": [
+                "DrawOffered(gameId=otb-2024-ct-r5-b1, offeringSide=white, ply=41)"
+              ],
               "when": "AcceptDraw(gameId=otb-2024-ct-r5-b1, offeringSide=white, result=draw, termination=agreement)",
               "then": [
                 "DrawAgreed(gameId=otb-2024-ct-r5-b1, offeringSide=white, result=draw, termination=agreement)"
@@ -427,7 +469,9 @@
                 "MovePlayed(gameId=otb-2024-ct-r5-b1, ply=1, san=e4, fromSquare=e2, toSquare=e4, piece=pawn, fen=rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1, sideToMove=black, isCheck=false, isCapture=false)"
               ],
               "when": "AcceptDraw(gameId=otb-2024-ct-r5-b1, offeringSide=white, result=draw, termination=agreement)",
-              "then": ["Error: no draw offer is pending"]
+              "then": [
+                "Error: no draw offer is pending"
+              ]
             }
           ]
         },
@@ -437,8 +481,12 @@
           "aggregate": "game",
           "ui": "ChessService/Resign",
           "command": "Resign(gameId, resigningSide, result, termination)",
-          "events": ["GameResigned(gameId, resigningSide, result, termination)"],
-          "reads": ["GameState"],
+          "events": [
+            "GameResigned(gameId, resigningSide, result, termination)"
+          ],
+          "reads": [
+            "GameState"
+          ],
           "tests": [
             {
               "name": "Black resigns a lost endgame",
@@ -466,7 +514,9 @@
           "events": [
             "IllegalMoveRuled(gameId, ply, offendingSide, illegalMoveCount, addedTimeMs, penalty, fen, sideToMove)"
           ],
-          "reads": ["IllegalMoveTally"],
+          "reads": [
+            "IllegalMoveTally"
+          ],
           "tests": [
             {
               "name": "An illegal move is struck and two minutes are added to the opponent",
@@ -498,7 +548,9 @@
           "trigger": [
             "IllegalMoveRuled(gameId, ply, offendingSide, illegalMoveCount, addedTimeMs, penalty, fen, sideToMove)"
           ],
-          "read_models": ["IllegalMoveTally(*gameId, *offendingSide, illegalMoveCount)"],
+          "read_models": [
+            "IllegalMoveTally(*gameId, *offendingSide, illegalMoveCount)"
+          ],
           "tests": [
             {
               "name": "One ruling puts the offender on one illegal move",
@@ -541,8 +593,12 @@
           "aggregate": "game",
           "ui": "ChessService/ClaimFlagFall",
           "command": "ClaimFlagFall(gameId, flaggedSide, result, termination)",
-          "events": ["TimeForfeited(gameId, flaggedSide, result, termination)"],
-          "reads": ["ClockState"],
+          "events": [
+            "TimeForfeited(gameId, flaggedSide, result, termination)"
+          ],
+          "reads": [
+            "ClockState"
+          ],
           "tests": [
             {
               "name": "White claims Black's fallen flag",
@@ -560,7 +616,9 @@
                 "ClockPressed(gameId=otb-2024-ct-r5-b1, whiteTimeMs=61000, blackTimeMs=240000, runningSide=black)"
               ],
               "when": "ClaimFlagFall(gameId=otb-2024-ct-r5-b1, flaggedSide=black, result=white_won, termination=time_forfeit)",
-              "then": ["Error: that side still has time on the clock"]
+              "then": [
+                "Error: that side still has time on the clock"
+              ]
             }
           ]
         },
@@ -571,8 +629,12 @@
           "automation": "OutcomeAdjudicator",
           "trigger": "MovePlayed(gameId, ply, san, fromSquare, toSquare, piece, fen, sideToMove, isCheck, isCapture)",
           "command": "AdjudicateOutcome(gameId, ply, fen, result, termination)",
-          "events": ["BoardOutcomeAdjudicated(gameId, ply, fen, result, termination)"],
-          "reads": ["GameState"],
+          "events": [
+            "BoardOutcomeAdjudicated(gameId, ply, fen, result, termination)"
+          ],
+          "reads": [
+            "GameState"
+          ],
           "tests": [
             {
               "name": "Checkmate on the board ends the game",
@@ -610,7 +672,9 @@
                 "GameStarted(gameId=otb-2024-ct-r5-b1, round=5, boardNumber=1, whitePlayerId=gm-carlsen, blackPlayerId=gm-nepo, timeControl=classical, baseMinutes=90, incrementSeconds=30, fen=rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1, sideToMove=white, ply=0)"
               ],
               "when": "AdjudicateOutcome(gameId=otb-2024-ct-r5-b1, ply=1, fen=rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1, result=draw, termination=dead_position)",
-              "then": ["Error: the position is neither mate, stalemate, nor dead"]
+              "then": [
+                "Error: the position is neither mate, stalemate, nor dead"
+              ]
             }
           ],
           "note": "Every move is looked at. Only a terminal position produces an outcome."
@@ -625,7 +689,9 @@
           "events": [
             "IllegalMoveForfeited(gameId, offendingSide, illegalMoveCount, result, termination)"
           ],
-          "reads": ["IllegalMoveTally"],
+          "reads": [
+            "IllegalMoveTally"
+          ],
           "tests": [
             {
               "name": "A tally of two illegal moves forfeits the game",
@@ -644,7 +710,9 @@
                 "IllegalMoveRuled(gameId=otb-2024-ct-r5-b1, ply=32, offendingSide=white, illegalMoveCount=1, addedTimeMs=120000, penalty=opponent_time_added, fen=r4rk1/pp3ppp/2p5/8/8/2P2N2/PP3PPP/R4RK1 w - - 4 17, sideToMove=white)"
               ],
               "when": "ForfeitGame(gameId=otb-2024-ct-r5-b1, offendingSide=white, illegalMoveCount=1, result=black_won, termination=illegal_move_forfeit)",
-              "then": ["Error: the offender has made only one illegal move"]
+              "then": [
+                "Error: the offender has made only one illegal move"
+              ]
             }
           ]
         },
@@ -659,7 +727,9 @@
             "TimeForfeited(gameId, flaggedSide, result, termination)",
             "IllegalMoveForfeited(gameId, offendingSide, illegalMoveCount, result, termination)"
           ],
-          "read_models": ["GameResult(*gameId, result, termination)"],
+          "read_models": [
+            "GameResult(*gameId, result, termination)"
+          ],
           "tests": [
             {
               "name": "Settled after a resignation",
@@ -677,7 +747,9 @@
                 "DrawAgreed(gameId=otb-2024-ct-r5-b1, offeringSide=white, result=draw, termination=agreement)"
               ],
               "when": "",
-              "then": ["GameResult(gameId=otb-2024-ct-r5-b1, result=draw, termination=agreement)"]
+              "then": [
+                "GameResult(gameId=otb-2024-ct-r5-b1, result=draw, termination=agreement)"
+              ]
             },
             {
               "name": "Settled after checkmate on the board",
@@ -721,7 +793,9 @@
           "events": [
             "ResultRecorded(gameId, round, boardNumber, whitePlayerId, blackPlayerId, result, termination)"
           ],
-          "reads": ["GameResult"],
+          "reads": [
+            "GameResult"
+          ],
           "tests": [
             {
               "name": "The arbiter records the signed draw on the pairing sheet",
@@ -769,9 +843,13 @@
           "actor": "spectator",
           "aggregate": "game",
           "ui": "ChessService/WatchBroadcast",
-          "read_models": ["GameState(*gameId, ply, sideToMove, fen)"],
+          "read_models": [
+            "GameState(*gameId, ply, sideToMove, fen)"
+          ],
           "tests": [],
-          "query": ["gameId"],
+          "query": [
+            "gameId"
+          ],
           "note": "The live position, as the broadcast shows it."
         },
         {
@@ -779,9 +857,13 @@
           "actor": "spectator",
           "aggregate": "game",
           "ui": "ChessService/WatchMoveList",
-          "read_models": ["MoveList(*gameId, *ply, san, sideToMove, isCheck, isCapture, status)"],
+          "read_models": [
+            "MoveList(*gameId, *ply, san, sideToMove, isCheck, isCapture, status)"
+          ],
           "tests": [],
-          "query": ["gameId"],
+          "query": [
+            "gameId"
+          ],
           "note": "The moves so far. A view reads one read model, so the board and the moves are two slices."
         },
         {
@@ -793,7 +875,9 @@
             "GameRecord(*gameId, round, boardNumber, whitePlayerId, blackPlayerId, result, termination)"
           ],
           "tests": [],
-          "query": ["round"],
+          "query": [
+            "round"
+          ],
           "note": "The finished games of a round."
         }
       ]
