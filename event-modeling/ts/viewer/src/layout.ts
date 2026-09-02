@@ -64,6 +64,8 @@ export interface Column {
   slice: SliceJson
   /** The slice's name, or the name of what it is about. */
   label: string
+  /** `label` as words, for the picture. */
+  title: string
   noted: boolean
   x: number
   w: number
@@ -71,6 +73,8 @@ export interface Column {
 
 export interface Chapter {
   name: string
+  /** `name` as words, for the picture. */
+  title: string
   x: number
   w: number
 }
@@ -196,6 +200,33 @@ export function parseClause(clause: string): { name: string; lines: string[]; er
     lines: lines.map((l) => l.trim().replace("=", " = ")),
     error: false,
   }
+}
+
+const SMALL = new Set([
+  "a",
+  "an",
+  "and",
+  "as",
+  "at",
+  "by",
+  "for",
+  "in",
+  "of",
+  "on",
+  "or",
+  "the",
+  "to",
+  "with",
+])
+
+/** `DrawsAndResignation` -> `Draws and Resignation`. Names are code; the picture shows words. */
+export function words(name: string): string {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .split(" ")
+    .map((w, i) => (i > 0 && SMALL.has(w.toLowerCase()) ? w.toLowerCase() : w))
+    .join(" ")
 }
 
 /** Word wrap by character count. */
@@ -326,6 +357,7 @@ export function layout(model: ModelJson): Layout {
         chapter: ci,
         slice,
         label: labelOf(slice),
+        title: words(labelOf(slice)),
         noted: slice.note !== undefined,
         x,
         w: COL_W,
@@ -333,7 +365,7 @@ export function layout(model: ModelJson): Layout {
       x += COL_W
     }
     if (chapter.slices.length === 0) x += COL_W
-    chapters.push({ name: chapter.name, x: start, w: x - start })
+    chapters.push({ name: chapter.name, title: words(chapter.name), x: start, w: x - start })
   })
   const width = x + PAD_X
 
@@ -446,6 +478,12 @@ export function layout(model: ModelJson): Layout {
       gear = make(i, "automation", { name: s.automation, fields: [], keys: [] })
       into(`actor:${s.actor}`, i, gear)
       useActor(s.actor)
+    } else if (s.external_event && s.command) {
+      // A translation: the event arrives from outside, an automation of ours
+      // turns it into a command. The JSON names the slice but not the gear.
+      gear = make(i, "automation", { name: s.name || "Translate", fields: [], keys: [] })
+      into("actor:system", i, gear)
+      useActor("system")
     }
     for (const name of s.reads ?? []) readLinks.push({ name, column: i, polls: false })
     if (s.polls) readLinks.push({ name: s.polls, column: i, polls: true })
@@ -468,7 +506,10 @@ export function layout(model: ModelJson): Layout {
     }
 
     if (ui && command) edge(ui, command)
-    if (external && command) edge(external, command)
+    if (external) {
+      const next = gear ?? command
+      if (next) edge(external, next)
+    }
     if (ui && !command) for (const rm of readModels) edge(rm, ui)
     if (gear && command) edge(gear, command)
     if (command) for (const ev of events) edge(command, ev)
@@ -543,8 +584,15 @@ export function layout(model: ModelJson): Layout {
     const slot = `actor:${id}`
     const h = slotHeight(slot) + 2 * LANE_PAD
     const actor = actors.get(id)
-    const label = actor?.type === "system" ? "Automations" : (actor?.name ?? id)
-    const sub = actor?.type === "user" ? "Actor" : "System"
+    const system = id === "system" || actor?.type === "system"
+    const label = system ? "Automations" : words(actor?.name ?? id)
+    const sub = system
+      ? "System"
+      : actor?.type === "admin"
+        ? "Admin"
+        : actor?.type === "external"
+          ? "System"
+          : "Actor"
     rows.push({ id: slot, label, sub, kind: "actor", y, h })
     const top = y + LANE_PAD
     place(slot, () => top)
@@ -567,7 +615,7 @@ export function layout(model: ModelJson): Layout {
   for (const agg of model.aggregates) {
     const slot = `stream:${agg.id}`
     const h = Math.max(slotHeight(slot), COMPACT_H) + 2 * LANE_PAD
-    rows.push({ id: slot, label: agg.name, sub: "Stream", kind: "stream", y, h })
+    rows.push({ id: slot, label: words(agg.name), sub: "Stream", kind: "stream", y, h })
     const top = y + LANE_PAD
     place(slot, () => top)
     y += h

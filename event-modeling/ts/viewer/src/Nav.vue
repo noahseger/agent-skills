@@ -13,7 +13,7 @@ defineEmits<{ select: [column: number] }>()
         class="chapter"
         @click="$emit('select', layout.columns.find((c) => c.chapter === ci)?.index ?? 0)"
       >
-        {{ chapter.name }}
+        {{ chapter.title }}
       </button>
       <button
         v-for="col in layout.columns.filter((c) => c.chapter === ci)"
@@ -24,7 +24,7 @@ defineEmits<{ select: [column: number] }>()
         :aria-current="col.index === selectedColumn ? 'true' : undefined"
         @click="$emit('select', col.index)"
       >
-        {{ col.label }}
+        {{ col.title }}
         <span v-if="col.noted" class="note-dot" role="img" aria-label="has a note"></span>
       </button>
     </template>

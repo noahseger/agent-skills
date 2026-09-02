@@ -241,13 +241,13 @@ const transform = computed(
             :class="{ selected: selectedColumn === col.index, hover: hoverColumn === col.index }"
             role="button"
             tabindex="0"
-            :aria-label="`Slice ${col.label}`"
+            :aria-label="`Slice ${col.title}`"
             @click.stop="emit('selectSlice', col.index)"
             @keydown.enter.stop="emit('openSlice', col.index)"
           >
             <rect :x="col.x + 4" :y="layout.nameY" :width="col.w - 8" :height="NAME_H" rx="10" />
             <text text-anchor="middle" :x="col.x + col.w / 2" :y="layout.nameY + NAME_H / 2 + 4.5">
-              {{ col.label }}
+              {{ col.title }}
             </text>
             <circle v-if="col.noted" class="note-dot" :cx="col.x + col.w - 16" :cy="layout.nameY + NAME_H / 2" r="3.5" />
           </g>
@@ -260,7 +260,7 @@ const transform = computed(
           @click.stop="firstSlice(i)"
         >
           <path :d="arrow(chapter.x, chapter.w, i === 0)" />
-          <text :x="chapter.x + (i === 0 ? 16 : 24)" :y="HEADER_H - 12 - ARROW_H / 2 + 5">{{ chapter.name }}</text>
+          <text :x="chapter.x + (i === 0 ? 16 : 24)" :y="HEADER_H - 12 - ARROW_H / 2 + 5">{{ chapter.title }}</text>
         </g>
 
         <path

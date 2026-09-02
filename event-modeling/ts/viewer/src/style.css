@@ -873,9 +873,17 @@ svg .note-dot {
 
 .slice-body {
   display: grid;
-  grid-template-columns: minmax(260px, 380px) 1fr;
+  grid-template-columns: minmax(240px, 340px) 1fr;
   gap: 28px;
   align-items: start;
+}
+
+.slice-right {
+  min-width: 0;
+}
+
+.slice-right .specs-title {
+  margin-top: 24px;
 }
 
 .slice-body .column {
@@ -955,7 +963,7 @@ svg .note-dot {
 
 .specs-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
 }
 

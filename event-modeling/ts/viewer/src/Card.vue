@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { type Box, BUTTON_H, FIELD_H, INPUT_H, TITLE_H } from "./layout.ts"
+import { type Box, BUTTON_H, FIELD_H, INPUT_H, TITLE_H, words } from "./layout.ts"
 
 const props = defineProps<{ box: Box }>()
 defineEmits<{ link: [canonical: string]; pick: [] }>()
@@ -34,7 +34,7 @@ const centred = computed(
   >
     <title v-if="box.canonical">Shown in full where it first appears</title>
     <rect class="shape" :width="box.w" :height="box.h" rx="8" />
-    <text class="title" :x="12" :y="centred ? box.h / 2 + 4.5 : 20">{{ box.name }}</text>
+    <text class="title" :x="12" :y="centred ? box.h / 2 + 4.5 : 20">{{ words(box.name) }}</text>
     <text v-if="box.detail" class="detail" :x="12" :y="TITLE_H + 4">{{ box.detail }}</text>
 
     <!-- A screen is a wireframe: inputs, a button, a table. -->

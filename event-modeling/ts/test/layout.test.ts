@@ -14,6 +14,7 @@ import {
   parseClause,
   path,
   polyline,
+  words,
   wrap,
 } from "../viewer/src/layout.ts"
 
@@ -100,8 +101,9 @@ test("cards land in the lanes the canvas gives them", () => {
     const row = rowOf(b)
     const slice = out.columns[b.column]?.slice
     assert.ok(row && slice)
-    if (b.kind === "ui" || b.kind === "external" || b.kind === "automation")
-      assert.equal(row.id, `actor:${slice.actor}`)
+    if (b.kind === "ui" || b.kind === "external") assert.equal(row.id, `actor:${slice.actor}`)
+    if (b.kind === "automation")
+      assert.equal(row.id, slice.external_event ? "actor:system" : `actor:${slice.actor}`)
     if (b.kind === "event") assert.equal(row.id, `stream:${slice.aggregate}`)
     if (b.kind === "command" || b.kind === "readModel") assert.equal(row.id, "middle")
   }
@@ -283,4 +285,26 @@ test("specifications sit under their slice, one card per clause with a line per 
   assert.equal(given?.cards.length, 3)
   assert.equal(given?.cards[0]?.kind, "event")
   assert.equal(given?.cards[0]?.lines.length, 4)
+})
+
+test("the picture shows names as words", () => {
+  assert.equal(words("DrawsAndResignation"), "Draws and Resignation")
+  assert.equal(words("ItemAdded"), "Item Added")
+  assert.equal(words("FIDEGame"), "FIDE Game")
+  assert.equal(words("TodoService"), "Todo Service")
+  assert.equal(out.chapters[0]?.title, "List Management")
+  assert.equal(out.columns.find((c) => c.label === "ListTodoLists")?.title, "List Todo Lists")
+})
+
+test("a translation gets an automation of ours between the outside event and the command", () => {
+  const column = out.columns.find((c) => c.slice.external_event)
+  assert.ok(column)
+  const external = out.boxes.find((b) => b.column === column.index && b.kind === "external")
+  const gear = out.boxes.find((b) => b.column === column.index && b.kind === "automation")
+  const command = out.boxes.find((b) => b.column === column.index && b.kind === "command")
+  assert.ok(external && gear && command)
+  assert.equal(rowOf(gear)?.id, "actor:system")
+  assert.ok(out.edges.some((e) => e.from === external.id && e.to === gear.id))
+  assert.ok(out.edges.some((e) => e.from === gear.id && e.to === command.id))
+  assert.ok(!out.edges.some((e) => e.from === external.id && e.to === command.id))
 })
