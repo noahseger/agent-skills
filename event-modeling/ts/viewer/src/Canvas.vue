@@ -238,7 +238,7 @@ const transform = computed(
           />
           <g
             class="slice-head"
-            :class="{ selected: selectedColumn === col.index }"
+            :class="{ selected: selectedColumn === col.index, hover: hoverColumn === col.index }"
             role="button"
             tabindex="0"
             :aria-label="`Slice ${col.label}`"
