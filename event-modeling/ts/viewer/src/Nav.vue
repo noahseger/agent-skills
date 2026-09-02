@@ -27,6 +27,6 @@ defineEmits<{ select: [column: number] }>()
         <span v-if="col.noted" class="note-dot"></span>
       </button>
     </template>
-    <p class="hint">← → move between slices · Esc back to the canvas</p>
+    <p class="hint">← → move between slices · Enter or double click opens one · Esc back to the canvas</p>
   </nav>
 </template>

@@ -129,7 +129,9 @@ function onKey(e: KeyboardEvent) {
   // Left and right move between slices; up and down are left to the page.
   if (e.key === "ArrowRight") step(1)
   else if (e.key === "ArrowLeft") step(-1)
-  else if (e.key === "Escape") {
+  else if (e.key === "Enter" && selection.value && !sliceOpen.value) {
+    openSlice(selection.value.column)
+  } else if (e.key === "Escape") {
     const sel = selection.value
     go(sel?.view === "slice" ? { column: sel.column } : null, { zoom: true })
   } else return
@@ -198,6 +200,7 @@ onUnmounted(() => {
         :focus="focus"
         @select-card="pick"
         @select-slice="go({ column: $event }, { zoom: true })"
+        @open-slice="openSlice"
         @link="follow"
         @hover="hovered = $event"
         @clear="go(null)"
