@@ -160,6 +160,11 @@ function hoverCard(b: Box | null) {
   hoverColumn.value = b?.column ?? null
 }
 
+function firstSlice(chapter: number) {
+  const col = props.layout.columns.find((c) => c.chapter === chapter)
+  if (col) emit("selectSlice", col.index)
+}
+
 // A chapter is an arrow along the time line; the first has a flat start.
 function arrow(x: number, w: number, first: boolean) {
   const y = HEADER_H - ARROW_H - 12
@@ -207,7 +212,7 @@ const transform = computed(
 
         <g v-for="col in layout.columns" :key="col.index">
           <rect
-            class="slice"
+            class="slice-outline"
             :class="{ hover: hoverColumn === col.index, selected: selectedColumn === col.index }"
             :x="col.x + 4"
             :y="layout.nameY + NAME_H + 4"
@@ -230,7 +235,12 @@ const transform = computed(
           </g>
         </g>
 
-        <g v-for="(chapter, i) in layout.chapters" :key="chapter.name + chapter.x" class="chapter">
+        <g
+          v-for="(chapter, i) in layout.chapters"
+          :key="chapter.name + chapter.x"
+          class="chapter"
+          @click.stop="firstSlice(i)"
+        >
           <path :d="arrow(chapter.x, chapter.w, i === 0)" />
           <text :x="chapter.x + (i === 0 ? 16 : 24)" :y="HEADER_H - 12 - ARROW_H / 2 + 5">{{ chapter.name }}</text>
         </g>

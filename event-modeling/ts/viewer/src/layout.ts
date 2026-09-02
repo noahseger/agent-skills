@@ -30,6 +30,9 @@ export interface Box {
   form?: string[]
   button?: string
   table?: string[]
+  /** The columns of `table` that fit the card, and how many did not. */
+  tableColumns?: { name: string; x: number; w: number }[]
+  tableMore?: number
   column: number
   x: number
   y: number
@@ -133,6 +136,9 @@ export const FAN = 8
 export const INPUT_H = 22
 export const BUTTON_H = 28
 export const TABLE_H = 52
+export const TABLE_CHAR = 5.2
+export const TABLE_PAD = 12
+export const TABLE_MORE_W = 26
 export const SPEC_TITLE_LINE = 14
 export const SPEC_WORD_H = 20
 export const SPEC_CARD_TITLE = 30
@@ -204,6 +210,24 @@ export function wrap(text: string, max: number): string[] {
   }
   if (line.length > 0) lines.push(line)
   return lines
+}
+
+/** As many columns as fit the width, left to right, leaving room for a `+n`. */
+export function fitColumns(
+  names: string[],
+  width: number,
+): { columns: { name: string; x: number; w: number }[]; more: number } {
+  const columns: { name: string; x: number; w: number }[] = []
+  let x = 0
+  for (let i = 0; i < names.length; i++) {
+    const name = names[i] ?? ""
+    const w = name.length * TABLE_CHAR + TABLE_PAD
+    const limit = i < names.length - 1 ? width - TABLE_MORE_W : width
+    if (columns.length > 0 && x + w > limit) break
+    columns.push({ name, x, w })
+    x += w
+  }
+  return { columns, more: names.length - columns.length }
 }
 
 export function cardHeight(
@@ -341,7 +365,13 @@ export function layout(model: ModelJson): Layout {
       ...(extra.detail === undefined ? {} : { detail: extra.detail }),
       ...(extra.form === undefined ? {} : { form: extra.form }),
       ...(extra.button === undefined ? {} : { button: extra.button }),
-      ...(extra.table === undefined ? {} : { table: extra.table }),
+      ...(extra.table === undefined
+        ? {}
+        : {
+            table: extra.table,
+            tableColumns: fitColumns(extra.table, CARD_W - 24).columns,
+            tableMore: fitColumns(extra.table, CARD_W - 24).more,
+          }),
       ...(extra.compact || earlier ? { compact: true } : {}),
       ...(earlier ? { canonical: earlier.id } : {}),
       ...(model.notes[el.name] === undefined ? {} : { noted: true }),
@@ -372,6 +402,8 @@ export function layout(model: ModelJson): Layout {
   }
   const eventBoxes = new Map<string, Placed[]>()
   const targets = new Map<number, Placed>()
+  const consumers = new Map<number, { command?: Placed; gear?: Placed }>()
+  const readLinks: { name: string; column: number; polls: boolean }[] = []
 
   for (const col of columns) {
     const s = col.slice
@@ -380,8 +412,6 @@ export function layout(model: ModelJson): Layout {
     let external: Placed | undefined
     let command: Placed | undefined
     let gear: Placed | undefined
-    const reads: Placed[] = []
-    const polls: Placed[] = []
     const readModels: Placed[] = []
     const events: Placed[] = []
 
@@ -417,23 +447,8 @@ export function layout(model: ModelJson): Layout {
       into(`actor:${s.actor}`, i, gear)
       useActor(s.actor)
     }
-    for (const name of s.reads ?? []) {
-      const ref = make(i, "readModel", registry.get(name) ?? { name, fields: [], keys: [] }, {
-        compact: true,
-        reference: true,
-      })
-      reads.push(ref)
-      into("middle:top", i, ref)
-    }
-    if (s.polls) {
-      const name = s.polls
-      const ref = make(i, "readModel", registry.get(name) ?? { name, fields: [], keys: [] }, {
-        compact: true,
-        reference: true,
-      })
-      polls.push(ref)
-      into("middle:top", i, ref)
-    }
+    for (const name of s.reads ?? []) readLinks.push({ name, column: i, polls: false })
+    if (s.polls) readLinks.push({ name: s.polls, column: i, polls: true })
     for (const rm of s.read_models ?? []) {
       const box = make(i, "readModel", parse(rm))
       readModels.push(box)
@@ -456,20 +471,39 @@ export function layout(model: ModelJson): Layout {
     if (external && command) edge(external, command)
     if (ui && !command) for (const rm of readModels) edge(rm, ui)
     if (gear && command) edge(gear, command)
-    const consumer = command ?? gear
-    if (consumer) for (const ref of reads) edge(ref, consumer, true)
-    if (gear) for (const ref of polls) edge(ref, gear, true)
     if (command) for (const ev of events) edge(command, ev)
+    consumers.set(i, { ...(command ? { command } : {}), ...(gear ? { gear } : {}) })
 
     // What a trigger points at: the automation, or the read model it builds.
     const target = gear ?? readModels[0]
     if (target && s.trigger && !s.external_event) targets.set(i, target)
   }
 
+  // What a slice reads is drawn back from the read model's own card, dashed.
+  // Only a read model that is never drawn in full gets a reference card.
+  const crossing: Edge[] = []
+  for (const link of readLinks) {
+    const c = consumers.get(link.column)
+    const consumer = link.polls ? c?.gear : (c?.command ?? c?.gear)
+    if (!consumer) continue
+    const source = first.get(`readModel:${link.name}`)
+    if (source) {
+      crossing.push({ from: source.id, to: consumer.id, dashed: true })
+      continue
+    }
+    const ref = make(
+      link.column,
+      "readModel",
+      registry.get(link.name) ?? { name: link.name, fields: [], keys: [] },
+      { compact: true, reference: true },
+    )
+    into("middle:top", link.column, ref)
+    edge(ref, consumer, true)
+  }
+
   // Triggers point back to where the event was last emitted, or forward to its
   // first emission when the slice comes before it in the story. They cross
   // columns, so they get the channel between the middle row and the streams.
-  const crossing: Edge[] = []
   for (const col of columns) {
     const target = targets.get(col.index)
     const trigger = col.slice.trigger
@@ -538,10 +572,11 @@ export function layout(model: ModelJson): Layout {
     y += h
   }
 
-  // A crossing edge leaves the top of its event, runs along its own line in
-  // the channel, and rises in the target's column: to the bottom of a read
-  // model, or up the left margin into the side of an automation. Edges that
-  // share an end fan out there, so each one can be followed.
+  // A crossing edge leaves the top of its event or the bottom of its read
+  // model, runs along its own line in the channel, and rises in the target's
+  // column: to the bottom of a read model, or up the left margin into the side
+  // of a command or an automation. Edges that share an end fan out there, so
+  // each one can be followed.
   const byId = new Map(boxes.map((b) => [b.id, b]))
   const fan = (key: "from" | "to") => {
     const groups = new Map<string, Edge[]>()
@@ -559,11 +594,12 @@ export function layout(model: ModelJson): Layout {
     if (!a || !b) return
     const via = channelTop + CHANNEL_PAD + i * CHANNEL_STEP
     const sx = a.x + a.w / 2 + fanFrom(e)
-    if (b.kind === "automation") {
+    const sy = a.kind === "event" ? a.y : a.y + a.h
+    if (b.kind !== "readModel") {
       const margin = (columns[b.column]?.x ?? 0) + 10 + fanTo(e)
       const my = b.y + b.h / 2 + fanTo(e)
       e.points = [
-        [sx, a.y],
+        [sx, sy],
         [sx, via],
         [margin, via],
         [margin, my],
@@ -572,7 +608,7 @@ export function layout(model: ModelJson): Layout {
     } else {
       const tx = b.x + b.w / 2 + fanTo(e)
       e.points = [
-        [sx, a.y],
+        [sx, sy],
         [sx, via],
         [tx, via],
         [tx, b.y + b.h],
