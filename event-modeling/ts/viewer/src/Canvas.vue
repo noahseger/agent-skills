@@ -25,6 +25,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   selectCard: [box: Box]
   selectSlice: [column: number]
+  openSlice: [column: number]
   link: [canonical: string]
   hover: [name: string | null]
   clear: []
@@ -160,6 +161,15 @@ function hoverCard(b: Box | null) {
   hoverColumn.value = b?.column ?? null
 }
 
+// A double click anywhere in a column opens that slice.
+function open(e: MouseEvent) {
+  const box = el.value?.getBoundingClientRect()
+  if (!box) return
+  const x = (e.clientX - box.left - view.value.x) / view.value.k
+  const col = props.layout.columns.find((c) => x >= c.x && x < c.x + c.w)
+  if (col) emit("openSlice", col.index)
+}
+
 function firstSlice(chapter: number) {
   const col = props.layout.columns.find((c) => c.chapter === chapter)
   if (col) emit("selectSlice", col.index)
@@ -190,7 +200,7 @@ const transform = computed(
     @pointerleave="up"
     @wheel="wheel"
   >
-    <svg @click.self="background">
+    <svg @click.self="background" @dblclick="open">
       <defs>
         <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
