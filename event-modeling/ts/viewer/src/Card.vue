@@ -3,7 +3,16 @@ import { computed } from "vue"
 import { type Box, BUTTON_H, FIELD_H, INPUT_H, TITLE_H } from "./layout.ts"
 
 const props = defineProps<{ box: Box }>()
-defineEmits<{ link: [canonical: string] }>()
+defineEmits<{ link: [canonical: string]; pick: [] }>()
+
+const LABEL: Record<Box["kind"], string> = {
+  ui: "screen",
+  external: "external event",
+  command: "command",
+  event: "event",
+  readModel: "read model",
+  automation: "automation",
+}
 
 /** A card with nothing under its name centres the name. */
 const centred = computed(
@@ -14,7 +23,15 @@ const centred = computed(
 </script>
 
 <template>
-  <g class="card" :class="[box.kind, { compact: box.compact }]" :transform="`translate(${box.x} ${box.y})`">
+  <g
+    class="card"
+    :class="[box.kind, { compact: box.compact }]"
+    :transform="`translate(${box.x} ${box.y})`"
+    role="button"
+    tabindex="0"
+    :aria-label="`${LABEL[box.kind]} ${box.name}${box.noted ? ', has a note' : ''}`"
+    @keydown.enter.stop="$emit('pick')"
+  >
     <title v-if="box.canonical">Shown in full where it first appears</title>
     <rect class="shape" :width="box.w" :height="box.h" rx="8" />
     <text class="title" :x="12" :y="centred ? box.h / 2 + 4.5 : 20">{{ box.name }}</text>
@@ -89,11 +106,21 @@ const centred = computed(
       </template>
     </template>
 
-    <g v-if="box.canonical" class="link" @click.stop="$emit('link', box.canonical)">
+    <g
+      v-if="box.canonical"
+      class="link"
+      role="link"
+      tabindex="0"
+      aria-label="Go to where it is drawn in full"
+      @click.stop="$emit('link', box.canonical)"
+      @keydown.enter.stop="$emit('link', box.canonical)"
+    >
+      <title>Drawn in full where it first appears</title>
       <rect :x="box.w - 26" :y="box.h / 2 - 9" width="18" height="18" rx="4" />
       <text text-anchor="middle" :x="box.w - 17" :y="box.h / 2 + 4">↗</text>
     </g>
     <g v-if="box.noted" class="note-badge">
+      <title>Has a note</title>
       <circle :cx="box.w - 1" :cy="1" r="6.5" />
       <text text-anchor="middle" :x="box.w - 1" :y="4">i</text>
     </g>

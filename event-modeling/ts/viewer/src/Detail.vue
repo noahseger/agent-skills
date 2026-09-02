@@ -79,7 +79,7 @@ const mentions = (clause: string) =>
 </script>
 
 <template>
-  <aside class="detail">
+  <aside class="detail" aria-label="Details">
     <header>
       <span class="kind" :class="box?.kind ?? 'slice'">{{ box ? KIND[box.kind] : "slice" }}</span>
       <h2>{{ box ? box.name : column.label }}</h2>
@@ -87,7 +87,7 @@ const mentions = (clause: string) =>
       <button class="close" type="button" title="Close (Esc)" @click="$emit('close')">×</button>
     </header>
 
-    <p v-if="note" class="note"><span class="badge">i</span>{{ note }}</p>
+    <p v-if="note" class="note"><span class="badge" aria-hidden="true">i</span>{{ note }}</p>
 
     <template v-if="fields.fields.length">
       <h3>{{ box?.kind === "ui" ? "Query" : "Fields" }}</h3>
@@ -113,7 +113,7 @@ const mentions = (clause: string) =>
       <template v-if="slice.reads?.length"><dt>Reads</dt><dd>{{ slice.reads.join(", ") }}</dd></template>
       <template v-if="triggers"><dt>On</dt><dd>{{ triggers }}</dd></template>
     </dl>
-    <p v-if="slice.note" class="note" style="margin-top: 10px"><span class="badge">i</span>{{ slice.note }}</p>
+    <p v-if="slice.note" class="note" style="margin-top: 10px"><span class="badge" aria-hidden="true">i</span>{{ slice.note }}</p>
 
     <template v-if="groups.length">
       <h3>Specifications</h3>

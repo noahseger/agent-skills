@@ -1,12 +1,34 @@
+/*
+ * Design system, kept to what the viewer needs.
+ *
+ * Colour. Each kind of element has three tokens: a fill, a stroke and an ink
+ * for text on the fill. Everything else is ink, muted or faint. Ink and muted
+ * pass 4.5:1 on the panel and the page; faint is for lines and marks only,
+ * never for text a reader needs.
+ *
+ * Type. Four sizes: lg for the one title on a page, md for body and card
+ * names, sm for labels and fields, xs for tags. Tags are uppercase, tracked,
+ * semibold. Field names and values are mono.
+ *
+ * Space. Multiples of 4px. Corners are 8px on cards and 6px on controls.
+ *
+ * Interaction. Everything a pointer can use, a keyboard can reach: a visible
+ * focus ring, and no motion when the reader asked for none.
+ */
 :root {
   --bg: #f6f7f9;
   --panel: #ffffff;
   --line: #e4e7eb;
   --ink: #0f172a;
-  --muted: #64748b;
+  --muted: #526071;
   --faint: #94a3b8;
   --accent: #2563eb;
+  --accent-ink: #1e3a8a;
+  --accent-fill: #dbeafe;
   --danger: #b91c1c;
+  --danger-fill: #fee2e2;
+  --danger-stroke: #ef4444;
+  --danger-ink: #7f1d1d;
 
   --ui-fill: #ffffff;
   --ui-stroke: #94a3b8;
@@ -24,9 +46,67 @@
   --automation-stroke: #a855f7;
   --automation-ink: #581c87;
 
+  --text-lg: 18px;
+  --text-md: 14px;
+  --text-sm: 12px;
+  --text-xs: 10px;
+  --tracking: 0.08em;
+
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --radius: 8px;
+  --radius-sm: 6px;
+
   --sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
+
+/* keyboard focus is always visible; motion only for those who want it */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+svg [tabindex]:focus-visible {
+  outline: none;
+}
+
+svg [tabindex]:focus-visible > .shape,
+svg .slice-head:focus-visible > rect {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+  }
+}
+
+/* tags: the small uppercase labels used everywhere */
+.tag,
+.lane-kind,
+.spec-word,
+.card .key-mark,
+.detail h3,
+.detail .kind,
+.nav .chapter,
+.facts h3,
+.specs-title,
+.hstep .word,
+.slice-body .lane-tag,
+.top .swatch {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking);
+  text-transform: uppercase;
+}
+
 
 * {
   box-sizing: border-box;
@@ -74,8 +154,14 @@ body,
   margin-left: auto;
   display: flex;
   gap: 14px;
-  font-size: 12px;
   color: var(--muted);
+}
+
+.top .swatch {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--text-sm);
+  font-weight: 500;
 }
 
 .top .swatch::before {
@@ -143,12 +229,8 @@ body,
   text-align: left;
   margin: 12px 0 4px;
   padding: 4px 8px;
-  font: inherit;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--faint);
+  font-family: inherit;
+  color: var(--muted);
   cursor: pointer;
 }
 
@@ -187,7 +269,7 @@ body,
 
 .nav .hint {
   margin: 20px 8px 0;
-  color: var(--faint);
+  color: var(--muted);
   font-size: 11px;
 }
 
@@ -269,14 +351,13 @@ svg .note-dot {
 }
 
 .lane-label {
-  font-size: 12px;
-  font-weight: 600;
-  fill: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  fill: var(--ink);
 }
 
 .lane-kind {
-  font-weight: 400;
-  fill: var(--faint);
+  fill: var(--muted);
 }
 
 /* chapters are arrows along the time line */
@@ -334,7 +415,7 @@ svg .note-dot {
 
 .slice-head text {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   fill: var(--muted);
 }
 
@@ -418,7 +499,7 @@ svg .note-dot {
 
 .card .input text {
   font-size: 9.5px;
-  fill: var(--faint);
+  fill: var(--muted);
 }
 
 .card .button rect {
@@ -482,17 +563,13 @@ svg .note-dot {
 
 /* specifications drawn under the slice */
 .spec-title {
-  font-size: 11.5px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
   fill: var(--ink);
 }
 
 .spec-word {
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  fill: var(--faint);
+  fill: var(--muted);
 }
 
 .card.spec {
@@ -511,9 +588,9 @@ svg .note-dot {
   font-size: 11px;
 }
 
-.card.error .shape { fill: #fee2e2; stroke: #ef4444; }
-.card.error .title { fill: #7f1d1d; }
-.card.error .field { fill: #991b1b; }
+.card.error .shape { fill: var(--danger-fill); stroke: var(--danger-stroke); }
+.card.error .title { fill: var(--danger-ink); }
+.card.error .field { fill: var(--danger-ink); }
 
 .card.ui .shape { fill: var(--ui-fill); stroke: var(--ui-stroke); }
 .card.ui .title { fill: var(--ui-ink); }
@@ -531,10 +608,7 @@ svg .note-dot {
 
 .card .key-mark {
   font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  fill: var(--faint);
+  fill: var(--muted);
 }
 
 /* detail panel */
@@ -554,12 +628,8 @@ svg .note-dot {
 }
 
 .detail .kind {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
   padding: 3px 7px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .detail .kind.ui,
@@ -631,11 +701,7 @@ svg .note-dot {
 
 .detail h3 {
   margin: 20px 0 8px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--faint);
+  color: var(--muted);
 }
 
 .detail .note {
@@ -720,10 +786,10 @@ svg .note-dot {
 }
 
 .spec .step .word {
-  color: var(--faint);
+  color: var(--muted);
   font-weight: 600;
-  font-size: 10px;
-  letter-spacing: 0.08em;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking);
   text-transform: uppercase;
   padding-top: 2px;
 }
@@ -816,10 +882,7 @@ svg .note-dot {
 
 .slice-body .lane-tag {
   font-size: 7px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  fill: var(--faint);
+  fill: var(--muted);
 }
 
 .facts dl {
@@ -842,11 +905,7 @@ svg .note-dot {
 
 .facts h3 {
   margin: 20px 0 8px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--faint);
+  color: var(--muted);
 }
 
 .facts .note {
@@ -886,11 +945,7 @@ svg .note-dot {
 
 .specs-title {
   margin: 28px 0 12px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--faint);
+  color: var(--muted);
 }
 
 .specs-grid {
@@ -903,7 +958,7 @@ svg .note-dot {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
-  padding: 14px 16px;
+  padding: var(--s4) 20px 20px;
 }
 
 .hspec h4 {
@@ -920,11 +975,7 @@ svg .note-dot {
 }
 
 .hstep .word {
-  color: var(--faint);
-  font-weight: 600;
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  color: var(--muted);
   padding-top: 6px;
 }
 
@@ -936,9 +987,9 @@ svg .note-dot {
 
 .hcard {
   border: 1px solid;
-  border-radius: 8px;
-  padding: 6px 10px;
-  font-size: 12px;
+  border-radius: var(--radius);
+  padding: var(--s2) var(--s3);
+  font-size: var(--text-sm);
 }
 
 .hcard .hname {
@@ -957,4 +1008,4 @@ svg .note-dot {
 .hcard.readModel { background: var(--readModel-fill); border-color: var(--readModel-stroke); color: var(--readModel-ink); }
 .hcard.automation { background: var(--automation-fill); border-color: var(--automation-stroke); color: var(--automation-ink); }
 .hcard.ui { background: var(--ui-fill); border-color: var(--ui-stroke); color: var(--ui-ink); }
-.hcard.error { background: #fee2e2; border-color: #ef4444; color: #7f1d1d; }
+.hcard.error { background: var(--danger-fill); border-color: var(--danger-stroke); color: var(--danger-ink); }

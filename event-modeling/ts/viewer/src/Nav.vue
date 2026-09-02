@@ -6,7 +6,7 @@ defineEmits<{ select: [column: number] }>()
 </script>
 
 <template>
-  <nav class="nav">
+  <nav class="nav" aria-label="Chapters and slices">
     <template v-for="(chapter, ci) in layout.chapters" :key="chapter.name + ci">
       <button
         type="button"
@@ -21,10 +21,11 @@ defineEmits<{ select: [column: number] }>()
         type="button"
         class="slice"
         :class="{ selected: col.index === selectedColumn }"
+        :aria-current="col.index === selectedColumn ? 'true' : undefined"
         @click="$emit('select', col.index)"
       >
         {{ col.label }}
-        <span v-if="col.noted" class="note-dot"></span>
+        <span v-if="col.noted" class="note-dot" role="img" aria-label="has a note"></span>
       </button>
     </template>
     <p class="hint">← → move between slices · Enter or double click opens one · Esc back to the canvas</p>

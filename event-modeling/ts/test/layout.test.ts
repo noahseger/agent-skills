@@ -153,7 +153,9 @@ test("an automation is in its actor's lane, and reads are drawn back from the re
     reads?.dashed && reads.points,
     "a dashed, routed edge from the read model to the command",
   )
-  assert.deepEqual(reads.points[0], [search.x + search.w / 2, search.y + search.h])
+  const start = reads.points[0]
+  assert.ok(start && start[0] > search.x + search.w / 2, "leaves the read model right of centre")
+  assert.equal(start?.[1], search.y + search.h)
   const end = reads.points.at(-1)
   assert.ok(end && end[0] === command.x && end[1] > command.y && end[1] < command.y + command.h)
   const trigger = out.edges.find((e) => e.to === gear.id && e.points)
@@ -202,15 +204,46 @@ test("a table shows the columns that fit and counts the rest", () => {
   assert.deepEqual(fitColumns(["a"], 144), { columns: [{ name: "a", x: 0, w: 5.2 + 12 }], more: 0 })
 })
 
-test("edges that share an end fan out there", () => {
+test("an edge leaving an element sits right of centre, an edge entering sits left", () => {
+  const created = out.boxes.find((b) => b.kind === "event" && b.name === "ListCreated")
   const target = out.boxes.find(
     (b) => b.kind === "readModel" && b.name === "TodoList" && !b.compact,
   )
-  assert.ok(target)
+  assert.ok(created && target)
+  for (const e of out.edges.filter((e) => e.from === created.id && e.points)) {
+    assert.ok((e.points?.[0]?.[0] ?? 0) > created.x + created.w / 2, "leaves right of centre")
+  }
   const ends = out.edges
     .filter((e) => e.to === target.id && e.points)
-    .map((e) => e.points?.at(-1)?.[0])
+    .map((e) => e.points?.at(-1)?.[0] ?? 0)
+  for (const x of ends) assert.ok(x < target.x + target.w / 2, "enters left of centre")
   assert.equal(new Set(ends).size, ends.length, "each edge into TodoList has its own x")
+})
+
+test("a path starts at one box's edge and ends at the other's", () => {
+  const a: Box = {
+    id: "a",
+    kind: "command",
+    name: "",
+    fields: [],
+    keys: [],
+    column: 0,
+    x: 0,
+    y: 0,
+    w: 100,
+    h: 40,
+  }
+  const b: Box = { ...a, id: "b", y: 100 }
+  assert.equal(path(a, b), "M50 40 L50 100")
+  assert.match(path(b, { ...a, x: 300 }), /^M50 100 C.* 350 40$/)
+  assert.equal(
+    polyline([
+      [0, 0],
+      [0, 100],
+      [50, 100],
+    ]),
+    "M0 0 L0 88 Q0 100 12 100 L50 100",
+  )
 })
 
 test("a later appearance of an element is collapsed and points at the first", () => {
@@ -250,30 +283,4 @@ test("specifications sit under their slice, one card per clause with a line per 
   assert.equal(given?.cards.length, 3)
   assert.equal(given?.cards[0]?.kind, "event")
   assert.equal(given?.cards[0]?.lines.length, 4)
-})
-
-test("a path starts at one box's edge and ends at the other's", () => {
-  const a: Box = {
-    id: "a",
-    kind: "command",
-    name: "",
-    fields: [],
-    keys: [],
-    column: 0,
-    x: 0,
-    y: 0,
-    w: 100,
-    h: 40,
-  }
-  const b: Box = { ...a, id: "b", y: 100 }
-  assert.equal(path(a, b), "M50 40 L50 100")
-  assert.match(path(b, { ...a, x: 300 }), /^M50 100 C.* 350 40$/)
-  assert.equal(
-    polyline([
-      [0, 0],
-      [0, 100],
-      [50, 100],
-    ]),
-    "M0 0 L0 88 Q0 100 12 100 L50 100",
-  )
 })
