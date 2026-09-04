@@ -336,14 +336,6 @@ export const Play = m.chapter([
         status: "struck",
       }),
     }),
-
-  m
-    .slice()
-    .actor(Player)
-    .query({ gameId: z.string() })
-    .reads(MoveList)
-    .service(ChessService, "GetMoveList")
-    .note("FIDE 8.1.1: each player keeps the scoresheet as the game goes on."),
 ])
 
 export const Game = m.stream({ PlayMove, MovePlayed, RuleIllegalMove, IllegalMoveRuled })
