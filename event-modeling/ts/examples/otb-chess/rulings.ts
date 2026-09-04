@@ -2,7 +2,7 @@
 
 import { z } from "zod"
 import { m } from "#em"
-import { IllegalMoveRuled, illegalMoveRuled, RuleIllegalMove } from "./play.ts"
+import { IllegalMoveRuled, illegalMoveRuled, MoveList, RuleIllegalMove } from "./play.ts"
 import { Arbiter, ChessService } from "./setup.ts"
 
 // How many illegal moves each side has made. FIDE 7.5.5 escalates on the second.
@@ -27,6 +27,7 @@ export const ArbiterRulings = m.chapter([
   m
     .slice()
     .actor(Arbiter)
+    .reads(MoveList)
     .reads(IllegalMoveTally)
     .service(ChessService)
     .command(RuleIllegalMove)

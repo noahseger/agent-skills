@@ -2,6 +2,7 @@
 
 import { z } from "zod"
 import { m } from "#em"
+
 import { GameRecord } from "./conclusion.ts"
 import { GameState, MoveList } from "./play.ts"
 import { ChessService, Spectator } from "./setup.ts"
@@ -12,18 +13,9 @@ export const Spectating = m.chapter([
     .actor(Spectator)
     .query({ gameId: z.string() })
     .reads(GameState)
-    .service(ChessService, "WatchBroadcast")
-    .note("The live position, as the broadcast shows it."),
-
-  m
-    .slice()
-    .actor(Spectator)
-    .query({ gameId: z.string() })
     .reads(MoveList)
-    .service(ChessService, "WatchMoveList")
-    .note(
-      "The moves so far. A view reads one read model, so the board and the moves are two slices.",
-    ),
+    .service(ChessService, "WatchBroadcast")
+    .note("The live position and the moves so far, as the broadcast shows them."),
 
   m
     .slice()

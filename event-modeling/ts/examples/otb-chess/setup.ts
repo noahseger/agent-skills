@@ -151,14 +151,6 @@ export const GameSetup = m.chapter([
     }),
 
   m
-    .slice()
-    .actor(Arbiter)
-    .query({ gameId: z.string() })
-    .reads(GamePairing)
-    .service(ChessService, "GetGamePairing")
-    .note("The arbiter checks who is on the board before the start signal."),
-
-  m
     .slice("ClockStarter")
     .on(GameStarted)
     .command(StartClock)

@@ -13,7 +13,7 @@ import {
   MovePlayed,
 } from "./play.ts"
 import { IllegalMoveTally, secondIllegalMoveRuled } from "./rulings.ts"
-import { Arbiter, ChessService, gameStarted, Player } from "./setup.ts"
+import { Arbiter, ChessService, GamePairing, gameStarted, Player } from "./setup.ts"
 
 // FIDE 6.8: a flag has fallen when the arbiter or a player observes it.
 export const ClaimFlagFall = m.command({
@@ -323,6 +323,7 @@ export const Conclusion = m.chapter([
     .slice()
     .actor(Arbiter)
     .reads(GameResult)
+    .reads(GamePairing)
     .service(ChessService)
     .command(RecordResult)
     .emits(ResultRecorded)
