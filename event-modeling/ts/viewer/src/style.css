@@ -803,7 +803,7 @@ svg .note-dot {
   font-family: var(--mono);
   display: block;
   color: var(--ink);
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .spec .step code.rejected {
@@ -1013,6 +1013,7 @@ svg .note-dot {
 .hcard .hline {
   font-family: var(--mono);
   font-size: 11px;
+  overflow-wrap: anywhere;
 }
 
 .hcard.command { background: var(--command-fill); border-color: var(--command-stroke); color: var(--command-ink); }

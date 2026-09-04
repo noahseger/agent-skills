@@ -308,3 +308,17 @@ test("a translation gets an automation of ours between the outside event and the
   assert.ok(out.edges.some((e) => e.from === gear.id && e.to === command.id))
   assert.ok(!out.edges.some((e) => e.from === external.id && e.to === command.id))
 })
+
+test("a long value wraps inside its specification card", () => {
+  const fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  const copy: ModelJson = JSON.parse(JSON.stringify(model))
+  const slice = copy.chapters[0]?.slices[0]
+  assert.ok(slice?.tests[0])
+  slice.tests[0].then = [`ListCreated(listId=list-1, fen=${fen})`]
+  const spec = layout(copy).specs.find((s) => s.column === 0)
+  const card = spec?.steps.find((st) => st.word === "then")?.cards[0]
+  assert.ok(card && card.lines.length >= 3)
+  for (const line of card.lines) assert.ok(line.length <= 24, line)
+  assert.equal(card.lines.slice(1).join(" ").replace(/ /g, ""), `fen=${fen}`.replace(/ /g, ""))
+  assert.equal(wrap("abcdefghijklmnopqrstuvwxyz", 10).join("|"), "abcdefghij|klmnopqrst|uvwxyz")
+})
