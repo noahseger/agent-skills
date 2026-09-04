@@ -151,6 +151,7 @@ export const SPEC_GAP = 8
 export const SPEC_TEST_GAP = 26
 export const SPEC_TITLE_CHARS = 26
 export const SPEC_LINE_CHARS = 24
+export const SPEC_INDENT = 2
 
 const PAD_X = (COL_W - CARD_W) / 2
 
@@ -230,18 +231,38 @@ export function words(name: string): string {
     .join(" ")
 }
 
-/** Word wrap by character count. A word longer than the line is cut, so a FEN string wraps too. */
-export function wrap(text: string, max: number): string[] {
+/**
+ * Word wrap by character count. A word that fits a fresh line is kept whole;
+ * a longer one, like a FEN string, fills the rest of the line and continues
+ * on the next. Lines after the first are indented by `indent` characters.
+ */
+export function wrap(text: string, max: number, indent = 0): string[] {
   const lines: string[] = []
   let line = ""
-  const pieces = text.split(/\s+/).flatMap((w) => w.match(new RegExp(`.{1,${max}}`, "g")) ?? [])
-  for (const word of pieces) {
-    if (line.length > 0 && line.length + 1 + word.length > max) {
-      lines.push(line)
-      line = word
-    } else line = line.length > 0 ? `${line} ${word}` : word
+  const flush = () => {
+    if (line.trim().length > 0) lines.push(line)
+    line = ""
   }
-  if (line.length > 0) lines.push(line)
+  for (const word of text.split(/\s+/).filter((w) => w.length > 0)) {
+    let rest = word
+    while (rest.length > 0) {
+      if (line.length === 0 && lines.length > 0) line = " ".repeat(indent)
+      const sep = line.trim().length > 0 ? " " : ""
+      const room = max - line.length - sep.length
+      if (rest.length <= room) {
+        line += sep + rest
+        rest = ""
+      } else if (line.trim().length > 0 && rest.length <= max - indent) {
+        flush()
+      } else {
+        const take = Math.max(1, room)
+        line += sep + rest.slice(0, take)
+        rest = rest.slice(take)
+        flush()
+      }
+    }
+  }
+  flush()
   return lines
 }
 
@@ -695,7 +716,7 @@ export function layout(model: ModelJson): Layout {
         cy += SPEC_WORD_H
         for (const clause of clauses) {
           const parsed = parseClause(clause)
-          const lines = parsed.lines.flatMap((l) => wrap(l, SPEC_LINE_CHARS))
+          const lines = parsed.lines.flatMap((l) => wrap(l, SPEC_LINE_CHARS, SPEC_INDENT))
           const { name, error } = parsed
           const h = lines.length > 0 ? SPEC_CARD_TITLE + lines.length * SPEC_LINE_H + 6 : 26
           step.cards.push({
