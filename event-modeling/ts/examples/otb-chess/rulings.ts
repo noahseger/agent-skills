@@ -12,6 +12,13 @@ export const IllegalMoveTally = m.readModel({
   illegalMoveCount: z.number().int(),
 })
 
+// The ruling that makes it two says so, so the forfeiter hears only the offence that forfeits.
+export const SecondIllegalMoveRuled = m.event({
+  gameId: z.string(),
+  offendingSide: z.enum(["white", "black"]),
+  illegalMoveCount: z.number().int(),
+})
+
 export const secondIllegalMoveRuled = IllegalMoveRuled.with({
   gameId: "otb-2024-ct-r5-b1",
   ply: 44,
@@ -23,6 +30,12 @@ export const secondIllegalMoveRuled = IllegalMoveRuled.with({
   sideToMove: "white",
 })
 
+export const secondOffence = SecondIllegalMoveRuled.with({
+  gameId: "otb-2024-ct-r5-b1",
+  offendingSide: "white",
+  illegalMoveCount: 2,
+})
+
 export const ArbiterRulings = m.chapter([
   m
     .slice()
@@ -32,6 +45,7 @@ export const ArbiterRulings = m.chapter([
     .service(ChessService)
     .command(RuleIllegalMove)
     .emits(IllegalMoveRuled)
+    .emits(SecondIllegalMoveRuled)
     .note(
       "FIDE 7.5.1: the position before the illegal move is reinstated. 7.5.5: the first one adds two minutes to the opponent, the second one loses the game.",
     )
@@ -61,7 +75,7 @@ export const ArbiterRulings = m.chapter([
         fen: "r5k1/pp3ppp/2p5/8/8/2P2N2/PP3PPP/R5K1 w - - 6 22",
         sideToMove: "white",
       }),
-      then: secondIllegalMoveRuled,
+      then: [secondIllegalMoveRuled, secondOffence],
     }),
 
   m
@@ -85,3 +99,5 @@ export const ArbiterRulings = m.chapter([
       }),
     }),
 ])
+
+export const Game = m.stream({ SecondIllegalMoveRuled })

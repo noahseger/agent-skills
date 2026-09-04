@@ -3,16 +3,8 @@
 import { z } from "zod"
 import { m } from "#em"
 import { DrawAgreed, drawAgreed, GameResigned, gameResigned, Result, Termination } from "./draws.ts"
-import {
-  ClockPressed,
-  ClockState,
-  e4,
-  GameState,
-  IllegalMoveRuled,
-  illegalMoveRuled,
-  MovePlayed,
-} from "./play.ts"
-import { IllegalMoveTally, secondIllegalMoveRuled } from "./rulings.ts"
+import { ClockPressed, ClockState, GameEnded, GameState, MATE_FEN, mated } from "./play.ts"
+import { IllegalMoveTally, SecondIllegalMoveRuled, secondOffence } from "./rulings.ts"
 import { Arbiter, ChessService, GamePairing, gameStarted, Player } from "./setup.ts"
 
 // FIDE 6.8: a flag has fallen when the arbiter or a player observes it.
@@ -45,7 +37,6 @@ export const BoardOutcomeAdjudicated = m.event({
   result: Result,
   termination: Termination,
 })
-export const PositionIsLive = m.rejected("the position is neither mate, stalemate, nor dead")
 
 // FIDE 7.5.5: the second illegal move by the same player loses the game.
 export const ForfeitGame = m.command({
@@ -62,7 +53,6 @@ export const IllegalMoveForfeited = m.event({
   result: Result,
   termination: Termination,
 })
-export const NotYetTwoIllegalMoves = m.rejected("the offender has made only one illegal move")
 
 // How this game finished, whichever way it finished.
 export const GameResult = m.readModel({
@@ -102,7 +92,8 @@ export const GameRecord = m.readModel({
   termination: Termination,
 })
 
-const MATE_FEN = "r1bqkb1r/pppp1Qpp/2n2n2/8/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 4"
+const STALEMATE_FEN = "7k/5Q2/6K1/8/8/8/8/8 b - - 0 52"
+const BARE_KINGS_FEN = "8/8/4k3/8/8/4K3/8/8 w - - 0 45"
 
 const timeForfeited = TimeForfeited.with({
   gameId: "otb-2024-ct-r5-b1",
@@ -178,13 +169,13 @@ export const Conclusion = m.chapter([
 
   m
     .slice("OutcomeAdjudicator")
-    .on(MovePlayed)
+    .on(GameEnded)
     .reads(GameState)
     .command(AdjudicateOutcome)
     .emits(BoardOutcomeAdjudicated)
-    .note("Every move is looked at. Only a terminal position produces an outcome.")
+    .note("The move that ended the game says how. This turns that into a result.")
     .test("Checkmate on the board ends the game", {
-      given: e4,
+      given: mated,
       when: AdjudicateOutcome.with({
         gameId: "otb-2024-ct-r5-b1",
         ply: 7,
@@ -195,59 +186,58 @@ export const Conclusion = m.chapter([
       then: checkmate,
     })
     .test("Stalemate on the board draws the game", {
-      given: e4,
+      given: GameEnded.with({
+        gameId: "otb-2024-ct-r5-b1",
+        ply: 103,
+        fen: STALEMATE_FEN,
+        ending: "stalemate",
+      }),
       when: AdjudicateOutcome.with({
         gameId: "otb-2024-ct-r5-b1",
         ply: 103,
-        fen: "7k/5Q2/6K1/8/8/8/8/8 b - - 0 52",
+        fen: STALEMATE_FEN,
         result: "draw",
         termination: "stalemate",
       }),
       then: BoardOutcomeAdjudicated.with({
         gameId: "otb-2024-ct-r5-b1",
         ply: 103,
-        fen: "7k/5Q2/6K1/8/8/8/8/8 b - - 0 52",
+        fen: STALEMATE_FEN,
         result: "draw",
         termination: "stalemate",
       }),
     })
     .test("A capture leaving king against king is a dead position", {
-      given: e4,
+      given: GameEnded.with({
+        gameId: "otb-2024-ct-r5-b1",
+        ply: 88,
+        fen: BARE_KINGS_FEN,
+        ending: "dead_position",
+      }),
       when: AdjudicateOutcome.with({
         gameId: "otb-2024-ct-r5-b1",
         ply: 88,
-        fen: "8/8/4k3/8/8/4K3/8/8 w - - 0 45",
+        fen: BARE_KINGS_FEN,
         result: "draw",
         termination: "dead_position",
       }),
       then: BoardOutcomeAdjudicated.with({
         gameId: "otb-2024-ct-r5-b1",
         ply: 88,
-        fen: "8/8/4k3/8/8/4K3/8/8 w - - 0 45",
+        fen: BARE_KINGS_FEN,
         result: "draw",
         termination: "dead_position",
       }),
-    })
-    .test("An ordinary move adjudicates nothing", {
-      given: gameStarted,
-      when: AdjudicateOutcome.with({
-        gameId: "otb-2024-ct-r5-b1",
-        ply: 1,
-        fen: "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
-        result: "draw",
-        termination: "dead_position",
-      }),
-      then: PositionIsLive,
     }),
 
   m
     .slice("IllegalMoveForfeiter")
-    .on(IllegalMoveRuled)
+    .on(SecondIllegalMoveRuled)
     .reads(IllegalMoveTally)
     .command(ForfeitGame)
     .emits(IllegalMoveForfeited)
-    .test("A tally of two illegal moves forfeits the game", {
-      given: [illegalMoveRuled, secondIllegalMoveRuled],
+    .test("The second illegal move forfeits the game", {
+      given: secondOffence,
       when: ForfeitGame.with({
         gameId: "otb-2024-ct-r5-b1",
         offendingSide: "white",
@@ -256,17 +246,6 @@ export const Conclusion = m.chapter([
         termination: "illegal_move_forfeit",
       }),
       then: illegalMoveForfeited,
-    })
-    .test("A first illegal move does not forfeit", {
-      given: illegalMoveRuled,
-      when: ForfeitGame.with({
-        gameId: "otb-2024-ct-r5-b1",
-        offendingSide: "white",
-        illegalMoveCount: 1,
-        result: "black_won",
-        termination: "illegal_move_forfeit",
-      }),
-      then: NotYetTwoIllegalMoves,
     }),
 
   m
