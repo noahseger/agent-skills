@@ -44,6 +44,14 @@ m.chapter([m.slice().actor(User).service(TodoService).command(CreateList)])
 // @ts-expect-error a projection with no .on() is not a slice
 m.chapter([m.slice().projects(TodoList)])
 
+// The error names the missing step. These lines compile only while it does.
+const stopsAtCommand = m.slice().actor(User).service(TodoService).command(CreateList)
+const needsEmits: (typeof stopsAtCommand)["this slice still needs"] = ".emits(event)"
+const stopsAtProjects = m.slice().projects(TodoList)
+const needsOn: (typeof stopsAtProjects)["this slice still needs"] = ".on(event)"
+void needsEmits
+void needsOn
+
 // --- a function: its argument is the source, its result is the target --------
 
 // @ts-expect-error ItemAdded has no field nope

@@ -207,6 +207,15 @@ export interface Slice {
   readonly [META]: SliceData
 }
 
+/**
+ * An unfinished chain carries the step it still needs, so that a chapter handed
+ * one can say so instead of listing the properties a Slice has and it lacks.
+ * The property exists in the type only.
+ */
+export interface Unfinished<Next extends string> {
+  readonly "this slice still needs": Next
+}
+
 export interface Spec<C extends Fields, Em extends Fields> {
   given?: OneOrMany<Example<"event">>
   when: Example<"command", C>
@@ -219,7 +228,7 @@ export interface ProjectionSpec<R extends Fields> {
   then: OneOrMany<Example<"readModel", R>>
 }
 
-export interface SliceStart {
+export interface SliceStart extends Unfinished<".actor(), .on(), .polls() or .projects()"> {
   actor(actor: Actor): Acting
   /** Automation: the event starts it. */
   on(event: EventDecl): NeedsCommandOrReads
@@ -229,25 +238,26 @@ export interface SliceStart {
   projects<R extends Fields>(readModel: ReadModelDecl<R>): Projecting<R>
 }
 
-export interface Acting {
+export interface Acting extends Unfinished<".service(), .query() or .reads()"> {
   reads(readModel: ReadModelDecl): ActingRead
   /** The request fields of a view. */
   query(fields: Fields): Querying
   service(service: Service, method?: string): NeedsCommand
 }
 
-export interface ActingRead {
+export interface ActingRead
+  extends Unfinished<".service(service, method), or .service(service) then .command()"> {
   reads(readModel: ReadModelDecl): ActingRead
   service(service: Service): NeedsCommand
   /** With a method this is a view, and may still go on to a command. */
   service(service: Service, method: string): ViewOrCommand
 }
 
-export interface Querying {
+export interface Querying extends Unfinished<".reads()"> {
   reads(readModel: ReadModelDecl): NeedsMethod
 }
 
-export interface NeedsMethod {
+export interface NeedsMethod extends Unfinished<".service(service, method)"> {
   reads(readModel: ReadModelDecl): NeedsMethod
   service(service: Service, method: string): View
 }
@@ -260,7 +270,7 @@ export interface ViewOrCommand extends View {
   command<C extends Fields>(command: CommandDecl<C>): NeedsEmits<C>
 }
 
-export interface NeedsCommand {
+export interface NeedsCommand extends Unfinished<".command()"> {
   command<C extends Fields>(command: CommandDecl<C>): NeedsEmits<C>
 }
 
@@ -269,7 +279,7 @@ export interface NeedsCommandOrReads extends NeedsCommand {
   reads(readModel: ReadModelDecl): NeedsCommandOrReads
 }
 
-export interface NeedsEmits<C extends Fields> {
+export interface NeedsEmits<C extends Fields> extends Unfinished<".emits(event)"> {
   emits<E extends Fields>(event: EventDecl<E>, map?: Mapping<C, E>): Complete<C, E>
 }
 
@@ -279,7 +289,7 @@ export interface Complete<C extends Fields, Em extends Fields> extends Slice {
   note(text: string): Complete<C, Em>
 }
 
-export interface Projecting<R extends Fields> {
+export interface Projecting<R extends Fields> extends Unfinished<".on(event)"> {
   on<E extends Fields>(event: EventDecl<E>, map?: Mapping<E, R>): Projection<R>
 }
 
@@ -346,8 +356,18 @@ export interface Chapter {
   readonly [META]: ChapterData
 }
 
-function chapter(slices: readonly Slice[]): Chapter {
-  return { [META]: { kind: "chapter", slices: slices.map((s) => s[META]) } }
+/** Each element is a Slice, or the message saying which step it still needs. */
+type Finished<T> = {
+  [K in keyof T]: T[K] extends Slice
+    ? T[K]
+    : T[K] extends Unfinished<infer Next>
+      ? `this slice is not finished: it still needs ${Next}`
+      : Slice
+}
+
+function chapter<const T extends readonly unknown[]>(slices: T & Finished<T>): Chapter {
+  const finished = slices as unknown as readonly Slice[]
+  return { [META]: { kind: "chapter", slices: finished.map((s) => s[META]) } }
 }
 
 export interface Model {

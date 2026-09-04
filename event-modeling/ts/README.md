@@ -316,7 +316,7 @@ The compiler catches:
 | Where | What |
 |---|---|
 | any reference | An unknown actor, event, command, read model or service cannot be written, because references are values, not strings. |
-| the chain | Only a legal chain compiles. |
+| the chain | Only a legal chain compiles. A chapter given an unfinished slice says which step it still needs, such as `.emits(event)`. |
 | a function | Its argument is the source's fields. Its result must be fields of the target, with matching types. |
 | `.service()` | A view must name its method. |
 | `.test()` | `when` is the slice's command. `then` is its events, its read model, or a rejection. Zod checks the values. |
