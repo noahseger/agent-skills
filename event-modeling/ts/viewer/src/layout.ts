@@ -390,6 +390,40 @@ export function layout(model: ModelJson): Layout {
     if (chapter.slices.length === 0) x += COL_W
     chapters.push({ name: chapter.name, title: words(chapter.name), x: start, w: x - start })
   })
+  // A declaration in no slice yet gets a column of its own, after the story so
+  // far. It is drawn as the one card a slice would draw for it.
+  if (model.loose && model.loose.length > 0) {
+    if (chapters.length > 0) x += CHAPTER_GAP
+    const start = x
+    for (const item of model.loose) {
+      const el = parse(item.element)
+      const card =
+        item.kind === "event"
+          ? { events: [item.element] }
+          : item.kind === "command"
+            ? { command: item.element }
+            : { read_models: [item.element] }
+      const slice: SliceJson = {
+        name: el.name,
+        actor: "",
+        aggregate: item.aggregate,
+        tests: [],
+        ...card,
+      }
+      columns.push({
+        index: columns.length,
+        chapter: chapters.length,
+        slice,
+        label: el.name,
+        title: words(el.name),
+        noted: model.notes[el.name] !== undefined,
+        x,
+        w: COL_W,
+      })
+      x += COL_W
+    }
+    chapters.push({ name: "", title: "Not yet in a slice", x: start, w: x - start })
+  }
   const width = x + PAD_X
 
   // The first card of an element is drawn in full. Every later one is the name

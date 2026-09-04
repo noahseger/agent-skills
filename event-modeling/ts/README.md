@@ -306,6 +306,10 @@ npx em proto model/ -o proto
 specifications. `export` writes the same viewer and the model into one HTML file to share. `proto`
 writes one `.proto` file per service. `render` writes a still SVG.
 
+You do not have to finish first. `view` draws a model as far as it goes: an event in no slice yet
+stands on its own in its lane, and what is left to do is listed above the picture. So the first
+thing to write is the events, in a stream, and look.
+
 ## Validation
 
 `tsc` checks each slice as you type. The CLI checks the whole model when it assembles, which every
@@ -332,6 +336,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | An event no slice emits; a read model nothing reads or projects | Same. |
 | A slice that emits an external event | The group decides, and the group is a runtime value. |
 | Two slices claiming one service method | A union of literal types dedupes rather than counts. |
+| A declaration in no slice | Whether a value is used is not a type. |
 
 `event_model.py` then checks the emitted JSON for what neither can: event names in the past tense,
 command names in the imperative, and example values that are not placeholders.
@@ -409,10 +414,13 @@ npx em init   model/                 # scaffold a model directory
 npx em view   model/                 # live diagram
 npx em export model/ -o model.html   # one self-contained page, for sharing
 npx em json   model/                 # the JSON the viewer and the renderer read
+npx em json   model/ --partial       # the same for an unfinished model, with what is left to do
 npx em render model/ -o out.svg      # still picture
 npx em proto  model/ -o proto        # one .proto per service
 ```
 
 Every command also accepts a single self-contained file. `json` assembles the model and stops at
-the first error; `tsc` checks the types, with the `tsconfig.json` that `init` wrote. Node runs the
+the first error. With `--partial` it goes on past dead ends and lists them in the JSON as
+`warnings`, with the declarations in no slice as `loose`; `view` and `export` assemble that way.
+`tsc` checks the types, with the `tsconfig.json` that `init` wrote. Node runs the
 TypeScript directly with `--experimental-strip-types`. The dependencies are `zod` and `typescript`.

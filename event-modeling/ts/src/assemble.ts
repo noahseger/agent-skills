@@ -6,7 +6,9 @@ import { pathToFileURL } from "node:url"
 
 import { type ModelJson, toJson } from "./json.ts"
 import {
+  type Assembled,
   type ChapterData,
+  type Declaration,
   type DeclData,
   type Exported,
   type Flow,
@@ -15,38 +17,51 @@ import {
   type SliceData,
 } from "./types.ts"
 
-export type { ModelJson }
+export type { Assembled, ModelJson }
 
-/** The named, checked model. The render target and the generators read this. */
-export interface Assembled {
-  model: ModelData
-  streams: Map<string, DeclData[]>
+export interface Options {
+  /**
+   * A model still being written: a dead end is a warning, not an error, and a
+   * declaration in no slice is kept so the viewer can draw it loose.
+   */
+  partial?: boolean
 }
 
+/** What a check does with a dead end. */
+type Fail = (message: string) => void
+
 /** `path` is a model directory or a single module. */
-export async function assemble(path: string): Promise<ModelJson> {
-  const { model, streams } = await load(path)
-  return toJson(model, streams)
+export async function assemble(path: string, options: Options = {}): Promise<ModelJson> {
+  return toJson(await load(path, options))
 }
 
 /** The same, over module namespaces already in memory. */
-export function assembleModules(modules: readonly object[]): ModelJson {
-  const { model, streams } = loadModules(modules)
-  return toJson(model, streams)
+export function assembleModules(modules: readonly object[], options: Options = {}): ModelJson {
+  return toJson(loadModules(modules, options))
 }
 
-export async function load(path: string): Promise<Assembled> {
+export async function load(path: string, options: Options = {}): Promise<Assembled> {
   const files = statSync(path).isDirectory() ? walk(path) : [path]
   const modules: object[] = await Promise.all(
     files.map((f) => import(pathToFileURL(resolve(f)).href) as Promise<object>),
   )
-  return loadModules(modules)
+  return loadModules(modules, options)
 }
 
-export function loadModules(modules: readonly object[]): Assembled {
-  const assembled = nameExports(modules)
-  check(assembled.model)
-  return assembled
+export function loadModules(modules: readonly object[], options: Options = {}): Assembled {
+  const { model, streams, declared } = nameExports(modules)
+  const warnings: string[] = []
+  const fail: Fail = options.partial
+    ? (message) => {
+        warnings.push(message)
+      }
+    : (message) => {
+        throw new Error(message)
+      }
+  check(model, fail)
+  const loose = looseOf(model, streams, declared)
+  for (const d of loose) fail(`${d.name} is in no slice.`)
+  return { model, streams, loose, warnings }
 }
 
 function walk(dir: string): string[] {
@@ -78,9 +93,11 @@ function exported(value: unknown): Exported | undefined {
 function nameExports(modules: readonly object[]): {
   model: ModelData
   streams: Map<string, DeclData[]>
+  declared: Declaration[]
 } {
   let model: ModelData | undefined
   const streams = new Map<string, DeclData[]>()
+  const declared: Declaration[] = []
   for (const module of modules) {
     for (const [key, value] of Object.entries(module)) {
       const data = exported(value)
@@ -91,13 +108,34 @@ function nameExports(modules: readonly object[]): {
         streams.set(key, [...(streams.get(key) ?? []), ...data.members])
       } else if (data.name !== undefined && data.name !== key) {
         throw new Error(`'${data.name}' is also exported as '${key}'. A declaration has one name.`)
+      } else if (data.kind !== "chapter") {
+        data.name = key
+        declared.push(data)
       } else {
         data.name = key
       }
     }
   }
   if (!model) throw new Error("No module exports a model. Add `export default m.model(...)`.")
-  return { model, streams }
+  return { model, streams, declared }
+}
+
+/**
+ * What is exported but in no slice. Stream members come first in stream order,
+ * because a storm of events is written as a stream before any slice exists.
+ */
+function looseOf(
+  model: ModelData,
+  streams: Map<string, DeclData[]>,
+  declared: Declaration[],
+): Declaration[] {
+  const inUse = new Set<object>()
+  for (const chapter of model.chapters) {
+    for (const slice of chapter.slices) for (const [, d] of used(slice)) inUse.add(d)
+  }
+  const members = [...streams.values()].flat()
+  const ordered = [...members, ...declared.filter((d) => !members.includes(d as DeclData))]
+  return ordered.filter((d) => !inUse.has(d))
 }
 
 // ---------------------------------------------------------------------------
@@ -118,14 +156,14 @@ interface Located {
   where: string
 }
 
-function check(model: ModelData): void {
+function check(model: ModelData, fail: Fail): void {
   const located = model.chapters.flatMap((chapter, i) => locate(chapter, i))
   for (const at of located) {
     checkFilled(at)
     checkKeys(at)
     checkExternal(at)
   }
-  checkConnected(located)
+  checkConnected(located, fail)
   checkMethods(located)
 }
 
@@ -226,8 +264,11 @@ function checkExternal({ slice, where }: Located): void {
   }
 }
 
-/** Dead ends across the model: what is produced but never used, or used but never produced. */
-function checkConnected(located: Located[]): void {
+/**
+ * Dead ends across the model: what is produced but never used, or used but
+ * never produced. A model still being written has these, so they go to `fail`.
+ */
+function checkConnected(located: Located[], fail: Fail): void {
   const emitted = new Set<DeclData>()
   const consumed = new Set<DeclData>()
   const projected = new Set<DeclData>()
@@ -262,23 +303,17 @@ function checkConnected(located: Located[]): void {
       }
     }
     for (const f of slice.emits) {
-      if (!consumed.has(f.event)) {
-        throw new Error(
-          `${where} emits ${f.event.name}, which nothing consumes: no .on() and no given.`,
-        )
-      }
+      if (!consumed.has(f.event))
+        fail(`${where} emits ${f.event.name}, which nothing consumes: no .on() and no given.`)
     }
     const given = slice.tests.flatMap((t) => t.given.map((g) => g.decl))
     for (const e of [...slice.on.map((f) => f.event), ...given]) {
-      if (!e.external && !emitted.has(e))
-        throw new Error(`${where} uses ${e.name}, which no slice emits.`)
+      if (!e.external && !emitted.has(e)) fail(`${where} uses ${e.name}, which no slice emits.`)
     }
-    if (slice.projects && !read.has(slice.projects)) {
-      throw new Error(`${where} projects ${slice.projects.name}, which nothing reads.`)
-    }
+    if (slice.projects && !read.has(slice.projects))
+      fail(`${where} projects ${slice.projects.name}, which nothing reads.`)
     for (const r of [...slice.reads, slice.polls]) {
-      if (r && !projected.has(r))
-        throw new Error(`${where} reads ${r.name}, which nothing projects.`)
+      if (r && !projected.has(r)) fail(`${where} reads ${r.name}, which nothing projects.`)
     }
   }
 }
