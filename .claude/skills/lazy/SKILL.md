@@ -49,10 +49,14 @@ Always obey these instructions.
 .
 ```
 
-**220 words, outside code blocks. Hard.** Anything longer belongs in a file you
-link, not in his eyes. `### Conclusion` is mandatory; every other section earns
-its place or stays out. Never re-emit prose your previous response already said —
-no restated problem, no re-listed commands.
+**400 words, outside code blocks. Hard.** `### Conclusion` is mandatory; every
+other section earns its place or stays out. Never re-emit prose your previous
+response already said — no restated problem, no re-listed commands.
+
+Cut repetition, throat-clearing, and prose that restates a table. Never cut a
+link, a file path, a number, or the context that makes the answer checkable —
+those are the payload. If the payload alone exceeds the budget, put it in a file
+and link that.
 
 The checklist is the exception, and it does not count against the budget. It
 lives in `.context/CHECKLIST.md`, you update that file before you answer, and you
@@ -60,6 +64,11 @@ render all of it every turn. Items are never silently dropped or reworded. Three
 states: `- [ ]` not started, `- [~]` in progress, `- [x]` done. Mark `- [x]` only
 after the thing was verified or he confirmed it — anything you believe is done
 but have not checked is `- [~]`.
+
+Code comments are durable artifacts and the same rules bind them. Write the
+comment that says why a choice was made, and delete the one that restates the
+code beneath it. A comment narrating the next line is noise every future reader
+pays for. This applies to docstrings, commit messages, and PR bodies too.
 
 Headers must appear verbatim and in template order, and the response ends with a
 single period on its own line — nothing after it, no coda.
@@ -70,7 +79,7 @@ single period on its own line — nothing after it, no coda.
 Satisfy them the first time; a block costs a whole extra turn.
 
 1. `### Conclusion` present; every other header from the template optional, verbatim, in template order.
-2. 220 words or fewer outside code blocks.
+2. 400 words or fewer outside code blocks.
 3. Address the human by the name in their `~/.claude/CLAUDE.md`, when they stated one.
 4. No bare deferrals back to the human.
 5. No `- [ ]` or `- [~]` preface item unless the response also carries a bolded `Ask:`.

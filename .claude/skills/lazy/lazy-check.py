@@ -109,7 +109,7 @@ def required_headers():
     return headers_in(template.group(1)) if template else []
 
 
-WORD_BUDGET = 220
+WORD_BUDGET = 400
 
 
 def contract_failures(response, required, cwd=None):
