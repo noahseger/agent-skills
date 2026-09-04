@@ -7,7 +7,7 @@ import { m } from "#em"
 export const Player = m.actor()
 
 // The official who rules on incidents and signs the scoresheet.
-export const Arbiter = m.actor().note("FIDE arbiter. A role with authority no player has.")
+export const Arbiter = m.actor({ icon: "admin" })
 
 // Anyone following the game who never touches the board.
 export const Spectator = m.actor()
