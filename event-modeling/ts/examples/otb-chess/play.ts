@@ -17,6 +17,7 @@ export const PlayMove = m.command({
   sideToMove: z.enum(["white", "black"]),
   isCheck: z.boolean(),
   isCapture: z.boolean(),
+  ending: z.enum(["checkmate", "stalemate", "dead_position"]).optional(),
 })
 export const MovePlayed = m.event({
   gameId: z.string(),
@@ -31,6 +32,15 @@ export const MovePlayed = m.event({
   isCapture: z.boolean(),
 })
 export const NotYourMove = m.rejected("the other side is to move")
+
+// A move that mates, stalemates, or leaves a dead position ends the game as it is played.
+// FIDE 5.1.1, 5.2.1 and 5.2.2: the game is over at that moment, before anyone rules on it.
+export const GameEnded = m.event({
+  gameId: z.string(),
+  ply: z.number().int(),
+  fen: z.string(),
+  ending: z.enum(["checkmate", "stalemate", "dead_position"]),
+})
 
 // The position on the board right now.
 export const GameState = m.readModel({
@@ -99,6 +109,7 @@ export const MoveList = m.readModel({
 })
 
 const OPENING_FEN = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
+export const MATE_FEN = "r1bqkb1r/pppp1Qpp/2n2n2/8/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 4"
 const FORK_FEN = "r1bqk2r/pppp1Qpp/2n2n2/2b1p3/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 7"
 export const STRUCK_FEN = "r4rk1/pp3ppp/2p5/8/8/2P2N2/PP3PPP/R4RK1 w - - 4 17"
 
@@ -124,6 +135,13 @@ export const illegalMoveRuled = IllegalMoveRuled.with({
   penalty: "opponent_time_added",
   fen: STRUCK_FEN,
   sideToMove: "white",
+})
+
+export const mated = GameEnded.with({
+  gameId: "otb-2024-ct-r5-b1",
+  ply: 7,
+  fen: MATE_FEN,
+  ending: "checkmate",
 })
 
 export const e4 = MovePlayed.with({
@@ -156,6 +174,7 @@ export const Play = m.chapter([
     .service(ChessService)
     .command(PlayMove)
     .emits(MovePlayed)
+    .emits(GameEnded)
     .test("White opens with 1. e4", {
       given: gameStarted,
       when: PlayMove.with({
@@ -198,6 +217,37 @@ export const Play = m.chapter([
         isCheck: true,
         isCapture: true,
       }),
+    })
+    .test("Qxf7 mates, so the move ends the game", {
+      given: gameStarted,
+      when: PlayMove.with({
+        gameId: "otb-2024-ct-r5-b1",
+        ply: 7,
+        san: "Qxf7#",
+        fromSquare: "h5",
+        toSquare: "f7",
+        piece: "queen",
+        fen: MATE_FEN,
+        sideToMove: "black",
+        isCheck: true,
+        isCapture: true,
+        ending: "checkmate",
+      }),
+      then: [
+        MovePlayed.with({
+          gameId: "otb-2024-ct-r5-b1",
+          ply: 7,
+          san: "Qxf7#",
+          fromSquare: "h5",
+          toSquare: "f7",
+          piece: "queen",
+          fen: MATE_FEN,
+          sideToMove: "black",
+          isCheck: true,
+          isCapture: true,
+        }),
+        mated,
+      ],
     })
     .test("Black cannot move while it is White's turn", {
       given: gameStarted,
@@ -338,5 +388,11 @@ export const Play = m.chapter([
     }),
 ])
 
-export const Game = m.stream({ PlayMove, MovePlayed, RuleIllegalMove, IllegalMoveRuled })
+export const Game = m.stream({
+  PlayMove,
+  MovePlayed,
+  GameEnded,
+  RuleIllegalMove,
+  IllegalMoveRuled,
+})
 export const Clock = m.stream({ PressClock, ClockPressed })
