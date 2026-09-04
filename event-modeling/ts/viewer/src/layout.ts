@@ -150,6 +150,7 @@ export const SPEC_LINE_H = 13
 export const SPEC_GAP = 8
 export const SPEC_TEST_GAP = 26
 export const SPEC_TITLE_CHARS = 26
+export const SPEC_LINE_CHARS = 24
 
 const PAD_X = (COL_W - CARD_W) / 2
 
@@ -229,11 +230,12 @@ export function words(name: string): string {
     .join(" ")
 }
 
-/** Word wrap by character count. */
+/** Word wrap by character count. A word longer than the line is cut, so a FEN string wraps too. */
 export function wrap(text: string, max: number): string[] {
   const lines: string[] = []
   let line = ""
-  for (const word of text.split(/\s+/)) {
+  const pieces = text.split(/\s+/).flatMap((w) => w.match(new RegExp(`.{1,${max}}`, "g")) ?? [])
+  for (const word of pieces) {
     if (line.length > 0 && line.length + 1 + word.length > max) {
       lines.push(line)
       line = word
@@ -692,7 +694,9 @@ export function layout(model: ModelJson): Layout {
         const step: SpecStep = { word, y: cy, cards: [] }
         cy += SPEC_WORD_H
         for (const clause of clauses) {
-          const { name, lines, error } = parseClause(clause)
+          const parsed = parseClause(clause)
+          const lines = parsed.lines.flatMap((l) => wrap(l, SPEC_LINE_CHARS))
+          const { name, error } = parsed
           const h = lines.length > 0 ? SPEC_CARD_TITLE + lines.length * SPEC_LINE_H + 6 : 26
           step.cards.push({
             kind: error ? "error" : (kinds.get(name) ?? "command"),
