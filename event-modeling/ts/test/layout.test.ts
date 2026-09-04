@@ -319,6 +319,10 @@ test("a long value wraps inside its specification card", () => {
   const card = spec?.steps.find((st) => st.word === "then")?.cards[0]
   assert.ok(card && card.lines.length >= 3)
   for (const line of card.lines) assert.ok(line.length <= 24, line)
-  assert.equal(card.lines.slice(1).join(" ").replace(/ /g, ""), `fen=${fen}`.replace(/ /g, ""))
+  assert.ok(card.lines[1]?.startsWith("fen = rnbq"), "the value starts on the field's own line")
+  for (const line of card.lines.slice(2)) assert.ok(line.startsWith("  "), "overflow is indented")
+  assert.equal(card.lines.slice(1).join("").replace(/\s/g, ""), `fen=${fen}`.replace(/\s/g, ""))
   assert.equal(wrap("abcdefghijklmnopqrstuvwxyz", 10).join("|"), "abcdefghij|klmnopqrst|uvwxyz")
+  assert.deepEqual(wrap("Duplicate list name rejected", 26), ["Duplicate list name", "rejected"])
+  assert.deepEqual(wrap("a bbbbbbbbbb", 8, 2), ["a bbbbbb", "  bbbb"])
 })

@@ -310,6 +310,7 @@ const transform = computed(
                 v-for="(line, li) in card.lines"
                 :key="li"
                 class="field"
+                style="white-space: pre"
                 :x="10"
                 :y="SPEC_CARD_TITLE + li * SPEC_LINE_H"
               >
