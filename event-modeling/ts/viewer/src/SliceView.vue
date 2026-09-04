@@ -115,6 +115,10 @@ function follow(name: string) {
   const id = canonical(name)
   if (id) emit("link", id)
 }
+// A specification line is `field = value`; the value gets its own column so it wraps under itself.
+const field = (line: string) => line.split(" = ")[0] ?? line
+const value = (line: string) => line.slice(field(line).length + 3)
+
 function cardClass(b: Box) {
   return { selected: b.id === props.selectedBox, lit: props.hovered === b.name }
 }
@@ -209,7 +213,10 @@ function cardClass(b: Box) {
               <div class="hcards">
                 <div v-for="(card, i) in step.cards" :key="i" class="hcard" :class="card.kind" @pointerenter="emit('hover', card.name)" @pointerleave="emit('hover', null)">
                   <div class="hname">{{ card.name }}</div>
-                  <div v-for="line in card.lines" :key="line" class="hline">{{ line }}</div>
+                  <div v-for="line in card.lines" :key="line" class="hline">
+                    <span class="k">{{ field(line) }}</span>
+                    <span class="v">{{ value(line) }}</span>
+                  </div>
                 </div>
               </div>
             </div>

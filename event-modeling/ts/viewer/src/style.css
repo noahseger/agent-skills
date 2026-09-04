@@ -1011,11 +1011,20 @@ svg .note-dot {
 }
 
 .hcard .hline {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0 6px;
   font-family: var(--mono);
   font-size: 11px;
+}
+
+.hcard .hline .k::after {
+  content: " =";
+}
+
+.hcard .hline .v {
+  min-width: 0;
   overflow-wrap: anywhere;
-  padding-left: 1.5em;
-  text-indent: -1.5em;
 }
 
 .hcard.command { background: var(--command-fill); border-color: var(--command-stroke); color: var(--command-ink); }
