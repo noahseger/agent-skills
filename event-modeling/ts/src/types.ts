@@ -68,6 +68,19 @@ export type Exported =
   | ChapterData
   | ModelData
 
+/** A named thing a module exports, other than the model, a stream or a chapter. */
+export type Declaration = DeclData | ActorData | ServiceData | ExternalData
+
+/** The named, checked model. The render target and the generators read this. */
+export interface Assembled {
+  model: ModelData
+  streams: Map<string, DeclData[]>
+  /** Exported but in no slice. Only a partial assembly keeps them; otherwise one is an error. */
+  loose: Declaration[]
+  /** The dead ends a partial assembly went on past. Empty otherwise. */
+  warnings: string[]
+}
+
 /** Where a mapping function got one target field from. */
 export type Source = { from: string } | { count: true } | { value: unknown }
 
