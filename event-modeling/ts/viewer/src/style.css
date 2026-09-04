@@ -29,6 +29,9 @@
   --danger-fill: #fee2e2;
   --danger-stroke: #ef4444;
   --danger-ink: #7f1d1d;
+  --warn: #92400e;
+  --warn-fill: #fffbeb;
+  --warn-stroke: #fde68a;
 
   --ui-fill: #ffffff;
   --ui-stroke: #94a3b8;
@@ -124,9 +127,10 @@ body,
   -webkit-font-smoothing: antialiased;
 }
 
+/* Header, then any banners, then the body takes what is left. */
 .app {
-  display: grid;
-  grid-template-rows: auto 1fr;
+  display: flex;
+  flex-direction: column;
   height: 100%;
 }
 
@@ -208,6 +212,7 @@ body,
 .body {
   display: grid;
   grid-template-columns: auto 1fr auto;
+  flex: 1;
   min-height: 0;
 }
 
@@ -324,6 +329,22 @@ svg .note-dot {
   font-family: var(--mono);
   font-size: 12px;
   white-space: pre-wrap;
+}
+
+/* What a model still being written has left to do. */
+.warnings {
+  margin: 0;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--warn-stroke);
+  background: var(--warn-fill);
+  color: var(--warn);
+  font-family: var(--mono);
+  font-size: 12px;
+  list-style: none;
+}
+
+.warnings li {
+  padding: 2px 0;
 }
 
 .empty {

@@ -2,7 +2,7 @@
 // em <command> <path> [options]
 //
 //   init   <dir>                  scaffold a model directory
-//   json   <path>                 print the assembled JSON
+//   json   <path> [--partial]     print the assembled JSON; --partial keeps going past dead ends
 //   render <path> -o out.svg      draw the diagram; --watch redraws on save
 //   proto  <path> -o dir          write one .proto per service
 //   view   <path> [--port n]      serve the live diagram; --no-open keeps the browser closed
@@ -25,7 +25,7 @@ import { type Snapshot, serve } from "../src/serve.ts"
 
 const USAGE = `usage:
   em init   <dir>
-  em json   <path>
+  em json   <path> [--partial]
   em render <path> -o <out.svg> [--watch]
   em proto  <path> -o <dir>
   em view   <path> [--port <n>] [--no-open]
@@ -36,10 +36,7 @@ const VIEWER_DIST = fileURLToPath(new URL("../viewer/dist/", import.meta.url))
 
 const INDEX_TS = `import { m } from "@noahseger/event-modeling"
 
-export default m.model("My System", {
-  description: "",
-  chapters: [],
-})
+export default m.model("My System")
 `
 
 // What node needs to run the model with no build step. verbatimModuleSyntax
@@ -65,6 +62,7 @@ const { values, positionals } = parseArgs({
     watch: { type: "boolean" },
     port: { type: "string" },
     open: { type: "boolean", default: true },
+    partial: { type: "boolean", default: false },
   },
   allowPositionals: true,
   allowNegative: true,
@@ -85,7 +83,7 @@ function init(dir: string): void {
 }
 
 async function json(path: string): Promise<void> {
-  console.log(JSON.stringify(await assemble(path), null, 2))
+  console.log(JSON.stringify(await assemble(path, { partial: values.partial }), null, 2))
 }
 
 async function proto(path: string, out: string): Promise<void> {
@@ -140,11 +138,14 @@ async function render(path: string, out: string): Promise<void> {
   })
 }
 
-/** The model, assembled in a fresh process so a saved module is read again. */
+/**
+ * The model, assembled in a fresh process so a saved module is read again. The
+ * picture is for a model being written, so dead ends are drawn, not refused.
+ */
 function assembleFresh(path: string): Snapshot {
   const run = spawnSync(
     process.execPath,
-    [...process.execArgv, process.argv[1] ?? "", "json", path],
+    [...process.execArgv, process.argv[1] ?? "", "json", "--partial", path],
     { encoding: "utf8" },
   )
   return run.status === 0 ? { json: run.stdout } : { error: run.stderr || run.stdout }
@@ -157,7 +158,8 @@ function builtViewer(): void {
 
 async function exportPage(path: string, out: string): Promise<void> {
   builtViewer()
-  writeFileSync(out, exportHtml(VIEWER_DIST, JSON.stringify(await assemble(path))))
+  const json = JSON.stringify(await assemble(path, { partial: true }))
+  writeFileSync(out, exportHtml(VIEWER_DIST, json))
   console.log(`wrote ${out}`)
 }
 
