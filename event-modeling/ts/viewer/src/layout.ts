@@ -26,6 +26,8 @@ export interface Box {
   canonical?: string
   /** The element carries a note. */
   noted?: boolean
+  /** A warning is about the element: the model is not finished here. */
+  warned?: boolean
   /** A screen's wireframe: the inputs it collects, the button it presses, the table it shows. */
   form?: string[]
   button?: string
@@ -67,6 +69,7 @@ export interface Column {
   /** `label` as words, for the picture. */
   title: string
   noted: boolean
+  warned: boolean
   x: number
   w: number
 }
@@ -368,6 +371,9 @@ export function layout(model: ModelJson): Layout {
     }
   }
 
+  const warnedElements = new Set((model.warnings ?? []).map((w) => w.element))
+  const warnedSlices = new Set((model.warnings ?? []).map((w) => w.slice))
+
   const columns: Column[] = []
   const chapters: Chapter[] = []
   let x = LABEL_W
@@ -382,6 +388,7 @@ export function layout(model: ModelJson): Layout {
         label: labelOf(slice),
         title: words(labelOf(slice)),
         noted: slice.note !== undefined,
+        warned: warnedSlices.has(slice.name),
         x,
         w: COL_W,
       })
@@ -390,6 +397,41 @@ export function layout(model: ModelJson): Layout {
     if (chapter.slices.length === 0) x += COL_W
     chapters.push({ name: chapter.name, title: words(chapter.name), x: start, w: x - start })
   })
+  // A declaration in no slice yet gets a column of its own, after the story so
+  // far. It is drawn as the one card a slice would draw for it.
+  if (model.loose && model.loose.length > 0) {
+    if (chapters.length > 0) x += CHAPTER_GAP
+    const start = x
+    for (const item of model.loose) {
+      const el = parse(item.element)
+      const card =
+        item.kind === "event"
+          ? { events: [item.element] }
+          : item.kind === "command"
+            ? { command: item.element }
+            : { read_models: [item.element] }
+      const slice: SliceJson = {
+        name: el.name,
+        actor: "",
+        aggregate: item.aggregate,
+        tests: [],
+        ...card,
+      }
+      columns.push({
+        index: columns.length,
+        chapter: chapters.length,
+        slice,
+        label: el.name,
+        title: words(el.name),
+        noted: model.notes[el.name] !== undefined,
+        warned: warnedElements.has(el.name),
+        x,
+        w: COL_W,
+      })
+      x += COL_W
+    }
+    chapters.push({ name: "", title: "Not yet in a slice", x: start, w: x - start })
+  }
   const width = x + PAD_X
 
   // The first card of an element is drawn in full. Every later one is the name
@@ -430,6 +472,7 @@ export function layout(model: ModelJson): Layout {
       ...(extra.compact || earlier ? { compact: true } : {}),
       ...(earlier ? { canonical: earlier.id } : {}),
       ...(model.notes[el.name] === undefined ? {} : { noted: true }),
+      ...(warnedElements.has(el.name) ? { warned: true } : {}),
       column,
       dx: extra.reference ? COL_W - 10 - REF_W : PAD_X,
       w: extra.reference ? REF_W : CARD_W,

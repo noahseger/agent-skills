@@ -267,3 +267,40 @@ test("a read model in given is named as one", () => {
     /slice 'Create' in 'Ch' gives Table, a read model; given takes events\./,
   )
 })
+
+test("a declaration in no slice is an error", () => {
+  const f = fixture()
+  const Loose = m.event({ id: z.string() })
+  assert.throws(
+    () => assembled({ ...f, Loose }, [create(f), project(f), view(f)]),
+    /Loose is in no slice/,
+  )
+})
+
+test("a partial assembly lists the dead ends and keeps the loose declarations in stream order", () => {
+  const f = fixture()
+  const Started = m.event({ id: z.string() })
+  const Ended = m.event({ id: z.string() })
+  const Games = m.stream({ Started, Ended })
+  const Ch = m.chapter([create(f)])
+  const json = assembleModules(
+    [{ ...f, Ended, Started, Games, Ch, default: m.model("x", { chapters: [Ch] }) }],
+    { partial: true },
+  )
+  assert.deepEqual(json.warnings, [
+    {
+      message:
+        "slice 'Create' in 'Ch' emits Created, which nothing consumes: no .on() and no given.",
+      element: "Created",
+      slice: "Create",
+    },
+    { message: "Started is in no slice.", element: "Started" },
+    { message: "Ended is in no slice.", element: "Ended" },
+    { message: "Table is in no slice.", element: "Table" },
+  ])
+  assert.deepEqual(json.loose, [
+    { kind: "event", element: "Started(id)", aggregate: "games" },
+    { kind: "event", element: "Ended(id)", aggregate: "games" },
+    { kind: "readModel", element: "Table(*id, name)", aggregate: "games" },
+  ])
+})

@@ -374,14 +374,17 @@ export interface Model {
   readonly [META]: ModelData
 }
 
-/** Chapters are listed because their order is the timeline. */
-function model(name: string, spec: { description?: string; chapters: readonly Chapter[] }): Model {
+/** Chapters are listed because their order is the timeline. A storm of events has none yet. */
+function model(
+  name: string,
+  spec: { description?: string; chapters?: readonly Chapter[] } = {},
+): Model {
   return {
     [META]: {
       kind: "model",
       name,
       description: spec.description ?? "",
-      chapters: spec.chapters.map((c) => c[META]),
+      chapters: (spec.chapters ?? []).map((c) => c[META]),
     },
   }
 }

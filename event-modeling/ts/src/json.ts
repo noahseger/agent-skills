@@ -5,13 +5,14 @@
 // streams are `aggregates`, and a read model's key columns are `*field`.
 // Everything else (`query`, `polls`, `note`, `mapping`) the target reads as is.
 import type {
+  Assembled,
   ClauseData,
   DeclData,
   ExampleData,
-  ModelData,
   SliceData,
   Source,
   TestData,
+  Warning,
 } from "./types.ts"
 
 export interface TestJson {
@@ -47,6 +48,13 @@ export interface ActorJson {
   type: "user" | "admin" | "system" | "external"
 }
 
+/** A declaration in no slice yet, drawn on its own in its lane. */
+export interface LooseJson {
+  kind: "event" | "command" | "readModel"
+  element: string
+  aggregate: string
+}
+
 export interface ModelJson {
   name: string
   description: string
@@ -54,6 +62,9 @@ export interface ModelJson {
   aggregates: { id: string; name: string }[]
   chapters: { name: string; slices: SliceJson[] }[]
   notes: Record<string, string>
+  /** Only a partial assembly has these: the model is still being written. */
+  loose?: LooseJson[]
+  warnings?: Warning[]
 }
 
 const SYSTEM: ActorJson = { id: "system", name: "System", type: "system" }
@@ -94,7 +105,7 @@ function test(t: TestData): TestJson {
   }
 }
 
-export function toJson(model: ModelData, streams: Map<string, DeclData[]>): ModelJson {
+export function toJson({ model, streams, loose, warnings }: Assembled): ModelJson {
   const notes: Record<string, string> = {}
   const noted = (d: { name?: string; note?: string }) => {
     if (d.name !== undefined && d.note !== undefined) notes[d.name] = d.note
@@ -105,19 +116,16 @@ export function toJson(model: ModelData, streams: Map<string, DeclData[]>): Mode
     streams.size > 0
       ? [...streams.keys()].map((name) => ({ id: slug(name), name }))
       : [{ id: "events", name: "Events" }]
-  const laneOf = (slice: SliceData): string => {
-    const drawn = [
-      slice.command,
-      ...slice.emits.map((f) => f.event),
-      ...slice.on.map((f) => f.event),
-    ]
-    // The command decides the lane, then what the slice emits, then what it hears.
-    for (const d of drawn) {
-      if (d === undefined) continue
-      for (const [name, members] of streams) if (members.includes(d)) return slug(name)
-    }
-    return aggregates[0]?.id ?? ""
+  const streamOf = (d: DeclData): string | undefined => {
+    for (const [name, members] of streams) if (members.includes(d)) return slug(name)
+    return undefined
   }
+  const fallback = aggregates[0]?.id ?? ""
+  // The command decides the lane, then what the slice emits, then what it hears.
+  const laneOf = (slice: SliceData): string =>
+    [slice.command, ...slice.emits.map((f) => f.event), ...slice.on.map((f) => f.event)]
+      .map((d) => (d === undefined ? undefined : streamOf(d)))
+      .find((lane) => lane !== undefined) ?? fallback
 
   const actors = new Map<string, ActorJson>()
   const actorOf = (slice: SliceData): string => {
@@ -181,6 +189,13 @@ export function toJson(model: ModelData, streams: Map<string, DeclData[]>): Mode
     }),
   }))
 
+  const drawnLoose: LooseJson[] = []
+  for (const d of loose) {
+    noted(d)
+    if (d.kind === "event" || d.kind === "command" || d.kind === "readModel")
+      drawnLoose.push({ kind: d.kind, element: element(d), aggregate: streamOf(d) ?? fallback })
+  }
+
   return {
     name: model.name,
     description: model.description,
@@ -188,5 +203,7 @@ export function toJson(model: ModelData, streams: Map<string, DeclData[]>): Mode
     aggregates,
     chapters,
     notes,
+    ...(drawnLoose.length > 0 ? { loose: drawnLoose } : {}),
+    ...(warnings.length > 0 ? { warnings } : {}),
   }
 }

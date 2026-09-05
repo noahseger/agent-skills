@@ -99,6 +99,11 @@ const specs = computed(() => props.layout.specs.filter((s) => s.column === props
 const viewBox = computed(() => `${props.column.x} 0 ${props.column.w} ${local.value.height}`)
 
 const slice = computed(() => props.column.slice)
+const warnings = computed(() =>
+  (props.model.warnings ?? []).filter(
+    (w) => w.slice === slice.value.name || w.element === slice.value.name,
+  ),
+)
 const actor = computed(() => props.model.actors.find((a) => a.id === slice.value.actor)?.name)
 const triggers = computed(() => {
   const t = slice.value.trigger
@@ -132,6 +137,7 @@ function cardClass(b: Box) {
         <span class="sep">›</span>
         <span class="name">{{ column.title }}</span>
         <span v-if="column.noted" class="note-dot"></span>
+        <span v-if="column.warned" class="warn-dot"></span>
       </div>
       <div class="controls">
         <button type="button" aria-label="Previous slice" :disabled="column.index <= first" @click="emit('step', -1)">←</button>
@@ -170,6 +176,7 @@ function cardClass(b: Box) {
       <div class="slice-right">
         <div class="facts">
           <p v-if="slice.note" class="note"><span class="badge" aria-hidden="true">i</span>{{ slice.note }}</p>
+          <p v-for="w in warnings" :key="w.message" class="note warning"><span class="badge" aria-hidden="true">!</span>{{ w.message }}</p>
           <dl>
             <template v-if="actor"><dt>Actor</dt><dd>{{ actor }}</dd></template>
             <template v-if="slice.ui"><dt>Service</dt><dd>{{ slice.ui }}</dd></template>

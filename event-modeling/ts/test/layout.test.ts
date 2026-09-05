@@ -326,3 +326,46 @@ test("a long value wraps inside its specification card", () => {
   assert.deepEqual(wrap("Duplicate list name rejected", 26), ["Duplicate list name", "rejected"])
   assert.deepEqual(wrap("a bbbbbbbbbb", 8, 2), ["a bbbbbb", "  bbbb"])
 })
+
+test("a loose declaration is a column after the story, its card in its lane", () => {
+  const storm = layout({
+    ...model,
+    loose: [
+      { kind: "event", element: "Started(id)", aggregate: "lists" },
+      { kind: "command", element: "Start(id)", aggregate: "lists" },
+    ],
+    warnings: [
+      { message: "Started is in no slice.", element: "Started" },
+      {
+        message: "slice 'CreateList' emits ListCreated, which nothing consumes.",
+        element: "ListCreated",
+        slice: "CreateList",
+      },
+    ],
+  })
+  const last = storm.chapters.length - 1
+  assert.equal(storm.chapters[last]?.title, "Not yet in a slice")
+  const cols = storm.columns.filter((c) => c.chapter === last)
+  assert.deepEqual(
+    cols.map((c) => c.title),
+    ["Started", "Start"],
+  )
+  assert.ok(cols.every((c) => c.x >= (storm.chapters[last - 1]?.x ?? 0)))
+  const rows = new Map(storm.rows.map((r) => [r.id, r]))
+  const inRow = (b: Box, id: string) => {
+    const r = rows.get(id)
+    return r !== undefined && b.y >= r.y && b.y + b.h <= r.y + r.h
+  }
+  const started = storm.boxes.find((b) => b.name === "Started")
+  const start = storm.boxes.find((b) => b.name === "Start")
+  assert.ok(started && start)
+  assert.ok(inRow(started, "stream:lists"))
+  assert.ok(inRow(start, "middle"))
+  // A warning marks its element's card and its slice's column.
+  assert.equal(started.warned, true)
+  assert.equal(start.warned, undefined)
+  assert.equal(cols[0]?.warned, true)
+  assert.equal(cols[1]?.warned, false)
+  assert.equal(storm.columns[0]?.warned, true)
+  assert.ok(storm.boxes.filter((b) => b.name === "ListCreated").every((b) => b.warned))
+})
