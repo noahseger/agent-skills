@@ -56,6 +56,10 @@ const TSCONFIG = `${JSON.stringify(
   2,
 )}\n`
 
+// Node takes the module type from the nearest package.json. Without one here, a
+// parent package that names none makes node warn and reparse on every save.
+const PACKAGE_JSON = `${JSON.stringify({ type: "module" }, null, 2)}\n`
+
 const { values, positionals } = parseArgs({
   options: {
     out: { type: "string", short: "o" },
@@ -70,7 +74,7 @@ const { values, positionals } = parseArgs({
 const [command, path] = positionals
 
 function init(dir: string): void {
-  const files = { "index.ts": INDEX_TS, "tsconfig.json": TSCONFIG }
+  const files = { "index.ts": INDEX_TS, "tsconfig.json": TSCONFIG, "package.json": PACKAGE_JSON }
   for (const name of Object.keys(files)) {
     if (existsSync(join(dir, name)))
       throw new Error(`${join(dir, name)} exists; init does not overwrite.`)
