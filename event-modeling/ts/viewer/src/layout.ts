@@ -26,6 +26,8 @@ export interface Box {
   canonical?: string
   /** The element carries a note. */
   noted?: boolean
+  /** A warning is about the element: the model is not finished here. */
+  warned?: boolean
   /** A screen's wireframe: the inputs it collects, the button it presses, the table it shows. */
   form?: string[]
   button?: string
@@ -67,6 +69,7 @@ export interface Column {
   /** `label` as words, for the picture. */
   title: string
   noted: boolean
+  warned: boolean
   x: number
   w: number
 }
@@ -368,6 +371,9 @@ export function layout(model: ModelJson): Layout {
     }
   }
 
+  const warnedElements = new Set((model.warnings ?? []).map((w) => w.element))
+  const warnedSlices = new Set((model.warnings ?? []).map((w) => w.slice))
+
   const columns: Column[] = []
   const chapters: Chapter[] = []
   let x = LABEL_W
@@ -382,6 +388,7 @@ export function layout(model: ModelJson): Layout {
         label: labelOf(slice),
         title: words(labelOf(slice)),
         noted: slice.note !== undefined,
+        warned: warnedSlices.has(slice.name),
         x,
         w: COL_W,
       })
@@ -417,6 +424,7 @@ export function layout(model: ModelJson): Layout {
         label: el.name,
         title: words(el.name),
         noted: model.notes[el.name] !== undefined,
+        warned: warnedElements.has(el.name),
         x,
         w: COL_W,
       })
@@ -464,6 +472,7 @@ export function layout(model: ModelJson): Layout {
       ...(extra.compact || earlier ? { compact: true } : {}),
       ...(earlier ? { canonical: earlier.id } : {}),
       ...(model.notes[el.name] === undefined ? {} : { noted: true }),
+      ...(warnedElements.has(el.name) ? { warned: true } : {}),
       column,
       dx: extra.reference ? COL_W - 10 - REF_W : PAD_X,
       w: extra.reference ? REF_W : CARD_W,

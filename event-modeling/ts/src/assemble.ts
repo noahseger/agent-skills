@@ -15,9 +15,10 @@ import {
   META,
   type ModelData,
   type SliceData,
+  type Warning,
 } from "./types.ts"
 
-export type { Assembled, ModelJson }
+export type { Assembled, ModelJson, Warning }
 
 export interface Options {
   /**
@@ -28,7 +29,7 @@ export interface Options {
 }
 
 /** What a check does with a dead end. */
-type Fail = (message: string) => void
+type Fail = (warning: Warning) => void
 
 /** `path` is a model directory or a single module. */
 export async function assemble(path: string, options: Options = {}): Promise<ModelJson> {
@@ -50,17 +51,17 @@ export async function load(path: string, options: Options = {}): Promise<Assembl
 
 export function loadModules(modules: readonly object[], options: Options = {}): Assembled {
   const { model, streams, declared } = nameExports(modules)
-  const warnings: string[] = []
+  const warnings: Warning[] = []
   const fail: Fail = options.partial
-    ? (message) => {
-        warnings.push(message)
+    ? (warning) => {
+        warnings.push(warning)
       }
-    : (message) => {
-        throw new Error(message)
+    : (warning) => {
+        throw new Error(warning.message)
       }
   check(model, fail)
   const loose = looseOf(model, streams, declared)
-  for (const d of loose) fail(`${d.name} is in no slice.`)
+  for (const d of loose) fail({ message: `${d.name} is in no slice.`, element: d.name ?? "" })
   return { model, streams, loose, warnings }
 }
 
@@ -281,6 +282,11 @@ function checkConnected(located: Located[], fail: Fail): void {
     for (const r of [...slice.reads, slice.polls]) if (r) read.add(r)
   }
   for (const { slice, where } of located) {
+    const about = (d: DeclData, message: string): Warning => ({
+      message,
+      element: d.name ?? "",
+      slice: slice.name ?? "",
+    })
     // tsc says this first; the CLI has to say it too, and before it blames the emitter.
     for (const t of slice.tests) {
       for (const g of t.given) {
@@ -304,16 +310,23 @@ function checkConnected(located: Located[], fail: Fail): void {
     }
     for (const f of slice.emits) {
       if (!consumed.has(f.event))
-        fail(`${where} emits ${f.event.name}, which nothing consumes: no .on() and no given.`)
+        fail(
+          about(
+            f.event,
+            `${where} emits ${f.event.name}, which nothing consumes: no .on() and no given.`,
+          ),
+        )
     }
     const given = slice.tests.flatMap((t) => t.given.map((g) => g.decl))
     for (const e of [...slice.on.map((f) => f.event), ...given]) {
-      if (!e.external && !emitted.has(e)) fail(`${where} uses ${e.name}, which no slice emits.`)
+      if (!e.external && !emitted.has(e))
+        fail(about(e, `${where} uses ${e.name}, which no slice emits.`))
     }
     if (slice.projects && !read.has(slice.projects))
-      fail(`${where} projects ${slice.projects.name}, which nothing reads.`)
+      fail(about(slice.projects, `${where} projects ${slice.projects.name}, which nothing reads.`))
     for (const r of [...slice.reads, slice.polls]) {
-      if (r && !projected.has(r)) fail(`${where} reads ${r.name}, which nothing projects.`)
+      if (r && !projected.has(r))
+        fail(about(r, `${where} reads ${r.name}, which nothing projects.`))
     }
   }
 }

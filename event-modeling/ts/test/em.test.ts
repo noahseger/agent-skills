@@ -145,14 +145,16 @@ test("json refuses a storm of events; --partial prints it with what is still to 
   assert.match(strict.stderr, /GameStarted is in no slice/)
   const partial = em("json", "--partial", storm)
   assert.equal(partial.status, 0, partial.stderr)
-  const json = JSON.parse(partial.stdout) as { loose: { element: string }[]; warnings: string[] }
+  const json = JSON.parse(partial.stdout) as {
+    loose: { element: string }[]
+    warnings: { message: string }[]
+  }
   assert.deepEqual(
     json.loose.map((l) => l.element),
     ["GameStarted(gameId)", "MoveMade(gameId, san)", "GameEnded(gameId, result)"],
   )
-  assert.deepEqual(json.warnings, [
-    "GameStarted is in no slice.",
-    "MoveMade is in no slice.",
-    "GameEnded is in no slice.",
-  ])
+  assert.deepEqual(
+    json.warnings.map((w) => w.message),
+    ["GameStarted is in no slice.", "MoveMade is in no slice.", "GameEnded is in no slice."],
+  )
 })
