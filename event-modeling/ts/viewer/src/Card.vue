@@ -29,7 +29,7 @@ const centred = computed(
     :transform="`translate(${box.x} ${box.y})`"
     role="button"
     tabindex="0"
-    :aria-label="`${LABEL[box.kind]} ${box.name}${box.noted ? ', has a note' : ''}`"
+    :aria-label="`${LABEL[box.kind]} ${box.name}${box.noted ? ', has a note' : ''}${box.warned ? ', not finished' : ''}`"
     @keydown.enter.stop="$emit('pick')"
   >
     <title v-if="box.canonical">Shown in full where it first appears</title>
@@ -123,6 +123,11 @@ const centred = computed(
       <title>Has a note</title>
       <circle :cx="box.w - 1" :cy="1" r="6.5" />
       <text text-anchor="middle" :x="box.w - 1" :y="4">i</text>
+    </g>
+    <g v-if="box.warned" class="warn-badge">
+      <title>Not finished: see the panel</title>
+      <circle :cx="1" :cy="1" r="6.5" />
+      <text text-anchor="middle" :x="1" :y="4">!</text>
     </g>
   </g>
 </template>

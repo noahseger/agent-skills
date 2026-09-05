@@ -12,6 +12,7 @@ import type {
   SliceData,
   Source,
   TestData,
+  Warning,
 } from "./types.ts"
 
 export interface TestJson {
@@ -63,7 +64,7 @@ export interface ModelJson {
   notes: Record<string, string>
   /** Only a partial assembly has these: the model is still being written. */
   loose?: LooseJson[]
-  warnings?: string[]
+  warnings?: Warning[]
 }
 
 const SYSTEM: ActorJson = { id: "system", name: "System", type: "system" }
