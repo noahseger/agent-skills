@@ -1,7 +1,16 @@
 // The CLI, run as a user runs it: a fresh node process per command.
 import assert from "node:assert/strict"
 import { spawn, spawnSync } from "node:child_process"
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
@@ -60,7 +69,12 @@ test("init scaffolds a model that assembles, and refuses to overwrite it", () =>
     rmSync(dir, { recursive: true })
     const run = em("init", dir)
     assert.equal(run.status, 0, run.stderr)
-    assert.ok(existsSync(join(dir, "index.ts")) && existsSync(join(dir, "tsconfig.json")))
+    // The scaffold's own package.json ends node's search for the package by
+    // name, so the model gets the dependency the way a user's would.
+    mkdirSync(join(dir, "node_modules", "@noahseger"), { recursive: true })
+    symlinkSync(here(".."), join(dir, "node_modules", "@noahseger", "event-modeling"))
+    for (const f of ["index.ts", "tsconfig.json", "package.json"])
+      assert.ok(existsSync(join(dir, f)), f)
     assert.deepEqual(JSON.parse(em("json", dir).stdout).chapters, [])
     const again = em("init", dir)
     assert.equal(again.status, 1)
@@ -157,4 +171,20 @@ test("json refuses a storm of events; --partial prints it with what is still to 
     json.warnings.map((w) => w.message),
     ["GameStarted is in no slice.", "MoveMade is in no slice.", "GameEnded is in no slice."],
   )
+})
+
+test("a directory's dependencies, hidden files and .d.ts files are not the model", () => {
+  const dir = mkdtempSync(here("../tmp-walk-"))
+  try {
+    cpSync(here("./fixtures/storm/index.ts"), join(dir, "index.ts"))
+    mkdirSync(join(dir, "node_modules", "dep"), { recursive: true })
+    writeFileSync(join(dir, "node_modules", "dep", "index.ts"), "throw new Error('dependency')")
+    mkdirSync(join(dir, ".cache"))
+    writeFileSync(join(dir, ".cache", "x.ts"), "throw new Error('hidden')")
+    writeFileSync(join(dir, "types.d.ts"), "export declare const x: string")
+    const run = em("json", "--partial", dir)
+    assert.equal(run.status, 0, run.stderr)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })

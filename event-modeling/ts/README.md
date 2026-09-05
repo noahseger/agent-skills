@@ -61,7 +61,8 @@ npm install @noahseger/event-modeling zod
 npx em init model/
 ```
 
-`init` writes `model/index.ts` and a `tsconfig.json` that lets node run the model with no build step.
+`init` writes `model/index.ts`, a `tsconfig.json` that lets node run the model with no build step,
+and a `package.json` that marks the directory as ES modules.
 
 ### 2. Actors and the service
 

@@ -65,13 +65,15 @@ export function loadModules(modules: readonly object[], options: Options = {}): 
   return { model, streams, loose, warnings }
 }
 
+/** Every module under `dir`. Dependencies, hidden directories and `.d.ts` files are not the model. */
 function walk(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true })
     .sort((a, b) => a.name.localeCompare(b.name))
     .flatMap((entry) => {
       const path = join(dir, entry.name)
-      if (entry.isDirectory()) return walk(path)
-      return entry.name.endsWith(".ts") ? [path] : []
+      if (entry.isDirectory())
+        return entry.name === "node_modules" || entry.name.startsWith(".") ? [] : walk(path)
+      return entry.name.endsWith(".ts") && !entry.name.endsWith(".d.ts") ? [path] : []
     })
 }
 
