@@ -26,6 +26,7 @@ defineEmits<{ select: [column: number] }>()
       >
         {{ col.title }}
         <span v-if="col.noted" class="note-dot" role="img" aria-label="has a note"></span>
+        <span v-if="col.warned" class="warn-dot" role="img" aria-label="not finished"></span>
       </button>
     </template>
     <p class="hint">← → move between slices · Enter or double click opens one · Esc back to the canvas</p>

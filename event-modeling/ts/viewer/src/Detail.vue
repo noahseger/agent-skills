@@ -34,6 +34,15 @@ const fields = computed(() => {
 })
 
 const note = computed(() => (props.box ? props.model.notes[props.box.name] : undefined))
+// What is unfinished about the element, then about the rest of the slice.
+const elementWarnings = computed(() =>
+  (props.model.warnings ?? []).filter((w) => props.box && w.element === props.box.name),
+)
+const sliceWarnings = computed(() =>
+  (props.model.warnings ?? []).filter(
+    (w) => w.slice === slice.value.name && !elementWarnings.value.includes(w),
+  ),
+)
 const actor = computed(() => props.model.actors.find((a) => a.id === slice.value.actor)?.name)
 const mapping = computed(() =>
   props.box?.kind === "event" ? slice.value.mapping?.[props.box.name] : undefined,
@@ -90,6 +99,7 @@ const mentions = (clause: string) =>
     </header>
 
     <p v-if="note" class="note"><span class="badge" aria-hidden="true">i</span>{{ note }}</p>
+    <p v-for="w in elementWarnings" :key="w.message" class="note warning"><span class="badge" aria-hidden="true">!</span>{{ w.message }}</p>
 
     <template v-if="fields.fields.length">
       <h3>{{ box?.kind === "ui" ? "Query" : "Fields" }}</h3>
@@ -116,6 +126,7 @@ const mentions = (clause: string) =>
       <template v-if="triggers"><dt>On</dt><dd>{{ triggers }}</dd></template>
     </dl>
     <p v-if="slice.note" class="note" style="margin-top: 10px"><span class="badge" aria-hidden="true">i</span>{{ slice.note }}</p>
+    <p v-for="w in sliceWarnings" :key="w.message" class="note warning" style="margin-top: 10px"><span class="badge" aria-hidden="true">!</span>{{ w.message }}</p>
 
     <template v-if="groups.length">
       <h3>Specifications</h3>

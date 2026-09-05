@@ -78,7 +78,14 @@ export interface Assembled {
   /** Exported but in no slice. Only a partial assembly keeps them; otherwise one is an error. */
   loose: Declaration[]
   /** The dead ends a partial assembly went on past. Empty otherwise. */
-  warnings: string[]
+  warnings: Warning[]
+}
+
+/** A dead end, and what it is about, so the picture can mark the card and the slice. */
+export interface Warning {
+  message: string
+  element: string
+  slice?: string
 }
 
 /** Where a mapping function got one target field from. */

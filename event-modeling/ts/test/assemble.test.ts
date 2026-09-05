@@ -288,10 +288,15 @@ test("a partial assembly lists the dead ends and keeps the loose declarations in
     { partial: true },
   )
   assert.deepEqual(json.warnings, [
-    "slice 'Create' in 'Ch' emits Created, which nothing consumes: no .on() and no given.",
-    "Started is in no slice.",
-    "Ended is in no slice.",
-    "Table is in no slice.",
+    {
+      message:
+        "slice 'Create' in 'Ch' emits Created, which nothing consumes: no .on() and no given.",
+      element: "Created",
+      slice: "Create",
+    },
+    { message: "Started is in no slice.", element: "Started" },
+    { message: "Ended is in no slice.", element: "Ended" },
+    { message: "Table is in no slice.", element: "Table" },
   ])
   assert.deepEqual(json.loose, [
     { kind: "event", element: "Started(id)", aggregate: "games" },

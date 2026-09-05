@@ -184,7 +184,7 @@ onUnmounted(() => {
     </header>
     <pre v-if="error !== null" class="error" role="alert">{{ error }}</pre>
     <ul v-if="model?.warnings?.length" class="warnings" role="status" aria-label="Still to do">
-      <li v-for="w in model.warnings" :key="w">{{ w }}</li>
+      <li v-for="w in model.warnings" :key="w.message">{{ w.message }}</li>
     </ul>
     <main class="body">
       <Nav

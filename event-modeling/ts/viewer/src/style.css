@@ -32,6 +32,7 @@
   --warn: #92400e;
   --warn-fill: #fffbeb;
   --warn-stroke: #fde68a;
+  --warn-mark: #f59e0b;
 
   --ui-fill: #ffffff;
   --ui-stroke: #94a3b8;
@@ -288,6 +289,19 @@ body,
 
 svg .note-dot {
   fill: var(--accent);
+}
+
+/* The model is not finished here. */
+.warn-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn-mark);
+}
+
+svg .warn-dot {
+  fill: var(--warn-mark);
 }
 
 .canvas {
@@ -583,6 +597,18 @@ svg .note-dot {
   fill: #ffffff;
 }
 
+.card .warn-badge circle {
+  fill: var(--warn-mark);
+  stroke: #ffffff;
+  stroke-width: 1.5;
+}
+
+.card .warn-badge text {
+  font-size: 8px;
+  font-weight: 700;
+  fill: #ffffff;
+}
+
 .card.compact .title {
   font-weight: 500;
 }
@@ -734,6 +760,11 @@ svg .note-dot {
   margin: 0;
   color: var(--ink);
   line-height: 1.5;
+}
+
+.detail .note.warning .badge,
+.facts .note.warning .badge {
+  background: var(--warn-mark);
 }
 
 .detail .note .badge {

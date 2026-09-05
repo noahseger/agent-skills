@@ -250,6 +250,7 @@ const transform = computed(
               {{ col.title }}
             </text>
             <circle v-if="col.noted" class="note-dot" :cx="col.x + col.w - 16" :cy="layout.nameY + NAME_H / 2" r="3.5" />
+            <circle v-if="col.warned" class="warn-dot" :cx="col.x + 16" :cy="layout.nameY + NAME_H / 2" r="3.5" />
           </g>
         </g>
 

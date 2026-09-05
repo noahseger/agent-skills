@@ -334,6 +334,14 @@ test("a loose declaration is a column after the story, its card in its lane", ()
       { kind: "event", element: "Started(id)", aggregate: "lists" },
       { kind: "command", element: "Start(id)", aggregate: "lists" },
     ],
+    warnings: [
+      { message: "Started is in no slice.", element: "Started" },
+      {
+        message: "slice 'CreateList' emits ListCreated, which nothing consumes.",
+        element: "ListCreated",
+        slice: "CreateList",
+      },
+    ],
   })
   const last = storm.chapters.length - 1
   assert.equal(storm.chapters[last]?.title, "Not yet in a slice")
@@ -353,4 +361,11 @@ test("a loose declaration is a column after the story, its card in its lane", ()
   assert.ok(started && start)
   assert.ok(inRow(started, "stream:lists"))
   assert.ok(inRow(start, "middle"))
+  // A warning marks its element's card and its slice's column.
+  assert.equal(started.warned, true)
+  assert.equal(start.warned, undefined)
+  assert.equal(cols[0]?.warned, true)
+  assert.equal(cols[1]?.warned, false)
+  assert.equal(storm.columns[0]?.warned, true)
+  assert.ok(storm.boxes.filter((b) => b.name === "ListCreated").every((b) => b.warned))
 })
