@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node --experimental-strip-types --disable-warning=ExperimentalWarning
+#!/usr/bin/env node
 // em <command> <path> [options]
 //
 //   init   <dir>                  scaffold a model directory
@@ -23,6 +23,18 @@ import { exportHtml } from "../src/export.ts"
 import { generateProto } from "../src/proto.ts"
 import { type Snapshot, serve } from "../src/serve.ts"
 
+// The model is TypeScript that node runs as is. Node 22 does that only when
+// told, so this runs itself again with the flag. From node 23.6 it is on.
+const STRIP = "--experimental-strip-types"
+if (!process.features.typescript && !process.execArgv.includes(STRIP)) {
+  const again = spawnSync(
+    process.execPath,
+    [STRIP, "--disable-warning=ExperimentalWarning", ...process.execArgv, ...process.argv.slice(1)],
+    { stdio: "inherit" },
+  )
+  process.exit(again.status ?? 1)
+}
+
 const USAGE = `usage:
   em init   <dir>
   em json   <path> [--partial]
@@ -31,8 +43,19 @@ const USAGE = `usage:
   em view   <path> [--port <n>] [--no-open]
   em export <path> -o <out.html>`
 
-const EVENT_MODEL_PY = fileURLToPath(new URL("../../event_model.py", import.meta.url))
-const VIEWER_DIST = fileURLToPath(new URL("../viewer/dist/", import.meta.url))
+/** The package directory, whether this runs from `bin/` or from `dist/bin/`. */
+function packageRoot(): string {
+  let dir = dirname(fileURLToPath(import.meta.url))
+  while (!existsSync(join(dir, "package.json"))) dir = dirname(dir)
+  return dir
+}
+const ROOT = packageRoot()
+const VIEWER_DIST = join(ROOT, "viewer", "dist")
+// The renderer lives beside this package in the repository; the build copies it in.
+const EVENT_MODEL_PY =
+  [join(ROOT, "event_model.py"), join(ROOT, "..", "event_model.py")].find((p) => existsSync(p)) ??
+  join(ROOT, "event_model.py")
+const PYTHON = process.platform === "win32" ? "python" : "python3"
 
 const INDEX_TS = `import { m } from "@noahseger/event-modeling"
 
@@ -107,7 +130,7 @@ async function renderOnce(path: string, out: string): Promise<void> {
   try {
     const file = join(scratch, "model.json")
     writeFileSync(file, JSON.stringify(await assemble(path)))
-    const run = spawnSync("python3", [EVENT_MODEL_PY, "render", file, "-o", out], {
+    const run = spawnSync(PYTHON, [EVENT_MODEL_PY, "render", file, "-o", out], {
       stdio: "inherit",
     })
     if (run.status !== 0) process.exitCode = run.status ?? 1
