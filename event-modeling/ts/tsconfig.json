@@ -16,5 +16,5 @@
     "erasableSyntaxOnly": true,
     "skipLibCheck": true
   },
-  "include": ["src", "test", "examples"]
+  "include": ["src", "bin", "test", "examples"]
 }

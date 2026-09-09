@@ -1,16 +1,34 @@
 {
   "name": "@noahseger/event-modeling",
   "version": "0.1.0",
+  "description": "An event model written in TypeScript: a live diagram, whole-model checks, and the protobuf it describes.",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/noahseger/agent-skills.git",
+    "directory": "event-modeling/ts"
+  },
+  "engines": {
+    "node": ">=22.6"
+  },
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
   },
   "imports": {
     "#em": "./src/index.ts"
   },
   "bin": {
-    "em": "bin/em.ts"
+    "em": "dist/bin/em.js"
   },
+  "files": [
+    "dist",
+    "viewer/dist",
+    "event_model.py"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p viewer",
     "lint": "biome check .",
@@ -19,7 +37,8 @@
     "render": "node --experimental-strip-types --disable-warning=ExperimentalWarning bin/em.ts render",
     "proto": "node --experimental-strip-types --disable-warning=ExperimentalWarning bin/em.ts proto",
     "view": "node --experimental-strip-types --disable-warning=ExperimentalWarning bin/em.ts view",
-    "build": "vite build viewer",
+    "build": "vite build viewer && tsc -p tsconfig.build.json && node -e \"fs.copyFileSync('../event_model.py', 'event_model.py')\"",
+    "prepack": "npm run build",
     "viewer:dev": "vite viewer",
     "test": "npm run typecheck && npm run lint && npm run build && node --test --experimental-strip-types 'test/*.test.ts' && npm run lint:proto"
   },
