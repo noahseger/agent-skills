@@ -425,3 +425,36 @@ the first error. With `--partial` it goes on past dead ends and lists them in th
 `warnings`, with the declarations in no slice as `loose`; `view` and `export` assemble that way.
 `tsc` checks the types, with the `tsconfig.json` that `init` wrote. Node runs the
 TypeScript directly with `--experimental-strip-types`. The dependencies are `zod` and `typescript`.
+
+## Developing
+
+You need node 22, `buf` for the proto lint, and python 3 with `pydantic` for `render` and the
+tests. On a Mac: `brew install node buf` and `pip install pydantic`.
+
+```bash
+git clone https://github.com/noahseger/agent-skills.git
+cd agent-skills/event-modeling/ts
+npm ci && npm run build && npm test
+```
+
+`npm test` runs `tsc`, biome, the viewer build, the node tests and `buf lint`. The viewer is built
+output, so run `npm run build` again after pulling a change under `viewer/`.
+
+To try the CLI the way a user does, make a scratch project that installs this checkout:
+
+```bash
+mkdir /tmp/em-try && cd /tmp/em-try
+npm init -y && npm install zod ../path/to/agent-skills/event-modeling/ts
+npx em init model
+npx em view model
+```
+
+The browser shows an empty model. Add an event to `model/index.ts` and save:
+
+```ts
+export const BeerOrdered = m.event({})
+```
+
+The picture redraws with the event under "Not yet in a slice", and "BeerOrdered is in no slice."
+listed above it. `npx em export model -o model.html` writes the same picture as one file. Point
+`em` at the model directory, not at the project root.
