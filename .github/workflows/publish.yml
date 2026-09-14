@@ -1,0 +1,36 @@
+# Publishes @noahseger/event-modeling to GitHub Packages. Push a tag v<version>
+# that matches package.json, or run it by hand from the Actions tab.
+name: publish
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: event-modeling/ts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: https://npm.pkg.github.com
+          scope: "@noahseger"
+          cache: npm
+          cache-dependency-path: event-modeling/ts/package-lock.json
+      - name: The tag names the version in package.json
+        if: github.ref_type == 'tag'
+        run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
+      - run: npm ci
+      # prepack builds the viewer and the package and copies the renderer in.
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

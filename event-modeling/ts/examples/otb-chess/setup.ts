@@ -1,7 +1,6 @@
 // A tournament pairing arrives from outside and starts a game on a board and a clock.
 
-import { z } from "zod"
-import { m } from "#em"
+import { m, z } from "#em"
 
 // The two players at the board. Either may act; the side is a field, not an actor.
 export const Player = m.actor()

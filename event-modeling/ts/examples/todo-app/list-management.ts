@@ -1,7 +1,6 @@
 // The story starts with a user, the API they use, and what they do to lists.
 
-import { z } from "zod"
-import { m } from "#em"
+import { m, z } from "#em"
 
 // A person who keeps todo lists.
 export const User = m.actor()

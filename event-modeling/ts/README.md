@@ -1,11 +1,17 @@
 # event-modeling
 
-An [event model](https://eventmodeling.org/posts/what-is-event-modeling/) written in TypeScript.
-The model renders as a live diagram and generates the API it describes.
+An [event model](https://eventmodeling.org/posts/what-is-event-modeling/) written in TypeScript,
+and the `em` command that works on it. You get:
+
+- a typed way to write the model, so a wrong slice does not compile;
+- a live diagram in the browser that redraws on every save;
+- a check of the whole model, where each error names the slice it found the problem in;
+- one `.proto` file per service the model describes.
+
+It runs wherever node 22 or later runs.
 
 ```ts
-import { m } from "@noahseger/event-modeling"
-import { z } from "zod"
+import { m, z } from "@noahseger/event-modeling"
 ```
 
 ## Vocabulary
@@ -56,13 +62,34 @@ declaring each thing where the story first needs it.
 
 ### 1. Set up
 
+You need node 22 or later. The package is on GitHub Packages, not npmjs, so npm has to be told
+where `@noahseger` packages live and how to sign in. Once per project, put this in `.npmrc` next
+to your `package.json`:
+
+```ini
+@noahseger:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+```
+
+Then put a GitHub personal access token (classic) with the `read:packages` scope in the
+`GITHUB_TOKEN` environment variable. The file names the variable, so it is safe to commit. Now
+install and scaffold:
+
 ```bash
-npm install @noahseger/event-modeling zod
-npx em init model/
+npm install @noahseger/event-modeling
+npx em init model
 ```
 
 `init` writes `model/index.ts`, a `tsconfig.json` that lets node run the model with no build step,
-and a `package.json` that marks the directory as ES modules.
+and a `package.json` that marks the directory as ES modules. Start the diagram in a second
+terminal and leave it running:
+
+```bash
+npx em view model
+```
+
+It opens the browser and redraws on every save, until you stop it with Ctrl-C. If `npm install`
+answers `401` or `404`, the token is missing or lacks `read:packages`.
 
 ### 2. Actors and the service
 
@@ -298,14 +325,15 @@ directory. The worked example is `examples/todo-app/`.
 
 ### 10. Look at it
 
+The diagram from step 1 has followed every save. Click a card for its notes and specifications.
+Now generate the API:
+
 ```bash
-npx em view  model/
-npx em proto model/ -o proto
+npx em proto model -o proto
 ```
 
-`view` opens the live diagram and redraws it on every save. Click a card for its notes and
-specifications. `export` writes the same viewer and the model into one HTML file to share. `proto`
-writes one `.proto` file per service. `render` writes a still SVG.
+`proto` writes one `.proto` file per service. `export` writes the viewer and the model into one HTML
+file to share. `render` writes a still SVG; it needs python 3 with `pydantic`.
 
 You do not have to finish first. `view` draws a model as far as it goes: an event in no slice yet
 stands on its own in its lane, and what is left to do is listed above the picture. So the first
@@ -412,7 +440,7 @@ Any other Zod type is an error that names the declaration and the field. The exa
 
 ```bash
 npx em init   model/                 # scaffold a model directory
-npx em view   model/                 # live diagram
+npx em view   model/                 # live diagram; runs until Ctrl-C
 npx em export model/ -o model.html   # one self-contained page, for sharing
 npx em json   model/                 # the JSON the viewer and the renderer read
 npx em json   model/ --partial       # the same for an unfinished model, with what is left to do
@@ -424,4 +452,44 @@ Every command also accepts a single self-contained file. `json` assembles the mo
 the first error. With `--partial` it goes on past dead ends and lists them in the JSON as
 `warnings`, with the declarations in no slice as `loose`; `view` and `export` assemble that way.
 `tsc` checks the types, with the `tsconfig.json` that `init` wrote. Node runs the
-TypeScript directly with `--experimental-strip-types`. The dependencies are `zod` and `typescript`.
+TypeScript directly with `--experimental-strip-types`. The package carries `zod` and exports it as
+`z`, so the model and the package read schemas with one copy. `tsc` is the model's only other
+dependency; `render` also needs python 3 with `pydantic`.
+
+## Developing
+
+```bash
+git clone https://github.com/noahseger/agent-skills.git
+cd agent-skills/event-modeling/ts
+npm ci
+npm test
+```
+
+`npm test` type-checks, lints, builds the viewer and the package, runs the node tests, and lints the
+generated proto. It needs python 3 with `pydantic` for the renderer, the same as CI.
+
+To model against the checkout, with nothing published, build it once and install it into a new
+repository by path. npm links the directory, so a rebuild of the checkout is picked up on the next
+save.
+
+```bash
+cd agent-skills/event-modeling/ts && npm ci && npm run build
+```
+
+```bash
+mkdir ~/beer-model && cd ~/beer-model && git init
+npm install ../agent-skills/event-modeling/ts
+npx em init model
+```
+
+From there the quickstart applies unchanged: `npx em view model` in a second terminal, then write
+`model/index.ts`. `npm pack` writes the tarball a release publishes, and the tests install it.
+
+To release, raise `version` in `package.json`, commit, and push a tag with the same number:
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+The `publish` workflow builds the package and publishes it to GitHub Packages with the
+repository's own token. It refuses a tag that does not match `package.json`.

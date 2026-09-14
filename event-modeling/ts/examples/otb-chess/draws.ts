@@ -1,7 +1,6 @@
 // A player may offer a draw, accept one, or resign. None of these touches the clock.
 
-import { z } from "zod"
-import { m } from "#em"
+import { m, z } from "#em"
 import { e4, GameState, MovePlayed } from "./play.ts"
 import { ChessService, Player } from "./setup.ts"
 
