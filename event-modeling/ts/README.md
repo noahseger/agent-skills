@@ -468,20 +468,22 @@ npm test
 `npm test` type-checks, lints, builds the viewer and the package, runs the node tests, and lints the
 generated proto. It needs python 3 with `pydantic` for the renderer, the same as CI.
 
-To use an unpublished build in a project of your own, pack it and install the tarball. `npm pack`
-builds first, then writes `noahseger-event-modeling-<version>.tgz` into `event-modeling/ts` and
-prints that name.
+To model against the checkout, with nothing published, build it once and install it into a new
+repository by path. npm links the directory, so a rebuild of the checkout is picked up on the next
+save.
 
 ```bash
-npm pack
+cd agent-skills/event-modeling/ts && npm ci && npm run build
 ```
 
 ```bash
-cd your-project
-npm install ../agent-skills/event-modeling/ts/noahseger-event-modeling-0.1.0.tgz
+mkdir ~/beer-model && cd ~/beer-model && git init
+npm install ../agent-skills/event-modeling/ts
+npx em init model
 ```
 
-From there the quickstart applies unchanged.
+From there the quickstart applies unchanged: `npx em view model` in a second terminal, then write
+`model/index.ts`. `npm pack` writes the tarball a release publishes, and the tests install it.
 
 To release, raise `version` in `package.json`, commit, and push a tag with the same number:
 
