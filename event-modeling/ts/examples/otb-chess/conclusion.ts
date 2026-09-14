@@ -1,7 +1,6 @@
 // The game ends by checkmate, resignation, agreement, or flag fall, and the result is recorded.
 
-import { z } from "zod"
-import { m } from "#em"
+import { m, z } from "#em"
 import { DrawAgreed, drawAgreed, GameResigned, gameResigned, Result, Termination } from "./draws.ts"
 import { ClockPressed, ClockState, GameEnded, GameState, MATE_FEN, mated } from "./play.ts"
 import { IllegalMoveTally, SecondIllegalMoveRuled, secondOffence } from "./rulings.ts"

@@ -3,3 +3,4 @@ viewer/dist/
 dist/
 # copied in by the build
 /event_model.py
+*.tgz

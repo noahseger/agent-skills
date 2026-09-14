@@ -11,6 +11,10 @@
 // `Slice`, so a chapter refuses it.
 import { z } from "zod"
 
+// The model's fields are Zod schemas, and the package reads them with Zod. One
+// copy of Zod, the package's own, keeps both sides on the same version.
+export { z }
+
 import {
   type ActorData,
   type ChapterData,

@@ -1,7 +1,6 @@
 // Players move on the board and press the clock. The board and the clock are separate lanes.
 
-import { z } from "zod"
-import { m } from "#em"
+import { m, z } from "#em"
 
 import { ChessService, ClockStarted, GameStarted, gameStarted, Player } from "./setup.ts"
 
