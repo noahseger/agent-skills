@@ -28,15 +28,25 @@ test("the packed tarball installs into a project and em runs there", () => {
       join(dir, "package.json"),
       JSON.stringify({ name: "project", private: true, type: "module" }),
     )
-    const install = npm(["install", "--prefer-offline", tarball, "zod@^4"], dir)
+    const install = npm(["install", "--prefer-offline", tarball], dir)
     assert.equal(install.status, 0, install.stderr)
 
     const em = join(dir, "node_modules", ".bin", "em")
     const init = spawnSync(em, ["init", "model"], { cwd: dir, encoding: "utf8" })
     assert.equal(init.status, 0, init.stderr)
-    const json = spawnSync(em, ["json", "model"], { cwd: dir, encoding: "utf8" })
+    // The model gets z from the package: nothing else was installed.
+    writeFileSync(
+      join(dir, "model", "events.ts"),
+      'import { m, z } from "@noahseger/event-modeling"\nexport const Started = m.event({ id: z.string() })\n',
+    )
+    const json = spawnSync(em, ["json", "--partial", "model"], { cwd: dir, encoding: "utf8" })
     assert.equal(json.status, 0, json.stderr)
-    assert.deepEqual(JSON.parse(json.stdout).chapters, [])
+    const out = JSON.parse(json.stdout) as { chapters: unknown[]; loose: { element: string }[] }
+    assert.deepEqual(out.chapters, [])
+    assert.deepEqual(
+      out.loose.map((l) => l.element),
+      ["Started(id)"],
+    )
     assert.equal(json.stderr, "", "no warnings on a plain node")
   } finally {
     rmSync(dir, { recursive: true, force: true })

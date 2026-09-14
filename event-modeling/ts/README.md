@@ -11,8 +11,7 @@ and the `em` command that works on it. You get:
 It runs wherever node 22 or later runs.
 
 ```ts
-import { m } from "@noahseger/event-modeling"
-import { z } from "zod"
+import { m, z } from "@noahseger/event-modeling"
 ```
 
 ## Vocabulary
@@ -66,7 +65,7 @@ declaring each thing where the story first needs it.
 In your project:
 
 ```bash
-npm install @noahseger/event-modeling zod
+npm install @noahseger/event-modeling
 npx em init model
 ```
 
@@ -441,8 +440,9 @@ Every command also accepts a single self-contained file. `json` assembles the mo
 the first error. With `--partial` it goes on past dead ends and lists them in the JSON as
 `warnings`, with the declarations in no slice as `loose`; `view` and `export` assemble that way.
 `tsc` checks the types, with the `tsconfig.json` that `init` wrote. Node runs the
-TypeScript directly with `--experimental-strip-types`. The dependencies are `zod` and `typescript`;
-`render` also needs python 3 with `pydantic`.
+TypeScript directly with `--experimental-strip-types`. The package carries `zod` and exports it as
+`z`, so the model and the package read schemas with one copy. `tsc` is the model's only other
+dependency; `render` also needs python 3 with `pydantic`.
 
 ## Developing
 
@@ -457,7 +457,8 @@ npm test
 generated proto. It needs python 3 with `pydantic` for the renderer, the same as CI.
 
 To use an unpublished build in a project of your own, pack it and install the tarball. `npm pack`
-builds first and prints the file name.
+builds first, then writes `noahseger-event-modeling-<version>.tgz` into `event-modeling/ts` and
+prints that name.
 
 ```bash
 npm pack
@@ -465,7 +466,7 @@ npm pack
 
 ```bash
 cd your-project
-npm install path/to/noahseger-event-modeling-0.1.0.tgz zod
+npm install ../agent-skills/event-modeling/ts/noahseger-event-modeling-0.1.0.tgz
 ```
 
 From there the quickstart applies unchanged.

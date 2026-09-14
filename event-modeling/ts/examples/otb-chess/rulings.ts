@@ -1,7 +1,6 @@
 // The arbiter rules on an illegal move and keeps count of them per player.
 
-import { z } from "zod"
-import { m } from "#em"
+import { m, z } from "#em"
 import { IllegalMoveRuled, illegalMoveRuled, MoveList, RuleIllegalMove } from "./play.ts"
 import { Arbiter, ChessService } from "./setup.ts"
 

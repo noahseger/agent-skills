@@ -1,7 +1,6 @@
 // Spectators watch the broadcast and read the result. They never act on the game.
 
-import { z } from "zod"
-import { m } from "#em"
+import { m, z } from "#em"
 
 import { GameRecord } from "./conclusion.ts"
 import { GameState, MoveList } from "./play.ts"
