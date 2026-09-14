@@ -12,6 +12,9 @@
   "engines": {
     "node": ">=22.6"
   },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "exports": {
     ".": {
       "types": "./dist/src/index.d.ts",
