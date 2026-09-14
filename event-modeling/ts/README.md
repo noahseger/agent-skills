@@ -62,7 +62,18 @@ declaring each thing where the story first needs it.
 
 ### 1. Set up
 
-In your project:
+You need node 22 or later. The package is on GitHub Packages, not npmjs, so npm has to be told
+where `@noahseger` packages live and how to sign in. Once per project, put this in `.npmrc` next
+to your `package.json`:
+
+```ini
+@noahseger:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+```
+
+Then put a GitHub personal access token (classic) with the `read:packages` scope in the
+`GITHUB_TOKEN` environment variable. The file names the variable, so it is safe to commit. Now
+install and scaffold:
 
 ```bash
 npm install @noahseger/event-modeling
@@ -70,14 +81,15 @@ npx em init model
 ```
 
 `init` writes `model/index.ts`, a `tsconfig.json` that lets node run the model with no build step,
-and a `package.json` that marks the directory as ES modules. Then start the diagram in a second
+and a `package.json` that marks the directory as ES modules. Start the diagram in a second
 terminal and leave it running:
 
 ```bash
 npx em view model
 ```
 
-It opens the browser and redraws on every save, until you stop it with Ctrl-C.
+It opens the browser and redraws on every save, until you stop it with Ctrl-C. If `npm install`
+answers `401` or `404`, the token is missing or lacks `read:packages`.
 
 ### 2. Actors and the service
 
@@ -470,3 +482,12 @@ npm install ../agent-skills/event-modeling/ts/noahseger-event-modeling-0.1.0.tgz
 ```
 
 From there the quickstart applies unchanged.
+
+To release, raise `version` in `package.json`, commit, and push a tag with the same number:
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+The `publish` workflow builds the package and publishes it to GitHub Packages with the
+repository's own token. It refuses a tag that does not match `package.json`.
