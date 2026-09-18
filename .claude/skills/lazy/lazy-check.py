@@ -160,11 +160,20 @@ def contract_failures(response, required, cwd=None):
             "problem there, then answer."
         )
 
+    # The template puts the ask under the conclusion, so the human reads it with the
+    # answer. An ask anywhere else is a decision smuggled into an argument.
     unfinished = UNCHECKED.findall(preface(body))
-    if unfinished and not ASK.search(body):
+    asks = [name for name, text in sections(body) if ASK.search(text)]
+    if unfinished and not asks:
         failures.append(
             f"Your checklist still has {len(unfinished)} unchecked item(s) and you asked "
             "nothing of the human, so nobody is waiting on anybody. Do the next one now."
+        )
+    if any(name != "### Conclusion" for name in asks):
+        failures.append(
+            "An **Ask:** belongs under ### Conclusion, nowhere else. Yours sat under: "
+            + ", ".join(name for name in asks if name != "### Conclusion")
+            + "."
         )
 
     return failures
@@ -209,6 +218,19 @@ def preface(body):
         if HEADER.match(line):
             return "\n".join(lines[:index])
     return body
+
+
+def sections(body):
+    """(header, text) for each section, the preface under the name '(preface)'."""
+    out, name, lines = [], "(preface)", []
+    for line in body.splitlines():
+        if HEADER.match(line):
+            out.append((name, "\n".join(lines)))
+            name, lines = line.strip(), []
+        else:
+            lines.append(line)
+    out.append((name, "\n".join(lines)))
+    return out
 
 
 def is_ordered_subset(headers, required):

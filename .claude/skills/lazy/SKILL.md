@@ -82,7 +82,7 @@ Satisfy them the first time; a block costs a whole extra turn.
 2. 400 words or fewer outside code blocks.
 3. Address the human by the name in their `~/.claude/CLAUDE.md`, when they stated one.
 4. No bare deferrals back to the human.
-5. No `- [ ]` or `- [~]` preface item unless the response also carries a bolded `Ask:`.
+5. No `- [ ]` or `- [~]` preface item unless the response also carries a bolded `Ask:`, and every `Ask:` sits under `### Conclusion`.
 6. End with a single period on its own line.
 7. `.context/ROOT_PROBLEM.md` exists and is not empty.
 
