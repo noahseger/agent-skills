@@ -646,7 +646,12 @@ export function layout(model: ModelJson): Layout {
   let y = HEADER_H + NAME_H
   const nameY = HEADER_H
   const actors = new Map(model.actors.map((a) => [a.id, a]))
-  for (const id of actorIds) {
+  // Every actor the model names gets a lane, used or not; the system lane
+  // follows when only a translation needed it.
+  for (const id of [
+    ...model.actors.map((a) => a.id),
+    ...actorIds.filter((id) => !actors.has(id)),
+  ]) {
     const slot = `actor:${id}`
     const h = slotHeight(slot) + 2 * LANE_PAD
     const actor = actors.get(id)
@@ -670,7 +675,7 @@ export function layout(model: ModelJson): Layout {
   const middleH = LANE_PAD + topH + (topH > 0 && bottomH > 0 ? SLOT_GAP : 0) + bottomH + LANE_PAD
   rows.push({ id: "middle", label: "", kind: "middle", y, h: middleH })
   const topEnd = y + LANE_PAD + topH
-  place("middle:top", (stack) => topEnd - stackHeight(stack))
+  place("middle:top", () => y + LANE_PAD)
   const bottomTop = topEnd + (topH > 0 && bottomH > 0 ? SLOT_GAP : 0)
   place("middle:bottom", () => bottomTop)
   y += middleH

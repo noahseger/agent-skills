@@ -151,7 +151,9 @@ onMounted(() => {
   refresh()
   if (!snapshot) {
     feed = new EventSource("/events")
+    // A feed that comes back after a drop missed its messages, so it catches up.
     feed.onopen = () => {
+      if (live.value === false && loaded) void refresh()
       live.value = true
     }
     feed.onerror = () => {

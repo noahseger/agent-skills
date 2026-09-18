@@ -110,7 +110,10 @@ function init(dir: string): void {
 }
 
 async function json(path: string): Promise<void> {
-  console.log(JSON.stringify(await assemble(path, { partial: values.partial }), null, 2))
+  const model = await assemble(path, { partial: values.partial })
+  // stdout is the JSON; what is still to do goes beside it, where a terminal shows it.
+  for (const w of model.warnings ?? []) console.error(w.message)
+  console.log(JSON.stringify(model, null, 2))
 }
 
 async function proto(path: string, out: string): Promise<void> {
@@ -169,13 +172,28 @@ async function render(path: string, out: string): Promise<void> {
  * The model, assembled in a fresh process so a saved module is read again. The
  * picture is for a model being written, so dead ends are drawn, not refused.
  */
-function assembleFresh(path: string): Snapshot {
+function assembleFresh(path: string, changed?: string): Snapshot {
+  const started = Date.now()
   const run = spawnSync(
     process.execPath,
     [...process.execArgv, process.argv[1] ?? "", "json", "--partial", path],
     { encoding: "utf8" },
   )
-  return run.status === 0 ? { json: run.stdout } : { error: run.stderr || run.stdout }
+  // The terminal keeps the record: what was saved, how the assembly went, what is left.
+  const stamp = new Date().toTimeString().slice(0, 8)
+  const cause = changed ? `${changed} saved` : "start"
+  const took = `${Date.now() - started}ms`
+  if (run.status === 0) {
+    const left = run.stderr.trim()
+    const count = left === "" ? 0 : left.split("\n").length
+    console.log(`${stamp} ${cause}: assembled in ${took}, ${count} to do`)
+    if (left !== "") console.log(left.replace(/^/gm, "  "))
+    return { json: run.stdout }
+  }
+  const error = run.stderr || run.stdout
+  console.log(`${stamp} ${cause}: assembly failed in ${took}`)
+  console.log(error.trimEnd().replace(/^/gm, "  "))
+  return { error }
 }
 
 function builtViewer(): void {
@@ -195,7 +213,7 @@ async function view(path: string): Promise<void> {
   const server = await serve({
     dist: VIEWER_DIST,
     root: statSync(path).isDirectory() ? path : dirname(path),
-    load: async () => assembleFresh(path),
+    load: async (changed) => assembleFresh(path, changed),
     port: Number(values.port ?? 5311),
   })
   console.log(`viewing ${path} at ${server.url}`)

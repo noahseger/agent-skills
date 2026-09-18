@@ -194,6 +194,9 @@ export function toJson({ model, streams, loose, warnings }: Assembled): ModelJso
     noted(d)
     if (d.kind === "event" || d.kind === "command" || d.kind === "readModel")
       drawnLoose.push({ kind: d.kind, element: element(d), aggregate: streamOf(d) ?? fallback })
+    // An actor in no slice is a lane with nothing in it yet.
+    if (d.kind === "actor" && !actors.has(slug(d.name ?? "")))
+      actors.set(slug(d.name ?? ""), { id: slug(d.name ?? ""), name: d.name ?? "", type: d.icon })
   }
 
   return {
