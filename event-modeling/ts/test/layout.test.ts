@@ -369,3 +369,15 @@ test("a loose declaration is a column after the story, its card in its lane", ()
   assert.equal(storm.columns[0]?.warned, true)
   assert.ok(storm.boxes.filter((b) => b.name === "ListCreated").every((b) => b.warned))
 })
+
+test("every actor gets a lane, and cards in one lane share a top edge", () => {
+  const withIdle = layout({
+    ...model,
+    actors: [...model.actors, { id: "bartender", name: "Bartender", type: "user" }],
+  })
+  assert.ok(withIdle.rows.some((r) => r.id === "actor:bartender" && r.label === "Bartender"))
+  for (const row of out.rows) {
+    const tops = new Set(out.boxes.filter((b) => rowOf(b)?.id === row.id).map((b) => b.y))
+    assert.ok(tops.size <= (row.kind === "middle" ? 2 : 1), `${row.id} has ${tops.size} top edges`)
+  }
+})

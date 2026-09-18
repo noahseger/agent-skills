@@ -14,7 +14,8 @@ export interface ServeOptions {
   /** The directory to watch for saves. */
   root: string
   /** Assembles the model again. */
-  load: () => Promise<Snapshot>
+  /** Assemble the model; `changed` is the saved file that asked for it. */
+  load: (changed?: string) => Promise<Snapshot>
   /** 0 picks a free port. */
   port: number
 }
@@ -77,7 +78,7 @@ export async function serve(options: ServeOptions): Promise<Server> {
     pending = true
     setTimeout(async () => {
       pending = false
-      snapshot = await options.load()
+      snapshot = await options.load(filename.toString())
       for (const client of clients) client.write("data: changed\n\n")
     }, 50)
   })

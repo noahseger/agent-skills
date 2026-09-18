@@ -47,7 +47,8 @@ test("the packed tarball installs into a project and em runs there", () => {
       out.loose.map((l) => l.element),
       ["Started(id)"],
     )
-    assert.equal(json.stderr, "", "no warnings on a plain node")
+    // stderr carries what is left to do, and nothing else: no node warning.
+    assert.equal(json.stderr.trim(), "Started is in no slice.")
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
