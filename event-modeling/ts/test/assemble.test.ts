@@ -304,3 +304,17 @@ test("a partial assembly lists the dead ends and keeps the loose declarations in
     { kind: "readModel", element: "Table(*id, name)", aggregate: "games" },
   ])
 })
+
+test("an actor in no slice is still one of the model's actors", () => {
+  const f = fixture()
+  const Bartender = m.actor()
+  const Ch = m.chapter([create(f)])
+  const json = assembleModules(
+    [{ ...f, Bartender, Ch, default: m.model("x", { chapters: [Ch] }) }],
+    { partial: true },
+  )
+  assert.deepEqual(
+    json.actors.map((a) => a.id),
+    ["user", "bartender"],
+  )
+})
