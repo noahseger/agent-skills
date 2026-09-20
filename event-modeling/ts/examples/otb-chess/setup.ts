@@ -14,6 +14,15 @@ export const Spectator = m.actor()
 // The API the board, the clock and the scoresheet all go through.
 export const ChessService = m.service("otb.v1")
 
+// What each actor uses: the players the board and clock, the arbiter the desk, spectators the broadcast.
+export const Board = m.screen(Player, ChessService)
+export const ArbiterDesk = m.screen(Arbiter, ChessService)
+export const Broadcast = m.screen(Spectator, ChessService)
+
+// Processes of ours that act without anyone at a screen.
+export const ReceivePairing = m.automation()
+export const ClockStarter = m.automation()
+
 // The tournament pairing system publishes the round. We do not own it.
 export const PairingPublished = m.event({
   gameId: z.string(),
@@ -111,7 +120,7 @@ export const gameStarted = GameStarted.with({
 
 export const GameSetup = m.chapter([
   m
-    .slice("ReceivePairing")
+    .slice(ReceivePairing)
     .on(PairingPublished)
     .command(StartGame)
     .emits(GameStarted)
@@ -135,8 +144,7 @@ export const GameSetup = m.chapter([
     }),
 
   m
-    .slice()
-    .projects(GamePairing)
+    .slice(GamePairing)
     .on(GameStarted)
     .test("Pairing identity available after the game starts", {
       given: gameStarted,
@@ -150,7 +158,7 @@ export const GameSetup = m.chapter([
     }),
 
   m
-    .slice("ClockStarter")
+    .slice(ClockStarter)
     .on(GameStarted)
     .command(StartClock)
     .emits(ClockStarted)

@@ -2,7 +2,7 @@
 
 import { m, z } from "#em"
 import { e4, GameState, MovePlayed } from "./play.ts"
-import { ChessService, Player } from "./setup.ts"
+import { Board } from "./setup.ts"
 
 // The result of a game, and how it came about, as they go on the scoresheet.
 export const Result = z.enum(["white_won", "black_won", "draw"])
@@ -117,10 +117,8 @@ export const gameResigned = GameResigned.with({
 
 export const DrawsAndResignation = m.chapter([
   m
-    .slice()
-    .actor(Player)
+    .slice(Board)
     .reads(GameState)
-    .service(ChessService)
     .command(OfferDraw)
     .emits(DrawOffered)
     .test("White offers a draw on move 21", {
@@ -130,8 +128,7 @@ export const DrawsAndResignation = m.chapter([
     }),
 
   m
-    .slice()
-    .projects(PendingDrawOffer)
+    .slice(PendingDrawOffer)
     .on(DrawOffered, () => ({ status: "pending" }))
     .on(MovePlayed, () => ({ status: "declined" }))
     .on(DrawAgreed, () => ({ status: "accepted" }))
@@ -165,10 +162,8 @@ export const DrawsAndResignation = m.chapter([
     }),
 
   m
-    .slice()
-    .actor(Player)
+    .slice(Board)
     .reads(PendingDrawOffer)
-    .service(ChessService)
     .command(AcceptDraw)
     .emits(DrawAgreed)
     .test("Black accepts the pending draw offer", {
@@ -193,10 +188,8 @@ export const DrawsAndResignation = m.chapter([
     }),
 
   m
-    .slice()
-    .actor(Player)
+    .slice(Board)
     .reads(GameState)
-    .service(ChessService)
     .command(Resign)
     .emits(GameResigned)
     .test("Black resigns a lost endgame", {

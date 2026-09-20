@@ -8,6 +8,10 @@ export const User = m.actor()
 // The API every list operation goes through.
 export const TodoService = m.service("todo.v1")
 
+// The two screens a user works in: all their lists, and one list open.
+export const ListsScreen = m.screen(User, TodoService)
+export const ListScreen = m.screen(User, TodoService)
+
 // A user creates a named list.
 export const CreateList = m.command({ userId: z.string(), listId: z.string(), name: z.string() })
 export const ListCreated = m
@@ -47,9 +51,7 @@ const milk = ItemAdded.with({ userId: "u-1", listId: "list-1", itemId: "item-1",
 
 export const ListManagement = m.chapter([
   m
-    .slice()
-    .actor(User)
-    .service(TodoService)
+    .slice(ListsScreen)
     .command(CreateList)
     .emits(ListCreated)
     .test("User creates a new list", {
@@ -63,9 +65,7 @@ export const ListManagement = m.chapter([
     }),
 
   m
-    .slice()
-    .actor(User)
-    .service(TodoService)
+    .slice(ListScreen)
     .command(AddItem)
     .emits(ItemAdded, (c) => ({ title: c.text }))
     .test("User adds an item to a list", {
@@ -84,9 +84,7 @@ export const ListManagement = m.chapter([
     }),
 
   m
-    .slice()
-    .actor(User)
-    .service(TodoService)
+    .slice(ListScreen)
     .command(CompleteItem)
     .emits(ItemCompleted)
     .test("User completes an item", {
@@ -96,9 +94,7 @@ export const ListManagement = m.chapter([
     }),
 
   m
-    .slice()
-    .actor(User)
-    .service(TodoService)
+    .slice(ListScreen)
     .command(DeleteItem)
     .emits(ItemDeleted)
     .test("User deletes an item from a list", {
@@ -108,9 +104,7 @@ export const ListManagement = m.chapter([
     }),
 
   m
-    .slice()
-    .actor(User)
-    .service(TodoService)
+    .slice(ListsScreen)
     .command(DeleteList)
     .emits(ListDeleted)
     .test("User deletes a list", {

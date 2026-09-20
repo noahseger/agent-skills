@@ -2,7 +2,7 @@
 
 import { m, z } from "#em"
 
-import { ChessService, ClockStarted, GameStarted, gameStarted, Player } from "./setup.ts"
+import { Board, ClockStarted, GameStarted, gameStarted } from "./setup.ts"
 
 // A player moves. FIDE 1.1: the two players move alternately.
 export const PlayMove = m.command({
@@ -167,10 +167,8 @@ const clockStarted = ClockStarted.with({
 
 export const Play = m.chapter([
   m
-    .slice()
-    .actor(Player)
+    .slice(Board)
     .reads(GameState)
-    .service(ChessService)
     .command(PlayMove)
     .emits(MovePlayed)
     .emits(GameEnded)
@@ -266,8 +264,7 @@ export const Play = m.chapter([
     }),
 
   m
-    .slice()
-    .projects(GameState)
+    .slice(GameState)
     .on(GameStarted)
     .on(MovePlayed)
     .on(IllegalMoveRuled)
@@ -291,10 +288,8 @@ export const Play = m.chapter([
     }),
 
   m
-    .slice()
-    .actor(Player)
+    .slice(Board)
     .reads(ClockState)
-    .service(ChessService)
     .command(PressClock)
     .emits(ClockPressed)
     .note("FIDE 6.2.1: pressing banks the increment and starts the opponent's clock.")
@@ -325,8 +320,7 @@ export const Play = m.chapter([
     }),
 
   m
-    .slice()
-    .projects(ClockState)
+    .slice(ClockState)
     .on(ClockStarted)
     .on(ClockPressed)
     .test("The clock starts with White's time running", {
@@ -357,8 +351,7 @@ export const Play = m.chapter([
     }),
 
   m
-    .slice()
-    .projects(MoveList)
+    .slice(MoveList)
     .on(MovePlayed, () => ({ status: "recorded" }))
     .on(IllegalMoveRuled, () => ({ status: "struck" }))
     .test("A move is recorded on the scoresheet", {

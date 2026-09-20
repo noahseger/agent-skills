@@ -5,6 +5,7 @@
 // streams are `aggregates`, and a read model's key columns are `*field`.
 // Everything else (`query`, `polls`, `note`, `mapping`) the target reads as is.
 import type {
+  ActorData,
   Assembled,
   ClauseData,
   DeclData,
@@ -34,6 +35,8 @@ export interface SliceJson {
   events?: string[]
   reads?: string[]
   read_models?: string[]
+  /** The screen the actor uses; `ui` keeps the service method for the renderer. */
+  screen?: string
   tests: TestJson[]
   query?: string[]
   polls?: string
@@ -50,9 +53,12 @@ export interface ActorJson {
 
 /** A declaration in no slice yet, drawn on its own in its lane. */
 export interface LooseJson {
-  kind: "event" | "command" | "readModel"
+  kind: "event" | "command" | "readModel" | "screen" | "automation"
   element: string
-  aggregate: string
+  /** Events, commands and read models: the stream lane. */
+  aggregate?: string
+  /** Screens: the actor lane. */
+  actor?: string
 }
 
 export interface ModelJson {
@@ -128,10 +134,15 @@ export function toJson({ model, streams, loose, warnings }: Assembled): ModelJso
       .find((lane) => lane !== undefined) ?? fallback
 
   const actors = new Map<string, ActorJson>()
+  const actorJson = (a: ActorData): ActorJson => ({
+    id: slug(a.name ?? ""),
+    name: a.name ?? "",
+    type: a.icon,
+  })
   const actorOf = (slice: SliceData): string => {
     const external = slice.on[0]?.event.external
-    const actor: ActorJson = slice.actor
-      ? { id: slug(slice.actor.name ?? ""), name: slice.actor.name ?? "", type: slice.actor.icon }
+    const actor: ActorJson = slice.screen
+      ? actorJson(slice.screen.actor)
       : external
         ? { id: slug(external.name ?? ""), name: external.name ?? "", type: "external" }
         : SYSTEM
@@ -150,13 +161,21 @@ export function toJson({ model, streams, loose, warnings }: Assembled): ModelJso
       const trigger = slice.on[0]?.event
       const external = trigger?.external !== undefined
 
+      if (slice.screen) {
+        out.screen = slice.screen.name ?? ""
+        out.ui = out.screen
+        noted(slice.screen)
+      }
       if (slice.service) {
-        const method = slice.service.method ?? slice.command?.name ?? ""
+        const method = slice.service.method ?? slice.command?.name ?? slice.name ?? ""
         out.ui = `${slice.service.service.name}/${method}`
         noted(slice.service.service)
       }
       if (trigger && external) out.external_event = element(trigger)
-      if ((trigger && !external && !slice.projects) || slice.polls) out.automation = out.name
+      if (slice.automation) {
+        out.automation = slice.automation.name ?? ""
+        noted(slice.automation)
+      }
       if (trigger && !external) {
         out.trigger = slice.projects ? slice.on.map((f) => element(f.event)) : element(trigger)
       }
@@ -182,7 +201,8 @@ export function toJson({ model, streams, loose, warnings }: Assembled): ModelJso
       )
       if (Object.keys(mapping).length > 0) json.mapping = mapping
 
-      for (const d of [slice.actor, slice.projects, slice.polls, ...slice.reads]) if (d) noted(d)
+      for (const d of [slice.screen?.actor, slice.projects, slice.polls, ...slice.reads])
+        if (d) noted(d)
       for (const f of [...slice.emits, ...slice.on]) noted(f.event)
       if (trigger?.external) noted(trigger.external)
       return json
@@ -196,7 +216,13 @@ export function toJson({ model, streams, loose, warnings }: Assembled): ModelJso
       drawnLoose.push({ kind: d.kind, element: element(d), aggregate: streamOf(d) ?? fallback })
     // An actor in no slice is a lane with nothing in it yet.
     if (d.kind === "actor" && !actors.has(slug(d.name ?? "")))
-      actors.set(slug(d.name ?? ""), { id: slug(d.name ?? ""), name: d.name ?? "", type: d.icon })
+      actors.set(slug(d.name ?? ""), actorJson(d))
+    if (d.kind === "screen") {
+      const actor = actorJson(d.actor)
+      if (!actors.has(actor.id)) actors.set(actor.id, actor)
+      drawnLoose.push({ kind: "screen", element: d.name ?? "", actor: actor.id })
+    }
+    if (d.kind === "automation") drawnLoose.push({ kind: "automation", element: d.name ?? "" })
   }
 
   return {

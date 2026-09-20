@@ -36,6 +36,7 @@
           "name": "CreateList",
           "actor": "user",
           "aggregate": "lists",
+          "screen": "ListsScreen",
           "ui": "TodoService/CreateList",
           "command": "CreateList(userId, listId, name)",
           "events": [
@@ -66,6 +67,7 @@
           "name": "AddItem",
           "actor": "user",
           "aggregate": "items",
+          "screen": "ListScreen",
           "ui": "TodoService/AddItem",
           "command": "AddItem(userId, listId, itemId, text)",
           "events": [
@@ -107,6 +109,7 @@
           "name": "CompleteItem",
           "actor": "user",
           "aggregate": "items",
+          "screen": "ListScreen",
           "ui": "TodoService/CompleteItem",
           "command": "CompleteItem(listId, itemId)",
           "events": [
@@ -129,6 +132,7 @@
           "name": "DeleteItem",
           "actor": "user",
           "aggregate": "items",
+          "screen": "ListScreen",
           "ui": "TodoService/DeleteItem",
           "command": "DeleteItem(listId, itemId)",
           "events": [
@@ -151,6 +155,7 @@
           "name": "DeleteList",
           "actor": "user",
           "aggregate": "lists",
+          "screen": "ListsScreen",
           "ui": "TodoService/DeleteList",
           "command": "DeleteList(listId)",
           "events": [
@@ -263,6 +268,7 @@
           "name": "ListTodoLists",
           "actor": "user",
           "aggregate": "items",
+          "screen": "ListsScreen",
           "ui": "TodoService/ListTodoLists",
           "read_models": [
             "TodoList(*userId, *listId, name, itemCount, status)"
@@ -343,6 +349,7 @@
           "name": "GetList",
           "actor": "user",
           "aggregate": "items",
+          "screen": "ListScreen",
           "ui": "TodoService/GetList",
           "read_models": [
             "ItemSearch(*itemId, listId, title, done, deleted)"
@@ -356,6 +363,7 @@
           "name": "SearchItems",
           "actor": "user",
           "aggregate": "items",
+          "screen": "SearchScreen",
           "ui": "TodoService/SearchItems",
           "read_models": [
             "ItemSearch(*itemId, listId, title, done, deleted)"
@@ -371,7 +379,7 @@
       "name": "Automations",
       "slices": [
         {
-          "name": "ListCompleter",
+          "name": "CompleteList",
           "actor": "system",
           "aggregate": "lists",
           "automation": "ListCompleter",
@@ -407,6 +415,7 @@
           "actor": "calendar",
           "aggregate": "items",
           "external_event": "TaskScheduled(userId, listId, itemId, text)",
+          "automation": "CalendarImport",
           "command": "AddItem(userId, listId, itemId, text)",
           "events": [
             "ItemAdded(userId, listId, itemId, title)"

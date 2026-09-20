@@ -2,7 +2,7 @@
 
 import { m, z } from "#em"
 import { IllegalMoveRuled, illegalMoveRuled, MoveList, RuleIllegalMove } from "./play.ts"
-import { Arbiter, ChessService } from "./setup.ts"
+import { ArbiterDesk } from "./setup.ts"
 
 // How many illegal moves each side has made. FIDE 7.5.5 escalates on the second.
 export const IllegalMoveTally = m.readModel({
@@ -37,11 +37,9 @@ export const secondOffence = SecondIllegalMoveRuled.with({
 
 export const ArbiterRulings = m.chapter([
   m
-    .slice()
-    .actor(Arbiter)
+    .slice(ArbiterDesk)
     .reads(MoveList)
     .reads(IllegalMoveTally)
-    .service(ChessService)
     .command(RuleIllegalMove)
     .emits(IllegalMoveRuled)
     .emits(SecondIllegalMoveRuled)
@@ -78,8 +76,7 @@ export const ArbiterRulings = m.chapter([
     }),
 
   m
-    .slice()
-    .projects(IllegalMoveTally)
+    .slice(IllegalMoveTally)
     .on(IllegalMoveRuled, (e) => ({ illegalMoveCount: m.count(e) }))
     .test("One ruling puts the offender on one illegal move", {
       given: illegalMoveRuled,

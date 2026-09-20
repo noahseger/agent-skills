@@ -4,7 +4,11 @@ import { m, z } from "#em"
 import { DrawAgreed, drawAgreed, GameResigned, gameResigned, Result, Termination } from "./draws.ts"
 import { ClockPressed, ClockState, GameEnded, GameState, MATE_FEN, mated } from "./play.ts"
 import { IllegalMoveTally, SecondIllegalMoveRuled, secondOffence } from "./rulings.ts"
-import { Arbiter, ChessService, GamePairing, gameStarted, Player } from "./setup.ts"
+import { ArbiterDesk, Board, GamePairing, gameStarted } from "./setup.ts"
+
+// The processes that end a game without a player asking.
+export const OutcomeAdjudicator = m.automation()
+export const IllegalMoveForfeiter = m.automation()
 
 // FIDE 6.8: a flag has fallen when the arbiter or a player observes it.
 export const ClaimFlagFall = m.command({
@@ -129,10 +133,8 @@ const resultRecorded = ResultRecorded.with({
 
 export const Conclusion = m.chapter([
   m
-    .slice()
-    .actor(Player)
+    .slice(Board)
     .reads(ClockState)
-    .service(ChessService)
     .command(ClaimFlagFall)
     .emits(TimeForfeited)
     .test("White claims Black's fallen flag", {
@@ -167,7 +169,7 @@ export const Conclusion = m.chapter([
     }),
 
   m
-    .slice("OutcomeAdjudicator")
+    .slice(OutcomeAdjudicator)
     .on(GameEnded)
     .reads(GameState)
     .command(AdjudicateOutcome)
@@ -230,7 +232,7 @@ export const Conclusion = m.chapter([
     }),
 
   m
-    .slice("IllegalMoveForfeiter")
+    .slice(IllegalMoveForfeiter)
     .on(SecondIllegalMoveRuled)
     .reads(IllegalMoveTally)
     .command(ForfeitGame)
@@ -248,8 +250,7 @@ export const Conclusion = m.chapter([
     }),
 
   m
-    .slice()
-    .projects(GameResult)
+    .slice(GameResult)
     .on(GameResigned)
     .on(DrawAgreed)
     .on(BoardOutcomeAdjudicated)
@@ -298,11 +299,9 @@ export const Conclusion = m.chapter([
     }),
 
   m
-    .slice()
-    .actor(Arbiter)
+    .slice(ArbiterDesk)
     .reads(GameResult)
     .reads(GamePairing)
-    .service(ChessService)
     .command(RecordResult)
     .emits(ResultRecorded)
     .test("The arbiter records the signed draw on the pairing sheet", {
@@ -320,8 +319,7 @@ export const Conclusion = m.chapter([
     }),
 
   m
-    .slice()
-    .projects(GameRecord)
+    .slice(GameRecord)
     .on(ResultRecorded)
     .test("The recorded game enters the crosstable", {
       given: resultRecorded,

@@ -349,6 +349,7 @@ function labelOf(s: SliceJson): string {
   if (s.command) return parse(s.command).name
   if (s.read_models?.[0]) return parse(s.read_models[0]).name
   if (s.automation) return s.automation
+  if (s.screen) return s.screen
   if (s.ui) return s.ui.slice(s.ui.indexOf("/") + 1)
   if (s.external_event) return parse(s.external_event).name
   return "slice"
@@ -409,11 +410,15 @@ export function layout(model: ModelJson): Layout {
           ? { events: [item.element] }
           : item.kind === "command"
             ? { command: item.element }
-            : { read_models: [item.element] }
+            : item.kind === "readModel"
+              ? { read_models: [item.element] }
+              : item.kind === "screen"
+                ? { ui: el.name, screen: el.name }
+                : { automation: el.name }
       const slice: SliceJson = {
         name: el.name,
-        actor: "",
-        aggregate: item.aggregate,
+        actor: item.kind === "automation" ? "system" : (item.actor ?? ""),
+        aggregate: item.aggregate ?? "",
         tests: [],
         ...card,
       }
@@ -521,10 +526,11 @@ export function layout(model: ModelJson): Layout {
       // table for the read model it shows, with the query as its filters.
       const commandFields = s.command ? parse(s.command).fields : []
       const shown = s.read_models?.[0] ? parse(s.read_models[0]).fields : undefined
+      // The screen is named when the model declares one; else the method names it.
       ui = make(
         i,
         "ui",
-        { name: method, fields: s.query ?? [], keys: [] },
+        { name: s.screen ?? method, fields: s.query ?? [], keys: [] },
         {
           ...(service === undefined ? {} : { detail: service }),
           form: s.command ? commandFields : (s.query ?? []),
@@ -541,9 +547,12 @@ export function layout(model: ModelJson): Layout {
       useActor(s.actor)
     }
     if (s.automation) {
+      // A translation's automation is ours, so it sits in the system lane
+      // under the outside event, not in the outside system's lane.
+      const lane = s.external_event ? "system" : s.actor
       gear = make(i, "automation", { name: s.automation, fields: [], keys: [] })
-      into(`actor:${s.actor}`, i, gear)
-      useActor(s.actor)
+      into(`actor:${lane}`, i, gear)
+      useActor(lane)
     } else if (s.external_event && s.command) {
       // A translation: the event arrives from outside, an automation of ours
       // turns it into a command. The JSON names the slice but not the gear.

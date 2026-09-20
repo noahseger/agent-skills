@@ -150,6 +150,8 @@ const KIND_LABEL = {
   command: "a command",
   readModel: "a read model",
   actor: "an actor",
+  screen: "a screen",
+  automation: "an automation",
   service: "a service",
   external: "an external system",
 }
@@ -157,11 +159,14 @@ const KIND_LABEL = {
 interface Located {
   slice: SliceData
   where: string
+  /** Whether the model named the slice, before assembly gave it a heading. */
+  named: boolean
 }
 
 function check(model: ModelData, fail: Fail): void {
   const located = model.chapters.flatMap((chapter, i) => locate(chapter, i))
   for (const at of located) {
+    if (!checkWhole(at, fail)) continue
     checkFilled(at)
     checkKeys(at)
     checkExternal(at)
@@ -186,17 +191,20 @@ function locate(chapter: ChapterData, index: number): Located[] {
       slice.command?.name ??
       slice.projects?.name ??
       slice.polls?.name ??
-      slice.service?.method ??
-      slice.reads[0]?.name
-    if (slice.name === undefined && heading !== undefined) slice.name = heading
-    return { slice, where: `slice '${slice.name}' in '${chapter.name}'` }
+      slice.reads[0]?.name ??
+      slice.screen?.name ??
+      slice.automation?.name
+    const named = slice.name !== undefined
+    if (!named && heading !== undefined) slice.name = heading
+    return { slice, where: `slice '${slice.name}' in '${chapter.name}'`, named }
   })
 }
 
 /** Everything a slice refers to, with the word an error uses for it. */
 function used(slice: SliceData): [keyof typeof KIND_LABEL, { name?: string }][] {
   const out: [keyof typeof KIND_LABEL, { name?: string }][] = []
-  if (slice.actor) out.push(["actor", slice.actor])
+  if (slice.screen) out.push(["screen", slice.screen], ["actor", slice.screen.actor])
+  if (slice.automation) out.push(["automation", slice.automation])
   if (slice.service) out.push(["service", slice.service.service])
   if (slice.command) out.push(["command", slice.command])
   for (const f of [...slice.emits, ...slice.on]) {
@@ -209,6 +217,40 @@ function used(slice: SliceData): [keyof typeof KIND_LABEL, { name?: string }][] 
       if (c && "decl" in c) out.push([c.decl.kind, c.decl])
   }
   return out
+}
+
+/**
+ * A chapter takes a slice at any stage, so the picture can show it. This says
+ * what the stage still lacks, in the words of the call that would add it.
+ */
+function checkWhole({ slice, where, named }: Located, fail: Fail): boolean {
+  const about = (message: string): Warning => ({
+    message,
+    element: slice.screen?.name ?? slice.automation?.name ?? slice.projects?.name ?? "",
+    slice: slice.name ?? "",
+  })
+  let whole = true
+  const missing = (what: string) => {
+    whole = false
+    fail(about(`${where} is not finished: it still needs ${what}.`))
+  }
+  if (slice.command && slice.emits.length === 0) missing(".emits(event)")
+  if (slice.automation) {
+    if (slice.on.length === 0 && !slice.polls) missing(".on(event) or .polls(readModel)")
+    else if (!slice.command) missing(".command(command)")
+  }
+  if (slice.projects && slice.on.length === 0) missing(".on(event)")
+  if (slice.screen) {
+    if (!slice.command && slice.reads.length === 0)
+      missing(slice.query ? ".reads(readModel)" : ".reads(readModel) or .command(command)")
+    else if (!slice.command && !named)
+      fail(
+        about(
+          `${where} is a view, so it is headed by its service method: name it, m.slice(screen, "Method").`,
+        ),
+      )
+  }
+  return whole
 }
 
 function filledBy(flow: Flow, carrier: DeclData): Set<string> {
@@ -337,8 +379,10 @@ function checkConnected(located: Located[], fail: Fail): void {
 function checkMethods(located: Located[]): void {
   const claimed = new Map<string, string>()
   for (const { slice, where } of located) {
-    if (!slice.service) continue
-    const method = `${slice.service.service.name}/${slice.service.method ?? slice.command?.name}`
+    // A view still without its name was reported by checkWhole; it claims nothing yet.
+    const name = slice.service?.method ?? slice.command?.name
+    if (!slice.service || name === undefined) continue
+    const method = `${slice.service.service.name}/${name}`
     const first = claimed.get(method)
     if (first !== undefined) throw new Error(`${first} and ${where} both claim ${method}.`)
     claimed.set(method, where)

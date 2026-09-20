@@ -141,7 +141,7 @@ class EventModel(BaseModel):
                     errors.append(
                         f"{loc} references unknown aggregate '{sl.aggregate}'"
                     )
-                if sl.automation and not _trigger_list(sl) and not sl.polls:
+                if sl.automation and not _trigger_list(sl) and not sl.polls and not sl.external_event:
                     errors.append(
                         f"Automation '{sl.automation}' in {loc} has no trigger — "
                         f"automations MUST be driven by an event or a TODO-list read model"

@@ -17,6 +17,7 @@ export { z }
 
 import {
   type ActorData,
+  type AutomationData,
   type ChapterData,
   type DeclData,
   type DeclKind,
@@ -27,6 +28,7 @@ import {
   META,
   type ModelData,
   type RejectionData,
+  type ScreenData,
   type ServiceData,
   type SliceData,
   type Source,
@@ -124,6 +126,45 @@ function actor(options: { icon?: "user" | "admin" | "system" } = {}): Actor {
   }
 }
 
+export interface Screen {
+  readonly [META]: ScreenData
+  note(text: string): Screen
+}
+
+/**
+ * What an actor sees and acts through. The service is the API its slices call;
+ * without one, the slices are drawn and no RPC is generated. The wireframe is
+ * drawn from each slice: a form for its command, a table for what it reads.
+ */
+function screen(actor: Actor, service?: Service): Screen {
+  const data: ScreenData = { kind: "screen", actor: actor[META] }
+  if (service) data.service = service[META]
+  return {
+    [META]: data,
+    note(text) {
+      data.note = text
+      return this
+    },
+  }
+}
+
+export interface Automation {
+  readonly [META]: AutomationData
+  note(text: string): Automation
+}
+
+/** A process of ours. Its slice says what starts it and what it does. */
+function automation(): Automation {
+  const data: AutomationData = { kind: "automation" }
+  return {
+    [META]: data,
+    note(text) {
+      data.note = text
+      return this
+    },
+  }
+}
+
 export interface Service {
   readonly [META]: ServiceData
   note(text: string): Service
@@ -206,18 +247,13 @@ function flow(event: DeclData, sourceFields: Fields, map?: (source: never) => ob
 // The slice chain
 // ---------------------------------------------------------------------------
 
-/** A finished slice: the only thing a chapter accepts. */
+/**
+ * A column of the diagram. Every step of the chain is a Slice, so a chapter
+ * accepts a slice at any stage and the picture draws what it has so far.
+ * Assembly says what is still missing.
+ */
 export interface Slice {
   readonly [META]: SliceData
-}
-
-/**
- * An unfinished chain carries the step it still needs, so that a chapter handed
- * one can say so instead of listing the properties a Slice has and it lacks.
- * The property exists in the type only.
- */
-export interface Unfinished<Next extends string> {
-  readonly "this slice still needs": Next
 }
 
 export interface Spec<C extends Fields, Em extends Fields> {
@@ -232,59 +268,44 @@ export interface ProjectionSpec<R extends Fields> {
   then: OneOrMany<Example<"readModel", R>>
 }
 
-export interface SliceStart extends Unfinished<".actor(), .on(), .polls() or .projects()"> {
-  actor(actor: Actor): Acting
-  /** Automation: the event starts it. */
-  on(event: EventDecl): NeedsCommandOrReads
-  /** Automation: works through the read model on its own schedule. */
-  polls(readModel: ReadModelDecl): NeedsCommand
-  /** State view: events build the read model. */
-  projects<R extends Fields>(readModel: ReadModelDecl<R>): Projecting<R>
-}
-
-export interface Acting extends Unfinished<".service(), .query() or .reads()"> {
-  reads(readModel: ReadModelDecl): ActingRead
+/** A slice at a screen: a view of what it reads, a command it sends, or both. */
+export interface AtScreen extends Slice {
   /** The request fields of a view. */
   query(fields: Fields): Querying
-  service(service: Service, method?: string): NeedsCommand
+  reads(readModel: ReadModelDecl): ScreenReads
+  command<C extends Fields>(command: CommandDecl<C>): Emitting<C>
+  note(text: string): AtScreen
 }
 
-export interface ActingRead
-  extends Unfinished<".service(service, method), or .service(service) then .command()"> {
-  reads(readModel: ReadModelDecl): ActingRead
-  service(service: Service): NeedsCommand
-  /** With a method this is a view, and may still go on to a command. */
-  service(service: Service, method: string): ViewOrCommand
+export interface Querying extends Slice {
+  reads(readModel: ReadModelDecl): ScreenReads
+  note(text: string): Querying
 }
 
-export interface Querying extends Unfinished<".reads()"> {
-  reads(readModel: ReadModelDecl): NeedsMethod
+/** A view; it may still go on to a command the screen sends after reading. */
+export interface ScreenReads extends Slice {
+  reads(readModel: ReadModelDecl): ScreenReads
+  command<C extends Fields>(command: CommandDecl<C>): Emitting<C>
+  note(text: string): ScreenReads
 }
 
-export interface NeedsMethod extends Unfinished<".service(service, method)"> {
-  reads(readModel: ReadModelDecl): NeedsMethod
-  service(service: Service, method: string): View
+/** A slice at an automation: an event starts it, or it works through a read model. */
+export interface AtAutomation extends Slice {
+  on(event: EventDecl): Deciding
+  polls(readModel: ReadModelDecl): Deciding
+  note(text: string): AtAutomation
 }
 
-export interface View extends Slice {
-  note(text: string): View
-}
-
-export interface ViewOrCommand extends View {
-  command<C extends Fields>(command: CommandDecl<C>): NeedsEmits<C>
-}
-
-export interface NeedsCommand extends Unfinished<".command()"> {
-  command<C extends Fields>(command: CommandDecl<C>): NeedsEmits<C>
-}
-
-export interface NeedsCommandOrReads extends NeedsCommand {
+export interface Deciding extends Slice {
   /** What the decision looks at; once per read model. */
-  reads(readModel: ReadModelDecl): NeedsCommandOrReads
+  reads(readModel: ReadModelDecl): Deciding
+  command<C extends Fields>(command: CommandDecl<C>): Emitting<C>
+  note(text: string): Deciding
 }
 
-export interface NeedsEmits<C extends Fields> extends Unfinished<".emits(event)"> {
+export interface Emitting<C extends Fields> extends Slice {
   emits<E extends Fields>(event: EventDecl<E>, map?: Mapping<C, E>): Complete<C, E>
+  note(text: string): Emitting<C>
 }
 
 export interface Complete<C extends Fields, Em extends Fields> extends Slice {
@@ -293,8 +314,10 @@ export interface Complete<C extends Fields, Em extends Fields> extends Slice {
   note(text: string): Complete<C, Em>
 }
 
-export interface Projecting<R extends Fields> extends Unfinished<".on(event)"> {
+/** A slice at a read model: the events that build it. */
+export interface Projecting<R extends Fields> extends Slice {
   on<E extends Fields>(event: EventDecl<E>, map?: Mapping<E, R>): Projection<R>
+  note(text: string): Projecting<R>
 }
 
 export interface Projection<R extends Fields> extends Slice {
@@ -324,32 +347,44 @@ function chain(data: SliceData) {
   const next = (patch: Partial<SliceData>) => chain({ ...data, ...patch })
   return {
     [META]: data,
-    actor: (actor: Actor) => next({ actor: actor[META] }),
     query: (fields: Fields) => next({ query: fields }),
     reads: (readModel: ReadModelDecl) => next({ reads: [...data.reads, readModel[META]] }),
-    service: (service: Service, method?: string) =>
-      next({
-        service:
-          method === undefined ? { service: service[META] } : { service: service[META], method },
-      }),
     command: (command: CommandDecl) => next({ command: command[META] }),
     emits: (event: EventDecl, map?: (source: never) => object) =>
       next({ emits: [...data.emits, flow(event[META], data.command?.fields ?? {}, map)] }),
     on: (event: EventDecl, map?: (source: never) => object) =>
       next({ on: [...data.on, flow(event[META], event[META].fields, map)] }),
     polls: (readModel: ReadModelDecl) => next({ polls: readModel[META] }),
-    projects: (readModel: ReadModelDecl) => next({ projects: readModel[META] }),
     test: (name: string, spec: Partial<Spec<Fields, Fields>>) =>
       next({ tests: [...data.tests, testData(name, spec)] }),
     note: (text: string) => next({ note: text }),
   }
 }
 
-/** A column of the diagram. Pass a name only when the command's would mislead. */
-function slice(name?: string): SliceStart {
+/**
+ * A slice starts from what triggers it: an actor at a screen, an automation, or
+ * the read model a projection builds. The name is the column heading; for a
+ * view it is also the service method, so a view needs one.
+ */
+function slice(screen: Screen, name?: string): AtScreen
+function slice(automation: Automation, name?: string): AtAutomation
+function slice<R extends Fields>(readModel: ReadModelDecl<R>, name?: string): Projecting<R>
+function slice(start: Screen | Automation | ReadModelDecl, name?: string): Slice {
   const data: SliceData = { reads: [], emits: [], on: [], tests: [] }
   if (name !== undefined) data.name = name
-  return chain(data) as unknown as SliceStart
+  const meta = start[META]
+  if (meta.kind === "screen") {
+    data.screen = meta
+    if (meta.service) {
+      data.service =
+        name === undefined ? { service: meta.service } : { service: meta.service, method: name }
+    }
+  } else if (meta.kind === "automation") {
+    data.automation = meta
+  } else {
+    data.projects = meta
+  }
+  return chain(data)
 }
 
 // ---------------------------------------------------------------------------
@@ -360,18 +395,8 @@ export interface Chapter {
   readonly [META]: ChapterData
 }
 
-/** Each element is a Slice, or the message saying which step it still needs. */
-type Finished<T> = {
-  [K in keyof T]: T[K] extends Slice
-    ? T[K]
-    : T[K] extends Unfinished<infer Next>
-      ? `this slice is not finished: it still needs ${Next}`
-      : Slice
-}
-
-function chapter<const T extends readonly unknown[]>(slices: T & Finished<T>): Chapter {
-  const finished = slices as unknown as readonly Slice[]
-  return { [META]: { kind: "chapter", slices: finished.map((s) => s[META]) } }
+function chapter(slices: readonly Slice[]): Chapter {
+  return { [META]: { kind: "chapter", slices: slices.map((s) => s[META]) } }
 }
 
 export interface Model {
@@ -395,6 +420,8 @@ function model(
 
 export const m = {
   actor,
+  screen,
+  automation,
   service,
   event,
   command,

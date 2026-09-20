@@ -9,9 +9,17 @@ import {
   ItemDeleted,
   ListCreated,
   ListDeleted,
+  ListScreen,
+  ListsScreen,
   TodoService,
   User,
 } from "./list-management.ts"
+
+// Search has a screen of its own.
+export const SearchScreen = m.screen(User, TodoService)
+
+// The process that completes a list when its last item is done.
+export const ListCompleter = m.automation()
 
 // When the last item is done, the list completes.
 export const CompleteList = m.command({ listId: z.string() })
@@ -42,8 +50,7 @@ const eggs = ItemAdded.with({ userId: "u-1", listId: "list-1", itemId: "item-2",
 
 export const Views = m.chapter([
   m
-    .slice()
-    .projects(TodoList)
+    .slice(TodoList)
     .on(ListCreated, () => ({ itemCount: 0, status: "open" }))
     .on(ItemAdded, (e) => ({ itemCount: m.count(e) }))
     .on(ListCompleted, () => ({ status: "completed" }))
@@ -89,16 +96,10 @@ export const Views = m.chapter([
       }),
     }),
 
-  m
-    .slice()
-    .actor(User)
-    .query({ userId: z.string() })
-    .reads(TodoList)
-    .service(TodoService, "ListTodoLists"),
+  m.slice(ListsScreen, "ListTodoLists").query({ userId: z.string() }).reads(TodoList),
 
   m
-    .slice()
-    .projects(ItemSearch)
+    .slice(ItemSearch)
     .on(ItemAdded, () => ({ done: false, deleted: false }))
     .on(ItemCompleted, () => ({ done: true }))
     .on(ItemDeleted, () => ({ deleted: true }))
@@ -133,24 +134,14 @@ export const Views = m.chapter([
       }),
     }),
 
-  m
-    .slice()
-    .actor(User)
-    .query({ listId: z.string() })
-    .reads(ItemSearch)
-    .service(TodoService, "GetList"),
+  m.slice(ListScreen, "GetList").query({ listId: z.string() }).reads(ItemSearch),
 
-  m
-    .slice()
-    .actor(User)
-    .query({ text: z.string() })
-    .reads(ItemSearch)
-    .service(TodoService, "SearchItems"),
+  m.slice(SearchScreen, "SearchItems").query({ text: z.string() }).reads(ItemSearch),
 ])
 
 export const Automations = m.chapter([
   m
-    .slice("ListCompleter")
+    .slice(ListCompleter)
     .on(ItemCompleted)
     .reads(ItemSearch)
     .command(CompleteList)
@@ -171,9 +162,12 @@ export const TaskScheduled = m.event({
 })
 export const Calendar = m.external({ TaskScheduled })
 
+// Ours: it turns the calendar's task into an item on the list.
+export const CalendarImport = m.automation()
+
 export const Integrations = m.chapter([
   m
-    .slice()
+    .slice(CalendarImport)
     .on(TaskScheduled)
     .command(AddItem)
     .emits(ItemAdded, (c) => ({ title: c.text })),

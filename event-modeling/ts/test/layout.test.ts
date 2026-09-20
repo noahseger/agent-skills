@@ -186,11 +186,14 @@ test("lanes say what they are, and the system lane is the automations", () => {
 })
 
 test("a screen is a wireframe of its command or its read model", () => {
-  const create = out.boxes.find((b) => b.kind === "ui" && b.name === "CreateList")
+  // The screen is named by the model; the column tells which use of it this is.
+  const column = (label: string) => out.columns.find((c) => c.label === label)?.index
+  const create = out.boxes.find((b) => b.kind === "ui" && b.column === column("CreateList"))
+  assert.equal(create?.name, "ListsScreen")
   assert.deepEqual(create?.form, ["userId", "listId", "name"])
   assert.equal(create?.button, "CreateList")
   assert.equal(create?.table, undefined)
-  const list = out.boxes.find((b) => b.kind === "ui" && b.name === "ListTodoLists")
+  const list = out.boxes.find((b) => b.kind === "ui" && b.column === column("ListTodoLists"))
   assert.deepEqual(list?.form, ["userId"])
   assert.deepEqual(list?.table, ["userId", "listId", "name", "itemCount", "status"])
   assert.equal(list?.button, undefined)

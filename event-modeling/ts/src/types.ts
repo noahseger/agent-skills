@@ -30,6 +30,21 @@ export interface ActorData extends Named {
   note?: string
 }
 
+/** What an actor looks at and acts through. Its wireframe is drawn from the slice that uses it. */
+export interface ScreenData extends Named {
+  kind: "screen"
+  actor: ActorData
+  /** The API the screen calls; a slice from this screen is one of its methods. */
+  service?: ServiceData
+  note?: string
+}
+
+/** A process of ours that acts on its own: on an event, or through a list of work. */
+export interface AutomationData extends Named {
+  kind: "automation"
+  note?: string
+}
+
 export interface ServiceData extends Named {
   kind: "service"
   /** The protobuf package, e.g. todo.v1. */
@@ -62,6 +77,8 @@ export interface ModelData {
 export type Exported =
   | DeclData
   | ActorData
+  | ScreenData
+  | AutomationData
   | ServiceData
   | StreamData
   | ExternalData
@@ -69,7 +86,13 @@ export type Exported =
   | ModelData
 
 /** A named thing a module exports, other than the model, a stream or a chapter. */
-export type Declaration = DeclData | ActorData | ServiceData | ExternalData
+export type Declaration =
+  | DeclData
+  | ActorData
+  | ScreenData
+  | AutomationData
+  | ServiceData
+  | ExternalData
 
 /** The named, checked model. The render target and the generators read this. */
 export interface Assembled {
@@ -119,10 +142,12 @@ export interface TestData {
 }
 
 export interface SliceData {
-  /** Given to `m.slice()`, or derived from the command or read model at assembly. */
+  /** Given to `m.slice()`, or derived from what the slice holds at assembly. A view's is its method. */
   name?: string
   note?: string
-  actor?: ActorData
+  /** What starts the slice: an actor at a screen, or an automation. A projection has neither. */
+  screen?: ScreenData
+  automation?: AutomationData
   query?: Fields
   reads: DeclData[]
   service?: { service: ServiceData; method?: string }

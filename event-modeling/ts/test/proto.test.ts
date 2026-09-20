@@ -27,6 +27,7 @@ test("the checked-in proto is what the model generates", async () => {
 
 const User = m.actor()
 const Svc = m.service("t.v1")
+const Page = m.screen(User, Svc)
 
 type Slices = Parameters<typeof m.chapter>[0]
 
@@ -42,7 +43,7 @@ function modelOf(
 const source = (model: ModelData) => generateProto(model)[0]?.source ?? ""
 
 const stateChange = (Create: ReturnType<typeof m.command>) =>
-  m.slice().actor(User).service(Svc).command(Create).emits(m.event({}))
+  m.slice(Page).command(Create).emits(m.event({}))
 
 test("field numbers follow declaration order", () => {
   const Create = m.command({ userId: z.string(), listId: z.string(), name: z.string() })
@@ -103,14 +104,14 @@ test("a type outside the table is an error naming the declaration and the field"
   )
   const Table = m.readModel({ id: m.key(z.string()), amount: z.bigint() })
   assert.throws(
-    () => source(modelOf({ Table }, m.slice().actor(User).reads(Table).service(Svc, "Get"))),
+    () => source(modelOf({ Table }, m.slice(Page, "Get").reads(Table))),
     /Table\.amount has no protobuf type/,
   )
 })
 
 test("a view with no .query() has an empty request", () => {
   const Table = m.readModel({ id: m.key(z.string()) })
-  const proto = source(modelOf({ Table }, m.slice().actor(User).reads(Table).service(Svc, "Get")))
+  const proto = source(modelOf({ Table }, m.slice(Page, "Get").reads(Table)))
   assert.match(proto, /rpc Get\(GetRequest\) returns \(GetResponse\);/)
   assert.match(
     proto,
@@ -121,23 +122,14 @@ test("a view with no .query() has an empty request", () => {
 test("a service with no procedures produces no file", () => {
   const Table = m.readModel({ id: m.key(z.string()) })
   const Created = m.event({ id: z.string() })
-  assert.deepEqual(
-    generateProto(modelOf({ Table, Created }, m.slice().projects(Table).on(Created))),
-    [],
-  )
+  assert.deepEqual(generateProto(modelOf({ Table, Created }, m.slice(Table).on(Created))), [])
 })
 
 test("two read models read by one view both appear in the response", () => {
   const Lists = m.readModel({ id: m.key(z.string()) })
   const Items = m.readModel({ id: m.key(z.string()), listId: z.string() })
-  const view = m
-    .slice()
-    .actor(User)
-    .query({ listId: z.string() })
-    .reads(Lists)
-    .reads(Items)
-    .service(Svc, "Get")
-  const again = m.slice().actor(User).reads(Items).service(Svc, "GetItems")
+  const view = m.slice(Page, "Get").query({ listId: z.string() }).reads(Lists).reads(Items)
+  const again = m.slice(Page, "GetItems").reads(Items)
   const proto = source(modelOf({ Lists, Items }, view, again))
   assert.match(
     proto,
@@ -153,13 +145,8 @@ test("two read models read by one view both appear in the response", () => {
 
 test("a query that names every key column returns one row, not a list", () => {
   const Table = m.readModel({ userId: m.key(z.string()), id: m.key(z.string()), name: z.string() })
-  const one = m
-    .slice()
-    .actor(User)
-    .query({ userId: z.string(), id: z.string() })
-    .reads(Table)
-    .service(Svc, "Get")
-  const many = m.slice().actor(User).query({ userId: z.string() }).reads(Table).service(Svc, "List")
+  const one = m.slice(Page, "Get").query({ userId: z.string(), id: z.string() }).reads(Table)
+  const many = m.slice(Page, "List").query({ userId: z.string() }).reads(Table)
   const proto = source(modelOf({ Table }, one, many))
   assert.match(proto, /message GetResponse \{\n {2}Table table = 1;\n\}/)
   assert.match(proto, /message ListResponse \{\n {2}repeated Table table = 1;\n\}/)
