@@ -159,8 +159,6 @@ const KIND_LABEL = {
 interface Located {
   slice: SliceData
   where: string
-  /** Whether the model named the slice, before assembly gave it a heading. */
-  named: boolean
 }
 
 function check(model: ModelData, fail: Fail): void {
@@ -194,9 +192,8 @@ function locate(chapter: ChapterData, index: number): Located[] {
       slice.reads[0]?.name ??
       slice.screen?.name ??
       slice.automation?.name
-    const named = slice.name !== undefined
-    if (!named && heading !== undefined) slice.name = heading
-    return { slice, where: `slice '${slice.name}' in '${chapter.name}'`, named }
+    if (slice.name === undefined && heading !== undefined) slice.name = heading
+    return { slice, where: `slice '${slice.name}' in '${chapter.name}'` }
   })
 }
 
@@ -223,7 +220,7 @@ function used(slice: SliceData): [keyof typeof KIND_LABEL, { name?: string }][] 
  * A chapter takes a slice at any stage, so the picture can show it. This says
  * what the stage still lacks, in the words of the call that would add it.
  */
-function checkWhole({ slice, where, named }: Located, fail: Fail): boolean {
+function checkWhole({ slice, where }: Located, fail: Fail): boolean {
   const about = (message: string): Warning => ({
     message,
     element: slice.screen?.name ?? slice.automation?.name ?? slice.projects?.name ?? "",
@@ -241,14 +238,8 @@ function checkWhole({ slice, where, named }: Located, fail: Fail): boolean {
   }
   if (slice.projects && slice.on.length === 0) missing(".on(event)")
   if (slice.screen) {
-    if (!slice.command && slice.reads.length === 0)
-      missing(slice.query ? ".reads(readModel)" : ".reads(readModel) or .command(command)")
-    else if (!slice.command && !named)
-      fail(
-        about(
-          `${where} is a view, so it is headed by its service method: name it, m.slice(screen, "Method").`,
-        ),
-      )
+    if (slice.view && slice.reads.length === 0) missing(".reads(readModel)")
+    if (!slice.view && !slice.command) missing(".command(command)")
   }
   return whole
 }

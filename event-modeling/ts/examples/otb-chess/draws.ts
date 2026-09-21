@@ -116,9 +116,7 @@ export const gameResigned = GameResigned.with({
 })
 
 export const DrawsAndResignation = m.chapter([
-  m
-    .slice(Board)
-    .reads(GameState)
+  Board.reads(GameState)
     .command(OfferDraw)
     .emits(DrawOffered)
     .test("White offers a draw on move 21", {
@@ -127,9 +125,7 @@ export const DrawsAndResignation = m.chapter([
       then: drawOffered,
     }),
 
-  m
-    .slice(PendingDrawOffer)
-    .on(DrawOffered, () => ({ status: "pending" }))
+  PendingDrawOffer.on(DrawOffered, () => ({ status: "pending" }))
     .on(MovePlayed, () => ({ status: "declined" }))
     .on(DrawAgreed, () => ({ status: "accepted" }))
     .note("A move by the opponent declines the offer. FIDE 9.1.2.3.")
@@ -161,9 +157,7 @@ export const DrawsAndResignation = m.chapter([
       }),
     }),
 
-  m
-    .slice(Board)
-    .reads(PendingDrawOffer)
+  Board.reads(PendingDrawOffer)
     .command(AcceptDraw)
     .emits(DrawAgreed)
     .test("Black accepts the pending draw offer", {
@@ -187,9 +181,7 @@ export const DrawsAndResignation = m.chapter([
       then: NoOfferPending,
     }),
 
-  m
-    .slice(Board)
-    .reads(GameState)
+  Board.reads(GameState)
     .command(Resign)
     .emits(GameResigned)
     .test("Black resigns a lost endgame", {

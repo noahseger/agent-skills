@@ -68,7 +68,11 @@ export interface Decl<K extends DeclKind, F extends Fields> {
 
 export type EventDecl<F extends Fields = Fields> = Decl<"event", F>
 export type CommandDecl<F extends Fields = Fields> = Decl<"command", F>
-export type ReadModelDecl<F extends Fields = Fields> = Decl<"readModel", F>
+
+/** A read model also starts its own projection: the events that build it. */
+export interface ReadModelDecl<F extends Fields = Fields> extends Decl<"readModel", F> {
+  on<E extends Fields>(event: EventDecl<E>, map?: Mapping<E, F>): Projection<F>
+}
 
 function decl<K extends DeclKind, F extends Fields>(kind: K, fields: F): Decl<K, F> {
   const keys = Object.keys(fields).filter((f) => fields[f]?.meta()?.key === true)
@@ -101,7 +105,16 @@ function command<F extends Fields>(fields: F): CommandDecl<F> {
 }
 
 function readModel<F extends Fields>(fields: F): ReadModelDecl<F> {
-  return decl("readModel", fields)
+  const base = decl("readModel", fields)
+  return {
+    ...base,
+    note(text) {
+      base.note(text)
+      return this
+    },
+    on: (event, map) =>
+      chain({ ...startSlice(), projects: base[META] }).on(event, map as never) as never,
+  }
 }
 
 /** Marks a read model column as part of the row's identity. */
@@ -126,9 +139,15 @@ function actor(options: { icon?: "user" | "admin" | "system" } = {}): Actor {
   }
 }
 
+/** A screen starts a slice with what the actor does there: sends a command, or views what it reads. */
 export interface Screen {
   readonly [META]: ScreenData
   note(text: string): Screen
+  /** State change: the actor issues a command, after reading if `.reads()` came first. */
+  command<C extends Fields>(command: CommandDecl<C>): Emitting<C>
+  reads(readModel: ReadModelDecl): ScreenReads
+  /** View: the actor reads through this service method. The name heads the column. */
+  view(method: string): Viewing
 }
 
 /**
@@ -139,18 +158,35 @@ export interface Screen {
 function screen(actor: Actor, service?: Service): Screen {
   const data: ScreenData = { kind: "screen", actor: actor[META] }
   if (service) data.service = service[META]
+  const start = (): SliceData => ({
+    ...startSlice(),
+    screen: data,
+    ...(data.service ? { service: { service: data.service } } : {}),
+  })
   return {
     [META]: data,
     note(text) {
       data.note = text
       return this
     },
+    command: (command) => chain(start()).command(command) as never,
+    reads: (readModel) => chain(start()).reads(readModel) as never,
+    view: (method) => {
+      const s = start()
+      s.name = method
+      s.view = true
+      if (s.service) s.service.method = method
+      return chain(s) as never
+    },
   }
 }
 
+/** An automation starts a slice with what starts it: an event, or a list of work it polls. */
 export interface Automation {
   readonly [META]: AutomationData
   note(text: string): Automation
+  on(event: EventDecl): Deciding
+  polls(readModel: ReadModelDecl): Deciding
 }
 
 /** A process of ours. Its slice says what starts it and what it does. */
@@ -162,6 +198,8 @@ function automation(): Automation {
       data.note = text
       return this
     },
+    on: (event) => chain({ ...startSlice(), automation: data }).on(event) as never,
+    polls: (readModel) => chain({ ...startSlice(), automation: data }).polls(readModel) as never,
   }
 }
 
@@ -248,9 +286,10 @@ function flow(event: DeclData, sourceFields: Fields, map?: (source: never) => ob
 // ---------------------------------------------------------------------------
 
 /**
- * A column of the diagram. Every step of the chain is a Slice, so a chapter
- * accepts a slice at any stage and the picture draws what it has so far.
- * Assembly says what is still missing.
+ * A column of the diagram. A slice starts from the declaration that triggers
+ * it, `screen.command()`, `automation.on()`, `readModel.on()`, and every step
+ * of the chain is a Slice, so a chapter accepts one at any stage and the
+ * picture draws what it has so far. Assembly says what is still missing.
  */
 export interface Slice {
   readonly [META]: SliceData
@@ -268,32 +307,24 @@ export interface ProjectionSpec<R extends Fields> {
   then: OneOrMany<Example<"readModel", R>>
 }
 
-/** A slice at a screen: a view of what it reads, a command it sends, or both. */
-export interface AtScreen extends Slice {
-  /** The request fields of a view. */
-  query(fields: Fields): Querying
-  reads(readModel: ReadModelDecl): ScreenReads
-  command<C extends Fields>(command: CommandDecl<C>): Emitting<C>
-  note(text: string): AtScreen
-}
-
-export interface Querying extends Slice {
-  reads(readModel: ReadModelDecl): ScreenReads
-  note(text: string): Querying
-}
-
-/** A view; it may still go on to a command the screen sends after reading. */
+/** What a screen reads before the actor commands. */
 export interface ScreenReads extends Slice {
   reads(readModel: ReadModelDecl): ScreenReads
   command<C extends Fields>(command: CommandDecl<C>): Emitting<C>
   note(text: string): ScreenReads
 }
 
-/** A slice at an automation: an event starts it, or it works through a read model. */
-export interface AtAutomation extends Slice {
-  on(event: EventDecl): Deciding
-  polls(readModel: ReadModelDecl): Deciding
-  note(text: string): AtAutomation
+/** A view: the request fields, then what it reads. */
+export interface Viewing extends Slice {
+  /** The request fields of the view. */
+  query(fields: Fields): Viewing
+  reads(readModel: ReadModelDecl): View
+  note(text: string): Viewing
+}
+
+export interface View extends Slice {
+  reads(readModel: ReadModelDecl): View
+  note(text: string): View
 }
 
 export interface Deciding extends Slice {
@@ -312,12 +343,6 @@ export interface Complete<C extends Fields, Em extends Fields> extends Slice {
   emits<E extends Fields>(event: EventDecl<E>, map?: Mapping<C, E>): Complete<C, Em | E>
   test(name: string, spec: Spec<C, Em>): Complete<C, Em>
   note(text: string): Complete<C, Em>
-}
-
-/** A slice at a read model: the events that build it. */
-export interface Projecting<R extends Fields> extends Slice {
-  on<E extends Fields>(event: EventDecl<E>, map?: Mapping<E, R>): Projection<R>
-  note(text: string): Projecting<R>
 }
 
 export interface Projection<R extends Fields> extends Slice {
@@ -361,31 +386,7 @@ function chain(data: SliceData) {
   }
 }
 
-/**
- * A slice starts from what triggers it: an actor at a screen, an automation, or
- * the read model a projection builds. The name is the column heading; for a
- * view it is also the service method, so a view needs one.
- */
-function slice(screen: Screen, name?: string): AtScreen
-function slice(automation: Automation, name?: string): AtAutomation
-function slice<R extends Fields>(readModel: ReadModelDecl<R>, name?: string): Projecting<R>
-function slice(start: Screen | Automation | ReadModelDecl, name?: string): Slice {
-  const data: SliceData = { reads: [], emits: [], on: [], tests: [] }
-  if (name !== undefined) data.name = name
-  const meta = start[META]
-  if (meta.kind === "screen") {
-    data.screen = meta
-    if (meta.service) {
-      data.service =
-        name === undefined ? { service: meta.service } : { service: meta.service, method: name }
-    }
-  } else if (meta.kind === "automation") {
-    data.automation = meta
-  } else {
-    data.projects = meta
-  }
-  return chain(data)
-}
+const startSlice = (): SliceData => ({ reads: [], emits: [], on: [], tests: [] })
 
 // ---------------------------------------------------------------------------
 // Chapters and the model
@@ -431,7 +432,6 @@ export const m = {
   rejected,
   external,
   stream,
-  slice,
   chapter,
   model,
 }

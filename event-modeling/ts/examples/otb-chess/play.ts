@@ -166,9 +166,7 @@ const clockStarted = ClockStarted.with({
 })
 
 export const Play = m.chapter([
-  m
-    .slice(Board)
-    .reads(GameState)
+  Board.reads(GameState)
     .command(PlayMove)
     .emits(MovePlayed)
     .emits(GameEnded)
@@ -263,9 +261,7 @@ export const Play = m.chapter([
       then: NotYourMove,
     }),
 
-  m
-    .slice(GameState)
-    .on(GameStarted)
+  GameState.on(GameStarted)
     .on(MovePlayed)
     .on(IllegalMoveRuled)
     .test("The board advances after the opening move", {
@@ -287,9 +283,7 @@ export const Play = m.chapter([
       }),
     }),
 
-  m
-    .slice(Board)
-    .reads(ClockState)
+  Board.reads(ClockState)
     .command(PressClock)
     .emits(ClockPressed)
     .note("FIDE 6.2.1: pressing banks the increment and starts the opponent's clock.")
@@ -319,9 +313,7 @@ export const Play = m.chapter([
       then: NotYourClock,
     }),
 
-  m
-    .slice(ClockState)
-    .on(ClockStarted)
+  ClockState.on(ClockStarted)
     .on(ClockPressed)
     .test("The clock starts with White's time running", {
       given: clockStarted,
@@ -350,9 +342,7 @@ export const Play = m.chapter([
       }),
     }),
 
-  m
-    .slice(MoveList)
-    .on(MovePlayed, () => ({ status: "recorded" }))
+  MoveList.on(MovePlayed, () => ({ status: "recorded" }))
     .on(IllegalMoveRuled, () => ({ status: "struck" }))
     .test("A move is recorded on the scoresheet", {
       given: e4,

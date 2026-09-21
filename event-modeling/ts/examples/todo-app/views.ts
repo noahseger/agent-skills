@@ -49,9 +49,7 @@ const milkDone = ItemCompleted.with({ listId: "list-1", itemId: "item-1" })
 const eggs = ItemAdded.with({ userId: "u-1", listId: "list-1", itemId: "item-2", title: "Eggs" })
 
 export const Views = m.chapter([
-  m
-    .slice(TodoList)
-    .on(ListCreated, () => ({ itemCount: 0, status: "open" }))
+  TodoList.on(ListCreated, () => ({ itemCount: 0, status: "open" }))
     .on(ItemAdded, (e) => ({ itemCount: m.count(e) }))
     .on(ListCompleted, () => ({ status: "completed" }))
     .on(ListDeleted, () => ({ status: "deleted" }))
@@ -96,11 +94,9 @@ export const Views = m.chapter([
       }),
     }),
 
-  m.slice(ListsScreen, "ListTodoLists").query({ userId: z.string() }).reads(TodoList),
+  ListsScreen.view("ListTodoLists").query({ userId: z.string() }).reads(TodoList),
 
-  m
-    .slice(ItemSearch)
-    .on(ItemAdded, () => ({ done: false, deleted: false }))
+  ItemSearch.on(ItemAdded, () => ({ done: false, deleted: false }))
     .on(ItemCompleted, () => ({ done: true }))
     .on(ItemDeleted, () => ({ deleted: true }))
     .test("A completed item shows as done", {
@@ -134,15 +130,13 @@ export const Views = m.chapter([
       }),
     }),
 
-  m.slice(ListScreen, "GetList").query({ listId: z.string() }).reads(ItemSearch),
+  ListScreen.view("GetList").query({ listId: z.string() }).reads(ItemSearch),
 
-  m.slice(SearchScreen, "SearchItems").query({ text: z.string() }).reads(ItemSearch),
+  SearchScreen.view("SearchItems").query({ text: z.string() }).reads(ItemSearch),
 ])
 
 export const Automations = m.chapter([
-  m
-    .slice(ListCompleter)
-    .on(ItemCompleted)
+  ListCompleter.on(ItemCompleted)
     .reads(ItemSearch)
     .command(CompleteList)
     .emits(ListCompleted)
@@ -166,9 +160,7 @@ export const Calendar = m.external({ TaskScheduled })
 export const CalendarImport = m.automation()
 
 export const Integrations = m.chapter([
-  m
-    .slice(CalendarImport)
-    .on(TaskScheduled)
+  CalendarImport.on(TaskScheduled)
     .command(AddItem)
     .emits(ItemAdded, (c) => ({ title: c.text })),
 ])

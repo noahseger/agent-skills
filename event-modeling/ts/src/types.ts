@@ -148,6 +148,8 @@ export interface SliceData {
   /** What starts the slice: an actor at a screen, or an automation. A projection has neither. */
   screen?: ScreenData
   automation?: AutomationData
+  /** A screen slice started with `.view(name)`: it reads and never commands. */
+  view?: true
   query?: Fields
   reads: DeclData[]
   service?: { service: ServiceData; method?: string }

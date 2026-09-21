@@ -132,9 +132,7 @@ const resultRecorded = ResultRecorded.with({
 })
 
 export const Conclusion = m.chapter([
-  m
-    .slice(Board)
-    .reads(ClockState)
+  Board.reads(ClockState)
     .command(ClaimFlagFall)
     .emits(TimeForfeited)
     .test("White claims Black's fallen flag", {
@@ -168,9 +166,7 @@ export const Conclusion = m.chapter([
       then: FlagStanding,
     }),
 
-  m
-    .slice(OutcomeAdjudicator)
-    .on(GameEnded)
+  OutcomeAdjudicator.on(GameEnded)
     .reads(GameState)
     .command(AdjudicateOutcome)
     .emits(BoardOutcomeAdjudicated)
@@ -231,9 +227,7 @@ export const Conclusion = m.chapter([
       }),
     }),
 
-  m
-    .slice(IllegalMoveForfeiter)
-    .on(SecondIllegalMoveRuled)
+  IllegalMoveForfeiter.on(SecondIllegalMoveRuled)
     .reads(IllegalMoveTally)
     .command(ForfeitGame)
     .emits(IllegalMoveForfeited)
@@ -249,9 +243,7 @@ export const Conclusion = m.chapter([
       then: illegalMoveForfeited,
     }),
 
-  m
-    .slice(GameResult)
-    .on(GameResigned)
+  GameResult.on(GameResigned)
     .on(DrawAgreed)
     .on(BoardOutcomeAdjudicated)
     .on(TimeForfeited)
@@ -298,9 +290,7 @@ export const Conclusion = m.chapter([
       }),
     }),
 
-  m
-    .slice(ArbiterDesk)
-    .reads(GameResult)
+  ArbiterDesk.reads(GameResult)
     .reads(GamePairing)
     .command(RecordResult)
     .emits(ResultRecorded)
@@ -318,21 +308,18 @@ export const Conclusion = m.chapter([
       then: resultRecorded,
     }),
 
-  m
-    .slice(GameRecord)
-    .on(ResultRecorded)
-    .test("The recorded game enters the crosstable", {
-      given: resultRecorded,
-      then: GameRecord.with({
-        gameId: "otb-2024-ct-r5-b1",
-        round: 5,
-        boardNumber: 1,
-        whitePlayerId: "gm-carlsen",
-        blackPlayerId: "gm-nepo",
-        result: "draw",
-        termination: "agreement",
-      }),
+  GameRecord.on(ResultRecorded).test("The recorded game enters the crosstable", {
+    given: resultRecorded,
+    then: GameRecord.with({
+      gameId: "otb-2024-ct-r5-b1",
+      round: 5,
+      boardNumber: 1,
+      whitePlayerId: "gm-carlsen",
+      blackPlayerId: "gm-nepo",
+      result: "draw",
+      termination: "agreement",
     }),
+  }),
 ])
 
 export const Game = m.stream({

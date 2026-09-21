@@ -50,9 +50,7 @@ const groceries = ListCreated.with({ listId: "list-1", userId: "u-1", name: "Gro
 const milk = ItemAdded.with({ userId: "u-1", listId: "list-1", itemId: "item-1", title: "Milk" })
 
 export const ListManagement = m.chapter([
-  m
-    .slice(ListsScreen)
-    .command(CreateList)
+  ListsScreen.command(CreateList)
     .emits(ListCreated)
     .test("User creates a new list", {
       when: CreateList.with({ userId: "u-1", listId: "list-1", name: "Groceries" }),
@@ -64,9 +62,7 @@ export const ListManagement = m.chapter([
       then: DuplicateName,
     }),
 
-  m
-    .slice(ListScreen)
-    .command(AddItem)
+  ListScreen.command(AddItem)
     .emits(ItemAdded, (c) => ({ title: c.text }))
     .test("User adds an item to a list", {
       given: groceries,
@@ -83,9 +79,7 @@ export const ListManagement = m.chapter([
       then: TooManyItems,
     }),
 
-  m
-    .slice(ListScreen)
-    .command(CompleteItem)
+  ListScreen.command(CompleteItem)
     .emits(ItemCompleted)
     .test("User completes an item", {
       given: milk,
@@ -93,9 +87,7 @@ export const ListManagement = m.chapter([
       then: ItemCompleted.with({ listId: "list-1", itemId: "item-1" }),
     }),
 
-  m
-    .slice(ListScreen)
-    .command(DeleteItem)
+  ListScreen.command(DeleteItem)
     .emits(ItemDeleted)
     .test("User deletes an item from a list", {
       given: milk,
@@ -103,9 +95,7 @@ export const ListManagement = m.chapter([
       then: ItemDeleted.with({ listId: "list-1", itemId: "item-1" }),
     }),
 
-  m
-    .slice(ListsScreen)
-    .command(DeleteList)
+  ListsScreen.command(DeleteList)
     .emits(ListDeleted)
     .test("User deletes a list", {
       given: groceries,

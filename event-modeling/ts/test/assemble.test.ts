@@ -53,10 +53,10 @@ function fixture() {
 }
 type Fixture = ReturnType<typeof fixture>
 
-const create = (f: Fixture) => m.slice(f.Page).command(f.Create).emits(f.Created)
-const project = (f: Fixture) => m.slice(f.Table).on(f.Created)
+const create = (f: Fixture) => f.Page.command(f.Create).emits(f.Created)
+const project = (f: Fixture) => f.Table.on(f.Created)
 const projectTable = project
-const view = (f: Fixture) => m.slice(f.Page, "Get").reads(f.Table)
+const view = (f: Fixture) => f.Page.view("Get").reads(f.Table)
 
 /** One module exporting `exports` and a model of one chapter, `Ch`. */
 function assembled(exports: Record<string, unknown>, slices: Parameters<typeof m.chapter>[0]) {
@@ -113,10 +113,7 @@ test("an event field the command does not carry", () => {
 test("a mapping function fills what the command does not carry", () => {
   const f = fixture()
   const Created = m.event({ id: z.string(), name: z.string(), extra: z.string() })
-  const slice = m
-    .slice(f.Page)
-    .command(f.Create)
-    .emits(Created, (c) => ({ extra: c.name }))
+  const slice = f.Page.command(f.Create).emits(Created, (c) => ({ extra: c.name }))
   const json = assembled({ ...f, Created }, [slice, project({ ...f, Created }), view(f)])
   assert.deepEqual(json.chapters[0]?.slices[0]?.mapping, { Created: { extra: { from: "name" } } })
   assert.equal(json.chapters[0]?.slices[0]?.command, "Create(id, name)")
@@ -136,8 +133,8 @@ test("an event that carries none of the read model's key columns", () => {
   const f = fixture()
   const Rename = m.command({ name: z.string() })
   const Renamed = m.event({ name: z.string() })
-  const rename = m.slice(f.Page).command(Rename).emits(Renamed)
-  const projection = m.slice(f.Table).on(f.Created).on(Renamed)
+  const rename = f.Page.command(Rename).emits(Renamed)
+  const projection = f.Table.on(f.Created).on(Renamed)
   assert.throws(
     () => assembled({ ...f, Rename, Renamed }, [create(f), rename, projection, view(f)]),
     /slice 'Table' in 'Ch': Renamed carries none of Table's key columns \(id\)/,
@@ -186,7 +183,7 @@ test("a slice that emits an external event", () => {
   const f = fixture()
   const Pushed = m.event({ id: z.string(), name: z.string() })
   const Cal = m.external({ Pushed })
-  const slice = m.slice(f.Page).command(f.Create).emits(Pushed)
+  const slice = f.Page.command(f.Create).emits(Pushed)
   assert.throws(
     () => assembled({ ...f, Pushed, Cal }, [slice]),
     /slice 'Create' in 'Ch' emits Pushed, an event of Cal\. External events are translated, never emitted/,
@@ -195,12 +192,11 @@ test("a slice that emits an external event", () => {
 
 test("two slices claiming one service method", () => {
   const f = fixture()
-  const Rename = m.command({ id: z.string(), name: z.string() })
-  const Renamed = m.event({ id: z.string(), name: z.string() })
-  const rename = m.slice(f.Page, "Create").command(Rename).emits(Renamed)
-  const projection = m.slice(f.Table).on(f.Created).on(Renamed)
+  // Two screens send the same command through the same service: one method, twice.
+  const Other = m.screen(f.User, f.Svc)
+  const again = Other.command(f.Create).emits(f.Created)
   assert.throws(
-    () => assembled({ ...f, Rename, Renamed }, [create(f), rename, projection, view(f)]),
+    () => assembled({ ...f, Other }, [create(f), again, project(f), view(f)]),
     /slice 'Create' in 'Ch' and slice 'Create' in 'Ch' both claim Svc\/Create/,
   )
 })
@@ -212,8 +208,8 @@ test("a .polls() automation has the read model as its trigger", () => {
   const Process = m.command({ id: z.string() })
   const Processed = m.event({ id: z.string() })
   const Processor = m.automation()
-  const processor = m.slice(Processor).polls(f.Table).command(Process).emits(Processed)
-  const projection = m.slice(f.Table).on(f.Created).on(Processed)
+  const processor = Processor.polls(f.Table).command(Process).emits(Processed)
+  const projection = f.Table.on(f.Created).on(Processed)
   const json = assembled({ ...f, Process, Processed, Processor }, [
     create(f),
     processor,
@@ -244,8 +240,8 @@ test("same-named streams from two modules are one lane", () => {
 test("a slice may read more than one read model", () => {
   const f = fixture()
   const Other = m.readModel({ id: m.key(z.string()), count: z.number() })
-  const view = m.slice(f.Page, "Both").reads(f.Table).reads(Other)
-  const project = m.slice(Other).on(f.Created, () => ({ count: 0 }))
+  const view = f.Page.view("Both").reads(f.Table).reads(Other)
+  const project = Other.on(f.Created, () => ({ count: 0 }))
   const json = assembled({ ...f, Other }, [create(f), projectTable(f), project, view])
   assert.deepEqual(
     json.chapters[0]?.slices.at(-1)?.read_models?.map((r) => r.match(/^\w+/)?.[0]),
@@ -323,12 +319,10 @@ test("a slice at any stage assembles partial, and the warning names the missing 
   const f = fixture()
   const Robot = m.automation()
   const Ch = m.chapter([
-    m.slice(f.Page),
-    m.slice(f.Page).command(f.Create),
-    m.slice(f.Page).reads(f.Table),
-    m.slice(Robot),
-    m.slice(Robot).on(f.Created),
-    m.slice(f.Table),
+    f.Page.command(f.Create),
+    f.Page.reads(f.Table),
+    f.Page.view("Get"),
+    Robot.on(f.Created),
   ])
   const json = assembleModules([{ ...f, Robot, Ch, default: m.model("x", { chapters: [Ch] }) }], {
     partial: true,
@@ -336,20 +330,15 @@ test("a slice at any stage assembles partial, and the warning names the missing 
   assert.deepEqual(
     json.warnings?.filter((w) => w.message.includes("still needs")).map((w) => w.message),
     [
-      "slice 'Page' in 'Ch' is not finished: it still needs .reads(readModel) or .command(command).",
       "slice 'Create' in 'Ch' is not finished: it still needs .emits(event).",
-      "slice 'Robot' in 'Ch' is not finished: it still needs .on(event) or .polls(readModel).",
+      "slice 'Table' in 'Ch' is not finished: it still needs .command(command).",
+      "slice 'Get' in 'Ch' is not finished: it still needs .reads(readModel).",
       "slice 'Robot' in 'Ch' is not finished: it still needs .command(command).",
-      "slice 'Table' in 'Ch' is not finished: it still needs .on(event).",
     ],
   )
-  assert.match(
-    json.warnings?.find((w) => w.message.includes("is a view"))?.message ?? "",
-    /slice 'Table' in 'Ch' is a view, so it is headed by its service method: name it/,
-  )
   assert.deepEqual(
-    json.chapters[0]?.slices.map((s) => s.screen ?? s.automation ?? s.read_models?.[0]),
-    ["Page", "Page", "Page", "Robot", "Robot", "Table(*id, name)"],
+    json.chapters[0]?.slices.map((s) => s.screen ?? s.automation),
+    ["Page", "Page", "Page", "Robot"],
   )
 })
 

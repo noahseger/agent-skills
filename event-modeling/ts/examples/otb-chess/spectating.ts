@@ -7,15 +7,13 @@ import { GameState, MoveList } from "./play.ts"
 import { Broadcast } from "./setup.ts"
 
 export const Spectating = m.chapter([
-  m
-    .slice(Broadcast, "WatchBroadcast")
+  Broadcast.view("WatchBroadcast")
     .query({ gameId: z.string() })
     .reads(GameState)
     .reads(MoveList)
     .note("The live position and the moves so far, as the broadcast shows them."),
 
-  m
-    .slice(Broadcast, "GetCrosstable")
+  Broadcast.view("GetCrosstable")
     .query({ round: z.number().int() })
     .reads(GameRecord)
     .note("The finished games of a round."),

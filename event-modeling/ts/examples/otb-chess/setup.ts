@@ -119,9 +119,7 @@ export const gameStarted = GameStarted.with({
 })
 
 export const GameSetup = m.chapter([
-  m
-    .slice(ReceivePairing)
-    .on(PairingPublished)
+  ReceivePairing.on(PairingPublished)
     .command(StartGame)
     .emits(GameStarted)
     .note("The pairing is translated, never stored. The starting position is ours to supply.")
@@ -143,23 +141,18 @@ export const GameSetup = m.chapter([
       then: gameStarted,
     }),
 
-  m
-    .slice(GamePairing)
-    .on(GameStarted)
-    .test("Pairing identity available after the game starts", {
-      given: gameStarted,
-      then: GamePairing.with({
-        gameId: "otb-2024-ct-r5-b1",
-        round: 5,
-        boardNumber: 1,
-        whitePlayerId: "gm-carlsen",
-        blackPlayerId: "gm-nepo",
-      }),
+  GamePairing.on(GameStarted).test("Pairing identity available after the game starts", {
+    given: gameStarted,
+    then: GamePairing.with({
+      gameId: "otb-2024-ct-r5-b1",
+      round: 5,
+      boardNumber: 1,
+      whitePlayerId: "gm-carlsen",
+      blackPlayerId: "gm-nepo",
     }),
+  }),
 
-  m
-    .slice(ClockStarter)
-    .on(GameStarted)
+  ClockStarter.on(GameStarted)
     .command(StartClock)
     .emits(ClockStarted)
     .test("White's clock starts at 90 minutes", {

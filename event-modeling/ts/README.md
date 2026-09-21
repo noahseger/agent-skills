@@ -43,20 +43,20 @@ the same way. Zod types the example data in specifications and the generated mes
 automations and actors each stand on their own in the picture until a slice uses them. So the order
 of work is the order of an event storm: declare what you know, look at it, then wire it.
 
-**Slices wire declarations.** A slice starts from what triggers it, `m.slice(ListScreen)`,
-`m.slice(ListCompleter)` or `m.slice(TodoList)`, and goes on in the order the work happens:
-`.reads()`, `.command()`, `.emits()`, `.on()`, `.polls()`, `.query()`. The editor offers only the
-calls that can come next. When a slice connects two declarations, fields with the same name flow
-from one to the other. When the names differ, or a value has to be computed, pass a function.
+**Slices wire declarations.** A slice starts from the declaration that triggers it and goes on in
+the order the work happens. Type `ListScreen.` and the editor lists what a screen can do; type
+`ListCompleter.` for an automation, `TodoList.` for a read model. Each call offers only the calls
+that can come next. When a slice connects two declarations, fields with the same name flow from one
+to the other. When the names differ, or a value has to be computed, pass a function.
 
 ## The four slice patterns
 
 | Pattern | Chain | Meaning |
 |---|---|---|
-| state change | `m.slice(screen).reads?().command().emits()` | An actor at a screen issues a command and events are recorded. |
-| view | `m.slice(screen, "Method").query?().reads()` | An actor at a screen reads a read model through a service method. |
-| automation | `m.slice(automation).on().reads?().command().emits()` or `.polls()` for `.on()` | An event, or a list of work, causes a command. No actor is involved. |
-| state view | `m.slice(readModel).on()...` | Events build a read model. |
+| state change | `screen.reads?().command().emits()` | An actor at a screen issues a command and events are recorded. |
+| view | `screen.view("Method").query?().reads()` | An actor at a screen reads a read model through a service method. |
+| automation | `automation.on().reads?().command().emits()`, or `.polls()` for `.on()` | An event, or a list of work, causes a command. No actor is involved. |
+| state view | `readModel.on()...` | Events build a read model. |
 
 `?` marks an optional call. A slice may stop at any call: the chapter takes it and the picture
 draws what it has, with a note of what is still missing. Strict assembly, `json` and `proto`,
@@ -131,8 +131,8 @@ export const AddItem   = m.command({ listId: z.string(), itemId: z.string(), tex
 export const ItemAdded = m.event({ listId: z.string(), itemId: z.string(), title: z.string() })
 
 export const ListManagement = m.chapter([
-  m.slice(ListsScreen).command(CreateList).emits(ListCreated),
-  m.slice(ListScreen).command(AddItem).emits(ItemAdded, c => ({ title: c.text })),
+  ListsScreen.command(CreateList).emits(ListCreated),
+  ListScreen.command(AddItem).emits(ItemAdded, c => ({ title: c.text })),
 ])
 ```
 
@@ -140,10 +140,9 @@ In the first slice, every field of `ListCreated` has a namesake in `CreateList`,
 needed. In the second, the command says `text` and the event says `title`, so a function supplies the
 field that does not match. Fields that do match still flow on their own.
 
-A slice's column is headed by its command; by its read model when it projects one; by its service
-method when it is a view. The heading is also the service method, so the first slice becomes
-`rpc CreateList`. Pass a name, `m.slice(ListsScreen, "StartList")`, only when the command's name
-would say the wrong thing.
+A slice's column is headed by its command; by its read model when it projects one; by its method
+when it is a view. The heading is also the service method, so the first slice becomes
+`rpc CreateList`.
 
 ### 4. Read models
 
@@ -161,13 +160,13 @@ export const TodoList = m.readModel({
 })
 
 export const Views = m.chapter([
-  m.slice(TodoList)
+  TodoList
     .on(ListCreated, () => ({ itemCount: 0, status: "open" }))
     .on(ItemAdded, e => ({ itemCount: m.count(e) }))
     .on(ListCompleted, () => ({ status: "completed" }))
     .on(ListDeleted, () => ({ status: "deleted" })),
 
-  m.slice(ListsScreen, "ListTodoLists").query({ userId: z.string() }).reads(TodoList),
+  ListsScreen.view("ListTodoLists").query({ userId: z.string() }).reads(TodoList),
 ])
 ```
 
@@ -177,9 +176,9 @@ sets the two it does not carry. `m.count(e)` is the number of `ItemAdded` events
 An event finds its row by the key columns it carries. `ItemAdded` carries `listId` and not `userId`,
 so this projection fails at assembly. Add `userId` to the event, or make `listId` the only key.
 
-A view slice starts at a screen and reads a read model. `.query()` declares the request fields;
-without it the request is empty. A view names its method, because it has no command to take a name
-from.
+A view starts at a screen with `.view("Method")` and reads a read model. The method is required,
+because a view has no command to take a name from. `.query()` declares the request fields; without
+it the request is empty.
 
 The same events can build a second table for a different question:
 
@@ -194,11 +193,11 @@ export const ItemSearch = m.readModel({
 
 export const SearchScreen = m.screen(User, TodoService)
 
-m.slice(ItemSearch)
+ItemSearch
   .on(ItemAdded, () => ({ done: false }))
   .on(ItemCompleted, () => ({ done: true })),
 
-m.slice(SearchScreen, "SearchItems").query({ text: z.string() }).reads(ItemSearch),
+SearchScreen.view("SearchItems").query({ text: z.string() }).reads(ItemSearch),
 ```
 
 ### 5. Specifications
@@ -208,7 +207,7 @@ A specification is a Given, When, Then example attached to a slice with `.test()
 ```ts
 export const DuplicateName = m.rejected("list name already exists")
 
-m.slice(ListsScreen).command(CreateList).emits(ListCreated)
+ListsScreen.command(CreateList).emits(ListCreated)
   .test("User creates a new list", {
     when: CreateList.with({ userId: "u-1", listId: "list-1", name: "Groceries" }),
     then: ListCreated.with({ listId: "list-1", userId: "u-1", name: "Groceries" }),
@@ -227,7 +226,7 @@ does not compile.
 A projection is specified the same way, without `when`, because a read model cannot reject an event:
 
 ```ts
-m.slice(TodoList).on(ListCreated, () => ({ itemCount: 0, status: "open" }))
+TodoList.on(ListCreated, () => ({ itemCount: 0, status: "open" }))
   .test("A new list shows with no items", {
     given: ListCreated.with({ listId: "list-1", userId: "u-1", name: "Groceries" }),
     then:  TodoList.with({ userId: "u-1", listId: "list-1", name: "Groceries", itemCount: 0, status: "open" }),
@@ -247,7 +246,7 @@ export const ListCompleted = m.event({ listId: z.string() })
 export const ListCompleter = m.automation()
 
 export const Automations = m.chapter([
-  m.slice(ListCompleter)
+  ListCompleter
     .on(ItemCompleted)
     .reads(ItemSearch)
     .command(CompleteList)
@@ -263,7 +262,7 @@ The second form works through a list. From a hotel model:
 ```ts
 export const PaymentProcessor = m.automation()
 
-m.slice(PaymentProcessor)
+PaymentProcessor
   .polls(PaymentsToProcess)
   .command(ProcessPayment)
   .emits(PaymentSucceeded),
@@ -283,7 +282,7 @@ export const Calendar      = m.external({ TaskScheduled })
 export const CalendarImport = m.automation()
 
 export const Integrations = m.chapter([
-  m.slice(CalendarImport).on(TaskScheduled).command(AddItem).emits(ItemAdded, c => ({ title: c.text })),
+  CalendarImport.on(TaskScheduled).command(AddItem).emits(ItemAdded, c => ({ title: c.text })),
 ])
 ```
 
@@ -352,7 +351,7 @@ The compiler catches:
 | Where | What |
 |---|---|
 | any reference | An unknown actor, event, command, read model or service cannot be written, because references are values, not strings. |
-| the chain | A slice starts from a screen, an automation or a read model, and each call offers only what can come next: no `.emits()` before a command, no `.command()` on a projection. |
+| the chain | A slice starts from a screen, an automation or a read model, and each call offers only what can come next: no `.emits()` before a command, no `.command()` on a view or a projection. A view's method is a required argument. |
 | a function | Its argument is the source's fields. Its result must be fields of the target, with matching types. |
 | `.service()` | A view must name its method. |
 | `.test()` | `when` is the slice's command. `then` is its events, its read model, or a rejection. Zod checks the values. |
@@ -369,7 +368,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | A slice that emits an external event | The group decides, and the group is a runtime value. |
 | Two slices claiming one service method | A union of literal types dedupes rather than counts. |
 | A declaration in no slice | Whether a value is used is not a type. |
-| A slice that stops early: a command with no `.emits()`, an automation with no trigger, a view with no name | A chapter takes a slice at any stage so the picture can show it; the message names the missing call. |
+| A slice that stops early: a command with no `.emits()`, a screen with no command, a view that reads nothing | A chapter takes a slice at any stage so the picture can show it; the message names the missing call. |
 
 `event_model.py` then checks the emitted JSON for what neither can: event names in the past tense,
 command names in the imperative, and example values that are not placeholders.

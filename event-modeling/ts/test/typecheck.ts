@@ -23,55 +23,61 @@ m.screen("User")
 
 // --- a slot takes one kind ---------------------------------------------------
 
-// @ts-expect-error a slice starts from a screen, an automation or a read model, not a command
-m.slice(CreateList)
-
-// @ts-expect-error an actor is not a screen
-m.slice(User)
-
 // @ts-expect-error an event is not a command
-m.slice(ListsScreen).command(ListCreated)
+ListsScreen.command(ListCreated)
 
 // @ts-expect-error a command is not an event
-m.slice(ListsScreen).command(CreateList).emits(CreateList)
+ListsScreen.command(CreateList).emits(CreateList)
 
-// --- the chain offers only what can come next --------------------------------
+// @ts-expect-error a command is not a read model
+ListsScreen.view("List").reads(CreateList)
+
+// @ts-expect-error a view is named; the name is its service method
+ListsScreen.view()
+
+// --- a slice starts from its trigger, and each call offers only what can come next
 
 // @ts-expect-error a screen slice has no .emits() before its command
-m.slice(ListsScreen).emits(ListCreated)
+ListsScreen.emits(ListCreated)
 
-// @ts-expect-error a screen slice is not started by an event
-m.slice(ListsScreen).on(ListCreated)
+// @ts-expect-error a screen is not started by an event
+ListsScreen.on(ListCreated)
+
+// @ts-expect-error a view has no command; a screen that commands is a state change
+ListsScreen.view("List").reads(TodoList).command(CreateList)
 
 // @ts-expect-error an automation has no screen, so no .query()
-m.slice(Completer).query({ listId: z.string() })
+Completer.query({ listId: z.string() })
 
 // @ts-expect-error an automation decides after its trigger, not before
-m.slice(Completer).command(CreateList)
+Completer.command(CreateList)
 
 // @ts-expect-error a projection has no command
-m.slice(TodoList).command(CreateList)
+TodoList.command(CreateList)
+
+// @ts-expect-error a declaration is not a slice until something starts from it
+m.chapter([ListsScreen])
 
 // A slice at any stage is a slice: the chapter takes it, and assembly says what it lacks.
-m.chapter([m.slice(ListsScreen), m.slice(ListsScreen).command(CreateList), m.slice(Completer), m.slice(TodoList)])
+m.chapter([ListsScreen.command(CreateList), ListsScreen.view("List"), Completer.on(ItemAdded)])
 
 // --- a function: its argument is the source, its result is the target --------
 
 // @ts-expect-error ItemAdded has no field nope
-m.slice(ListsScreen).command(AddItem).emits(ItemAdded, (c) => ({ nope: c.text }))
+ListsScreen.command(AddItem).emits(ItemAdded, (c) => ({ nope: c.text }))
 
 // @ts-expect-error title is a string
-m.slice(ListsScreen).command(AddItem).emits(ItemAdded, (c) => ({ title: 42 }))
+ListsScreen.command(AddItem).emits(ItemAdded, (c) => ({ title: 42 }))
 
 // @ts-expect-error the argument is the command's fields, and AddItem has no name
-m.slice(ListsScreen).command(AddItem).emits(ItemAdded, (c) => ({ title: c.name }))
+ListsScreen.command(AddItem).emits(ItemAdded, (c) => ({ title: c.name }))
 
 // @ts-expect-error TodoList has no column done
-m.slice(TodoList).on(ListCreated, () => ({ done: true }))
+TodoList.on(ListCreated, () => ({ done: true }))
 
 // --- .test() -----------------------------------------------------------------
 
-const create = m.slice(ListsScreen).command(CreateList).emits(ListCreated)
+const create = ListsScreen.command(CreateList).emits(ListCreated)
 
 // @ts-expect-error when is the slice's command
 create.test("x", { when: AddItem.with({ listId: "l-1" }), then: ListCreated.with({ listId: "l-1" }) })
@@ -83,10 +89,10 @@ create.test("x", { when: CreateList.with({ listId: "l-1" }), then: ItemAdded.wit
 create.test("x", { when: CreateList.with({ listId: "l-1" }), then: "Error: nope" })
 
 // @ts-expect-error a projection has no when
-m.slice(TodoList).on(ListCreated).test("x", { given: ListCreated.with({ listId: "l-1" }), when: CreateList.with({}), then: TodoList.with({}) })
+TodoList.on(ListCreated).test("x", { given: ListCreated.with({ listId: "l-1" }), when: CreateList.with({}), then: TodoList.with({}) })
 
 // @ts-expect-error a view has no specification
-m.slice(ListsScreen, "List").reads(TodoList).test("x", { given: ListCreated.with({ listId: "l-1" }), then: TodoList.with({}) })
+ListsScreen.view("List").reads(TodoList).test("x", { given: ListCreated.with({ listId: "l-1" }), then: TodoList.with({}) })
 
 // --- .with(): the declaration's fields, with Zod's types ---------------------
 
@@ -98,7 +104,8 @@ CreateList.with({ listId: 42 })
 
 // The legal forms of the same calls, so a check that fires too widely also fails.
 create.test("x", { given: ListCreated.with({ listId: "l-1" }), when: CreateList.with({ listId: "l-2" }), then: [ListCreated.with({ listId: "l-2" }), Nope] })
-m.slice(TodoList).on(ListCreated, () => ({ itemCount: 0 })).on(ItemAdded, (e) => ({ itemCount: m.count(e), name: e.title }))
-m.slice(ListsScreen, "List").query({ listId: z.string() }).reads(TodoList).command(CreateList).emits(ListCreated)
-m.slice(Completer).on(ItemAdded).reads(TodoList).command(CreateList).emits(ListCreated)
-m.slice(Completer).polls(TodoList).command(CreateList).emits(ListCreated)
+TodoList.on(ListCreated, () => ({ itemCount: 0 })).on(ItemAdded, (e) => ({ itemCount: m.count(e), name: e.title }))
+ListsScreen.view("List").query({ listId: z.string() }).reads(TodoList)
+ListsScreen.reads(TodoList).command(CreateList).emits(ListCreated)
+Completer.on(ItemAdded).reads(TodoList).command(CreateList).emits(ListCreated)
+Completer.polls(TodoList).command(CreateList).emits(ListCreated)

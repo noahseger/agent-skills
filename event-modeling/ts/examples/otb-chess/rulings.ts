@@ -36,9 +36,7 @@ export const secondOffence = SecondIllegalMoveRuled.with({
 })
 
 export const ArbiterRulings = m.chapter([
-  m
-    .slice(ArbiterDesk)
-    .reads(MoveList)
+  ArbiterDesk.reads(MoveList)
     .reads(IllegalMoveTally)
     .command(RuleIllegalMove)
     .emits(IllegalMoveRuled)
@@ -75,9 +73,7 @@ export const ArbiterRulings = m.chapter([
       then: [secondIllegalMoveRuled, secondOffence],
     }),
 
-  m
-    .slice(IllegalMoveTally)
-    .on(IllegalMoveRuled, (e) => ({ illegalMoveCount: m.count(e) }))
+  IllegalMoveTally.on(IllegalMoveRuled, (e) => ({ illegalMoveCount: m.count(e) }))
     .test("One ruling puts the offender on one illegal move", {
       given: illegalMoveRuled,
       then: IllegalMoveTally.with({
