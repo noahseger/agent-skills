@@ -1,18 +1,8 @@
-// The vocabulary a model is written in. One export, `m`, so a model file
-// imports one name next to `z`.
-//
-// Every declaration is anonymous: its name is the export binding, read at
-// assembly. The `__kind` and `__fields` members exist only for the compiler,
-// so a command cannot fill an event's slot and a mapping function is typed by
-// the fields on each side. The runtime carries plain records under `META`.
-//
-// A slice is a chain in the order the work happens. Each step's return type
-// offers only the steps that may follow, and a chain that stops early is not a
-// `Slice`, so a chapter refuses it.
+// Everything a model is written with, under `m`.
+// `__kind` and `__fields` exist only for the compiler; assembly reads `META`.
 import { z } from "zod"
 
-// The model's fields are Zod schemas, and the package reads them with Zod. One
-// copy of Zod, the package's own, keeps both sides on the same version.
+// One copy of Zod for the model and the package.
 export { z }
 
 import {
@@ -37,7 +27,7 @@ import {
 type Infer<F extends Fields> = { [P in keyof F]: z.infer<F[P]> }
 type OneOrMany<T> = T | readonly T[]
 
-/** Fills fields of the target from the source. Fields it does not return flow by name. */
+/** Fills target fields from the source; the rest copy by name. */
 export type Mapping<S extends Fields, T extends Fields> = (source: Infer<S>) => Partial<Infer<T>>
 
 // ---------------------------------------------------------------------------
@@ -81,8 +71,7 @@ function decl<K extends DeclKind, F extends Fields>(kind: K, fields: F): Decl<K,
       __kind: kind,
       __fields: fields,
     }),
-    // A note is set once, right after the declaration, so nothing else holds
-    // the object yet and mutating it aliases nobody.
+    // Mutating is safe: .note() is called on the declaration before anything else holds it.
     note(text) {
       data.note = text
       return this
@@ -169,9 +158,7 @@ function rejected(message: string): Rejection {
 // Mapping functions
 // ---------------------------------------------------------------------------
 
-// A mapping function is called once, when the slice is built, with a probe in
-// place of each source field. What it returns says which target fields it
-// fills and where each value came from.
+// A mapping runs once, on probe values, to learn which source fills each field.
 const FIELD = Symbol("field")
 const COUNT = Symbol("count")
 
@@ -211,11 +198,7 @@ export interface Slice {
   readonly [META]: SliceData
 }
 
-/**
- * An unfinished chain carries the step it still needs, so that a chapter handed
- * one can say so instead of listing the properties a Slice has and it lacks.
- * The property exists in the type only.
- */
+/** Makes the `m.chapter()` error name the missing step. */
 export interface Unfinished<Next extends string> {
   readonly "this slice still needs": Next
 }
@@ -318,8 +301,7 @@ function testData(name: string, spec: Partial<Spec<Fields, Fields>>): TestData {
   return test
 }
 
-// Every step returns a fresh object over copied data, so a chain prefix held in
-// a variable can start several slices without them sharing a record.
+// Each step copies, so a shared chain prefix can start several slices.
 function chain(data: SliceData) {
   const next = (patch: Partial<SliceData>) => chain({ ...data, ...patch })
   return {
@@ -360,12 +342,12 @@ export interface Chapter {
   readonly [META]: ChapterData
 }
 
-/** Each element is a Slice, or the message saying which step it still needs. */
+/** An unfinished slice fails here, naming its missing step. */
 type Finished<T> = {
   [K in keyof T]: T[K] extends Slice
     ? T[K]
     : T[K] extends Unfinished<infer Next>
-      ? `this slice is not finished: it still needs ${Next}`
+      ? `this slice still needs ${Next}`
       : Slice
 }
 
@@ -378,7 +360,7 @@ export interface Model {
   readonly [META]: ModelData
 }
 
-/** Chapters are listed because their order is the timeline. A storm of events has none yet. */
+/** Chapters in timeline order; none while storming. */
 function model(
   name: string,
   spec: { description?: string; chapters?: readonly Chapter[] } = {},

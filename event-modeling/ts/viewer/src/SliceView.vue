@@ -15,8 +15,7 @@ import {
   STACK_GAP,
 } from "./layout.ts"
 
-// One slice at full width: its column as drawn on the canvas, the facts about
-// it, and every specification with room to read. The page scrolls.
+// One slice at full width, with room to read its specifications.
 const props = defineProps<{
   layout: Layout
   model: ModelJson
@@ -34,10 +33,7 @@ const emit = defineEmits<{
 
 const chapter = computed(() => props.layout.chapters[props.column.chapter])
 
-// The column as drawn on the canvas, with the lanes this slice does not use
-// closed up, so the cards sit together. What the slice reads is drawn on the
-// canvas from the read model's own card in another column; here it gets a
-// reference card of its own, just above whatever reads it.
+// The slice's column without its empty lanes, with its reads drawn in place.
 const local = computed(() => {
   const index = props.column.index
   const mine = props.layout.boxes.filter((b) => b.column === index)

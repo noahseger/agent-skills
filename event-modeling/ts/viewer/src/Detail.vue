@@ -52,8 +52,7 @@ const triggers = computed(() => {
   return t ? (Array.isArray(t) ? t : [t]).map((x) => parse(x).name).join(", ") : ""
 })
 
-// Every specification the element takes part in, grouped by chapter and slice.
-// With no element selected, the slice's own.
+// The element's specifications, or the slice's when nothing is selected.
 interface Group {
   column: number
   heading: string

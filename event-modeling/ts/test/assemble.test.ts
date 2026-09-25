@@ -84,7 +84,7 @@ test("a declaration used in a slice that no module exports", () => {
         project({ ...f, Created }),
         view({ ...f, Created }),
       ]),
-    /slice #1 in 'Ch' uses an event that no module exports/,
+    /slice #1 in 'Ch' uses an event that no module exports\. Export it\./,
   )
 })
 
@@ -92,7 +92,7 @@ test("a declaration exported under two names", () => {
   const f = fixture()
   assert.throws(
     () => assembled({ ...f, Also: f.Created }, [create(f), project(f), view(f)]),
-    /'Created' is also exported as 'Also'/,
+    /'Created' is also exported as 'Also'\. Keep one of the two exports\./,
   )
 })
 
@@ -106,7 +106,7 @@ test("an event field the command does not carry", () => {
         project({ ...f, Created }),
         view(f),
       ]),
-    /slice 'Create' in 'Ch': Created\.extra is filled by nothing\. Create does not carry it and no function sets it/,
+    /slice 'Create' in 'Ch': nothing fills Created\.extra\. Add extra to Create, or set it in the \.emits\(\) mapping\./,
   )
 })
 
@@ -130,7 +130,7 @@ test("a column no .on() writes", () => {
   const Table = m.readModel({ id: m.key(z.string()), name: z.string(), count: z.number() })
   assert.throws(
     () => assembled({ ...f, Table }, [create(f), project({ ...f, Table }), view({ ...f, Table })]),
-    /slice 'Table' in 'Ch': Table\.count is filled by nothing\. No \.on\(\) writes it/,
+    /slice 'Table' in 'Ch': nothing fills Table\.count\. Add an \.on\(\) whose event carries count, or set it in a mapping\./,
   )
 })
 
@@ -142,7 +142,7 @@ test("an event that carries none of the read model's key columns", () => {
   const projection = m.slice().projects(f.Table).on(f.Created).on(Renamed)
   assert.throws(
     () => assembled({ ...f, Rename, Renamed }, [create(f), rename, projection, view(f)]),
-    /slice 'Table' in 'Ch': Renamed carries none of Table's key columns \(id\)/,
+    /slice 'Table' in 'Ch': Renamed carries none of Table's key columns \(id\)\. Add one to Renamed or map it in \.on\(\)\./,
   )
 })
 
@@ -150,7 +150,7 @@ test("an event nothing consumes", () => {
   const f = fixture()
   assert.throws(
     () => assembled(f, [create(f)]),
-    /slice 'Create' in 'Ch' emits Created, which nothing consumes: no \.on\(\) and no given/,
+    /slice 'Create' in 'Ch' emits Created, which nothing uses yet\. Add \.on\(Created\) to a slice or use it in a given\./,
   )
 })
 
@@ -158,7 +158,7 @@ test("an event no slice emits", () => {
   const f = fixture()
   assert.throws(
     () => assembled(f, [project(f), view(f)]),
-    /slice 'Table' in 'Ch' uses Created, which no slice emits/,
+    /slice 'Table' in 'Ch' uses Created, which no slice emits yet\. Add \.emits\(Created\) to a slice\./,
   )
 })
 
@@ -166,7 +166,7 @@ test("a read model nothing reads", () => {
   const f = fixture()
   assert.throws(
     () => assembled(f, [create(f), project(f)]),
-    /slice 'Table' in 'Ch' projects Table, which nothing reads/,
+    /slice 'Table' in 'Ch' projects Table, which nothing reads yet\. Add \.reads\(Table\) or \.polls\(Table\) to a slice\./,
   )
 })
 
@@ -180,7 +180,7 @@ test("a read model nothing projects", () => {
   })
   assert.throws(
     () => assembled(f, [slice, view(f)]),
-    /slice 'Get' in 'Ch' reads Table, which nothing projects/,
+    /slice 'Get' in 'Ch' reads Table, which nothing projects yet\. Add a slice with \.projects\(Table\)\./,
   )
 })
 
@@ -191,7 +191,7 @@ test("a slice that emits an external event", () => {
   const slice = m.slice().actor(f.User).service(f.Svc).command(f.Create).emits(Pushed)
   assert.throws(
     () => assembled({ ...f, Pushed, Cal }, [slice]),
-    /slice 'Create' in 'Ch' emits Pushed, an event of Cal\. External events are translated, never emitted/,
+    /slice 'Create' in 'Ch' emits Pushed, which only Cal emits\. Receive it with m\.slice\(\)\.on\(Pushed\) instead\./,
   )
 })
 
@@ -203,7 +203,7 @@ test("two slices claiming one service method", () => {
   const projection = m.slice().projects(f.Table).on(f.Created).on(Renamed)
   assert.throws(
     () => assembled({ ...f, Rename, Renamed }, [create(f), rename, projection, view(f)]),
-    /slice 'Create' in 'Ch' and slice 'Rename' in 'Ch' both claim Svc\/Create/,
+    /slice 'Create' in 'Ch' and slice 'Rename' in 'Ch' both use Svc\/Create\. Give one its own method/,
   )
 })
 
@@ -264,7 +264,7 @@ test("a read model in given is named as one", () => {
   })
   assert.throws(
     () => assembled(f, [slice, project(f), view(f)]),
-    /slice 'Create' in 'Ch' gives Table, a read model; given takes events\./,
+    /slice 'Create' in 'Ch': given has Table, a read model\. given takes events\./,
   )
 })
 
@@ -273,7 +273,7 @@ test("a declaration in no slice is an error", () => {
   const Loose = m.event({ id: z.string() })
   assert.throws(
     () => assembled({ ...f, Loose }, [create(f), project(f), view(f)]),
-    /Loose is in no slice/,
+    /Loose is in no slice yet\./,
   )
 })
 
@@ -290,13 +290,13 @@ test("a partial assembly lists the dead ends and keeps the loose declarations in
   assert.deepEqual(json.warnings, [
     {
       message:
-        "slice 'Create' in 'Ch' emits Created, which nothing consumes: no .on() and no given.",
+        "slice 'Create' in 'Ch' emits Created, which nothing uses yet. Add .on(Created) to a slice or use it in a given.",
       element: "Created",
       slice: "Create",
     },
-    { message: "Started is in no slice.", element: "Started" },
-    { message: "Ended is in no slice.", element: "Ended" },
-    { message: "Table is in no slice.", element: "Table" },
+    { message: "Started is in no slice yet.", element: "Started" },
+    { message: "Ended is in no slice yet.", element: "Ended" },
+    { message: "Table is in no slice yet.", element: "Table" },
   ])
   assert.deepEqual(json.loose, [
     { kind: "event", element: "Started(id)", aggregate: "games" },

@@ -78,7 +78,7 @@ test("init scaffolds a model that assembles, and refuses to overwrite it", () =>
     assert.deepEqual(JSON.parse(em("json", dir).stdout).chapters, [])
     const again = em("init", dir)
     assert.equal(again.status, 1)
-    assert.match(again.stderr, /does not overwrite/)
+    assert.match(again.stderr, /already exists\. Run init in a new directory\./)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -87,7 +87,10 @@ test("init scaffolds a model that assembles, and refuses to overwrite it", () =>
 test("an assembly error is one line and exit 1", () => {
   const run = em("json", here("./fixtures/unexported"))
   assert.equal(run.status, 1)
-  assert.equal(run.stderr.trim(), "slice #1 in 'Ch' uses an event that no module exports.")
+  assert.equal(
+    run.stderr.trim(),
+    "slice #1 in 'Ch' uses an event that no module exports. Export it.",
+  )
 })
 
 test("a missing argument prints usage and exits 2", () => {
@@ -156,7 +159,7 @@ test("json refuses a storm of events; --partial prints it with what is still to 
   const storm = here("./fixtures/storm")
   const strict = em("json", storm)
   assert.equal(strict.status, 1)
-  assert.match(strict.stderr, /GameStarted is in no slice/)
+  assert.match(strict.stderr, /GameStarted is in no slice yet\./)
   const partial = em("json", "--partial", storm)
   assert.equal(partial.status, 0, partial.stderr)
   const json = JSON.parse(partial.stdout) as {
@@ -169,7 +172,11 @@ test("json refuses a storm of events; --partial prints it with what is still to 
   )
   assert.deepEqual(
     json.warnings.map((w) => w.message),
-    ["GameStarted is in no slice.", "MoveMade is in no slice.", "GameEnded is in no slice."],
+    [
+      "GameStarted is in no slice yet.",
+      "MoveMade is in no slice yet.",
+      "GameEnded is in no slice yet.",
+    ],
   )
 })
 

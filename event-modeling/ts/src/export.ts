@@ -1,6 +1,4 @@
-// `em export`: the built viewer and one model in a single HTML file, for
-// sharing. The scripts and styles Vite linked are inlined, and the model goes
-// in a script tag the app reads instead of fetching.
+// `em export`: the viewer and one model in a single HTML file.
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 

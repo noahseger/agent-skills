@@ -126,8 +126,7 @@ function wheel(e: WheelEvent) {
   }
 }
 
-// Hovering a name lights every card with that name and the edges into them,
-// so a read model or an event shows everywhere it is used.
+// Hovering a name shows everywhere it is used.
 const lit = computed(() => {
   const name = props.hovered
   if (name === null) return null

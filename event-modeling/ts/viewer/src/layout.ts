@@ -1,11 +1,5 @@
-// The assembled JSON -> positioned boxes and the edges between them. Pure, so
-// node --test covers it without a browser; the Vue components only draw it.
-//
-// The canvas is the one from eventmodeling.org. Time runs left to right, one
-// column per slice, chapters in order. Actors are lanes along the top with
-// their screens, their automations, and the events that arrive from outside.
-// Commands and read models sit in the middle. Each stream is a lane below that
-// holds its events, and the specifications sit under the slice they belong to.
+// Lays out the eventmodeling.org canvas from the assembled JSON. Pure, so it
+// is tested without a browser.
 import type { ModelJson, SliceJson } from "../../src/json.ts"
 
 export type Kind = "ui" | "external" | "command" | "event" | "readModel" | "automation"
@@ -234,11 +228,7 @@ export function words(name: string): string {
     .join(" ")
 }
 
-/**
- * Word wrap by character count. A word that fits a fresh line is kept whole;
- * a longer one, like a FEN string, fills the rest of the line and continues
- * on the next. Lines after the first are indented by `indent` characters.
- */
+/** Wraps by character count, breaking only words longer than a line. */
 export function wrap(text: string, max: number, indent = 0): string[] {
   const lines: string[] = []
   let line = ""
@@ -397,8 +387,7 @@ export function layout(model: ModelJson): Layout {
     if (chapter.slices.length === 0) x += COL_W
     chapters.push({ name: chapter.name, title: words(chapter.name), x: start, w: x - start })
   })
-  // A declaration in no slice yet gets a column of its own, after the story so
-  // far. It is drawn as the one card a slice would draw for it.
+  // A declaration in no slice yet gets its own column after the story.
   if (model.loose && model.loose.length > 0) {
     if (chapters.length > 0) x += CHAPTER_GAP
     const start = x
@@ -434,8 +423,7 @@ export function layout(model: ModelJson): Layout {
   }
   const width = x + PAD_X
 
-  // The first card of an element is drawn in full. Every later one is the name
-  // and a link back, so a read model or an event has one place to be read.
+  // Draw each element in full once; later cards link back to it.
   const first = new Map<string, Placed>()
   let next = 0
   const make = (
@@ -483,8 +471,7 @@ export function layout(model: ModelJson): Layout {
     return box
   }
 
-  // Every card is planned into a slot; the rows get their heights from the
-  // tallest stack, then the cards get their y.
+  // Each row is as tall as its tallest stack of cards.
   const slots = new Map<string, Placed[][]>()
   const into = (slot: string, column: number, box: Placed) => {
     const stacks = slots.get(slot) ?? columns.map((): Placed[] => [])
@@ -517,8 +504,7 @@ export function layout(model: ModelJson): Layout {
       const slash = s.ui.indexOf("/")
       const service = slash < 0 ? undefined : s.ui.slice(0, slash)
       const method = slash < 0 ? s.ui : s.ui.slice(slash + 1)
-      // The screen is drawn from the model: a form for the command it sends, a
-      // table for the read model it shows, with the query as its filters.
+      // The wireframe is the command's form or the read model's table.
       const commandFields = s.command ? parse(s.command).fields : []
       const shown = s.read_models?.[0] ? parse(s.read_models[0]).fields : undefined
       ui = make(
@@ -545,8 +531,7 @@ export function layout(model: ModelJson): Layout {
       into(`actor:${s.actor}`, i, gear)
       useActor(s.actor)
     } else if (s.external_event && s.command) {
-      // A translation: the event arrives from outside, an automation of ours
-      // turns it into a command. The JSON names the slice but not the gear.
+      // A translation needs a gear the JSON does not name.
       gear = make(i, "automation", { name: s.name || "Translate", fields: [], keys: [] })
       into("actor:system", i, gear)
       useActor("system")
@@ -586,9 +571,7 @@ export function layout(model: ModelJson): Layout {
     if (target && s.trigger && !s.external_event) targets.set(i, target)
   }
 
-  // What a slice reads is drawn back from the read model's own card, dashed,
-  // into whatever decides: the automation when there is one, else the command.
-  // Only a read model that is never drawn in full gets a reference card.
+  // Reads are dashed from the read model into the automation, or else the command.
   const crossing: Edge[] = []
   for (const link of readLinks) {
     const c = consumers.get(link.column)
@@ -609,9 +592,8 @@ export function layout(model: ModelJson): Layout {
     edge(ref, consumer, true)
   }
 
-  // Triggers point back to where the event was last emitted, or forward to its
-  // first emission when the slice comes before it in the story. They cross
-  // columns, so they get the channel between the middle row and the streams.
+  // A trigger comes from the event's nearest emission and runs in the channel
+  // above the streams.
   for (const col of columns) {
     const target = targets.get(col.index)
     const trigger = col.slice.trigger
@@ -646,8 +628,7 @@ export function layout(model: ModelJson): Layout {
   let y = HEADER_H + NAME_H
   const nameY = HEADER_H
   const actors = new Map(model.actors.map((a) => [a.id, a]))
-  // Every actor the model names gets a lane, used or not; the system lane
-  // follows when only a translation needed it.
+  // Every actor gets a lane, used or not.
   for (const id of [
     ...model.actors.map((a) => a.id),
     ...actorIds.filter((id) => !actors.has(id)),
@@ -692,14 +673,10 @@ export function layout(model: ModelJson): Layout {
     y += h
   }
 
-  // A crossing edge leaves the top of its event or the bottom of its read
-  // model, runs along its own line in the channel, and rises in the target's
-  // column: to the bottom of a read model, or up the left margin into the side
-  // of a command or an automation. Edges that share an end fan out there, so
-  // each one can be followed.
+  // Edges that cross columns each get their own line, and fan out where they
+  // share an end, so each one can be followed.
   const byId = new Map(boxes.map((b) => [b.id, b]))
-  // Time runs right, so an edge leaving an element sits right of centre and
-  // an edge entering it sits left. Several at one end step further out.
+  // Time runs right: edges leave right of centre and enter left of it.
   const fan = (key: "from" | "to", direction: 1 | -1) => {
     const groups = new Map<string, Edge[]>()
     for (const e of crossing) groups.set(e[key], [...(groups.get(e[key]) ?? []), e])

@@ -335,9 +335,9 @@ test("a loose declaration is a column after the story, its card in its lane", ()
       { kind: "command", element: "Start(id)", aggregate: "lists" },
     ],
     warnings: [
-      { message: "Started is in no slice.", element: "Started" },
+      { message: "Started is in no slice yet.", element: "Started" },
       {
-        message: "slice 'CreateList' emits ListCreated, which nothing consumes.",
+        message: "slice 'CreateList' emits ListCreated, which nothing uses yet.",
         element: "ListCreated",
         slice: "CreateList",
       },
