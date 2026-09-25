@@ -1,6 +1,4 @@
-// `em view`: one process serves the built viewer, the assembled model, and a
-// change feed. The browser holds the picture; the feed only says when to ask
-// for the model again.
+// `em view`: serves the viewer and the model, and tells the browser when to reload.
 import { existsSync, readFileSync, statSync, watch } from "node:fs"
 import { createServer, type ServerResponse } from "node:http"
 import { extname, join, normalize } from "node:path"
@@ -13,7 +11,6 @@ export interface ServeOptions {
   dist: string
   /** The directory to watch for saves. */
   root: string
-  /** Assembles the model again. */
   /** Assemble the model; `changed` is the saved file that asked for it. */
   load: (changed?: string) => Promise<Snapshot>
   /** 0 picks a free port. */

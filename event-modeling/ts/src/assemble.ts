@@ -1,5 +1,4 @@
-// Loads a model directory, names every declaration after its export, checks
-// what the compiler cannot, and returns the render target.
+// Turns a model directory into a named, checked model.
 import { readdirSync, statSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
@@ -21,14 +20,11 @@ import {
 export type { Assembled, ModelJson, Warning }
 
 export interface Options {
-  /**
-   * A model still being written: a dead end is a warning, not an error, and a
-   * declaration in no slice is kept so the viewer can draw it loose.
-   */
+  /** Render an incomplete model with warnings instead of failing with errors. */
   partial?: boolean
 }
 
-/** What a check does with a dead end. */
+/** Throws, or warns when `partial`. */
 type Fail = (warning: Warning) => void
 
 /** `path` is a model directory or a single module. */
@@ -36,7 +32,7 @@ export async function assemble(path: string, options: Options = {}): Promise<Mod
   return toJson(await load(path, options))
 }
 
-/** The same, over module namespaces already in memory. */
+/** `assemble` for modules already loaded. */
 export function assembleModules(modules: readonly object[], options: Options = {}): ModelJson {
   return toJson(loadModules(modules, options))
 }
@@ -61,11 +57,11 @@ export function loadModules(modules: readonly object[], options: Options = {}): 
       }
   check(model, fail)
   const loose = looseOf(model, streams, declared)
-  for (const d of loose) fail({ message: `${d.name} is in no slice.`, element: d.name ?? "" })
+  for (const d of loose) fail({ message: `${d.name} is in no slice yet.`, element: d.name ?? "" })
   return { model, streams, loose, warnings }
 }
 
-/** Every module under `dir`. Dependencies, hidden directories and `.d.ts` files are not the model. */
+/** The model's own modules under `dir`. */
 function walk(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true })
     .sort((a, b) => a.name.localeCompare(b.name))
@@ -89,10 +85,7 @@ function exported(value: unknown): Exported | undefined {
     : undefined
 }
 
-/**
- * Two modules may export a stream under one name and mean one lane, so streams
- * are unioned by name here rather than named like everything else.
- */
+/** Streams merge by name, so two modules can add to one lane. */
 function nameExports(modules: readonly object[]): {
   model: ModelData
   streams: Map<string, DeclData[]>
@@ -110,7 +103,7 @@ function nameExports(modules: readonly object[]): {
       } else if (data.kind === "stream") {
         streams.set(key, [...(streams.get(key) ?? []), ...data.members])
       } else if (data.name !== undefined && data.name !== key) {
-        throw new Error(`'${data.name}' is also exported as '${key}'. A declaration has one name.`)
+        throw new Error(`'${data.name}' is also exported as '${key}'. Keep one of the two exports.`)
       } else if (data.kind !== "chapter") {
         data.name = key
         declared.push(data)
@@ -123,10 +116,7 @@ function nameExports(modules: readonly object[]): {
   return { model, streams, declared }
 }
 
-/**
- * What is exported but in no slice. Stream members come first in stream order,
- * because a storm of events is written as a stream before any slice exists.
- */
+/** Declarations in no slice yet, stream members first. */
 function looseOf(
   model: ModelData,
   streams: Map<string, DeclData[]>,
@@ -172,15 +162,17 @@ function check(model: ModelData, fail: Fail): void {
 
 function locate(chapter: ChapterData, index: number): Located[] {
   if (chapter.name === undefined) {
-    throw new Error(`Chapter #${index + 1} is not exported, so it has no name.`)
+    throw new Error(
+      `Chapter #${index + 1} has no name. Export it: \`export const Name = m.chapter([...])\`.`,
+    )
   }
   return chapter.slices.map((slice, i) => {
     const where = `slice #${i + 1} in '${chapter.name}'`
-    // Every declaration in the slice must be named before the heading can be,
-    // so the anonymous location stands in until then.
+    // The slice is named after its declarations, so until they are checked
+    // `where` is its position.
     for (const [kind, d] of used(slice)) {
       if (d.name === undefined)
-        throw new Error(`${where} uses ${KIND_LABEL[kind]} that no module exports.`)
+        throw new Error(`${where} uses ${KIND_LABEL[kind]} that no module exports. Export it.`)
     }
     const heading =
       slice.command?.name ??
@@ -215,7 +207,7 @@ function filledBy(flow: Flow, carrier: DeclData): Set<string> {
   return new Set([...Object.keys(carrier.fields), ...Object.keys(flow.mapping)])
 }
 
-/** Every event field comes from the command; every column from some `.on()`. */
+/** Every field has a source. */
 function checkFilled({ slice, where }: Located): void {
   if (slice.command) {
     for (const flow of slice.emits) {
@@ -223,8 +215,8 @@ function checkFilled({ slice, where }: Located): void {
       for (const field of Object.keys(flow.event.fields)) {
         if (!filled.has(field)) {
           throw new Error(
-            `${where}: ${flow.event.name}.${field} is filled by nothing. ` +
-              `${slice.command.name} does not carry it and no function sets it.`,
+            `${where}: nothing fills ${flow.event.name}.${field}. ` +
+              `Add ${field} to ${slice.command.name}, or set it in the .emits() mapping.`,
           )
         }
       }
@@ -235,7 +227,8 @@ function checkFilled({ slice, where }: Located): void {
     for (const field of Object.keys(slice.projects.fields)) {
       if (!filled.has(field)) {
         throw new Error(
-          `${where}: ${slice.projects.name}.${field} is filled by nothing. No .on() writes it.`,
+          `${where}: nothing fills ${slice.projects.name}.${field}. ` +
+            `Add an .on() whose event carries ${field}, or set it in a mapping.`,
         )
       }
     }
@@ -250,7 +243,7 @@ function checkKeys({ slice, where }: Located): void {
     if (!slice.projects.keys.some((k) => filled.has(k))) {
       throw new Error(
         `${where}: ${flow.event.name} carries none of ${slice.projects.name}'s key columns ` +
-          `(${slice.projects.keys.join(", ")}).`,
+          `(${slice.projects.keys.join(", ")}). Add one to ${flow.event.name} or map it in .on().`,
       )
     }
   }
@@ -260,17 +253,14 @@ function checkExternal({ slice, where }: Located): void {
   for (const flow of slice.emits) {
     if (flow.event.external) {
       throw new Error(
-        `${where} emits ${flow.event.name}, an event of ${flow.event.external.name}. ` +
-          `External events are translated, never emitted.`,
+        `${where} emits ${flow.event.name}, which only ${flow.event.external.name} emits. ` +
+          `Receive it with m.slice().on(${flow.event.name}) instead.`,
       )
     }
   }
 }
 
-/**
- * Dead ends across the model: what is produced but never used, or used but
- * never produced. A model still being written has these, so they go to `fail`.
- */
+/** Anything produced and never used, or used and never produced. */
 function checkConnected(located: Located[], fail: Fail): void {
   const emitted = new Set<DeclData>()
   const consumed = new Set<DeclData>()
@@ -289,23 +279,24 @@ function checkConnected(located: Located[], fail: Fail): void {
       element: d.name ?? "",
       slice: slice.name ?? "",
     })
-    // tsc says this first; the CLI has to say it too, and before it blames the emitter.
+    // tsc rejects these too, but the CLI does not run tsc, and without this a
+    // read model in given would be reported below as an event no slice emits.
     for (const t of slice.tests) {
       for (const g of t.given) {
         if (g.decl.kind !== "event")
           throw new Error(
-            `${where} gives ${g.decl.name}, ${KIND_LABEL[g.decl.kind]}; given takes events.`,
+            `${where}: given has ${g.decl.name}, ${KIND_LABEL[g.decl.kind]}. given takes events.`,
           )
       }
       if (t.when && t.when.decl.kind !== "command")
         throw new Error(
-          `${where} has ${t.when.decl.name} as when, ${KIND_LABEL[t.when.decl.kind]}; when takes a command.`,
+          `${where}: when has ${t.when.decl.name}, ${KIND_LABEL[t.when.decl.kind]}. when takes the slice's command.`,
         )
       if (slice.command) {
         for (const c of t.then) {
           if ("decl" in c && c.decl.kind !== "event")
             throw new Error(
-              `${where} expects ${c.decl.name}, ${KIND_LABEL[c.decl.kind]}; then takes events or a rejection.`,
+              `${where}: then has ${c.decl.name}, ${KIND_LABEL[c.decl.kind]}. then takes events or m.rejected().`,
             )
         }
       }
@@ -315,32 +306,50 @@ function checkConnected(located: Located[], fail: Fail): void {
         fail(
           about(
             f.event,
-            `${where} emits ${f.event.name}, which nothing consumes: no .on() and no given.`,
+            `${where} emits ${f.event.name}, which nothing uses yet. Add .on(${f.event.name}) to a slice or use it in a given.`,
           ),
         )
     }
     const given = slice.tests.flatMap((t) => t.given.map((g) => g.decl))
     for (const e of [...slice.on.map((f) => f.event), ...given]) {
       if (!e.external && !emitted.has(e))
-        fail(about(e, `${where} uses ${e.name}, which no slice emits.`))
+        fail(
+          about(
+            e,
+            `${where} uses ${e.name}, which no slice emits yet. Add .emits(${e.name}) to a slice.`,
+          ),
+        )
     }
     if (slice.projects && !read.has(slice.projects))
-      fail(about(slice.projects, `${where} projects ${slice.projects.name}, which nothing reads.`))
+      fail(
+        about(
+          slice.projects,
+          `${where} projects ${slice.projects.name}, which nothing reads yet. Add .reads(${slice.projects.name}) or .polls(${slice.projects.name}) to a slice.`,
+        ),
+      )
     for (const r of [...slice.reads, slice.polls]) {
       if (r && !projected.has(r))
-        fail(about(r, `${where} reads ${r.name}, which nothing projects.`))
+        fail(
+          about(
+            r,
+            `${where} reads ${r.name}, which nothing projects yet. Add a slice with .projects(${r.name}).`,
+          ),
+        )
     }
   }
 }
 
-/** A union of literal types dedupes rather than counts, so this is a runtime check. */
+/** Types cannot count duplicates, so this runs at assembly. */
 function checkMethods(located: Located[]): void {
   const claimed = new Map<string, string>()
   for (const { slice, where } of located) {
     if (!slice.service) continue
     const method = `${slice.service.service.name}/${slice.service.method ?? slice.command?.name}`
     const first = claimed.get(method)
-    if (first !== undefined) throw new Error(`${first} and ${where} both claim ${method}.`)
+    if (first !== undefined)
+      throw new Error(
+        `${first} and ${where} both use ${method}. Give one its own method: .service(service, "Name").`,
+      )
     claimed.set(method, where)
   }
 }

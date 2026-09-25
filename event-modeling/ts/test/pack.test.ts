@@ -48,7 +48,7 @@ test("the packed tarball installs into a project and em runs there", () => {
       ["Started(id)"],
     )
     // stderr carries what is left to do, and nothing else: no node warning.
-    assert.equal(json.stderr.trim(), "Started is in no slice.")
+    assert.equal(json.stderr.trim(), "Started is in no slice yet.")
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

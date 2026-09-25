@@ -1,5 +1,4 @@
-// The records the runtime carries. The interfaces in index.ts are what the
-// compiler checks; they erase to these shapes, and assembly reads only these.
+// What assembly reads. The interfaces in index.ts erase to these.
 import type { z } from "zod"
 
 export const META = Symbol.for("event-modeling")
@@ -81,7 +80,7 @@ export interface Assembled {
   warnings: Warning[]
 }
 
-/** A dead end, and what it is about, so the picture can mark the card and the slice. */
+/** A dead end, with the element and slice the viewer marks. */
 export interface Warning {
   message: string
   element: string
@@ -91,10 +90,7 @@ export interface Warning {
 /** Where a mapping function got one target field from. */
 export type Source = { from: string } | { count: true } | { value: unknown }
 
-/**
- * An event connected to a slice, with the fields a function fills across the
- * connection. Fields with the same name on both sides flow without an entry.
- */
+/** An event wired into a slice; `mapping` lists only fields not copied by name. */
 export interface Flow {
   event: DeclData
   mapping: Record<string, Source>

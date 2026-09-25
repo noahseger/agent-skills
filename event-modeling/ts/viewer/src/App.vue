@@ -46,9 +46,7 @@ const LEGEND: [string, string][] = [
   ["automation", "automation"],
 ]
 
-// The URL hash is the selection, so every click is a history entry and a link:
-// `#c3` is slice 3 on the canvas, `#s3` is slice 3 open, and `/kind/Name`
-// names a card in it.
+// The selection lives in the URL hash, so Back works and every view is a link.
 function hashOf(sel: Selection | null): string {
   if (!sel) return ""
   const card = sel.kind && sel.name ? `/${sel.kind}/${encodeURIComponent(sel.name)}` : ""
@@ -151,7 +149,7 @@ onMounted(() => {
   refresh()
   if (!snapshot) {
     feed = new EventSource("/events")
-    // A feed that comes back after a drop missed its messages, so it catches up.
+    // A reconnected feed may have missed a save, so reload.
     feed.onopen = () => {
       if (live.value === false && loaded) void refresh()
       live.value = true

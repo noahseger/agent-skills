@@ -1,9 +1,5 @@
-// An assembled model -> the JSON `event_model.py` reads. This is the only place
-// that knows the render target's shape.
-//
-// The target predates the DSL, so two concepts are encoded rather than native:
-// streams are `aggregates`, and a read model's key columns are `*field`.
-// Everything else (`query`, `polls`, `note`, `mapping`) the target reads as is.
+// The assembled model as the JSON `event_model.py` reads. That format is older
+// than this package: streams are `aggregates` and key columns are `*field`.
 import type {
   Assembled,
   ClauseData,
@@ -48,7 +44,7 @@ export interface ActorJson {
   type: "user" | "admin" | "system" | "external"
 }
 
-/** A declaration in no slice yet, drawn on its own in its lane. */
+/** A declaration in no slice yet. */
 export interface LooseJson {
   kind: "event" | "command" | "readModel"
   element: string

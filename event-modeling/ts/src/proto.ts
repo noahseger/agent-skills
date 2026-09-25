@@ -1,11 +1,5 @@
-// The assembled model -> protobuf. The model already knows each service, its
-// methods, and the fields every request and response carries, so the IDL is
-// generated rather than written a second time. `buf generate` and
-// `buf breaking` own it from there.
-//
-// Zod is read through `z.toJSONSchema`, which is public API, not Zod's
-// internals. A type outside the README's table is an error naming the
-// declaration and the field, never a guess.
+// The assembled model as protobuf, one file per service. A Zod type with no
+// protobuf equivalent is an error, never a guess.
 import { z } from "zod"
 
 import type { DeclData, Fields, ModelData, ServiceData, SliceData } from "./types.ts"
@@ -47,7 +41,9 @@ interface JsonSchema {
 const snake = (name: string) => name.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase()
 const pascal = (name: string) => name.charAt(0).toUpperCase() + name.slice(1)
 const unmappable = (where: string, why: string) =>
-  new Error(`${where} has no protobuf type: ${why}`)
+  new Error(
+    `${where} has no protobuf type (${why}). Use a Zod type from the README's Protobuf table.`,
+  )
 
 /** The proto type of one schema. An object becomes a message nested in `parent`. */
 function typeOf(schema: JsonSchema, where: string, field: string, parent: Message): string {
@@ -90,10 +86,7 @@ function message(name: string, schema: JsonSchema, where: string): Message {
   return msg
 }
 
-/**
- * Fields convert one at a time. Converting the object at once is fewer calls,
- * but Zod's own failure names neither the field nor the declaration.
- */
+/** Converts field by field so an error can name the field. */
 function toMessage(name: string, fields: Fields, where = name): Message {
   const properties: Record<string, JsonSchema> = {}
   const required: string[] = []

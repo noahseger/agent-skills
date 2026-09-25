@@ -8,9 +8,7 @@
 //   view   <path> [--port n]      serve the live diagram; --no-open keeps the browser closed
 //   export <path> -o out.html     one self-contained page of the model, for sharing
 //
-// <path> is a model directory or a single module. Every command assembles the
-// model first, so an assembly error stops all of them the same way: its
-// message, exit 1. render shells out to event_model.py, which owns the SVG.
+// <path> is a model directory or a single module. An assembly error stops every command.
 import { spawn, spawnSync } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, watch, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -23,8 +21,7 @@ import { exportHtml } from "../src/export.ts"
 import { generateProto } from "../src/proto.ts"
 import { type Snapshot, serve } from "../src/serve.ts"
 
-// The model is TypeScript that node runs as is. Node 22 does that only when
-// told, so this runs itself again with the flag. From node 23.6 it is on.
+// Node 22 needs a flag to run TypeScript, so rerun with it. Node 23.6 does not.
 const STRIP = "--experimental-strip-types"
 if (!process.features.typescript && !process.execArgv.includes(STRIP)) {
   const again = spawnSync(
@@ -62,8 +59,7 @@ const INDEX_TS = `import { m } from "@noahseger/event-modeling"
 export default m.model("My System")
 `
 
-// What node needs to run the model with no build step. verbatimModuleSyntax
-// keeps type-only imports marked as such, or node would try to load them.
+// Lets node run the model unbuilt. verbatimModuleSyntax stops node loading type-only imports.
 const TSCONFIG = `${JSON.stringify(
   {
     compilerOptions: {
@@ -79,8 +75,7 @@ const TSCONFIG = `${JSON.stringify(
   2,
 )}\n`
 
-// Node takes the module type from the nearest package.json. Without one here, a
-// parent package that names none makes node warn and reparse on every save.
+// Without its own "type": "module", node warns and reparses the model on every save.
 const PACKAGE_JSON = `${JSON.stringify({ type: "module" }, null, 2)}\n`
 
 const { values, positionals } = parseArgs({
@@ -100,7 +95,7 @@ function init(dir: string): void {
   const files = { "index.ts": INDEX_TS, "tsconfig.json": TSCONFIG, "package.json": PACKAGE_JSON }
   for (const name of Object.keys(files)) {
     if (existsSync(join(dir, name)))
-      throw new Error(`${join(dir, name)} exists; init does not overwrite.`)
+      throw new Error(`${join(dir, name)} already exists. Run init in a new directory.`)
   }
   mkdirSync(dir, { recursive: true })
   for (const [name, text] of Object.entries(files)) {
@@ -111,7 +106,7 @@ function init(dir: string): void {
 
 async function json(path: string): Promise<void> {
   const model = await assemble(path, { partial: values.partial })
-  // stdout is the JSON; what is still to do goes beside it, where a terminal shows it.
+  // Warnings go to stderr so stdout stays valid JSON.
   for (const w of model.warnings ?? []) console.error(w.message)
   console.log(JSON.stringify(model, null, 2))
 }
@@ -127,8 +122,7 @@ async function proto(path: string, out: string): Promise<void> {
 }
 
 async function renderOnce(path: string, out: string): Promise<void> {
-  // event_model.py reads a file, so the JSON goes to a scratch directory that
-  // does not outlive the render.
+  // event_model.py reads a file, so the JSON goes to a temp directory.
   const scratch = mkdtempSync(join(tmpdir(), "em-"))
   try {
     const file = join(scratch, "model.json")
@@ -168,10 +162,7 @@ async function render(path: string, out: string): Promise<void> {
   })
 }
 
-/**
- * The model, assembled in a fresh process so a saved module is read again. The
- * picture is for a model being written, so dead ends are drawn, not refused.
- */
+/** A fresh process rereads saved modules; --partial draws unfinished models. */
 function assembleFresh(path: string, changed?: string): Snapshot {
   const started = Date.now()
   const run = spawnSync(
@@ -179,7 +170,6 @@ function assembleFresh(path: string, changed?: string): Snapshot {
     [...process.execArgv, process.argv[1] ?? "", "json", "--partial", path],
     { encoding: "utf8" },
   )
-  // The terminal keeps the record: what was saved, how the assembly went, what is left.
   const stamp = new Date().toTimeString().slice(0, 8)
   const cause = changed ? `${changed} saved` : "start"
   const took = `${Date.now() - started}ms`
@@ -198,7 +188,7 @@ function assembleFresh(path: string, changed?: string): Snapshot {
 
 function builtViewer(): void {
   if (!existsSync(join(VIEWER_DIST, "index.html")))
-    throw new Error("The viewer is not built. Run `npm run build` in the package.")
+    throw new Error(`The viewer is not built. Run \`npm run build\` in ${ROOT}.`)
 }
 
 async function exportPage(path: string, out: string): Promise<void> {
