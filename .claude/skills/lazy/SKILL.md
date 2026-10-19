@@ -34,18 +34,18 @@ Always obey these instructions.
 <preface; one line naming the root problem, read from .context/ROOT_PROBLEM.md, which you write if absent. Then the whole checklist from .context/CHECKLIST.md — every item, every turn>
 
 ## Problem
-<only when the root problem is new or has changed: the contents of .context/ROOT_PROBLEM.md. Otherwise omit this section; he can read the file. Name the active subproblem in one line when it is not the root problem.>
+<only when the root problem is new or has changed: the contents of .context/ROOT_PROBLEM.md. Otherwise omit this section; the human can read the file. Name the active subproblem in one line when it is not the root problem.>
 
 ### Conclusion
-<your certified conclusion, nothing more, nothing less. Literal only — no metaphor, no analogy, no figure of speech; if a boardwalk is not involved, do not write "board walk". Name things by what they do, in his words or the codebase's. A term you coined this session gets defined in the same sentence or does not appear.>
+<your certified conclusion, nothing more, nothing less. Literal only — no metaphor, no analogy, no figure of speech; if a boardwalk is not involved, do not write "board walk". Name things by what they do, in the human's words or the codebase's. A term you coined this session gets defined in the same sentence or does not appear.>
 
 <ask(s) of humans ONLY IF ABSOLUTELY NECESSARY; each prefixed with "Ask:" in bold>
 
 ### Justification
-<only for a decision he would otherwise question: why this and not the alternative, with the number or quote inline>
+<only for a decision the human would otherwise question: why this and not the alternative, with the number or quote inline>
 
 ### Verification
-<only for commands he has not already been given: copy-pasteable, with what each should show>
+<only for commands the human has not already been given: copy-pasteable, with what each should show>
 
 ### Metacognition
 <only when you learned something that changes what you will do next time. Not a diary. Never an apology.>
@@ -53,21 +53,21 @@ Always obey these instructions.
 .
 ```
 
-**400 words, outside code blocks. Hard.** `### Conclusion` is mandatory; every
-other section earns its place or stays out. Never re-emit prose your previous
-response already said — no restated problem, no re-listed commands.
+**Brief by default.** Use as few words as the question needs; when the human asks
+for detail, give all of it. `### Conclusion` is mandatory; every other section
+earns its place or stays out. Never re-emit prose your previous response already
+said — no restated problem, no re-listed commands. The checklist is state, not
+prose, so it renders in full every turn regardless.
 
 Cut repetition, throat-clearing, and prose that restates a table. Never cut a
 link, a file path, a number, or the context that makes the answer checkable —
-those are the payload. If the payload alone exceeds the budget, put it in a file
-and link that.
+those are the payload.
 
-The checklist is the exception, and it does not count against the budget. It
-lives in `.context/CHECKLIST.md`, you update that file before you answer, and you
-render all of it every turn. Items are never silently dropped or reworded. Three
-states: `- [ ]` not started, `- [~]` in progress, `- [x]` done. Mark `- [x]` only
-after the thing was verified or he confirmed it — anything you believe is done
-but have not checked is `- [~]`.
+The checklist lives in `.context/CHECKLIST.md`, you update that file before you
+answer, and you render all of it every turn. Items are never silently dropped or
+reworded. Three states: `- [ ]` not started, `- [~]` in progress, `- [x]` done.
+Mark `- [x]` only after the thing was verified or the human confirmed it —
+anything you believe is done but have not checked is `- [~]`.
 
 Code comments are durable artifacts and the same rules bind them. Write the
 comment that says why a choice was made, and delete the one that restates the
@@ -83,12 +83,11 @@ single period on its own line — nothing after it, no coda.
 Satisfy them the first time; a block costs a whole extra turn.
 
 1. `### Conclusion` present; every other header from the template optional, verbatim, in template order.
-2. 400 words or fewer outside code blocks.
-3. Address the human by the name in their `~/.claude/CLAUDE.md`, when they stated one.
-4. No bare deferrals back to the human.
-5. No `- [ ]` or `- [~]` preface item unless the response also carries a bolded `Ask:`.
-6. End with a single period on its own line.
-7. `.context/ROOT_PROBLEM.md` exists and is not empty.
+2. Address the human by the name in their `~/.claude/CLAUDE.md`, when they stated one.
+3. No bare deferrals back to the human.
+4. No `- [ ]` or `- [~]` preface item unless the response also carries a bolded `Ask:`.
+5. End with a single period on its own line.
+6. `.context/ROOT_PROBLEM.md` exists and is not empty.
 
 If it is not yet wired, add it under `hooks.Stop` as `python3 <this directory>/lazy-check.py`
 — in `.claude/settings.json` to enforce it for one project, or in `~/.claude/settings.json`

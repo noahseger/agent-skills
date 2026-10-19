@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Stop hook: enforce the /lazy response contract where it applies.
 
-The lazy skill defines an exact Pyramid Principle structure — six verbatim
+The lazy skill defines an exact Pyramid Principle structure — its verbatim
 section headers, an address to the human, and a single period on its own line as the
 terminator. Any turn that misses one of those did not follow the protocol, so
 block the stop and hand the model back the skill.
@@ -26,7 +26,6 @@ HEADER = re.compile(r"^\s{0,3}#{1,6}\s+\S")
 INLINE_CODE = re.compile(r"(`+)(?:(?!\1).)+?\1")
 PREFERRED_ADDRESS = re.compile(r"address me as [\"“'‘]?([\w-]+)", re.I)
 UNCHECKED = re.compile(r"^\s*[-*]\s*\[[ ~]\]", re.M)
-CHECKLIST_LINE = re.compile(r"^[ \t]*[-*][ \t]*\[[ x~]\].*$", re.M | re.I)
 ASK = re.compile(r"\*\*Ask:", re.I)
 
 # Frames that hand work back to the human instead of resolving it — the substance
@@ -109,9 +108,6 @@ def required_headers():
     return headers_in(template.group(1)) if template else []
 
 
-WORD_BUDGET = 400
-
-
 def contract_failures(response, required, cwd=None):
     """Every way this response breaks the lazy contract, in reporting order."""
     failures = []
@@ -127,15 +123,6 @@ def contract_failures(response, required, cwd=None):
         )
 
     body = strip_code(response)
-
-    # The preface checklist is carried state, not prose, so it is exempt.
-    words = len(CHECKLIST_LINE.sub('', body).split())
-    if words > WORD_BUDGET:
-        failures.append(
-            f"{words} words outside code blocks, budget is {WORD_BUDGET}. Cut it, or move "
-            "the long part into a file and link it. Drop whole sections that repeat what "
-            "he already has."
-        )
 
     deferrals = sorted({hit.group(0) for hit in DEFERRAL.finditer(body)})
     if deferrals:
