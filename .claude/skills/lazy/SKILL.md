@@ -98,7 +98,8 @@ Satisfy them the first time; a block costs a whole extra turn.
 3. No bare deferrals back to the human.
 4. Every `- [ ]` or `- [~]` preface item starts with who acts next, as `Name:`. None names you: work you could do now, you do now.
 5. End with a single period on its own line.
-6. `.context/ROOT_PROBLEM.md` exists and is not empty.
+6. Every PR or issue is a link that names its repo, like `[repo#12](url)`.
+7. `.context/ROOT_PROBLEM.md` exists and is not empty.
 
 If it is not yet wired, add it under `hooks.Stop` as `python3 <this directory>/lazy-check.py`
 — in `.claude/settings.json` to enforce it for one project, or in `~/.claude/settings.json`

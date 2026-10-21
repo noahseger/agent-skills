@@ -26,6 +26,8 @@ HEADER = re.compile(r"^\s{0,3}#{1,6}\s+\S")
 INLINE_CODE = re.compile(r"(`+)(?:(?!\1).)+?\1")
 PREFERRED_ADDRESS = re.compile(r"address me as [\"“'‘]?([\w-]+)", re.I)
 UNCHECKED = re.compile(r"^\s*[-*]\s*\[[ ~]\].*$", re.M)
+# A PR or issue number with no repo and no link makes the human guess which one.
+BARE_REF = re.compile(r"(?<![\w/\[#])#\d+\b(?!\]\()")
 OWNER = re.compile(r"^\s*[-*]\s*\[[ ~]\]\s*\**([\w.-]+)\**:")
 SELF = {"claude", "me", "i", "agent", "assistant"}
 
@@ -146,6 +148,12 @@ def contract_failures(response, required, cwd=None):
         failures.append(
             ".context/ROOT_PROBLEM.md is missing or empty in this workspace. Write the root "
             "problem there, then answer."
+        )
+
+    bare = sorted(set(BARE_REF.findall(body)))
+    if bare:
+        failures.append(
+            "Name the repo and link every PR or issue; these are bare: " + ", ".join(bare) + "."
         )
 
     # Each open item names who acts next, so the human sees their own at a glance.
