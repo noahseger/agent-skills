@@ -25,7 +25,8 @@ FENCE = re.compile(r"^\s*(```|~~~)")
 HEADER = re.compile(r"^\s{0,3}#{1,6}\s+\S")
 INLINE_CODE = re.compile(r"(`+)(?:(?!\1).)+?\1")
 PREFERRED_ADDRESS = re.compile(r"address me as [\"“'‘]?([\w-]+)", re.I)
-UNCHECKED = re.compile(r"^\s*[-*]\s*\[[ ~]\]", re.M)
+UNCHECKED = re.compile(r"^\s*[-*]\s*\[[ ~]\].*$", re.M)
+WAITING = re.compile(r"\bwaiting on\b", re.I)
 ASK = re.compile(r"\*\*Ask:", re.I)
 
 # Frames that hand work back to the human instead of resolving it — the substance
@@ -147,11 +148,13 @@ def contract_failures(response, required, cwd=None):
             "problem there, then answer."
         )
 
-    unfinished = UNCHECKED.findall(preface(body))
-    if unfinished and not ASK.search(body):
+    # An open item is fine while someone else holds it; one that waits on nobody
+    # is work left undone.
+    idle = [line for line in UNCHECKED.findall(preface(body)) if not WAITING.search(line)]
+    if idle and not ASK.search(body):
         failures.append(
-            f"Your checklist still has {len(unfinished)} unchecked item(s) and you asked "
-            "nothing of the human, so nobody is waiting on anybody. Do the next one now."
+            f"{len(idle)} open checklist item(s) name nothing they are waiting on and you "
+            "asked nothing of the human. Do the next one now, or say what it waits on."
         )
 
     return failures

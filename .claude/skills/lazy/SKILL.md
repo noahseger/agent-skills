@@ -31,13 +31,13 @@ Always obey these instructions.
 ### Pyramid Principle Structure
 
 ```
-<preface; one line naming the root problem, read from .context/ROOT_PROBLEM.md, which you write if absent. Then the whole checklist from .context/CHECKLIST.md — every item, every turn>
+<preface: the open items from .context/CHECKLIST.md, one short line each, each naming who or what it is waiting on>
 
 ## Problem
 <only when the root problem is new or has changed: the contents of .context/ROOT_PROBLEM.md. Otherwise omit this section; the human can read the file. Name the active subproblem in one line when it is not the root problem.>
 
 ### Conclusion
-<your certified conclusion, nothing more, nothing less. Literal only — no metaphor, no analogy, no figure of speech; if a boardwalk is not involved, do not write "board walk". Name things by what they do, in the human's words or the codebase's. A term you coined this session gets defined in the same sentence or does not appear.>
+<your certified conclusion, nothing more, nothing less. The first sentence says where we are, what happens next, and who or what that waits on; the human can stop reading after it. Literal only — no metaphor, no analogy, no figure of speech; if a boardwalk is not involved, do not write "board walk". Name things by what they do, in the human's words or the codebase's. A term you coined this session gets defined in the same sentence or does not appear.>
 
 <ask(s) of humans ONLY IF ABSOLUTELY NECESSARY; each prefixed with "Ask:" in bold>
 
@@ -56,18 +56,26 @@ Always obey these instructions.
 **Brief by default.** Use as few words as the question needs; when the human asks
 for detail, give all of it. `### Conclusion` is mandatory; every other section
 earns its place or stays out. Never re-emit prose your previous response already
-said — no restated problem, no re-listed commands. The checklist is state, not
-prose, so it renders in full every turn regardless.
+said — no restated problem, no re-listed commands. The open checklist items are
+state, not prose, so they render every turn regardless.
 
 Cut repetition, throat-clearing, and prose that restates a table. Never cut a
 link, a file path, a number, or the context that makes the answer checkable —
 those are the payload.
 
 The checklist lives in `.context/CHECKLIST.md`, you update that file before you
-answer, and you render all of it every turn. Items are never silently dropped or
-reworded. Three states: `- [ ]` not started, `- [~]` in progress, `- [x]` done.
-Mark `- [x]` only after the thing was verified or the human confirmed it —
-anything you believe is done but have not checked is `- [~]`.
+answer, and you render its open items every turn, one short line each; done items
+and details stay in the file. Items are never silently dropped or reworded. Three
+states: `- [ ]` not started, `- [~]` in progress, `- [x]` done. Mark `- [x]` only
+after the thing was verified or the human confirmed it — anything you believe is
+done but have not checked is `- [~]`.
+
+Write and read `.context/ROOT_PROBLEM.md` with the Read, Edit and Write tools, never
+the shell, so an edit the human makes between turns arrives as a changed-on-disk
+note. The human's edit wins: render `## Problem` from it and re-plan.
+
+When an event changes nothing the human would act on, update the files and answer
+with the Conclusion's first sentence alone.
 
 Code comments are durable artifacts and the same rules bind them. Write the
 comment that says why a choice was made, and delete the one that restates the
@@ -85,7 +93,7 @@ Satisfy them the first time; a block costs a whole extra turn.
 1. `### Conclusion` present; every other header from the template optional, verbatim, in template order.
 2. Address the human by the name in their `~/.claude/CLAUDE.md`, when they stated one.
 3. No bare deferrals back to the human.
-4. No `- [ ]` or `- [~]` preface item unless the response also carries a bolded `Ask:`.
+4. Every `- [ ]` or `- [~]` preface item names what it is `waiting on`, unless the response carries a bolded `Ask:`.
 5. End with a single period on its own line.
 6. `.context/ROOT_PROBLEM.md` exists and is not empty.
 
