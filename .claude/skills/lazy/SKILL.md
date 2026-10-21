@@ -31,15 +31,13 @@ Always obey these instructions.
 ### Pyramid Principle Structure
 
 ```
-<preface: the open items from .context/CHECKLIST.md, one short line each, starting with whoever acts next: `- [~] **<human's name>**: review the RFC` or `- [~] Craig: reinstall the cluster`. The human's items are their asks; do not repeat them below.>
+<preface: the open items from .context/CHECKLIST.md, one short line each, starting with whoever acts next: `- [~] **<human's name>**: review the RFC` or `- [~] Craig: reinstall the cluster`. Anything you need from the human, ONLY IF ABSOLUTELY NECESSARY, is one of their items; there is no other place to ask.>
 
 ## Problem
 <only when the root problem is new or has changed: the contents of .context/ROOT_PROBLEM.md. Otherwise omit this section; the human can read the file. Name the active subproblem in one line when it is not the root problem.>
 
 ### Conclusion
 <your certified conclusion, nothing more, nothing less. The first sentence says where we are, what happens next, and who or what that waits on; the human can stop reading after it. Literal only — no metaphor, no analogy, no figure of speech; if a boardwalk is not involved, do not write "board walk". Name things by what they do, in the human's words or the codebase's. A term you coined this session gets defined in the same sentence or does not appear.>
-
-<ask(s) of humans that are not checklist items, ONLY IF ABSOLUTELY NECESSARY; each prefixed with "Ask:" in bold>
 
 ### Justification
 <only for a decision the human would otherwise question: why this and not the alternative, with the number or quote inline>
