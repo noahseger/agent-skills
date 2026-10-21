@@ -25,8 +25,9 @@ FENCE = re.compile(r"^\s*(```|~~~)")
 HEADER = re.compile(r"^\s{0,3}#{1,6}\s+\S")
 INLINE_CODE = re.compile(r"(`+)(?:(?!\1).)+?\1")
 PREFERRED_ADDRESS = re.compile(r"address me as [\"“'‘]?([\w-]+)", re.I)
-UNCHECKED = re.compile(r"^\s*[-*]\s*\[[ ~]\]", re.M)
-ASK = re.compile(r"\*\*Ask:", re.I)
+UNCHECKED = re.compile(r"^\s*[-*]\s*\[[ ~]\].*$", re.M)
+OWNER = re.compile(r"^\s*[-*]\s*\[[ ~]\]\s*\**([\w.-]+)\**:")
+SELF = {"claude", "me", "i", "agent", "assistant"}
 
 # Frames that hand work back to the human instead of resolving it — the substance
 # of non-laziness, where the headers are only its shell. Kept here rather than in
@@ -147,12 +148,14 @@ def contract_failures(response, required, cwd=None):
             "problem there, then answer."
         )
 
-    unfinished = UNCHECKED.findall(preface(body))
-    if unfinished and not ASK.search(body):
-        failures.append(
-            f"Your checklist still has {len(unfinished)} unchecked item(s) and you asked "
-            "nothing of the human, so nobody is waiting on anybody. Do the next one now."
-        )
+    # Each open item names who acts next, so the human sees their own at a glance.
+    # An item the model owns is work it could be doing instead of stopping.
+    for line in UNCHECKED.findall(preface(body)):
+        owner = OWNER.match(line)
+        if not owner:
+            failures.append(f'Start each open item with who acts next, as "Name:". This one does not: {line.strip()}')
+        elif owner.group(1).lower() in SELF:
+            failures.append(f"This open item is yours; do it now instead of stopping: {line.strip()}")
 
     return failures
 
