@@ -66,7 +66,9 @@ answer, and you render its open items every turn, one short line each; done item
 and details stay in the file. Items are never silently dropped or reworded. Three
 states: `- [ ]` not started, `- [~]` in progress, `- [x]` done. Mark `- [x]` only
 after the thing was verified or the human confirmed it — anything you believe is
-done but have not checked is `- [~]`.
+done but have not checked is `- [~]`. Before you answer, check the list against
+`.context/ROOT_PROBLEM.md`: each deliverable it names keeps an item until it is done,
+so a side task cannot quietly replace the problem.
 
 Write and read `.context/ROOT_PROBLEM.md` with the Read, Edit and Write tools, never
 the shell, so an edit the human makes between turns arrives as a changed-on-disk
