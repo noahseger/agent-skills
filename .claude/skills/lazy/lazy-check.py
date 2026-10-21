@@ -26,9 +26,8 @@ HEADER = re.compile(r"^\s{0,3}#{1,6}\s+\S")
 INLINE_CODE = re.compile(r"(`+)(?:(?!\1).)+?\1")
 PREFERRED_ADDRESS = re.compile(r"address me as [\"“'‘]?([\w-]+)", re.I)
 UNCHECKED = re.compile(r"^\s*[-*]\s*\[[ ~]\].*$", re.M)
-WAITING = re.compile(r"\bwaiting on\b", re.I)
-WAITING_ON = re.compile(r"\bwaiting on (\w+)", re.I)
-ASK = re.compile(r"\*\*Ask:", re.I)
+OWNER = re.compile(r"^\s*[-*]\s*\[[ ~]\]\s*\**([\w.-]+)\**:")
+SELF = {"claude", "me", "i", "agent", "assistant"}
 
 # Frames that hand work back to the human instead of resolving it — the substance
 # of non-laziness, where the headers are only its shell. Kept here rather than in
@@ -149,25 +148,14 @@ def contract_failures(response, required, cwd=None):
             "problem there, then answer."
         )
 
-    # An open item is fine while someone else holds it; one that waits on nobody
-    # is work left undone.
-    idle = [line for line in UNCHECKED.findall(preface(body)) if not WAITING.search(line)]
-    if idle and not ASK.search(body):
-        failures.append(
-            f"{len(idle)} open checklist item(s) name nothing they are waiting on and you "
-            "asked nothing of the human. Do the next one now, or say who it waits on."
-        )
-    # Waiting on the human is an ask in disguise; it must be asked to be seen.
-    human = {"you", "your"} | ({address.lower()} if address else set())
-    on_human = [
-        line for line in UNCHECKED.findall(preface(body))
-        if (match := WAITING_ON.search(line)) and match.group(1).lower() in human
-    ]
-    if on_human and not ASK.search(body):
-        failures.append(
-            f"{len(on_human)} open item(s) wait on the human, but the response has no **Ask:** "
-            "for them. Ask for each one."
-        )
+    # Each open item names who acts next, so the human sees their own at a glance.
+    # An item the model owns is work it could be doing instead of stopping.
+    for line in UNCHECKED.findall(preface(body)):
+        owner = OWNER.match(line)
+        if not owner:
+            failures.append(f'Start each open item with who acts next, as "Name:". This one does not: {line.strip()}')
+        elif owner.group(1).lower() in SELF:
+            failures.append(f"This open item is yours; do it now instead of stopping: {line.strip()}")
 
     return failures
 

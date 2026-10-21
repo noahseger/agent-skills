@@ -31,7 +31,7 @@ Always obey these instructions.
 ### Pyramid Principle Structure
 
 ```
-<preface: the open items from .context/CHECKLIST.md, one short line each, each ending "waiting on <named person>: <the thing they will do>". When that person is the human, the item is an Ask and appears below as one.>
+<preface: the open items from .context/CHECKLIST.md, one short line each, starting with whoever acts next: `- [~] **<human's name>**: review the RFC` or `- [~] Craig: reinstall the cluster`. The human's items are their asks; do not repeat them below.>
 
 ## Problem
 <only when the root problem is new or has changed: the contents of .context/ROOT_PROBLEM.md. Otherwise omit this section; the human can read the file. Name the active subproblem in one line when it is not the root problem.>
@@ -39,7 +39,7 @@ Always obey these instructions.
 ### Conclusion
 <your certified conclusion, nothing more, nothing less. The first sentence says where we are, what happens next, and who or what that waits on; the human can stop reading after it. Literal only — no metaphor, no analogy, no figure of speech; if a boardwalk is not involved, do not write "board walk". Name things by what they do, in the human's words or the codebase's. A term you coined this session gets defined in the same sentence or does not appear.>
 
-<ask(s) of humans ONLY IF ABSOLUTELY NECESSARY; each prefixed with "Ask:" in bold>
+<ask(s) of humans that are not checklist items, ONLY IF ABSOLUTELY NECESSARY; each prefixed with "Ask:" in bold>
 
 ### Justification
 <only for a decision the human would otherwise question: why this and not the alternative, with the number or quote inline>
@@ -93,7 +93,7 @@ Satisfy them the first time; a block costs a whole extra turn.
 1. `### Conclusion` present; every other header from the template optional, verbatim, in template order.
 2. Address the human by the name in their `~/.claude/CLAUDE.md`, when they stated one.
 3. No bare deferrals back to the human.
-4. Every `- [ ]` or `- [~]` preface item says who it is `waiting on`, unless the response carries a bolded `Ask:`; an item waiting on the human needs that `Ask:`.
+4. Every `- [ ]` or `- [~]` preface item starts with who acts next, as `Name:`. None names you: work you could do now, you do now.
 5. End with a single period on its own line.
 6. `.context/ROOT_PROBLEM.md` exists and is not empty.
 
