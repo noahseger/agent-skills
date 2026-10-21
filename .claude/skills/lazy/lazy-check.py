@@ -27,6 +27,7 @@ INLINE_CODE = re.compile(r"(`+)(?:(?!\1).)+?\1")
 PREFERRED_ADDRESS = re.compile(r"address me as [\"“'‘]?([\w-]+)", re.I)
 UNCHECKED = re.compile(r"^\s*[-*]\s*\[[ ~]\].*$", re.M)
 WAITING = re.compile(r"\bwaiting on\b", re.I)
+WAITING_ON = re.compile(r"\bwaiting on (\w+)", re.I)
 ASK = re.compile(r"\*\*Ask:", re.I)
 
 # Frames that hand work back to the human instead of resolving it — the substance
@@ -154,7 +155,18 @@ def contract_failures(response, required, cwd=None):
     if idle and not ASK.search(body):
         failures.append(
             f"{len(idle)} open checklist item(s) name nothing they are waiting on and you "
-            "asked nothing of the human. Do the next one now, or say what it waits on."
+            "asked nothing of the human. Do the next one now, or say who it waits on."
+        )
+    # Waiting on the human is an ask in disguise; it must be asked to be seen.
+    human = {"you", "your"} | ({address.lower()} if address else set())
+    on_human = [
+        line for line in UNCHECKED.findall(preface(body))
+        if (match := WAITING_ON.search(line)) and match.group(1).lower() in human
+    ]
+    if on_human and not ASK.search(body):
+        failures.append(
+            f"{len(on_human)} open item(s) wait on the human, but the response has no **Ask:** "
+            "for them. Ask for each one."
         )
 
     return failures

@@ -31,7 +31,7 @@ Always obey these instructions.
 ### Pyramid Principle Structure
 
 ```
-<preface: the open items from .context/CHECKLIST.md, one short line each, each naming who or what it is waiting on>
+<preface: the open items from .context/CHECKLIST.md, one short line each, each ending "waiting on <named person>: <the thing they will do>". When that person is the human, the item is an Ask and appears below as one.>
 
 ## Problem
 <only when the root problem is new or has changed: the contents of .context/ROOT_PROBLEM.md. Otherwise omit this section; the human can read the file. Name the active subproblem in one line when it is not the root problem.>
@@ -93,7 +93,7 @@ Satisfy them the first time; a block costs a whole extra turn.
 1. `### Conclusion` present; every other header from the template optional, verbatim, in template order.
 2. Address the human by the name in their `~/.claude/CLAUDE.md`, when they stated one.
 3. No bare deferrals back to the human.
-4. Every `- [ ]` or `- [~]` preface item names what it is `waiting on`, unless the response carries a bolded `Ask:`.
+4. Every `- [ ]` or `- [~]` preface item says who it is `waiting on`, unless the response carries a bolded `Ask:`; an item waiting on the human needs that `Ask:`.
 5. End with a single period on its own line.
 6. `.context/ROOT_PROBLEM.md` exists and is not empty.
 
