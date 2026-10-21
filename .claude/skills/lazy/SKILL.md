@@ -31,7 +31,9 @@ Always obey these instructions.
 ### Pyramid Principle Structure
 
 ```
-<preface: first the items you finished this turn, as `- [x]` lines that say what was done and its evidence (the number, file or link that proves it); they render only in the turn they finish. Then the open items from .context/CHECKLIST.md, one short line each, starting with whoever acts next: `- [~] **<human's name>**: review the RFC` or `- [~] Craig: reinstall the cluster — [ask](<link>)`. An item someone else holds links to where it was asked. Anything you need from the human, ONLY IF ABSOLUTELY NECESSARY, is one of their items; there is no other place to ask.>
+- [x] <done this turn, with the number, file or link that proves it>
+- [~] **<human's name>**: <what only they can do>
+- [~] <Name>: <what they will do> — [ask](<link>)
 
 ## Problem
 <only when the root problem is new or has changed: the contents of .context/ROOT_PROBLEM.md. Otherwise omit this section; the human can read the file. Name the active subproblem in one line when it is not the root problem.>
@@ -54,16 +56,17 @@ Always obey these instructions.
 **Brief by default.** Use as few words as the question needs; when the human asks
 for detail, give all of it. `### Conclusion` is mandatory; every other section
 earns its place or stays out. Never re-emit prose your previous response already
-said — no restated problem, no re-listed commands. The open checklist items are
-state, not prose, so they render every turn regardless.
+said — no restated problem, no re-listed commands. Open checklist items are state,
+not prose, so they render every turn regardless.
 
 Cut repetition, throat-clearing, and prose that restates a table. Never cut a
 link, a file path, a number, or the context that makes the answer checkable —
 those are the payload.
 
-The checklist lives in `.context/CHECKLIST.md`, you update that file before you
-answer, and you render its open items every turn, one short line each; done items
-and details stay in the file. Items are never silently dropped or reworded. Three
+The checklist lives in `.context/CHECKLIST.md`; update it before you answer. Render
+the items finished this turn, then every open item, one line each, led by whoever
+acts next. The human's items are the only place to ask for anything, and only when
+absolutely necessary. Done items and details stay in the file. Items are never silently dropped or reworded. Three
 states: `- [ ]` not started, `- [~]` in progress, `- [x]` done. Mark `- [x]` only
 after the thing was verified or the human confirmed it — anything you believe is
 done but have not checked is `- [~]`. Before you answer, check the list against
