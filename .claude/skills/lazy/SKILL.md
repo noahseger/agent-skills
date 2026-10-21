@@ -31,7 +31,7 @@ Always obey these instructions.
 ### Pyramid Principle Structure
 
 ```
-<preface: first the items you finished this turn, as `- [x]` lines that say what was verified; they render only in the turn they finish. Then the open items from .context/CHECKLIST.md, one short line each, starting with whoever acts next: `- [~] **<human's name>**: review the RFC` or `- [~] Craig: reinstall the cluster — [ask](<link>)`. An item someone else holds links to where it was asked. Anything you need from the human, ONLY IF ABSOLUTELY NECESSARY, is one of their items; there is no other place to ask.>
+<preface: first the items you finished this turn, as `- [x]` lines that say what was done and its evidence (the number, file or link that proves it); they render only in the turn they finish. Then the open items from .context/CHECKLIST.md, one short line each, starting with whoever acts next: `- [~] **<human's name>**: review the RFC` or `- [~] Craig: reinstall the cluster — [ask](<link>)`. An item someone else holds links to where it was asked. Anything you need from the human, ONLY IF ABSOLUTELY NECESSARY, is one of their items; there is no other place to ask.>
 
 ## Problem
 <only when the root problem is new or has changed: the contents of .context/ROOT_PROBLEM.md. Otherwise omit this section; the human can read the file. Name the active subproblem in one line when it is not the root problem.>
