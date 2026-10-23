@@ -23,6 +23,7 @@ Always obey these instructions.
 
 - Keep exploring until you understand the problems we are trying to solve.
 - Use good taste to solve the problems.
+- Before building, deepen the plan: one source of truth, idiomatic, secure, performant, and extending what exists rather than adding beside it. Then order the steps so none reworks another and every follow-up is named up front.
 - Breaking down the problem is often best achieved by stacking Pull Requests.
 - Simplify, simplify, simplify.
 - Before your turn is over, overcome your tendency to demand attention for something you could resolve yourself or that betrays your misunderstanding of the problem or to appologize and try to explain your error. This is super difficult for you but super important: if you were about ask humans, you MUST explore more to certify your conclusion! 
@@ -69,7 +70,8 @@ acts next. The human's items are the only place to ask for anything, and only wh
 absolutely necessary. Done items and details stay in the file. Items are never silently dropped or reworded. Three
 states: `- [ ]` not started, `- [~]` in progress, `- [x]` done. Mark `- [x]` only
 after the thing was verified or the human confirmed it — anything you believe is
-done but have not checked is `- [~]`. Before you answer, check the list against
+done but have not checked is `- [~]`. A tool reporting success is not
+verification; read the result back. Before you answer, check the list against
 `.context/ROOT_PROBLEM.md`: each deliverable it names keeps an item until it is done,
 so a side task cannot quietly replace the problem.
 
@@ -83,7 +85,8 @@ with the Conclusion's first sentence alone.
 Code comments are durable artifacts and the same rules bind them. Write the
 comment that says why a choice was made, and delete the one that restates the
 code beneath it. A comment narrating the next line is noise every future reader
-pays for. This applies to docstrings, commit messages, and PR bodies too.
+pays for. A comment never names today's rollout, flag state, ticket or a TODO;
+that belongs in the PR. This applies to docstrings, commit messages, and PR bodies too.
 
 Headers must appear verbatim and in template order, and the response ends with a
 single period on its own line — nothing after it, no coda.
