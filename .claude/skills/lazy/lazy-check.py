@@ -100,8 +100,10 @@ def skill_loaded(transcript):
         for block in content_blocks(record.get("message")):
             if block.get("type") == "text" and CLAUDE_LOAD.search(block.get("text") or ""):
                 return True
-            # Cursor loads a skill by having the model read its SKILL.md.
-            path = (block.get("input") or {}).get("path") if block.get("name") == "ReadFile" else None
+            # Cursor loads a skill by having the model read its SKILL.md; the app
+            # names that tool ReadFile and the CLI Read. Claude Code's Read takes
+            # file_path, not path, so its reads of this skill never arm.
+            path = (block.get("input") or {}).get("path") if block.get("name") in ("Read", "ReadFile") else None
             if isinstance(path, str) and CURSOR_LOAD.search(path):
                 return True
         item = record.get("payload") if record.get("type") == "response_item" else None

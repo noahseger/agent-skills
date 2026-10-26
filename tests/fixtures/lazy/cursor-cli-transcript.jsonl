@@ -1,0 +1,4 @@
+{"role":"user","message":{"content":[{"type":"text","text":"<user_query>\nRead the file /Users/noah/.claude/skills/lazy/SKILL.md. Then reply with exactly the single word: Yes.\n</user_query>"}]}}
+{"role":"assistant","message":{"content":[{"type":"text","text":"I'll read that skill file, then reply with the single word you asked for."},{"type":"tool_use","name":"Read","input":{"path":"/Users/noah/.claude/skills/lazy/SKILL.md"}}]}}
+{"role":"assistant","message":{"content":[{"type":"text","text":"Yes."}]}}
+{"type":"turn_ended","status":"success"}
