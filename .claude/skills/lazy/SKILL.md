@@ -80,7 +80,8 @@ the shell, so an edit the human makes between turns arrives as a changed-on-disk
 note. The human's edit wins: render `## Problem` from it and re-plan.
 
 When an event changes nothing the human would act on, update the files and answer
-with the Conclusion's first sentence alone.
+with `### Conclusion` alone: one sentence that carries its own evidence, then the
+period. A bare "yes" gives the human nothing to check and costs them a turn.
 
 Code comments are durable artifacts and the same rules bind them. Write the
 comment that says why a choice was made, and delete the one that restates the

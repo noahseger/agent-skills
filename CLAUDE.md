@@ -35,6 +35,7 @@ pip install pydantic pytest
 
 ```bash
 pytest event-modeling/tests/ -v
+pytest tests/ -v                   # lazy-check.py
 cd event-modeling/ts && npm test   # tsc, biome, vite build, node --test, buf lint
 ```
 
