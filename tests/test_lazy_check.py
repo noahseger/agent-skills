@@ -112,10 +112,10 @@ def codex_payload(workspace, **extra):
     }
 
 
-def cursor_payload(workspace, **extra):
+def cursor_payload(workspace, transcript="cursor-transcript.jsonl", **extra):
     return {
         "hook_event_name": "stop",
-        "transcript_path": str(FIXTURES / "cursor-transcript.jsonl"),
+        "transcript_path": str(FIXTURES / transcript),
         "workspace_roots": [str(workspace)],
         "status": "completed",
         "loop_count": 0,
@@ -131,8 +131,9 @@ def test_codex_blocks_once(workspace):
     assert run_hook(codex_payload(workspace, stop_hook_active=True), workspace) == ""
 
 
-def test_cursor_read_of_skill_arms_and_blocks_on_transcript_reply(workspace):
-    output = run_hook(cursor_payload(workspace), workspace)
+@pytest.mark.parametrize("transcript", ["cursor-transcript.jsonl", "cursor-cli-transcript.jsonl"])
+def test_cursor_read_of_skill_arms_and_blocks_on_transcript_reply(workspace, transcript):
+    output = run_hook(cursor_payload(workspace, transcript), workspace)
     assert '"decision": "block"' in output
     assert "ROOT_PROBLEM" not in output
 
