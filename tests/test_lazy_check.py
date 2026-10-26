@@ -1,5 +1,9 @@
 """lazy-check.py against false blocks and misses found in review."""
 import importlib.util
+import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -72,3 +76,74 @@ def test_agent_owned_item_blocks(check, owner):
 
 def test_item_without_owner_blocks(check):
     assert check(preface="- [ ] Run tests: then deploy")
+
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures" / "lazy"
+
+
+def run_hook(payload, home):
+    """The hook's stdout for one stop payload, as each harness sends it."""
+    result = subprocess.run(
+        [sys.executable, str(HOOK)],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        env={**os.environ, "HOME": str(home)},
+        check=True,
+    )
+    return result.stdout
+
+
+@pytest.fixture
+def workspace(tmp_path):
+    (tmp_path / ".context").mkdir()
+    (tmp_path / ".context" / "ROOT_PROBLEM.md").write_text("problem")
+    return tmp_path
+
+
+def codex_payload(workspace, **extra):
+    return {
+        "hook_event_name": "Stop",
+        "transcript_path": str(FIXTURES / "codex-rollout.jsonl"),
+        "cwd": str(workspace),
+        "stop_hook_active": False,
+        "last_assistant_message": "Not yet.",
+        **extra,
+    }
+
+
+def cursor_payload(workspace, **extra):
+    return {
+        "hook_event_name": "stop",
+        "transcript_path": str(FIXTURES / "cursor-transcript.jsonl"),
+        "workspace_roots": [str(workspace)],
+        "status": "completed",
+        "loop_count": 0,
+        **extra,
+    }
+
+
+def test_codex_invocation_arms_and_blocks(workspace):
+    assert '"decision": "block"' in run_hook(codex_payload(workspace), workspace)
+
+
+def test_codex_blocks_once(workspace):
+    assert run_hook(codex_payload(workspace, stop_hook_active=True), workspace) == ""
+
+
+def test_cursor_read_of_skill_arms_and_blocks_on_transcript_reply(workspace):
+    output = run_hook(cursor_payload(workspace), workspace)
+    assert '"decision": "block"' in output
+    assert "ROOT_PROBLEM" not in output
+
+
+def test_cursor_blocks_once(workspace):
+    assert run_hook(cursor_payload(workspace, loop_count=1), workspace) == ""
+
+
+def test_claude_code_read_of_skill_does_not_arm(workspace, tmp_path_factory):
+    transcript = tmp_path_factory.mktemp("t") / "claude.jsonl"
+    read = {"type": "tool_use", "name": "Read", "input": {"file_path": "/x/.claude/skills/lazy/SKILL.md"}}
+    transcript.write_text(json.dumps({"type": "assistant", "message": {"content": [read]}}) + "\n")
+    payload = {"transcript_path": str(transcript), "cwd": str(workspace), "last_assistant_message": "Yes."}
+    assert run_hook(payload, workspace) == ""
