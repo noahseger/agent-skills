@@ -26,10 +26,13 @@ HEADER = re.compile(r"^\s{0,3}#{1,6}\s+\S")
 INLINE_CODE = re.compile(r"(`+)(?:(?!\1).)+?\1")
 PREFERRED_ADDRESS = re.compile(r"address me as [\"“'‘]?([\w-]+)", re.I)
 UNCHECKED = re.compile(r"^\s*[-*]\s*\[[ ~]\].*$", re.M)
-# A PR or issue number with no repo and no link makes the human guess which one.
-BARE_REF = re.compile(r"(?<![\w/\[#])#\d+\b(?!\]\()")
-OWNER = re.compile(r"^\s*[-*]\s*\[[ ~]\]\s*\**([\w.-]+)\**:")
-SELF = {"claude", "me", "i", "agent", "assistant"}
+# A PR or issue number that is not a link makes the human go find it. Matched
+# after URLs are removed, so a link's target and a comment anchor never count.
+BARE_REF = re.compile(r"(?<![\w/\[#.-])(?:[\w.-]+/)?[\w.-]*#\d+\b(?!\]\()")
+URL = re.compile(r"https?://\S+")
+# A name is one word, or capitalized words like "Ada Lovelace"; "Run tests:" is not.
+OWNER = re.compile(r"^\s*[-*]\s*\[[ ~]\]\s*\**([\w.'-]+(?: [A-Z][\w.'-]*){0,2})\**:")
+SELF = {"claude", "codex", "cursor", "me", "i", "agent", "assistant"}
 
 # Frames that hand work back to the human instead of resolving it — the substance
 # of non-laziness, where the headers are only its shell. Kept here rather than in
@@ -38,7 +41,6 @@ SELF = {"claude", "me", "i", "agent", "assistant"}
 DEFERRAL = re.compile(
     r"\bsay the word\b"
     r"|\bworth (knowing|noting|flagging|mentioning|highlighting|calling out|your call)\b"
-    r"|\b(one|two|three|a few|several)\b[^.\n]{0,30}\bworth\b"
     r"|\b(one|a) caveat\b"
     r"|what I need from you"
     r"|something I wanted to flag"
@@ -47,8 +49,7 @@ DEFERRAL = re.compile(
     r"|what I'd want a reviewer"
     r"|^Honestly[,.]"
     r"|\bfair hit\b"
-    r"|\bthe kicker\b"
-    r"|\beven worse\b",
+    r"|\bthe kicker\b",
     re.I | re.M,
 )
 
@@ -150,7 +151,7 @@ def contract_failures(response, required, cwd=None):
             "problem there, then answer."
         )
 
-    bare = sorted(set(BARE_REF.findall(body)))
+    bare = sorted(set(BARE_REF.findall(URL.sub(" ", body))))
     if bare:
         failures.append(
             "Name the repo and link every PR or issue; these are bare: " + ", ".join(bare) + "."
