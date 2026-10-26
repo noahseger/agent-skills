@@ -15,11 +15,13 @@ import re
 import sys
 from pathlib import Path
 
-# Emitted into the transcript by the Skill tool when it loads this skill. Matched
-# by suffix so the hook works wherever GNS installs the skill. Only ever searched
-# in message text, never in tool output: this line is itself a match, so reading
+# How each harness records loading this skill. Matched by suffix so the hook
+# works wherever GNS installs the skill, and only where the harness writes the
+# load, never in tool output: these lines are themselves matches, so reading
 # this file would otherwise arm the hook for the rest of the session.
-SKILL_LOADED = re.compile(r"Base directory for this skill: \S*/skills/lazy\b")
+CLAUDE_LOAD = re.compile(r"Base directory for this skill: \S*/skills/lazy\b")
+CODEX_LOAD = re.compile(r"\[\$?lazy\]\([^\n)]*/lazy/SKILL\.md\)|(?<!\w)\$lazy\b")
+CURSOR_LOAD = re.compile(r"/skills/lazy/SKILL\.md$")
 
 FENCE = re.compile(r"^\s*(```|~~~)")
 HEADER = re.compile(r"^\s{0,3}#{1,6}\s+\S")
@@ -58,15 +60,17 @@ def main():
     payload = read_payload()
 
     # The block re-enters this hook on the next stop; never fire twice in a row.
-    if payload.get("stop_hook_active"):
+    # Cursor counts its loops instead of flagging them, and sets no limit for
+    # hooks it imports from Claude Code.
+    if payload.get("stop_hook_active") or payload.get("loop_count"):
         return
 
     transcript = read_transcript(payload.get("transcript_path"))
     if transcript is None or not skill_loaded(transcript):
         return
 
-    # Claude Code hands the turn-final message to the hook directly; fall back to
-    # the transcript only for older payloads that omit it.
+    # Claude Code and Codex hand the turn-final message to the hook directly;
+    # Cursor does not, so read it from the transcript.
     response = payload.get("last_assistant_message") or last_assistant_text(transcript)
     if not isinstance(response, str) or not response.strip():
         return
@@ -75,27 +79,42 @@ def main():
     if not required:
         return
 
-    failures = contract_failures(response, required, payload.get("cwd"))
+    cwd = payload.get("cwd") or next(iter(payload.get("workspace_roots") or []), None)
+    failures = contract_failures(response, required, cwd)
     if failures:
         print(json.dumps({"decision": "block", "reason": reason_for(failures)}))
 
 
 def skill_loaded(transcript):
-    """Whether the Skill tool actually loaded this skill in this session.
+    """Whether the harness actually loaded this skill in this session.
 
-    Restricted to message text because tool output is quoted data, not a load:
-    grepping the skills directory or reading this file puts the sentinel in the
-    transcript without the contract ever being handed to the model.
+    Tool output is quoted data, not a load: grepping the skills directory or
+    reading this file puts the same strings in the transcript without the
+    contract ever being handed to the model.
     """
-    for record in transcript.splitlines():
+    for line in transcript.splitlines():
         try:
-            content = json.loads(record).get("message", {}).get("content")
+            record = json.loads(line)
         except ValueError:
             continue
-        for block in content if isinstance(content, list) else []:
-            if block.get("type") == "text" and SKILL_LOADED.search(block.get("text") or ""):
+        for block in content_blocks(record.get("message")):
+            if block.get("type") == "text" and CLAUDE_LOAD.search(block.get("text") or ""):
                 return True
+            # Cursor loads a skill by having the model read its SKILL.md.
+            path = (block.get("input") or {}).get("path") if block.get("name") == "ReadFile" else None
+            if isinstance(path, str) and CURSOR_LOAD.search(path):
+                return True
+        item = record.get("payload") if record.get("type") == "response_item" else None
+        if isinstance(item, dict) and item.get("role") == "user":
+            for block in content_blocks(item):
+                if block.get("type") == "input_text" and CODEX_LOAD.search(block.get("text") or ""):
+                    return True
     return False
+
+
+def content_blocks(message):
+    content = message.get("content") if isinstance(message, dict) else None
+    return [block for block in content if isinstance(block, dict)] if isinstance(content, list) else []
 
 
 def required_headers():
@@ -274,9 +293,10 @@ def last_assistant_text(transcript):
             record = json.loads(line)
         except ValueError:
             continue
-        if record.get("type") != "assistant":
+        # Claude Code tags the record's type; Cursor tags its role.
+        if "assistant" not in (record.get("type"), record.get("role")):
             continue
-        for block in record.get("message", {}).get("content", []) or []:
+        for block in content_blocks(record.get("message")):
             if block.get("type") == "text" and (block.get("text") or "").strip():
                 return block["text"]
     return None
