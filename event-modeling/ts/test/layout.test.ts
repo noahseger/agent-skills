@@ -344,7 +344,7 @@ test("a loose declaration is a column after the story, its card in its lane", ()
     ],
   })
   const last = storm.chapters.length - 1
-  assert.equal(storm.chapters[last]?.title, "Not yet in a slice")
+  assert.equal(storm.chapters[last]?.title, "Not in a slice yet")
   const cols = storm.columns.filter((c) => c.chapter === last)
   assert.deepEqual(
     cols.map((c) => c.title),

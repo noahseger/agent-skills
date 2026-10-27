@@ -95,12 +95,14 @@ function init(dir: string): void {
   const files = { "index.ts": INDEX_TS, "tsconfig.json": TSCONFIG, "package.json": PACKAGE_JSON }
   for (const name of Object.keys(files)) {
     if (existsSync(join(dir, name)))
-      throw new Error(`${join(dir, name)} already exists. Run init in a new directory.`)
+      throw new Error(
+        `${join(dir, name)} already exists, so init stopped. Run it in an empty directory.`,
+      )
   }
   mkdirSync(dir, { recursive: true })
   for (const [name, text] of Object.entries(files)) {
     writeFileSync(join(dir, name), text)
-    console.log(`wrote ${join(dir, name)}`)
+    console.log(`Wrote ${join(dir, name)}`)
   }
 }
 
@@ -117,7 +119,7 @@ async function proto(path: string, out: string): Promise<void> {
     const target = join(out, file.path)
     mkdirSync(dirname(target), { recursive: true })
     writeFileSync(target, file.source)
-    console.log(`wrote ${target}`)
+    console.log(`Wrote ${target}`)
   }
 }
 
@@ -141,7 +143,7 @@ async function render(path: string, out: string): Promise<void> {
   if (!values.watch) return
   const root = statSync(path).isDirectory() ? path : dirname(path)
   const target = resolve(out)
-  console.log(`watching ${root}`)
+  console.log(`Watching ${root} for changes.`)
   let pending = false
   watch(root, { recursive: true }, (_event, filename) => {
     // A module, once imported, stays in this process's cache, so each redraw
@@ -171,31 +173,37 @@ function assembleFresh(path: string, changed?: string): Snapshot {
     { encoding: "utf8" },
   )
   const stamp = new Date().toTimeString().slice(0, 8)
-  const cause = changed ? `${changed} saved` : "start"
+  const cause = changed ? `Saved ${changed}` : "Started"
   const took = `${Date.now() - started}ms`
   if (run.status === 0) {
     const left = run.stderr.trim()
     const count = left === "" ? 0 : left.split("\n").length
-    console.log(`${stamp} ${cause}: assembled in ${took}, ${count} to do`)
+    const summary =
+      count === 0
+        ? "Nothing left to do."
+        : count === 1
+          ? "1 thing left to do:"
+          : `${count} things left to do:`
+    console.log(`${stamp} ${cause} (${took}). ${summary}`)
     if (left !== "") console.log(left.replace(/^/gm, "  "))
     return { json: run.stdout }
   }
   const error = run.stderr || run.stdout
-  console.log(`${stamp} ${cause}: assembly failed in ${took}`)
+  console.log(`${stamp} ${cause} (${took}). The model didn't load:`)
   console.log(error.trimEnd().replace(/^/gm, "  "))
   return { error }
 }
 
 function builtViewer(): void {
   if (!existsSync(join(VIEWER_DIST, "index.html")))
-    throw new Error(`The viewer is not built. Run \`npm run build\` in ${ROOT}.`)
+    throw new Error(`The viewer isn't built yet. Run \`npm run build\` in ${ROOT}.`)
 }
 
 async function exportPage(path: string, out: string): Promise<void> {
   builtViewer()
   const json = JSON.stringify(await assemble(path, { partial: true }))
   writeFileSync(out, exportHtml(VIEWER_DIST, json))
-  console.log(`wrote ${out}`)
+  console.log(`Wrote ${out}`)
 }
 
 async function view(path: string): Promise<void> {
@@ -206,7 +214,7 @@ async function view(path: string): Promise<void> {
     load: async (changed) => assembleFresh(path, changed),
     port: Number(values.port ?? 5311),
   })
-  console.log(`viewing ${path} at ${server.url}`)
+  console.log(`Showing ${path} at ${server.url}. Press Ctrl-C to stop.`)
   if (values.open) openBrowser(server.url)
 }
 

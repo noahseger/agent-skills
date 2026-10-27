@@ -419,7 +419,7 @@ export function layout(model: ModelJson): Layout {
       })
       x += COL_W
     }
-    chapters.push({ name: "", title: "Not yet in a slice", x: start, w: x - start })
+    chapters.push({ name: "", title: "Not in a slice yet", x: start, w: x - start })
   }
   const width = x + PAD_X
 

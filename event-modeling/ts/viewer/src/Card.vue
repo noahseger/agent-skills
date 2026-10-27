@@ -29,10 +29,10 @@ const centred = computed(
     :transform="`translate(${box.x} ${box.y})`"
     role="button"
     tabindex="0"
-    :aria-label="`${LABEL[box.kind]} ${box.name}${box.noted ? ', has a note' : ''}${box.warned ? ', not finished' : ''}`"
+    :aria-label="`${LABEL[box.kind]} ${box.name}${box.noted ? ', has a note' : ''}${box.warned ? ', unfinished' : ''}`"
     @keydown.enter.stop="$emit('pick')"
   >
-    <title v-if="box.canonical">Drawn in full where it first appears</title>
+    <title v-if="box.canonical">Full details are on its first card</title>
     <rect class="shape" :width="box.w" :height="box.h" rx="8" />
     <text class="title" :x="12" :y="centred ? box.h / 2 + 4.5 : 20">{{ words(box.name) }}</text>
     <text v-if="box.detail" class="detail" :x="12" :y="TITLE_H + 4">{{ box.detail }}</text>
@@ -111,11 +111,11 @@ const centred = computed(
       class="link"
       role="link"
       tabindex="0"
-      aria-label="Go to where it is drawn in full"
+      aria-label="Go to its first card"
       @click.stop="$emit('link', box.canonical)"
       @keydown.enter.stop="$emit('link', box.canonical)"
     >
-      <title>Go to where it is drawn in full</title>
+      <title>Go to its first card</title>
       <rect :x="box.w - 26" :y="box.h / 2 - 9" width="18" height="18" rx="4" />
       <text text-anchor="middle" :x="box.w - 17" :y="box.h / 2 + 4">↗</text>
     </g>
@@ -125,7 +125,7 @@ const centred = computed(
       <text text-anchor="middle" :x="box.w - 1" :y="4">i</text>
     </g>
     <g v-if="box.warned" class="warn-badge">
-      <title>Not finished: select it to see what is left</title>
+      <title>Unfinished. Click to see what's left.</title>
       <circle :cx="1" :cy="1" r="6.5" />
       <text text-anchor="middle" :x="1" :y="4">!</text>
     </g>

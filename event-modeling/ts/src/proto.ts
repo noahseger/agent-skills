@@ -42,7 +42,7 @@ const snake = (name: string) => name.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLo
 const pascal = (name: string) => name.charAt(0).toUpperCase() + name.slice(1)
 const unmappable = (where: string, why: string) =>
   new Error(
-    `${where} has no protobuf type (${why}). Use a Zod type from the README's Protobuf table.`,
+    `${where} can't become protobuf: ${why}. The README's Protobuf section lists the Zod types that can.`,
   )
 
 /** The proto type of one schema. An object becomes a message nested in `parent`. */
