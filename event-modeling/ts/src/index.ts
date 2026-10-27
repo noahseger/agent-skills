@@ -30,6 +30,18 @@ type OneOrMany<T> = T | readonly T[]
 /** Fills target fields from the source; the rest copy by name. */
 export type Mapping<S extends Fields, T extends Fields> = (source: Infer<S>) => Partial<Infer<T>>
 
+type Unfilled<S extends Fields, T extends Fields> = Exclude<keyof T, keyof S> & string
+
+/** Puts the event fields the command lacks into the editor's error, so the fix is in front of you. */
+type FilledBy<S extends Fields, T extends Fields> = [Unfilled<S, T>] extends [never]
+  ? unknown
+  : { readonly "add to the command or set in the mapping": Unfilled<S, T> }
+
+/** A mapping must set every event field the command lacks. */
+type FillsRest<S extends Fields, T extends Fields> = (
+  source: Infer<S>,
+) => Pick<Infer<T>, Unfilled<S, T>> & Partial<Infer<T>>
+
 // ---------------------------------------------------------------------------
 // Declarations
 // ---------------------------------------------------------------------------
@@ -144,10 +156,14 @@ export interface External {
 }
 
 /** A system we do not own. Its events can be received and never emitted. */
-function external(events: Record<string, EventDecl>): External {
-  const data: ExternalData = { kind: "external", events: Object.values(events).map((e) => e[META]) }
-  for (const e of data.events) e.external = data
-  return { [META]: data }
+function external<const E extends Record<string, EventDecl>>(events: E): External & E {
+  const data: ExternalData = { kind: "external", events: [] }
+  for (const [key, event] of Object.entries(events)) {
+    event[META].name ??= key
+    event[META].external = data
+    data.events.push(event[META])
+  }
+  return { ...events, [META]: data }
 }
 
 function rejected(message: string): Rejection {
@@ -200,7 +216,7 @@ export interface Slice {
 
 /** Makes the `m.chapter()` error name the missing step. */
 export interface Unfinished<Next extends string> {
-  readonly "this slice still needs": Next
+  readonly "finish this slice with": Next
 }
 
 export interface Spec<C extends Fields, Em extends Fields> {
@@ -233,18 +249,18 @@ export interface Acting extends Unfinished<".service(), .query() or .reads()"> {
 }
 
 export interface ActingRead
-  extends Unfinished<".service(service, method), or .service(service) then .command()"> {
+  extends Unfinished<'.service(Service, "Method") to show data, or .service(Service).command(Command) to change it'> {
   reads(readModel: ReadModelDecl): ActingRead
   service(service: Service): NeedsCommand
   /** With a method this is a view, and may still go on to a command. */
   service(service: Service, method: string): ViewOrCommand
 }
 
-export interface Querying extends Unfinished<".reads()"> {
+export interface Querying extends Unfinished<".reads(ReadModel)"> {
   reads(readModel: ReadModelDecl): NeedsMethod
 }
 
-export interface NeedsMethod extends Unfinished<".service(service, method)"> {
+export interface NeedsMethod extends Unfinished<'.service(Service, "Method")'> {
   reads(readModel: ReadModelDecl): NeedsMethod
   service(service: Service, method: string): View
 }
@@ -257,7 +273,7 @@ export interface ViewOrCommand extends View {
   command<C extends Fields>(command: CommandDecl<C>): NeedsEmits<C>
 }
 
-export interface NeedsCommand extends Unfinished<".command()"> {
+export interface NeedsCommand extends Unfinished<".command(Command)"> {
   command<C extends Fields>(command: CommandDecl<C>): NeedsEmits<C>
 }
 
@@ -266,17 +282,19 @@ export interface NeedsCommandOrReads extends NeedsCommand {
   reads(readModel: ReadModelDecl): NeedsCommandOrReads
 }
 
-export interface NeedsEmits<C extends Fields> extends Unfinished<".emits(event)"> {
-  emits<E extends Fields>(event: EventDecl<E>, map?: Mapping<C, E>): Complete<C, E>
+export interface NeedsEmits<C extends Fields> extends Unfinished<".emits(Event)"> {
+  emits<E extends Fields>(event: EventDecl<E> & FilledBy<C, E>): Complete<C, E>
+  emits<E extends Fields>(event: EventDecl<E>, map: FillsRest<C, E>): Complete<C, E>
 }
 
 export interface Complete<C extends Fields, Em extends Fields> extends Slice {
-  emits<E extends Fields>(event: EventDecl<E>, map?: Mapping<C, E>): Complete<C, Em | E>
+  emits<E extends Fields>(event: EventDecl<E> & FilledBy<C, E>): Complete<C, Em | E>
+  emits<E extends Fields>(event: EventDecl<E>, map: FillsRest<C, E>): Complete<C, Em | E>
   test(name: string, spec: Spec<C, Em>): Complete<C, Em>
   note(text: string): Complete<C, Em>
 }
 
-export interface Projecting<R extends Fields> extends Unfinished<".on(event)"> {
+export interface Projecting<R extends Fields> extends Unfinished<".on(Event)"> {
   on<E extends Fields>(event: EventDecl<E>, map?: Mapping<E, R>): Projection<R>
 }
 
@@ -347,7 +365,7 @@ type Finished<T> = {
   [K in keyof T]: T[K] extends Slice
     ? T[K]
     : T[K] extends Unfinished<infer Next>
-      ? `this slice still needs ${Next}`
+      ? `finish this slice with ${Next}`
       : Slice
 }
 

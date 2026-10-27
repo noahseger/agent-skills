@@ -57,7 +57,7 @@ export function loadModules(modules: readonly object[], options: Options = {}): 
       }
   check(model, fail)
   const loose = looseOf(model, streams, declared)
-  for (const d of loose) fail({ message: `${d.name} is in no slice yet.`, element: d.name ?? "" })
+  for (const d of loose) fail({ message: `${d.name} isn't in a slice yet.`, element: d.name ?? "" })
   return { model, streams, loose, warnings }
 }
 
@@ -102,17 +102,22 @@ function nameExports(modules: readonly object[]): {
         model = data
       } else if (data.kind === "stream") {
         streams.set(key, [...(streams.get(key) ?? []), ...data.members])
+      } else if (data.kind === "external") {
+        data.name = key
+        // Its events may be declared inside it, so no export names them.
+        for (const e of data.events) if (!declared.includes(e)) declared.push(e)
       } else if (data.name !== undefined && data.name !== key) {
-        throw new Error(`'${data.name}' is also exported as '${key}'. Keep one of the two exports.`)
+        throw new Error(`${data.name} is exported twice, also as ${key}. Keep one.`)
       } else if (data.kind !== "chapter") {
         data.name = key
-        declared.push(data)
+        if (!declared.includes(data)) declared.push(data)
       } else {
         data.name = key
       }
     }
   }
-  if (!model) throw new Error("No module exports a model. Add `export default m.model(...)`.")
+  if (!model)
+    throw new Error('No model found. Add `export default m.model("Name")` to one of your files.')
   return { model, streams, declared }
 }
 
@@ -152,8 +157,8 @@ interface Located {
 function check(model: ModelData, fail: Fail): void {
   const located = model.chapters.flatMap((chapter, i) => locate(chapter, i))
   for (const at of located) {
-    checkFilled(at)
-    checkKeys(at)
+    checkFilled(at, fail)
+    checkKeys(at, fail)
     checkExternal(at)
   }
   checkConnected(located, fail)
@@ -163,16 +168,18 @@ function check(model: ModelData, fail: Fail): void {
 function locate(chapter: ChapterData, index: number): Located[] {
   if (chapter.name === undefined) {
     throw new Error(
-      `Chapter #${index + 1} has no name. Export it: \`export const Name = m.chapter([...])\`.`,
+      `Chapter ${index + 1} needs a name. Export it: \`export const Name = m.chapter([...])\`.`,
     )
   }
   return chapter.slices.map((slice, i) => {
-    const where = `slice #${i + 1} in '${chapter.name}'`
+    const where = `${chapter.name} › slice ${i + 1}`
     // The slice is named after its declarations, so until they are checked
     // `where` is its position.
     for (const [kind, d] of used(slice)) {
       if (d.name === undefined)
-        throw new Error(`${where} uses ${KIND_LABEL[kind]} that no module exports. Export it.`)
+        throw new Error(
+          `${where}: this slice uses ${KIND_LABEL[kind]} that isn't exported. Export it to give it a name.`,
+        )
     }
     const heading =
       slice.command?.name ??
@@ -181,7 +188,7 @@ function locate(chapter: ChapterData, index: number): Located[] {
       slice.service?.method ??
       slice.reads[0]?.name
     if (slice.name === undefined && heading !== undefined) slice.name = heading
-    return { slice, where: `slice '${slice.name}' in '${chapter.name}'` }
+    return { slice, where: `${chapter.name} › ${slice.name}` }
   })
 }
 
@@ -207,16 +214,24 @@ function filledBy(flow: Flow, carrier: DeclData): Set<string> {
   return new Set([...Object.keys(carrier.fields), ...Object.keys(flow.mapping)])
 }
 
-/** Every field has a source. */
-function checkFilled({ slice, where }: Located): void {
+/** Every field has a source. A model still being written may lack one, so this warns. */
+function checkFilled({ slice, where }: Located, fail: Fail): void {
+  const about = (d: DeclData, message: string): Warning => ({
+    message,
+    element: d.name ?? "",
+    slice: slice.name ?? "",
+  })
   if (slice.command) {
     for (const flow of slice.emits) {
       const filled = filledBy(flow, slice.command)
       for (const field of Object.keys(flow.event.fields)) {
         if (!filled.has(field)) {
-          throw new Error(
-            `${where}: nothing fills ${flow.event.name}.${field}. ` +
-              `Add ${field} to ${slice.command.name}, or set it in the .emits() mapping.`,
+          fail(
+            about(
+              flow.event,
+              `${where}: ${flow.event.name}.${field} has no value. ` +
+                `Add ${field} to ${slice.command.name}, or set it in the .emits() mapping.`,
+            ),
           )
         }
       }
@@ -226,9 +241,12 @@ function checkFilled({ slice, where }: Located): void {
     const filled = new Set(slice.on.flatMap((flow) => [...filledBy(flow, flow.event)]))
     for (const field of Object.keys(slice.projects.fields)) {
       if (!filled.has(field)) {
-        throw new Error(
-          `${where}: nothing fills ${slice.projects.name}.${field}. ` +
-            `Add an .on() whose event carries ${field}, or set it in a mapping.`,
+        fail(
+          about(
+            slice.projects,
+            `${where}: ${slice.projects.name}.${field} has no value. ` +
+              `Add .on() for an event that carries ${field}, or set it in a mapping.`,
+          ),
         )
       }
     }
@@ -236,15 +254,18 @@ function checkFilled({ slice, where }: Located): void {
 }
 
 /** An event finds its row by the key columns it carries. */
-function checkKeys({ slice, where }: Located): void {
+function checkKeys({ slice, where }: Located, fail: Fail): void {
   if (!slice.projects || slice.projects.keys.length === 0) return
   for (const flow of slice.on) {
     const filled = filledBy(flow, flow.event)
     if (!slice.projects.keys.some((k) => filled.has(k))) {
-      throw new Error(
-        `${where}: ${flow.event.name} carries none of ${slice.projects.name}'s key columns ` +
-          `(${slice.projects.keys.join(", ")}). Add one to ${flow.event.name} or map it in .on().`,
-      )
+      fail({
+        message:
+          `${where}: ${flow.event.name} doesn't say which ${slice.projects.name} row it changes. ` +
+          `Give it a key field (${slice.projects.keys.join(", ")}), or map one in .on().`,
+        element: flow.event.name ?? "",
+        slice: slice.name ?? "",
+      })
     }
   }
 }
@@ -253,8 +274,8 @@ function checkExternal({ slice, where }: Located): void {
   for (const flow of slice.emits) {
     if (flow.event.external) {
       throw new Error(
-        `${where} emits ${flow.event.name}, which only ${flow.event.external.name} emits. ` +
-          `Receive it with m.slice().on(${flow.event.name}) instead.`,
+        `${where}: ${flow.event.name} belongs to ${flow.event.external.name}, so only it can emit it. ` +
+          `To react to it, start a slice with m.slice().on(${flow.event.name}).`,
       )
     }
   }
@@ -285,18 +306,18 @@ function checkConnected(located: Located[], fail: Fail): void {
       for (const g of t.given) {
         if (g.decl.kind !== "event")
           throw new Error(
-            `${where}: given has ${g.decl.name}, ${KIND_LABEL[g.decl.kind]}. given takes events.`,
+            `${where}: ${g.decl.name} in given is ${KIND_LABEL[g.decl.kind]}. given lists events that already happened.`,
           )
       }
       if (t.when && t.when.decl.kind !== "command")
         throw new Error(
-          `${where}: when has ${t.when.decl.name}, ${KIND_LABEL[t.when.decl.kind]}. when takes the slice's command.`,
+          `${where}: ${t.when.decl.name} in when is ${KIND_LABEL[t.when.decl.kind]}. when is this slice's command.`,
         )
       if (slice.command) {
         for (const c of t.then) {
           if ("decl" in c && c.decl.kind !== "event")
             throw new Error(
-              `${where}: then has ${c.decl.name}, ${KIND_LABEL[c.decl.kind]}. then takes events or m.rejected().`,
+              `${where}: ${c.decl.name} in then is ${KIND_LABEL[c.decl.kind]}. then lists the events that result, or m.rejected().`,
             )
         }
       }
@@ -306,7 +327,7 @@ function checkConnected(located: Located[], fail: Fail): void {
         fail(
           about(
             f.event,
-            `${where} emits ${f.event.name}, which nothing uses yet. Add .on(${f.event.name}) to a slice or use it in a given.`,
+            `${where}: nothing uses ${f.event.name} yet. Add .on(${f.event.name}) where something reacts to it.`,
           ),
         )
     }
@@ -316,7 +337,7 @@ function checkConnected(located: Located[], fail: Fail): void {
         fail(
           about(
             e,
-            `${where} uses ${e.name}, which no slice emits yet. Add .emits(${e.name}) to a slice.`,
+            `${where}: nothing emits ${e.name} yet. Add .emits(${e.name}) to the slice that causes it.`,
           ),
         )
     }
@@ -324,16 +345,13 @@ function checkConnected(located: Located[], fail: Fail): void {
       fail(
         about(
           slice.projects,
-          `${where} projects ${slice.projects.name}, which nothing reads yet. Add .reads(${slice.projects.name}) or .polls(${slice.projects.name}) to a slice.`,
+          `${where}: nothing reads ${slice.projects.name} yet. Add .reads(${slice.projects.name}) or .polls(${slice.projects.name}) where it's needed.`,
         ),
       )
     for (const r of [...slice.reads, slice.polls]) {
       if (r && !projected.has(r))
         fail(
-          about(
-            r,
-            `${where} reads ${r.name}, which nothing projects yet. Add a slice with .projects(${r.name}).`,
-          ),
+          about(r, `${where}: nothing fills ${r.name} yet. Add a slice with .projects(${r.name}).`),
         )
     }
   }
@@ -348,7 +366,7 @@ function checkMethods(located: Located[]): void {
     const first = claimed.get(method)
     if (first !== undefined)
       throw new Error(
-        `${first} and ${where} both use ${method}. Give one its own method: .service(service, "Name").`,
+        `${where}: ${method} is already used by ${first}. Name this one with .service(Service, "Name").`,
       )
     claimed.set(method, where)
   }

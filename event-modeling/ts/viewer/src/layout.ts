@@ -396,12 +396,14 @@ export function layout(model: ModelJson): Layout {
       const card =
         item.kind === "event"
           ? { events: [item.element] }
-          : item.kind === "command"
-            ? { command: item.element }
-            : { read_models: [item.element] }
+          : item.kind === "external"
+            ? { external_event: item.element }
+            : item.kind === "command"
+              ? { command: item.element }
+              : { read_models: [item.element] }
       const slice: SliceJson = {
         name: el.name,
-        actor: "",
+        actor: item.actor ?? "",
         aggregate: item.aggregate,
         tests: [],
         ...card,
@@ -419,7 +421,7 @@ export function layout(model: ModelJson): Layout {
       })
       x += COL_W
     }
-    chapters.push({ name: "", title: "Not yet in a slice", x: start, w: x - start })
+    chapters.push({ name: "", title: "Not in a slice yet", x: start, w: x - start })
   }
   const width = x + PAD_X
 

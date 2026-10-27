@@ -179,11 +179,11 @@ onUnmounted(() => {
       </span>
       <span class="status" role="status">
         <span class="dot" :class="{ off: !live && !snapshot, error: error !== null }" aria-hidden="true"></span>
-        {{ error !== null ? "assembly failed" : snapshot ? "snapshot" : live ? "live" : "disconnected" }}
+        {{ error !== null ? "Model didn't load" : snapshot ? "Exported copy" : live ? "Live" : "Disconnected" }}
       </span>
     </header>
     <pre v-if="error !== null" class="error" role="alert">{{ error }}</pre>
-    <ul v-if="model?.warnings?.length" class="warnings" role="status" aria-label="Still to do">
+    <ul v-if="model?.warnings?.length" class="warnings" role="status" aria-label="Left to do">
       <li v-for="w in model.warnings" :key="w.message">{{ w.message }}</li>
     </ul>
     <main class="body">

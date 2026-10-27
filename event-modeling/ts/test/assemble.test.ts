@@ -84,7 +84,7 @@ test("a declaration used in a slice that no module exports", () => {
         project({ ...f, Created }),
         view({ ...f, Created }),
       ]),
-    /slice #1 in 'Ch' uses an event that no module exports\. Export it\./,
+    /Ch › slice 1: this slice uses an event that isn't exported\. Export it to give it a name\./,
   )
 })
 
@@ -92,7 +92,7 @@ test("a declaration exported under two names", () => {
   const f = fixture()
   assert.throws(
     () => assembled({ ...f, Also: f.Created }, [create(f), project(f), view(f)]),
-    /'Created' is also exported as 'Also'\. Keep one of the two exports\./,
+    /Created is exported twice, also as Also\. Keep one\./,
   )
 })
 
@@ -106,8 +106,19 @@ test("an event field the command does not carry", () => {
         project({ ...f, Created }),
         view(f),
       ]),
-    /slice 'Create' in 'Ch': nothing fills Created\.extra\. Add extra to Create, or set it in the \.emits\(\) mapping\./,
+    /Ch › Create: Created\.extra has no value\. Add extra to Create, or set it in the \.emits\(\) mapping\./,
   )
+})
+
+test("a model still being written draws with a field that has no value", () => {
+  const f = fixture()
+  const Created = m.event({ id: z.string(), name: z.string(), extra: z.string() })
+  const Ch = m.chapter([create({ ...f, Created })])
+  const json = assembleModules([{ ...f, Created, Ch, default: m.model("x", { chapters: [Ch] }) }], {
+    partial: true,
+  })
+  assert.equal(json.chapters[0]?.slices.length, 1)
+  assert.ok(json.warnings?.some((w) => w.message.includes("Created.extra has no value")))
 })
 
 test("a mapping function fills what the command does not carry", () => {
@@ -130,7 +141,7 @@ test("a column no .on() writes", () => {
   const Table = m.readModel({ id: m.key(z.string()), name: z.string(), count: z.number() })
   assert.throws(
     () => assembled({ ...f, Table }, [create(f), project({ ...f, Table }), view({ ...f, Table })]),
-    /slice 'Table' in 'Ch': nothing fills Table\.count\. Add an \.on\(\) whose event carries count, or set it in a mapping\./,
+    /Ch › Table: Table\.count has no value\. Add \.on\(\) for an event that carries count, or set it in a mapping\./,
   )
 })
 
@@ -142,7 +153,7 @@ test("an event that carries none of the read model's key columns", () => {
   const projection = m.slice().projects(f.Table).on(f.Created).on(Renamed)
   assert.throws(
     () => assembled({ ...f, Rename, Renamed }, [create(f), rename, projection, view(f)]),
-    /slice 'Table' in 'Ch': Renamed carries none of Table's key columns \(id\)\. Add one to Renamed or map it in \.on\(\)\./,
+    /Ch › Table: Renamed doesn't say which Table row it changes\. Give it a key field \(id\), or map one in \.on\(\)\./,
   )
 })
 
@@ -150,7 +161,7 @@ test("an event nothing consumes", () => {
   const f = fixture()
   assert.throws(
     () => assembled(f, [create(f)]),
-    /slice 'Create' in 'Ch' emits Created, which nothing uses yet\. Add \.on\(Created\) to a slice or use it in a given\./,
+    /Ch › Create: nothing uses Created yet\. Add \.on\(Created\) where something reacts to it\./,
   )
 })
 
@@ -158,7 +169,7 @@ test("an event no slice emits", () => {
   const f = fixture()
   assert.throws(
     () => assembled(f, [project(f), view(f)]),
-    /slice 'Table' in 'Ch' uses Created, which no slice emits yet\. Add \.emits\(Created\) to a slice\./,
+    /Ch › Table: nothing emits Created yet\. Add \.emits\(Created\) to the slice that causes it\./,
   )
 })
 
@@ -166,7 +177,7 @@ test("a read model nothing reads", () => {
   const f = fixture()
   assert.throws(
     () => assembled(f, [create(f), project(f)]),
-    /slice 'Table' in 'Ch' projects Table, which nothing reads yet\. Add \.reads\(Table\) or \.polls\(Table\) to a slice\./,
+    /Ch › Table: nothing reads Table yet\. Add \.reads\(Table\) or \.polls\(Table\) where it's needed\./,
   )
 })
 
@@ -180,7 +191,7 @@ test("a read model nothing projects", () => {
   })
   assert.throws(
     () => assembled(f, [slice, view(f)]),
-    /slice 'Get' in 'Ch' reads Table, which nothing projects yet\. Add a slice with \.projects\(Table\)\./,
+    /Ch › Get: nothing fills Table yet\. Add a slice with \.projects\(Table\)\./,
   )
 })
 
@@ -191,7 +202,7 @@ test("a slice that emits an external event", () => {
   const slice = m.slice().actor(f.User).service(f.Svc).command(f.Create).emits(Pushed)
   assert.throws(
     () => assembled({ ...f, Pushed, Cal }, [slice]),
-    /slice 'Create' in 'Ch' emits Pushed, which only Cal emits\. Receive it with m\.slice\(\)\.on\(Pushed\) instead\./,
+    /Ch › Create: Pushed belongs to Cal, so only it can emit it\. To react to it, start a slice with m\.slice\(\)\.on\(Pushed\)\./,
   )
 })
 
@@ -203,7 +214,7 @@ test("two slices claiming one service method", () => {
   const projection = m.slice().projects(f.Table).on(f.Created).on(Renamed)
   assert.throws(
     () => assembled({ ...f, Rename, Renamed }, [create(f), rename, projection, view(f)]),
-    /slice 'Create' in 'Ch' and slice 'Rename' in 'Ch' both use Svc\/Create\. Give one its own method/,
+    /Ch › Rename: Svc\/Create is already used by Ch › Create\. Name this one/,
   )
 })
 
@@ -264,7 +275,7 @@ test("a read model in given is named as one", () => {
   })
   assert.throws(
     () => assembled(f, [slice, project(f), view(f)]),
-    /slice 'Create' in 'Ch': given has Table, a read model\. given takes events\./,
+    /Ch › Create: Table in given is a read model\. given lists events that already happened\./,
   )
 })
 
@@ -273,7 +284,7 @@ test("a declaration in no slice is an error", () => {
   const Loose = m.event({ id: z.string() })
   assert.throws(
     () => assembled({ ...f, Loose }, [create(f), project(f), view(f)]),
-    /Loose is in no slice yet\./,
+    /Loose isn't in a slice yet\./,
   )
 })
 
@@ -290,13 +301,13 @@ test("a partial assembly lists the dead ends and keeps the loose declarations in
   assert.deepEqual(json.warnings, [
     {
       message:
-        "slice 'Create' in 'Ch' emits Created, which nothing uses yet. Add .on(Created) to a slice or use it in a given.",
+        "Ch › Create: nothing uses Created yet. Add .on(Created) where something reacts to it.",
       element: "Created",
       slice: "Create",
     },
-    { message: "Started is in no slice yet.", element: "Started" },
-    { message: "Ended is in no slice yet.", element: "Ended" },
-    { message: "Table is in no slice yet.", element: "Table" },
+    { message: "Started isn't in a slice yet.", element: "Started" },
+    { message: "Ended isn't in a slice yet.", element: "Ended" },
+    { message: "Table isn't in a slice yet.", element: "Table" },
   ])
   assert.deepEqual(json.loose, [
     { kind: "event", element: "Started(id)", aggregate: "games" },
@@ -317,4 +328,22 @@ test("an actor in no slice is still one of the model's actors", () => {
     json.actors.map((a) => a.id),
     ["user", "bartender"],
   )
+})
+
+test("an event declared inside m.external is named by its key and drawn in the system's lane", () => {
+  const Notion = m.external({
+    Authenticated: m.event({ accessToken: z.string() }),
+    NoteSynced: m.event({ notionId: z.string() }),
+  })
+  const Connect = m.command({ accessToken: z.string() })
+  const Connected = m.event({ accessToken: z.string() })
+  const Ch = m.chapter([m.slice().on(Notion.Authenticated).command(Connect).emits(Connected)])
+  const json = assembleModules(
+    [{ Notion, Connect, Connected, Ch, default: m.model("x", { chapters: [Ch] }) }],
+    { partial: true },
+  )
+  assert.equal(json.chapters[0]?.slices[0]?.external_event, "Authenticated(accessToken)")
+  assert.deepEqual(json.loose, [
+    { kind: "external", element: "NoteSynced(notionId)", aggregate: "events", actor: "notion" },
+  ])
 })

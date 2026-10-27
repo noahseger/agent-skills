@@ -46,9 +46,9 @@ m.chapter([m.slice().projects(TodoList)])
 
 // The error names the missing step. These lines compile only while it does.
 const stopsAtCommand = m.slice().actor(User).service(TodoService).command(CreateList)
-const needsEmits: (typeof stopsAtCommand)["this slice still needs"] = ".emits(event)"
+const needsEmits: (typeof stopsAtCommand)["finish this slice with"] = ".emits(Event)"
 const stopsAtProjects = m.slice().projects(TodoList)
-const needsOn: (typeof stopsAtProjects)["this slice still needs"] = ".on(event)"
+const needsOn: (typeof stopsAtProjects)["finish this slice with"] = ".on(Event)"
 void needsEmits
 void needsOn
 
@@ -56,6 +56,14 @@ void needsOn
 
 // @ts-expect-error ItemAdded has no field nope
 m.slice().actor(User).service(TodoService).command(AddItem).emits(ItemAdded, (c) => ({ nope: c.text }))
+
+// @ts-expect-error AddItem has no title, so ItemAdded.title has no value
+m.slice().actor(User).service(TodoService).command(AddItem).emits(ItemAdded)
+
+// @ts-expect-error the mapping must set title, which AddItem lacks
+m.slice().actor(User).service(TodoService).command(AddItem).emits(ItemAdded, (c) => ({ listId: c.listId }))
+
+m.slice().actor(User).service(TodoService).command(AddItem).emits(ItemAdded, (c) => ({ title: c.text }))
 
 // @ts-expect-error title is a string
 m.slice().actor(User).service(TodoService).command(AddItem).emits(ItemAdded, (c) => ({ title: 42 }))

@@ -99,12 +99,12 @@ test("a type outside the table is an error naming the declaration and the field"
   const Create = m.command({ id: z.string(), when: z.date() })
   assert.throws(
     () => source(modelOf({ Create }, stateChange(Create))),
-    /Create\.when has no protobuf type/,
+    /Create\.when can't become protobuf/,
   )
   const Table = m.readModel({ id: m.key(z.string()), amount: z.bigint() })
   assert.throws(
     () => source(modelOf({ Table }, m.slice().actor(User).reads(Table).service(Svc, "Get"))),
-    /Table\.amount has no protobuf type/,
+    /Table\.amount can't become protobuf/,
   )
 })
 
