@@ -352,6 +352,7 @@ The compiler catches:
 | any reference | An unknown actor, event, command, read model or service cannot be written, because references are values, not strings. |
 | the chain | Only a legal chain compiles. A chapter given an unfinished slice says what finishes it, such as `.emits(Event)`. |
 | a function | Its argument is the source's fields. Its result must be fields of the target, with matching types. |
+| `.emits()` | Every event field the command lacks must be set by the mapping. The error names the fields. |
 | `.service()` | A view must name its method. |
 | `.test()` | `when` is the slice's command. `then` is its events, its read model, or a rejection. Zod checks the values. |
 
@@ -360,8 +361,8 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | What | Why the compiler cannot |
 |---|---|
 | A declaration used in a slice that no module exports, or one exported under two names | It has no name until it is exported. |
-| A field nothing fills: an event field the command does not carry, or a column no `.on()` writes | Declarations are anonymous, so two commands with the same fields are one type. |
-| An event that carries none of the read model's key columns | Same. |
+| A column no `.on()` writes | The columns are filled across several `.on()` calls. |
+| An event that carries none of the read model's key columns | Declarations are anonymous, so two events with the same fields are one type. |
 | An event nothing consumes: no `.on()`, no `given` | Same. |
 | An event no slice emits; a read model nothing reads or projects | Same. |
 | A slice that emits an external event | The group decides, and the group is a runtime value. |

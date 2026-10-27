@@ -30,6 +30,18 @@ type OneOrMany<T> = T | readonly T[]
 /** Fills target fields from the source; the rest copy by name. */
 export type Mapping<S extends Fields, T extends Fields> = (source: Infer<S>) => Partial<Infer<T>>
 
+type Unfilled<S extends Fields, T extends Fields> = Exclude<keyof T, keyof S> & string
+
+/** Puts the event fields the command lacks into the editor's error, so the fix is in front of you. */
+type FilledBy<S extends Fields, T extends Fields> = [Unfilled<S, T>] extends [never]
+  ? unknown
+  : { readonly "add to the command or set in the mapping": Unfilled<S, T> }
+
+/** A mapping must set every event field the command lacks. */
+type FillsRest<S extends Fields, T extends Fields> = (
+  source: Infer<S>,
+) => Pick<Infer<T>, Unfilled<S, T>> & Partial<Infer<T>>
+
 // ---------------------------------------------------------------------------
 // Declarations
 // ---------------------------------------------------------------------------
@@ -271,11 +283,13 @@ export interface NeedsCommandOrReads extends NeedsCommand {
 }
 
 export interface NeedsEmits<C extends Fields> extends Unfinished<".emits(Event)"> {
-  emits<E extends Fields>(event: EventDecl<E>, map?: Mapping<C, E>): Complete<C, E>
+  emits<E extends Fields>(event: EventDecl<E> & FilledBy<C, E>): Complete<C, E>
+  emits<E extends Fields>(event: EventDecl<E>, map: FillsRest<C, E>): Complete<C, E>
 }
 
 export interface Complete<C extends Fields, Em extends Fields> extends Slice {
-  emits<E extends Fields>(event: EventDecl<E>, map?: Mapping<C, E>): Complete<C, Em | E>
+  emits<E extends Fields>(event: EventDecl<E> & FilledBy<C, E>): Complete<C, Em | E>
+  emits<E extends Fields>(event: EventDecl<E>, map: FillsRest<C, E>): Complete<C, Em | E>
   test(name: string, spec: Spec<C, Em>): Complete<C, Em>
   note(text: string): Complete<C, Em>
 }

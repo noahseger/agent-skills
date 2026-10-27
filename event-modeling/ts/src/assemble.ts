@@ -157,8 +157,8 @@ interface Located {
 function check(model: ModelData, fail: Fail): void {
   const located = model.chapters.flatMap((chapter, i) => locate(chapter, i))
   for (const at of located) {
-    checkFilled(at)
-    checkKeys(at)
+    checkFilled(at, fail)
+    checkKeys(at, fail)
     checkExternal(at)
   }
   checkConnected(located, fail)
@@ -214,16 +214,24 @@ function filledBy(flow: Flow, carrier: DeclData): Set<string> {
   return new Set([...Object.keys(carrier.fields), ...Object.keys(flow.mapping)])
 }
 
-/** Every field has a source. */
-function checkFilled({ slice, where }: Located): void {
+/** Every field has a source. A model still being written may lack one, so this warns. */
+function checkFilled({ slice, where }: Located, fail: Fail): void {
+  const about = (d: DeclData, message: string): Warning => ({
+    message,
+    element: d.name ?? "",
+    slice: slice.name ?? "",
+  })
   if (slice.command) {
     for (const flow of slice.emits) {
       const filled = filledBy(flow, slice.command)
       for (const field of Object.keys(flow.event.fields)) {
         if (!filled.has(field)) {
-          throw new Error(
-            `${where}: ${flow.event.name}.${field} has no value. ` +
-              `Add ${field} to ${slice.command.name}, or set it in the .emits() mapping.`,
+          fail(
+            about(
+              flow.event,
+              `${where}: ${flow.event.name}.${field} has no value. ` +
+                `Add ${field} to ${slice.command.name}, or set it in the .emits() mapping.`,
+            ),
           )
         }
       }
@@ -233,9 +241,12 @@ function checkFilled({ slice, where }: Located): void {
     const filled = new Set(slice.on.flatMap((flow) => [...filledBy(flow, flow.event)]))
     for (const field of Object.keys(slice.projects.fields)) {
       if (!filled.has(field)) {
-        throw new Error(
-          `${where}: ${slice.projects.name}.${field} has no value. ` +
-            `Add .on() for an event that carries ${field}, or set it in a mapping.`,
+        fail(
+          about(
+            slice.projects,
+            `${where}: ${slice.projects.name}.${field} has no value. ` +
+              `Add .on() for an event that carries ${field}, or set it in a mapping.`,
+          ),
         )
       }
     }
@@ -243,15 +254,18 @@ function checkFilled({ slice, where }: Located): void {
 }
 
 /** An event finds its row by the key columns it carries. */
-function checkKeys({ slice, where }: Located): void {
+function checkKeys({ slice, where }: Located, fail: Fail): void {
   if (!slice.projects || slice.projects.keys.length === 0) return
   for (const flow of slice.on) {
     const filled = filledBy(flow, flow.event)
     if (!slice.projects.keys.some((k) => filled.has(k))) {
-      throw new Error(
-        `${where}: ${flow.event.name} doesn't say which ${slice.projects.name} row it changes. ` +
+      fail({
+        message:
+          `${where}: ${flow.event.name} doesn't say which ${slice.projects.name} row it changes. ` +
           `Give it a key field (${slice.projects.keys.join(", ")}), or map one in .on().`,
-      )
+        element: flow.event.name ?? "",
+        slice: slice.name ?? "",
+      })
     }
   }
 }
