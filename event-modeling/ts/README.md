@@ -276,17 +276,18 @@ projection that builds `PaymentsToProcess` marks the row done when it sees `Paym
 
 ```ts
 // The calendar pushes a scheduled task in, and we translate it into an item.
-export const TaskScheduled = m.event({ listId: z.string(), itemId: z.string(), text: z.string() })
-export const Calendar      = m.external({ TaskScheduled })
+export const Calendar = m.external({
+  TaskScheduled: m.event({ listId: z.string(), itemId: z.string(), text: z.string() }),
+})
 
 export const Integrations = m.chapter([
-  m.slice().on(TaskScheduled).command(AddItem).emits(ItemAdded, c => ({ title: c.text })),
+  m.slice().on(Calendar.TaskScheduled).command(AddItem).emits(ItemAdded, c => ({ title: c.text })),
 ])
 ```
 
-An external event is declared like any other and grouped under the system it comes from with
-`m.external()`. That gives it the system's lane in the diagram, lets `.on()` receive it, and forbids
-any slice from emitting it. We translate it and never store it.
+Declare the events of a system you do not own inside `m.external()`; each is named by its key.
+They are drawn in the system's lane, `.on()` can receive them, and no slice can emit them. We
+translate them and never store them.
 
 ### 8. Streams
 

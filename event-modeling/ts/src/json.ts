@@ -46,9 +46,11 @@ export interface ActorJson {
 
 /** A declaration in no slice yet. */
 export interface LooseJson {
-  kind: "event" | "command" | "readModel"
+  kind: "event" | "external" | "command" | "readModel"
   element: string
   aggregate: string
+  /** The system an external event comes from. */
+  actor?: string
 }
 
 export interface ModelJson {
@@ -188,7 +190,11 @@ export function toJson({ model, streams, loose, warnings }: Assembled): ModelJso
   const drawnLoose: LooseJson[] = []
   for (const d of loose) {
     noted(d)
-    if (d.kind === "event" || d.kind === "command" || d.kind === "readModel")
+    if (d.kind === "event" && d.external) {
+      const id = slug(d.external.name ?? "")
+      if (!actors.has(id)) actors.set(id, { id, name: d.external.name ?? "", type: "external" })
+      drawnLoose.push({ kind: "external", element: element(d), aggregate: fallback, actor: id })
+    } else if (d.kind === "event" || d.kind === "command" || d.kind === "readModel")
       drawnLoose.push({ kind: d.kind, element: element(d), aggregate: streamOf(d) ?? fallback })
     // An actor in no slice is a lane with nothing in it yet.
     if (d.kind === "actor" && !actors.has(slug(d.name ?? "")))

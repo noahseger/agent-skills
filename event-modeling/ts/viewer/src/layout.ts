@@ -396,12 +396,14 @@ export function layout(model: ModelJson): Layout {
       const card =
         item.kind === "event"
           ? { events: [item.element] }
-          : item.kind === "command"
-            ? { command: item.element }
-            : { read_models: [item.element] }
+          : item.kind === "external"
+            ? { external_event: item.element }
+            : item.kind === "command"
+              ? { command: item.element }
+              : { read_models: [item.element] }
       const slice: SliceJson = {
         name: el.name,
-        actor: "",
+        actor: item.actor ?? "",
         aggregate: item.aggregate,
         tests: [],
         ...card,
