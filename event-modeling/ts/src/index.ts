@@ -200,7 +200,7 @@ export interface Slice {
 
 /** Makes the `m.chapter()` error name the missing step. */
 export interface Unfinished<Next extends string> {
-  readonly "this slice still needs": Next
+  readonly "finish this slice with": Next
 }
 
 export interface Spec<C extends Fields, Em extends Fields> {
@@ -233,18 +233,18 @@ export interface Acting extends Unfinished<".service(), .query() or .reads()"> {
 }
 
 export interface ActingRead
-  extends Unfinished<".service(service, method), or .service(service) then .command()"> {
+  extends Unfinished<'.service(Service, "Method") to show data, or .service(Service).command(Command) to change it'> {
   reads(readModel: ReadModelDecl): ActingRead
   service(service: Service): NeedsCommand
   /** With a method this is a view, and may still go on to a command. */
   service(service: Service, method: string): ViewOrCommand
 }
 
-export interface Querying extends Unfinished<".reads()"> {
+export interface Querying extends Unfinished<".reads(ReadModel)"> {
   reads(readModel: ReadModelDecl): NeedsMethod
 }
 
-export interface NeedsMethod extends Unfinished<".service(service, method)"> {
+export interface NeedsMethod extends Unfinished<'.service(Service, "Method")'> {
   reads(readModel: ReadModelDecl): NeedsMethod
   service(service: Service, method: string): View
 }
@@ -257,7 +257,7 @@ export interface ViewOrCommand extends View {
   command<C extends Fields>(command: CommandDecl<C>): NeedsEmits<C>
 }
 
-export interface NeedsCommand extends Unfinished<".command()"> {
+export interface NeedsCommand extends Unfinished<".command(Command)"> {
   command<C extends Fields>(command: CommandDecl<C>): NeedsEmits<C>
 }
 
@@ -266,7 +266,7 @@ export interface NeedsCommandOrReads extends NeedsCommand {
   reads(readModel: ReadModelDecl): NeedsCommandOrReads
 }
 
-export interface NeedsEmits<C extends Fields> extends Unfinished<".emits(event)"> {
+export interface NeedsEmits<C extends Fields> extends Unfinished<".emits(Event)"> {
   emits<E extends Fields>(event: EventDecl<E>, map?: Mapping<C, E>): Complete<C, E>
 }
 
@@ -276,7 +276,7 @@ export interface Complete<C extends Fields, Em extends Fields> extends Slice {
   note(text: string): Complete<C, Em>
 }
 
-export interface Projecting<R extends Fields> extends Unfinished<".on(event)"> {
+export interface Projecting<R extends Fields> extends Unfinished<".on(Event)"> {
   on<E extends Fields>(event: EventDecl<E>, map?: Mapping<E, R>): Projection<R>
 }
 
@@ -347,7 +347,7 @@ type Finished<T> = {
   [K in keyof T]: T[K] extends Slice
     ? T[K]
     : T[K] extends Unfinished<infer Next>
-      ? `this slice still needs ${Next}`
+      ? `finish this slice with ${Next}`
       : Slice
 }
 

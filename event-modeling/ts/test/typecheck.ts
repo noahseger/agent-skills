@@ -46,9 +46,9 @@ m.chapter([m.slice().projects(TodoList)])
 
 // The error names the missing step. These lines compile only while it does.
 const stopsAtCommand = m.slice().actor(User).service(TodoService).command(CreateList)
-const needsEmits: (typeof stopsAtCommand)["this slice still needs"] = ".emits(event)"
+const needsEmits: (typeof stopsAtCommand)["finish this slice with"] = ".emits(Event)"
 const stopsAtProjects = m.slice().projects(TodoList)
-const needsOn: (typeof stopsAtProjects)["this slice still needs"] = ".on(event)"
+const needsOn: (typeof stopsAtProjects)["finish this slice with"] = ".on(Event)"
 void needsEmits
 void needsOn
 
