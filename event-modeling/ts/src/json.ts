@@ -1,5 +1,6 @@
 // The assembled model as the JSON `event_model.py` reads. That format is older
 // than this package: streams are `aggregates` and key columns are `*field`.
+import { strings } from "./strings.ts"
 import type {
   Assembled,
   ClauseData,
@@ -63,7 +64,7 @@ export interface ModelJson {
   warnings?: Warning[]
 }
 
-const SYSTEM: ActorJson = { id: "system", name: "System", type: "system" }
+const SYSTEM: ActorJson = { id: "system", name: strings.assembly.systemActor, type: "system" }
 
 function slug(name: string): string {
   return name
@@ -111,7 +112,7 @@ export function toJson({ model, streams, loose, warnings }: Assembled): ModelJso
   const aggregates =
     streams.size > 0
       ? [...streams.keys()].map((name) => ({ id: slug(name), name }))
-      : [{ id: "events", name: "Events" }]
+      : [{ id: "events", name: strings.assembly.defaultLane }]
   const streamOf = (d: DeclData): string | undefined => {
     for (const [name, members] of streams) if (members.includes(d)) return slug(name)
     return undefined

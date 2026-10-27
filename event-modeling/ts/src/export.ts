@@ -2,6 +2,8 @@
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
+import { strings } from "./strings.ts"
+
 /** `</script>` inside inlined text would end the tag early. */
 const safe = (text: string) => text.replace(/<\//g, "<\\/")
 
@@ -16,7 +18,7 @@ export function exportHtml(dist: string, modelJson: string): string {
   const model = JSON.parse(modelJson) as { name?: string }
   html = html.replace(
     /<title>[^<]*<\/title>/,
-    `<title>${escapeHtml(model.name ?? "Event model")}</title>`,
+    `<title>${escapeHtml(model.name ?? strings.viewer.untitledModel)}</title>`,
   )
   return html.replace(
     "<body>",

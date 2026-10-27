@@ -1,6 +1,9 @@
 // Lays out the eventmodeling.org canvas from the assembled JSON. Pure, so it
 // is tested without a browser.
 import type { ModelJson, SliceJson } from "../../src/json.ts"
+import { strings } from "../../src/strings.ts"
+
+const say = strings.viewer
 
 export type Kind = "ui" | "external" | "command" | "event" | "readModel" | "automation"
 export type Pt = [number, number]
@@ -178,7 +181,7 @@ export function parse(element: string): Element {
 /** `Name(a=1, b=[x, y])` or `Error: message` -> a name and one line per field. */
 export function parseClause(clause: string): { name: string; lines: string[]; error: boolean } {
   if (clause.startsWith("Error:")) {
-    return { name: "Rejected", lines: [clause.slice("Error:".length).trim()], error: true }
+    return { name: say.rejected, lines: [clause.slice("Error:".length).trim()], error: true }
   }
   const open = clause.indexOf("(")
   if (open < 0) return { name: clause.trim(), lines: [], error: false }
@@ -341,7 +344,7 @@ function labelOf(s: SliceJson): string {
   if (s.automation) return s.automation
   if (s.ui) return s.ui.slice(s.ui.indexOf("/") + 1)
   if (s.external_event) return parse(s.external_event).name
-  return "slice"
+  return say.untitledSlice
 }
 
 export function layout(model: ModelJson): Layout {
@@ -419,7 +422,7 @@ export function layout(model: ModelJson): Layout {
       })
       x += COL_W
     }
-    chapters.push({ name: "", title: "Not yet in a slice", x: start, w: x - start })
+    chapters.push({ name: "", title: say.notInSlice, x: start, w: x - start })
   }
   const width = x + PAD_X
 
@@ -532,7 +535,7 @@ export function layout(model: ModelJson): Layout {
       useActor(s.actor)
     } else if (s.external_event && s.command) {
       // A translation needs a gear the JSON does not name.
-      gear = make(i, "automation", { name: s.name || "Translate", fields: [], keys: [] })
+      gear = make(i, "automation", { name: s.name || say.translate, fields: [], keys: [] })
       into("actor:system", i, gear)
       useActor("system")
     }
@@ -637,14 +640,14 @@ export function layout(model: ModelJson): Layout {
     const h = slotHeight(slot) + 2 * LANE_PAD
     const actor = actors.get(id)
     const system = id === "system" || actor?.type === "system"
-    const label = system ? "Automations" : words(actor?.name ?? id)
+    const label = system ? say.automations : words(actor?.name ?? id)
     const sub = system
-      ? "System"
+      ? say.laneKinds.system
       : actor?.type === "admin"
-        ? "Admin"
+        ? say.laneKinds.admin
         : actor?.type === "external"
-          ? "System"
-          : "Actor"
+          ? say.laneKinds.system
+          : say.laneKinds.actor
     rows.push({ id: slot, label, sub, kind: "actor", y, h })
     const top = y + LANE_PAD
     place(slot, () => top)
@@ -667,7 +670,7 @@ export function layout(model: ModelJson): Layout {
   for (const agg of model.aggregates) {
     const slot = `stream:${agg.id}`
     const h = Math.max(slotHeight(slot), COMPACT_H) + 2 * LANE_PAD
-    rows.push({ id: slot, label: words(agg.name), sub: "Stream", kind: "stream", y, h })
+    rows.push({ id: slot, label: words(agg.name), sub: say.laneKinds.stream, kind: "stream", y, h })
     const top = y + LANE_PAD
     place(slot, () => top)
     y += h
@@ -765,7 +768,7 @@ export function layout(model: ModelJson): Layout {
   }
   if (specs.length > 0) {
     const h = specsBottom - specsTop + LANE_PAD
-    rows.push({ id: "specs", label: "Specifications", kind: "specs", y, h })
+    rows.push({ id: "specs", label: say.specifications, kind: "specs", y, h })
     y += h
   }
 

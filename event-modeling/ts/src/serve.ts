@@ -3,6 +3,8 @@ import { existsSync, readFileSync, statSync, watch } from "node:fs"
 import { createServer, type ServerResponse } from "node:http"
 import { extname, join, normalize } from "node:path"
 
+import { strings } from "./strings.ts"
+
 /** The last assembly: the JSON it printed, or the error that stopped it. */
 export type Snapshot = { json: string; error?: undefined } | { error: string; json?: undefined }
 
@@ -59,7 +61,7 @@ export async function serve(options: ServeOptions): Promise<Server> {
     const file = join(options.dist, relative)
     if (!file.startsWith(options.dist) || !existsSync(file) || statSync(file).isDirectory()) {
       res.writeHead(404, { "content-type": "text/plain" })
-      res.end("not found")
+      res.end(strings.cli.notFound)
       return
     }
     res.writeHead(200, {

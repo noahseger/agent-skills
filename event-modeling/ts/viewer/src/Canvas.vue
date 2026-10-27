@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue"
+import { strings } from "../../src/strings.ts"
 import Card from "./Card.vue"
 import {
   ARROW_H,
@@ -13,6 +14,8 @@ import {
   SPEC_LINE_H,
   SPEC_TITLE_LINE,
 } from "./layout.ts"
+
+const say = strings.viewer
 
 const props = defineProps<{
   layout: Layout
@@ -206,7 +209,7 @@ const transform = computed(
     @pointerleave="leave"
     @wheel="wheel"
   >
-    <svg role="img" :aria-label="`Event model canvas, ${layout.columns.length} slices`" @click.self="background" @dblclick="open">
+    <svg role="img" :aria-label="say.canvas(layout.columns.length)" @click.self="background" @dblclick="open">
       <defs>
         <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
@@ -240,7 +243,7 @@ const transform = computed(
             :class="{ selected: selectedColumn === col.index, hover: hoverColumn === col.index }"
             role="button"
             tabindex="0"
-            :aria-label="`Slice ${col.title}`"
+            :aria-label="say.sliceButton(col.title)"
             @click.stop="emit('selectSlice', col.index)"
             @keydown.enter.stop="emit('openSlice', col.index)"
           >
@@ -294,7 +297,7 @@ const transform = computed(
             {{ line }}
           </text>
           <g v-for="step in spec.steps" :key="step.word">
-            <text class="spec-word" :x="spec.x" :y="step.y + 10">{{ step.word }}</text>
+            <text class="spec-word" :x="spec.x" :y="step.y + 10">{{ say.steps[step.word] }}</text>
             <g
               v-for="(card, ci) in step.cards"
               :key="ci"

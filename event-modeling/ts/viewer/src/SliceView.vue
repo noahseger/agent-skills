@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import type { ModelJson } from "../../src/json.ts"
+import { strings } from "../../src/strings.ts"
 import Card from "./Card.vue"
 import {
   type Box,
@@ -14,6 +15,8 @@ import {
   path,
   STACK_GAP,
 } from "./layout.ts"
+
+const say = strings.viewer
 
 // One slice at full width, with room to read its specifications.
 const props = defineProps<{
@@ -71,7 +74,7 @@ const local = computed(() => {
   }
   if (refs.length > 0) {
     const at = blocks.findIndex((b) => b.boxes.some((b) => b.id === consumer?.id))
-    blocks.splice(Math.max(0, at), 0, { label: "Reads", boxes: refs })
+    blocks.splice(Math.max(0, at), 0, { label: say.reads, boxes: refs })
   }
 
   const boxes: Box[] = []
@@ -126,7 +129,7 @@ function cardClass(b: Box) {
 </script>
 
 <template>
-  <section class="slice-view" aria-label="Slice">
+  <section class="slice-view" :aria-label="say.headings.slice">
     <header class="slice-header">
       <div class="crumbs">
         <span class="chapter">{{ chapter?.title }}</span>
@@ -136,9 +139,9 @@ function cardClass(b: Box) {
         <span v-if="column.warned" class="warn-dot"></span>
       </div>
       <div class="controls">
-        <button type="button" aria-label="Previous slice" :disabled="column.index <= first" @click="emit('step', -1)">←</button>
-        <button type="button" aria-label="Next slice" :disabled="column.index >= last" @click="emit('step', 1)">→</button>
-        <button type="button" class="canvas-btn" @click="emit('close')">Canvas</button>
+        <button type="button" :aria-label="say.previous" :disabled="column.index <= first" @click="emit('step', -1)">←</button>
+        <button type="button" :aria-label="say.next" :disabled="column.index >= last" @click="emit('step', 1)">→</button>
+        <button type="button" class="canvas-btn" @click="emit('close')">{{ say.backToCanvas }}</button>
       </div>
     </header>
 
@@ -174,45 +177,45 @@ function cardClass(b: Box) {
           <p v-if="slice.note" class="note"><span class="badge" aria-hidden="true">i</span>{{ slice.note }}</p>
           <p v-for="w in warnings" :key="w.message" class="note warning"><span class="badge" aria-hidden="true">!</span>{{ w.message }}</p>
           <dl>
-            <template v-if="actor"><dt>Actor</dt><dd>{{ actor }}</dd></template>
-            <template v-if="slice.ui"><dt>Service</dt><dd>{{ slice.ui }}</dd></template>
-            <template v-if="slice.query?.length"><dt>Query</dt><dd>{{ slice.query.join(", ") }}</dd></template>
+            <template v-if="actor"><dt>{{ say.facts.actor }}</dt><dd>{{ actor }}</dd></template>
+            <template v-if="slice.ui"><dt>{{ say.facts.service }}</dt><dd>{{ slice.ui }}</dd></template>
+            <template v-if="slice.query?.length"><dt>{{ say.facts.query }}</dt><dd>{{ slice.query.join(", ") }}</dd></template>
             <template v-if="slice.polls">
-              <dt>Polls</dt>
+              <dt>{{ say.facts.polls }}</dt>
               <dd><button type="button" class="ref" @click="follow(slice.polls)">{{ slice.polls }}</button></dd>
             </template>
             <template v-if="slice.reads?.length">
-              <dt>Reads</dt>
+              <dt>{{ say.facts.reads }}</dt>
               <dd>
                 <button v-for="r in slice.reads" :key="r" type="button" class="ref" @click="follow(r)">{{ r }}</button>
               </dd>
             </template>
             <template v-if="triggers.length">
-              <dt>On</dt>
+              <dt>{{ say.facts.on }}</dt>
               <dd>
                 <button v-for="t in triggers" :key="t" type="button" class="ref" @click="follow(t)">{{ t }}</button>
               </dd>
             </template>
           </dl>
           <template v-if="slice.mapping">
-            <h3>Mapping</h3>
+            <h3>{{ say.headings.mapping }}</h3>
             <dl v-for="(fields, event) in slice.mapping" :key="event">
               <template v-for="(src, field) in fields" :key="field">
                 <dt>{{ event }}.{{ field }}</dt>
                 <dd>
-                  {{ src.from !== undefined ? `← ${src.from}` : src.count !== undefined ? `count of ${src.count}` : `= ${JSON.stringify(src.value)}` }}
+                  {{ src.from !== undefined ? say.source.from(src.from) : src.count !== undefined ? say.source.count(src.count) : say.source.value(JSON.stringify(src.value)) }}
                 </dd>
               </template>
             </dl>
           </template>
         </div>
 
-        <h3 v-if="specs.length" class="specs-title">Specifications</h3>
+        <h3 v-if="specs.length" class="specs-title">{{ say.specifications }}</h3>
         <div class="specs-grid">
           <article v-for="spec in specs" :key="spec.title.join()" class="hspec">
             <h4>{{ spec.title.join(" ") }}</h4>
             <div v-for="step in spec.steps" :key="step.word" class="hstep">
-              <span class="word">{{ step.word }}</span>
+              <span class="word">{{ say.steps[step.word] }}</span>
               <div class="hcards">
                 <div v-for="(card, i) in step.cards" :key="i" class="hcard" :class="card.kind" @pointerenter="emit('hover', card.name)" @pointerleave="emit('hover', null)">
                   <div class="hname">{{ card.name }}</div>

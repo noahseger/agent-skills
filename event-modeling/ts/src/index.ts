@@ -5,6 +5,7 @@ import { z } from "zod"
 // One copy of Zod for the model and the package.
 export { z }
 
+import { strings } from "./strings.ts"
 import {
   type ActorData,
   type ChapterData,
@@ -200,7 +201,7 @@ export interface Slice {
 
 /** Makes the `m.chapter()` error name the missing step. */
 export interface Unfinished<Next extends string> {
-  readonly "this slice still needs": Next
+  readonly [strings.compiler.stillNeeds]: Next
 }
 
 export interface Spec<C extends Fields, Em extends Fields> {
@@ -215,7 +216,7 @@ export interface ProjectionSpec<R extends Fields> {
   then: OneOrMany<Example<"readModel", R>>
 }
 
-export interface SliceStart extends Unfinished<".actor(), .on(), .polls() or .projects()"> {
+export interface SliceStart extends Unfinished<typeof strings.compiler.sliceStart> {
   actor(actor: Actor): Acting
   /** Automation: the event starts it. */
   on(event: EventDecl): NeedsCommandOrReads
@@ -225,26 +226,25 @@ export interface SliceStart extends Unfinished<".actor(), .on(), .polls() or .pr
   projects<R extends Fields>(readModel: ReadModelDecl<R>): Projecting<R>
 }
 
-export interface Acting extends Unfinished<".service(), .query() or .reads()"> {
+export interface Acting extends Unfinished<typeof strings.compiler.acting> {
   reads(readModel: ReadModelDecl): ActingRead
   /** The request fields of a view. */
   query(fields: Fields): Querying
   service(service: Service, method?: string): NeedsCommand
 }
 
-export interface ActingRead
-  extends Unfinished<".service(service, method), or .service(service) then .command()"> {
+export interface ActingRead extends Unfinished<typeof strings.compiler.actingRead> {
   reads(readModel: ReadModelDecl): ActingRead
   service(service: Service): NeedsCommand
   /** With a method this is a view, and may still go on to a command. */
   service(service: Service, method: string): ViewOrCommand
 }
 
-export interface Querying extends Unfinished<".reads()"> {
+export interface Querying extends Unfinished<typeof strings.compiler.querying> {
   reads(readModel: ReadModelDecl): NeedsMethod
 }
 
-export interface NeedsMethod extends Unfinished<".service(service, method)"> {
+export interface NeedsMethod extends Unfinished<typeof strings.compiler.needsMethod> {
   reads(readModel: ReadModelDecl): NeedsMethod
   service(service: Service, method: string): View
 }
@@ -257,7 +257,7 @@ export interface ViewOrCommand extends View {
   command<C extends Fields>(command: CommandDecl<C>): NeedsEmits<C>
 }
 
-export interface NeedsCommand extends Unfinished<".command()"> {
+export interface NeedsCommand extends Unfinished<typeof strings.compiler.needsCommand> {
   command<C extends Fields>(command: CommandDecl<C>): NeedsEmits<C>
 }
 
@@ -266,7 +266,8 @@ export interface NeedsCommandOrReads extends NeedsCommand {
   reads(readModel: ReadModelDecl): NeedsCommandOrReads
 }
 
-export interface NeedsEmits<C extends Fields> extends Unfinished<".emits(event)"> {
+export interface NeedsEmits<C extends Fields>
+  extends Unfinished<typeof strings.compiler.needsEmits> {
   emits<E extends Fields>(event: EventDecl<E>, map?: Mapping<C, E>): Complete<C, E>
 }
 
@@ -276,7 +277,8 @@ export interface Complete<C extends Fields, Em extends Fields> extends Slice {
   note(text: string): Complete<C, Em>
 }
 
-export interface Projecting<R extends Fields> extends Unfinished<".on(event)"> {
+export interface Projecting<R extends Fields>
+  extends Unfinished<typeof strings.compiler.projecting> {
   on<E extends Fields>(event: EventDecl<E>, map?: Mapping<E, R>): Projection<R>
 }
 
@@ -347,7 +349,7 @@ type Finished<T> = {
   [K in keyof T]: T[K] extends Slice
     ? T[K]
     : T[K] extends Unfinished<infer Next>
-      ? `this slice still needs ${Next}`
+      ? `${typeof strings.compiler.stillNeeds} ${Next}`
       : Slice
 }
 

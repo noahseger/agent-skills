@@ -2,6 +2,7 @@
 // protobuf equivalent is an error, never a guess.
 import { z } from "zod"
 
+import { strings } from "./strings.ts"
 import type { DeclData, Fields, ModelData, ServiceData, SliceData } from "./types.ts"
 
 export interface ProtoFile {
@@ -40,10 +41,7 @@ interface JsonSchema {
 
 const snake = (name: string) => name.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase()
 const pascal = (name: string) => name.charAt(0).toUpperCase() + name.slice(1)
-const unmappable = (where: string, why: string) =>
-  new Error(
-    `${where} has no protobuf type (${why}). Use a Zod type from the README's Protobuf table.`,
-  )
+const unmappable = (where: string, why: string) => new Error(strings.proto.unmappable(where, why))
 
 /** The proto type of one schema. An object becomes a message nested in `parent`. */
 function typeOf(schema: JsonSchema, where: string, field: string, parent: Message): string {
@@ -62,7 +60,7 @@ function typeOf(schema: JsonSchema, where: string, field: string, parent: Messag
       return nested.name
     }
     default:
-      throw unmappable(where, `JSON schema type ${JSON.stringify(schema.type ?? "unknown")}`)
+      throw unmappable(where, strings.proto.schemaType(JSON.stringify(schema.type ?? "unknown")))
   }
 }
 
@@ -74,7 +72,7 @@ function message(name: string, schema: JsonSchema, where: string): Message {
     const at = `${where}.${field}`
     const repeated = property.type === "array"
     const leaf = repeated ? property.items : property
-    if (!leaf) throw unmappable(at, "an array with no item type")
+    if (!leaf) throw unmappable(at, strings.proto.arrayWithoutItems)
     msg.fields.push({
       name: snake(field),
       type: typeOf(leaf, at, field, msg),

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue"
 import type { ModelJson } from "../../src/json.ts"
+import { strings } from "../../src/strings.ts"
 import Canvas from "./Canvas.vue"
 import Detail from "./Detail.vue"
 import { type Box, layout } from "./layout.ts"
@@ -38,13 +39,10 @@ const selectedColumn = computed(() => {
 })
 const sliceOpen = computed(() => selection.value?.view === "slice")
 
-const LEGEND: [string, string][] = [
-  ["ui", "screen"],
-  ["command", "command"],
-  ["event", "event"],
-  ["readModel", "read model"],
-  ["automation", "automation"],
-]
+const say = strings.viewer
+const LEGEND = (["ui", "command", "event", "readModel", "automation"] as const).map(
+  (kind) => [kind, say.kinds[kind]] as const,
+)
 
 // The selection lives in the URL hash, so Back works and every view is a link.
 function hashOf(sel: Selection | null): string {
@@ -172,18 +170,18 @@ onUnmounted(() => {
 <template>
   <div class="app">
     <header class="top">
-      <h1>{{ model?.name ?? "Event model" }}</h1>
+      <h1>{{ model?.name ?? say.untitledModel }}</h1>
       <span v-if="model?.description" class="description">{{ model.description }}</span>
       <span class="legend">
         <span v-for="[kind, label] in LEGEND" :key="kind" class="swatch" :class="kind">{{ label }}</span>
       </span>
       <span class="status" role="status">
         <span class="dot" :class="{ off: !live && !snapshot, error: error !== null }" aria-hidden="true"></span>
-        {{ error !== null ? "assembly failed" : snapshot ? "snapshot" : live ? "live" : "disconnected" }}
+        {{ error !== null ? say.status.failed : snapshot ? say.status.snapshot : live ? say.status.live : say.status.disconnected }}
       </span>
     </header>
     <pre v-if="error !== null" class="error" role="alert">{{ error }}</pre>
-    <ul v-if="model?.warnings?.length" class="warnings" role="status" aria-label="Still to do">
+    <ul v-if="model?.warnings?.length" class="warnings" role="status" :aria-label="say.stillToDo">
       <li v-for="w in model.warnings" :key="w.message">{{ w.message }}</li>
     </ul>
     <main class="body">
@@ -220,7 +218,7 @@ onUnmounted(() => {
         @hover="hovered = $event"
         @clear="go(null)"
       />
-      <div v-else class="empty">Waiting for the model…</div>
+      <div v-else class="empty">{{ say.waiting }}</div>
       <Detail
         v-if="selectedColumn && drawn && model"
         :box="selectedBox"

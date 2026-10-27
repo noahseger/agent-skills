@@ -20,6 +20,9 @@ import { assemble, load } from "../src/assemble.ts"
 import { exportHtml } from "../src/export.ts"
 import { generateProto } from "../src/proto.ts"
 import { type Snapshot, serve } from "../src/serve.ts"
+import { strings } from "../src/strings.ts"
+
+const say = strings.cli
 
 // Node 22 needs a flag to run TypeScript, so rerun with it. Node 23.6 does not.
 const STRIP = "--experimental-strip-types"
@@ -31,14 +34,6 @@ if (!process.features.typescript && !process.execArgv.includes(STRIP)) {
   )
   process.exit(again.status ?? 1)
 }
-
-const USAGE = `usage:
-  em init   <dir>
-  em json   <path> [--partial]
-  em render <path> -o <out.svg> [--watch]
-  em proto  <path> -o <dir>
-  em view   <path> [--port <n>] [--no-open]
-  em export <path> -o <out.html>`
 
 /** The package directory, whether this runs from `bin/` or from `dist/bin/`. */
 function packageRoot(): string {
@@ -56,7 +51,7 @@ const PYTHON = process.platform === "win32" ? "python" : "python3"
 
 const INDEX_TS = `import { m } from "@noahseger/event-modeling"
 
-export default m.model("My System")
+export default m.model(${JSON.stringify(say.initModelName)})
 `
 
 // Lets node run the model unbuilt. verbatimModuleSyntax stops node loading type-only imports.
@@ -94,13 +89,12 @@ const [command, path] = positionals
 function init(dir: string): void {
   const files = { "index.ts": INDEX_TS, "tsconfig.json": TSCONFIG, "package.json": PACKAGE_JSON }
   for (const name of Object.keys(files)) {
-    if (existsSync(join(dir, name)))
-      throw new Error(`${join(dir, name)} already exists. Run init in a new directory.`)
+    if (existsSync(join(dir, name))) throw new Error(say.alreadyExists(join(dir, name)))
   }
   mkdirSync(dir, { recursive: true })
   for (const [name, text] of Object.entries(files)) {
     writeFileSync(join(dir, name), text)
-    console.log(`wrote ${join(dir, name)}`)
+    console.log(say.wrote(join(dir, name)))
   }
 }
 
@@ -117,7 +111,7 @@ async function proto(path: string, out: string): Promise<void> {
     const target = join(out, file.path)
     mkdirSync(dirname(target), { recursive: true })
     writeFileSync(target, file.source)
-    console.log(`wrote ${target}`)
+    console.log(say.wrote(target))
   }
 }
 
@@ -141,7 +135,7 @@ async function render(path: string, out: string): Promise<void> {
   if (!values.watch) return
   const root = statSync(path).isDirectory() ? path : dirname(path)
   const target = resolve(out)
-  console.log(`watching ${root}`)
+  console.log(say.watching(root))
   let pending = false
   watch(root, { recursive: true }, (_event, filename) => {
     // A module, once imported, stays in this process's cache, so each redraw
@@ -171,31 +165,30 @@ function assembleFresh(path: string, changed?: string): Snapshot {
     { encoding: "utf8" },
   )
   const stamp = new Date().toTimeString().slice(0, 8)
-  const cause = changed ? `${changed} saved` : "start"
+  const cause = changed ? say.saved(changed) : say.started
   const took = `${Date.now() - started}ms`
   if (run.status === 0) {
     const left = run.stderr.trim()
     const count = left === "" ? 0 : left.split("\n").length
-    console.log(`${stamp} ${cause}: assembled in ${took}, ${count} to do`)
+    console.log(say.assembled(stamp, cause, took, count))
     if (left !== "") console.log(left.replace(/^/gm, "  "))
     return { json: run.stdout }
   }
   const error = run.stderr || run.stdout
-  console.log(`${stamp} ${cause}: assembly failed in ${took}`)
+  console.log(say.assemblyFailed(stamp, cause, took))
   console.log(error.trimEnd().replace(/^/gm, "  "))
   return { error }
 }
 
 function builtViewer(): void {
-  if (!existsSync(join(VIEWER_DIST, "index.html")))
-    throw new Error(`The viewer is not built. Run \`npm run build\` in ${ROOT}.`)
+  if (!existsSync(join(VIEWER_DIST, "index.html"))) throw new Error(say.viewerNotBuilt(ROOT))
 }
 
 async function exportPage(path: string, out: string): Promise<void> {
   builtViewer()
   const json = JSON.stringify(await assemble(path, { partial: true }))
   writeFileSync(out, exportHtml(VIEWER_DIST, json))
-  console.log(`wrote ${out}`)
+  console.log(say.wrote(out))
 }
 
 async function view(path: string): Promise<void> {
@@ -206,7 +199,7 @@ async function view(path: string): Promise<void> {
     load: async (changed) => assembleFresh(path, changed),
     port: Number(values.port ?? 5311),
   })
-  console.log(`viewing ${path} at ${server.url}`)
+  console.log(say.viewing(path, server.url))
   if (values.open) openBrowser(server.url)
 }
 
@@ -235,7 +228,7 @@ async function main(): Promise<void> {
 }
 
 function usage(): void {
-  console.error(USAGE)
+  console.error(say.usage)
   process.exit(2)
 }
 

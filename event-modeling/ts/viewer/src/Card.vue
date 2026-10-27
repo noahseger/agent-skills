@@ -1,18 +1,12 @@
 <script setup lang="ts">
 import { computed } from "vue"
+import { strings } from "../../src/strings.ts"
 import { type Box, BUTTON_H, FIELD_H, INPUT_H, TITLE_H, words } from "./layout.ts"
 
 const props = defineProps<{ box: Box }>()
 defineEmits<{ link: [canonical: string]; pick: [] }>()
 
-const LABEL: Record<Box["kind"], string> = {
-  ui: "screen",
-  external: "external event",
-  command: "command",
-  event: "event",
-  readModel: "read model",
-  automation: "automation",
-}
+const say = strings.viewer
 
 /** A card with nothing under its name centres the name. */
 const centred = computed(
@@ -29,10 +23,10 @@ const centred = computed(
     :transform="`translate(${box.x} ${box.y})`"
     role="button"
     tabindex="0"
-    :aria-label="`${LABEL[box.kind]} ${box.name}${box.noted ? ', has a note' : ''}${box.warned ? ', not finished' : ''}`"
+    :aria-label="say.card(say.kinds[box.kind], box.name, box.noted === true, box.warned === true)"
     @keydown.enter.stop="$emit('pick')"
   >
-    <title v-if="box.canonical">Drawn in full where it first appears</title>
+    <title v-if="box.canonical">{{ say.drawnElsewhere }}</title>
     <rect class="shape" :width="box.w" :height="box.h" rx="8" />
     <text class="title" :x="12" :y="centred ? box.h / 2 + 4.5 : 20">{{ words(box.name) }}</text>
     <text v-if="box.detail" class="detail" :x="12" :y="TITLE_H + 4">{{ box.detail }}</text>
@@ -101,7 +95,7 @@ const centred = computed(
           :x="box.w - 12"
           :y="TITLE_H + (box.detail ? 14 : 0) + 6 + i * FIELD_H"
         >
-          key
+          {{ say.key }}
         </text>
       </template>
     </template>
@@ -111,21 +105,21 @@ const centred = computed(
       class="link"
       role="link"
       tabindex="0"
-      aria-label="Go to where it is drawn in full"
+      :aria-label="say.goToFull"
       @click.stop="$emit('link', box.canonical)"
       @keydown.enter.stop="$emit('link', box.canonical)"
     >
-      <title>Go to where it is drawn in full</title>
+      <title>{{ say.goToFull }}</title>
       <rect :x="box.w - 26" :y="box.h / 2 - 9" width="18" height="18" rx="4" />
       <text text-anchor="middle" :x="box.w - 17" :y="box.h / 2 + 4">↗</text>
     </g>
     <g v-if="box.noted" class="note-badge">
-      <title>Has a note</title>
+      <title>{{ say.noteBadge }}</title>
       <circle :cx="box.w - 1" :cy="1" r="6.5" />
       <text text-anchor="middle" :x="box.w - 1" :y="4">i</text>
     </g>
     <g v-if="box.warned" class="warn-badge">
-      <title>Not finished: select it to see what is left</title>
+      <title>{{ say.unfinishedBadge }}</title>
       <circle :cx="1" :cy="1" r="6.5" />
       <text text-anchor="middle" :x="1" :y="4">!</text>
     </g>
