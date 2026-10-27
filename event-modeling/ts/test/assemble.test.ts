@@ -110,6 +110,17 @@ test("an event field the command does not carry", () => {
   )
 })
 
+test("a model still being written draws with a field that has no value", () => {
+  const f = fixture()
+  const Created = m.event({ id: z.string(), name: z.string(), extra: z.string() })
+  const Ch = m.chapter([create({ ...f, Created })])
+  const json = assembleModules([{ ...f, Created, Ch, default: m.model("x", { chapters: [Ch] }) }], {
+    partial: true,
+  })
+  assert.equal(json.chapters[0]?.slices.length, 1)
+  assert.ok(json.warnings?.some((w) => w.message.includes("Created.extra has no value")))
+})
+
 test("a mapping function fills what the command does not carry", () => {
   const f = fixture()
   const Created = m.event({ id: z.string(), name: z.string(), extra: z.string() })

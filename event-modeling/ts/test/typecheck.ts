@@ -57,6 +57,14 @@ void needsOn
 // @ts-expect-error ItemAdded has no field nope
 m.slice().actor(User).service(TodoService).command(AddItem).emits(ItemAdded, (c) => ({ nope: c.text }))
 
+// @ts-expect-error AddItem has no title, so ItemAdded.title has no value
+m.slice().actor(User).service(TodoService).command(AddItem).emits(ItemAdded)
+
+// @ts-expect-error the mapping must set title, which AddItem lacks
+m.slice().actor(User).service(TodoService).command(AddItem).emits(ItemAdded, (c) => ({ listId: c.listId }))
+
+m.slice().actor(User).service(TodoService).command(AddItem).emits(ItemAdded, (c) => ({ title: c.text }))
+
 // @ts-expect-error title is a string
 m.slice().actor(User).service(TodoService).command(AddItem).emits(ItemAdded, (c) => ({ title: 42 }))
 
