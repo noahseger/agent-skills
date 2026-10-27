@@ -102,11 +102,15 @@ function nameExports(modules: readonly object[]): {
         model = data
       } else if (data.kind === "stream") {
         streams.set(key, [...(streams.get(key) ?? []), ...data.members])
+      } else if (data.kind === "external") {
+        data.name = key
+        // Its events may be declared inside it, so no export names them.
+        for (const e of data.events) if (!declared.includes(e)) declared.push(e)
       } else if (data.name !== undefined && data.name !== key) {
         throw new Error(`${data.name} is exported twice, also as ${key}. Keep one.`)
       } else if (data.kind !== "chapter") {
         data.name = key
-        declared.push(data)
+        if (!declared.includes(data)) declared.push(data)
       } else {
         data.name = key
       }

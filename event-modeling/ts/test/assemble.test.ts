@@ -318,3 +318,21 @@ test("an actor in no slice is still one of the model's actors", () => {
     ["user", "bartender"],
   )
 })
+
+test("an event declared inside m.external is named by its key and drawn in the system's lane", () => {
+  const Notion = m.external({
+    Authenticated: m.event({ accessToken: z.string() }),
+    NoteSynced: m.event({ notionId: z.string() }),
+  })
+  const Connect = m.command({ accessToken: z.string() })
+  const Connected = m.event({ accessToken: z.string() })
+  const Ch = m.chapter([m.slice().on(Notion.Authenticated).command(Connect).emits(Connected)])
+  const json = assembleModules(
+    [{ Notion, Connect, Connected, Ch, default: m.model("x", { chapters: [Ch] }) }],
+    { partial: true },
+  )
+  assert.equal(json.chapters[0]?.slices[0]?.external_event, "Authenticated(accessToken)")
+  assert.deepEqual(json.loose, [
+    { kind: "external", element: "NoteSynced(notionId)", aggregate: "events", actor: "notion" },
+  ])
+})

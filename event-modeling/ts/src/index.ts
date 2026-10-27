@@ -144,10 +144,14 @@ export interface External {
 }
 
 /** A system we do not own. Its events can be received and never emitted. */
-function external(events: Record<string, EventDecl>): External {
-  const data: ExternalData = { kind: "external", events: Object.values(events).map((e) => e[META]) }
-  for (const e of data.events) e.external = data
-  return { [META]: data }
+function external<const E extends Record<string, EventDecl>>(events: E): External & E {
+  const data: ExternalData = { kind: "external", events: [] }
+  for (const [key, event] of Object.entries(events)) {
+    event[META].name ??= key
+    event[META].external = data
+    data.events.push(event[META])
+  }
+  return { ...events, [META]: data }
 }
 
 function rejected(message: string): Rejection {
