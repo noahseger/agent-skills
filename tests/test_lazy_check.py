@@ -113,12 +113,12 @@ def codex_payload(workspace, **extra):
 
 
 def cursor_payload(workspace, transcript="cursor-transcript.jsonl", **extra):
+    """A stop payload captured from cursor-agent, pointed at this test's transcript and workspace."""
+    payload = json.loads((FIXTURES / "cursor-stop-payload.json").read_text())
     return {
-        "hook_event_name": "stop",
+        **payload,
         "transcript_path": str(FIXTURES / transcript),
         "workspace_roots": [str(workspace)],
-        "status": "completed",
-        "loop_count": 0,
         **extra,
     }
 

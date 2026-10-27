@@ -107,7 +107,8 @@ Satisfy them the first time; a block costs a whole extra turn.
 
 If it is not yet wired, add it under `hooks.Stop` as `python3 <this directory>/lazy-check.py`
 — in `.claude/settings.json` to enforce it for one project, or in `~/.claude/settings.json`
-to enforce it everywhere — then say so. Cursor runs those Claude Code hooks as they are;
-Codex needs the same entry in `~/.codex/hooks.json`.
+to enforce it everywhere — then say so. Codex needs the same entry in `~/.codex/hooks.json`;
+Cursor needs `{"version": 1, "hooks": {"stop": [{"command": "python3 <this directory>/lazy-check.py"}]}}`
+in `~/.cursor/hooks.json`.
 
 If you are blocked, carefully preserve the next steps and subproblem from your original prompt, and only note being blocked in the Metacognition section.
