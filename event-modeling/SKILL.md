@@ -108,6 +108,8 @@ Write the model as TypeScript in `ts/`, or write the JSON directly and hand it t
 
 Write TypeScript for a system you are about to build. The compiler and the assembler enforce most of this document: a reference is a value, so an unknown event cannot be written; a slice is a chain of calls, so an illegal combination of elements does not compile; a field nothing fills is an assembly error. The same model generates the protobuf for the service it describes. See `ts/README.md`.
 
+Keep `npx em view` running while you write the model: after every save its terminal lists everything left to fix, compiler errors included.
+
 Write the JSON directly when extracting a model from a system that already exists, especially one written in another language. The TypeScript names interfaces as RPC methods it will generate. Inventing those for a service written in Go or Kotlin is the hallucinated-interface antipattern below. An extracted model names the real entry points: `POST /v1/orders`, `OrderService.PlaceOrder`, a Kafka topic.
 
 ## Tooling: event_model.py

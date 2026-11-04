@@ -473,10 +473,12 @@ npx em proto  model/ -o proto        # one .proto per service
 Every command also accepts a single self-contained file. `json` assembles the model and stops at
 the first error. With `--partial` it goes on past dead ends and lists them in the JSON as
 `warnings`, with the declarations in no slice as `loose`; `view` and `export` assemble that way.
-`tsc` checks the types, with the `tsconfig.json` that `init` wrote. Node runs the
-TypeScript directly with `--experimental-strip-types`. The package carries `zod` and exports it as
-`z`, so the model and the package read schemas with one copy. `tsc` is the model's only other
-dependency; `render` also needs python 3 with `pydantic`.
+`view` also type-checks the model on every save, with the `tsconfig.json` that `init` wrote, and
+logs each compiler error as `file:line` with what assembly left to do, in the terminal and above the
+picture. Node runs the TypeScript directly with `--experimental-strip-types`. The package carries
+`zod` and exports it as `z`, so the model and the package read schemas with one copy. It carries
+`typescript` too, so the model needs no other dependency; `render` also needs python 3 with
+`pydantic`.
 
 ## Developing
 

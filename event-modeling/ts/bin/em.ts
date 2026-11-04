@@ -9,14 +9,15 @@
 //   export <path> -o out.html     one self-contained page of the model, for sharing
 //
 // <path> is a model directory or a single module. An assembly error stops every command.
-import { spawn, spawnSync } from "node:child_process"
+import { execFile, spawn, spawnSync } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, watch, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { parseArgs } from "node:util"
 
-import { assemble, load } from "../src/assemble.ts"
+import { assemble, load, type ModelJson, type Warning } from "../src/assemble.ts"
+import { type Checker, COMPILER_OPTIONS, checker } from "../src/check.ts"
 import { exportHtml } from "../src/export.ts"
 import { generateProto } from "../src/proto.ts"
 import { type Snapshot, serve } from "../src/serve.ts"
@@ -59,21 +60,7 @@ const INDEX_TS = `import { m } from "@noahseger/event-modeling"
 export default m.model("My System")
 `
 
-// Lets node run the model unbuilt. verbatimModuleSyntax stops node loading type-only imports.
-const TSCONFIG = `${JSON.stringify(
-  {
-    compilerOptions: {
-      module: "nodenext",
-      strict: true,
-      noEmit: true,
-      allowImportingTsExtensions: true,
-      erasableSyntaxOnly: true,
-      verbatimModuleSyntax: true,
-    },
-  },
-  null,
-  2,
-)}\n`
+const TSCONFIG = `${JSON.stringify({ compilerOptions: COMPILER_OPTIONS }, null, 2)}\n`
 
 // Without its own "type": "module", node warns and reparses the model on every save.
 const PACKAGE_JSON = `${JSON.stringify({ type: "module" }, null, 2)}\n`
@@ -165,19 +152,31 @@ async function render(path: string, out: string): Promise<void> {
 }
 
 /** A fresh process rereads saved modules; --partial draws unfinished models. */
-function assembleFresh(path: string, changed?: string): Snapshot {
+function assembleFresh(path: string): Promise<{ ok: boolean; stdout: string; stderr: string }> {
+  return new Promise((done) => {
+    execFile(
+      process.execPath,
+      [...process.execArgv, process.argv[1] ?? "", "json", "--partial", path],
+      { maxBuffer: 2 ** 28 },
+      (error, stdout, stderr) => done({ ok: error === null, stdout, stderr }),
+    )
+  })
+}
+
+/** Assembles and type-checks at once, and logs everything left to fix in one block. */
+async function reload(path: string, types: Checker, changed?: string): Promise<Snapshot> {
   const started = Date.now()
-  const run = spawnSync(
-    process.execPath,
-    [...process.execArgv, process.argv[1] ?? "", "json", "--partial", path],
-    { encoding: "utf8" },
-  )
+  const [run, errors] = await Promise.all([
+    assembleFresh(path),
+    types.check().catch((e: unknown) => [`The type check stopped: ${String(e)}`]),
+  ])
   const stamp = new Date().toTimeString().slice(0, 8)
   const cause = changed ? `Saved ${changed}` : "Started"
   const took = `${Date.now() - started}ms`
-  if (run.status === 0) {
-    const left = run.stderr.trim()
-    const count = left === "" ? 0 : left.split("\n").length
+  if (run.ok) {
+    const model = JSON.parse(run.stdout) as ModelJson
+    const warnings = mergeFindings(errors, model.warnings ?? [])
+    const count = warnings.length
     const summary =
       count === 0
         ? "Nothing left to do."
@@ -185,13 +184,32 @@ function assembleFresh(path: string, changed?: string): Snapshot {
           ? "1 thing left to do:"
           : `${count} things left to do:`
     console.log(`${stamp} ${cause} (${took}). ${summary}`)
-    if (left !== "") console.log(left.replace(/^/gm, "  "))
-    return { json: run.stdout }
+    for (const w of warnings) console.log(`  ${w.message}`)
+    return { json: JSON.stringify(count === 0 ? model : { ...model, warnings }) }
   }
-  const error = run.stderr || run.stdout
+  const error = [(run.stderr || run.stdout).trimEnd(), ...errors].join("\n")
   console.log(`${stamp} ${cause} (${took}). The model didn't load:`)
-  console.log(error.trimEnd().replace(/^/gm, "  "))
+  console.log(error.replace(/^/gm, "  "))
   return { error }
+}
+
+/**
+ * The compiler and assembly both report an event field with no value. Keep the
+ * compiler's line, which says where to type, and the element assembly marks.
+ */
+function mergeFindings(errors: readonly string[], found: readonly Warning[]): Warning[] {
+  const compiled: Warning[] = errors.map((message) => ({ message, element: "" }))
+  const rest = found.filter((w) => {
+    const field = /(\w+)\.(\w+) has no value\. Add \2 to /.exec(w.message)
+    const same = field
+      ? compiled.find(
+          (c) => c.message.includes(field[1] ?? "") && c.message.includes(` ${field[2]}`),
+        )
+      : undefined
+    if (same) Object.assign(same, { element: w.element, slice: w.slice })
+    return !same
+  })
+  return [...compiled, ...rest]
 }
 
 function builtViewer(): void {
@@ -208,10 +226,11 @@ async function exportPage(path: string, out: string): Promise<void> {
 
 async function view(path: string): Promise<void> {
   builtViewer()
+  const types = checker(path)
   const server = await serve({
     dist: VIEWER_DIST,
     root: statSync(path).isDirectory() ? path : dirname(path),
-    load: async (changed) => assembleFresh(path, changed),
+    load: (changed) => reload(path, types, changed),
     port: Number(values.port ?? 5311),
   })
   console.log(`Showing ${path} at ${server.url}. Press Ctrl-C to stop.`)

@@ -99,27 +99,34 @@ test("a missing argument prints usage and exits 2", () => {
   assert.match(run.stderr, /^usage:/)
 })
 
-test("view serves the app, the model, and a change feed", async () => {
+/** `em view` on a free port; resolves once it prints its URL. */
+async function view(path: string) {
   const server = spawn(process.execPath, [
     ...NODE_FLAGS,
     here("../bin/em.ts"),
     "view",
-    EXAMPLE,
+    path,
     "--port",
     "0",
     "--no-open",
   ])
-  try {
-    const url = await new Promise<string>((resolve, reject) => {
-      let out = ""
-      server.stdout.on("data", (chunk: Buffer) => {
-        out += chunk.toString()
-        const match = out.match(/at (http:\/\/localhost:\d+)/)
-        if (match?.[1]) resolve(match[1])
-      })
-      server.stderr.on("data", (chunk: Buffer) => reject(new Error(chunk.toString())))
-      server.on("exit", (code) => reject(new Error(`exited ${code}: ${out}`)))
+  let out = ""
+  const url = await new Promise<string>((resolve, reject) => {
+    server.stdout.on("data", (chunk: Buffer) => {
+      out += chunk.toString()
+      const match = out.match(/at (http:\/\/localhost:\d+)/)
+      if (match?.[1]) resolve(match[1])
     })
+    server.stderr.on("data", (chunk: Buffer) => reject(new Error(chunk.toString())))
+    server.on("exit", (code) => reject(new Error(`exited ${code}: ${out}`)))
+  })
+  return { url, log: () => out, close: () => server.kill() }
+}
+
+test("view serves the app, the model, and a change feed", async () => {
+  const server = await view(EXAMPLE)
+  try {
+    const { url } = server
     const page = await fetch(`${url}/`)
     assert.equal(page.status, 200)
     assert.match(await page.text(), /<div id="app">/)
@@ -134,7 +141,50 @@ test("view serves the app, the model, and a change feed", async () => {
 
     assert.equal((await fetch(`${url}/../package.json`)).status, 404)
   } finally {
-    server.kill()
+    server.close()
+  }
+})
+
+test("view lists a compiler error with what assembly found, until a save fixes it", async () => {
+  const dir = mkdtempSync(here("../tmp-check-"))
+  const file = join(dir, "index.ts")
+  const model = (emits: string) => `import { z } from "zod"
+import { m } from "#em"
+
+export const User = m.actor()
+export const Chess = m.service("chess.v1")
+export const StartGame = m.command({ gameId: z.string() })
+export const GameStarted = m.event({ gameId: z.string(), white: z.string() })
+export const Games = m.stream({ GameStarted })
+export default m.model("Chess", { chapters: { Play: [m.slice().actor(User).service(Chess).command(StartGame)${emits}] } })
+`
+  const error = "index.ts:9  .emits(GameStarted): add white to the command or set it in the mapping"
+  const warnings = async (url: string) =>
+    (
+      (await (await fetch(`${url}/model.json`)).json()) as { warnings?: { message: string }[] }
+    ).warnings?.map((w) => w.message) ?? []
+  writeFileSync(file, model(".emits(GameStarted)"))
+  const server = await view(dir)
+  try {
+    assert.ok(server.log().includes(`\n  ${error}\n`), server.log())
+    assert.ok((await warnings(server.url)).includes(error))
+
+    const feed = await fetch(`${server.url}/events`)
+    const reader = feed.body?.getReader()
+    writeFileSync(file, model('.emits(GameStarted, () => ({ white: "me" }))'))
+    let seen = ""
+    while (!seen.includes("data: changed")) {
+      const chunk = await reader?.read()
+      if (!chunk || chunk.done) break
+      seen += new TextDecoder().decode(chunk.value)
+    }
+    await reader?.cancel()
+    assert.ok(!(await warnings(server.url)).includes(error))
+    const saved = server.log().slice(server.log().indexOf("Saved"))
+    assert.ok(saved !== "" && !saved.includes(error), server.log())
+  } finally {
+    server.close()
+    rmSync(dir, { recursive: true, force: true })
   }
 })
 
