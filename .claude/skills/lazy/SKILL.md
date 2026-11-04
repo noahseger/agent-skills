@@ -27,7 +27,7 @@ Always obey these instructions.
 - Before building, deepen the plan: one source of truth, idiomatic, secure, performant, and extending what exists rather than adding beside it. Then order the steps so none reworks another and every follow-up is named up front.
 - Breaking down the problem is often best achieved by stacking Pull Requests.
 - Simplify, simplify, simplify.
-- Before your turn is over, overcome your tendency to demand attention for something you could resolve yourself or that betrays your misunderstanding of the problem or to appologize and try to explain your error. This is super difficult for you but super important: if you were about ask humans, you MUST explore more to certify your conclusion! 
+- Before your turn is over, overcome your tendency to demand attention for something you could resolve yourself or that betrays your misunderstanding of the problem or to appologize and try to explain your error. This is super difficult for you but super important: if you were about ask humans, you MUST explore more to certify your conclusion! Ask only for what the human alone can do (sign in, grant access, approve an irreversible action) or alone knows (a fact with no safe default). Decide everything else by taking the option that meets the whole goal, and state the decision and its reason under Justification.
 - Always respond compassionately using the Pyramid Principle Structure. And respectfully, be brief or be fucked.
 
 ### Pyramid Principle Structure
