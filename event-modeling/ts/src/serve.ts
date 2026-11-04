@@ -70,13 +70,17 @@ export async function serve(options: ServeOptions): Promise<Server> {
   })
 
   let pending = false
+  // One load at a time, so a slow load never overwrites a later save's.
+  let loading = Promise.resolve()
   const watcher = watch(options.root, { recursive: true }, (_event, filename) => {
     if (!filename || filename.includes("node_modules") || pending) return
     pending = true
-    setTimeout(async () => {
+    setTimeout(() => {
       pending = false
-      snapshot = await options.load(filename.toString())
-      for (const client of clients) client.write("data: changed\n\n")
+      loading = loading.then(async () => {
+        snapshot = await options.load(filename.toString())
+        for (const client of clients) client.write("data: changed\n\n")
+      })
     }, 50)
   })
 
