@@ -38,7 +38,7 @@ Always obey these instructions.
 - [~] <Name>: <what they will do> — [ask](<link>)
 
 ## Problem
-<only when the root problem is new or has changed: the contents of .context/ROOT_PROBLEM.md. Otherwise omit this section; the human can read the file. Name the active subproblem in one line when it is not the root problem.>
+<only when the root problem is new or has changed: the value of `<key>.root-problem`. Otherwise omit this section; the human can read the key. Name the active subproblem in one line when it is not the root problem.>
 
 ### Conclusion
 <your certified conclusion, nothing more, nothing less. The first sentence says where we are, what happens next, and who or what that waits on; the human can stop reading after it. The checklist already says what was done; do not narrate it again. Literal only — no metaphor, no analogy, no figure of speech; if a boardwalk is not involved, do not write "board walk". Name things by what they do, in the human's words or the codebase's. A term you coined this session gets defined in the same sentence or does not appear.>
@@ -65,22 +65,24 @@ Cut repetition, throat-clearing, and prose that restates a table. Never cut a
 link, a file path, a number, or the context that makes the answer checkable —
 those are the payload.
 
-The checklist lives in `.context/CHECKLIST.md`; update it before you answer. Render
+The checklist lives in `<key>.checklist`; update it before you answer. Render
 the items finished this turn, then every open item, one line each, led by whoever
 acts next. The human's items are the only place to ask for anything, and only when
-absolutely necessary. Done items and details stay in the file. Items are never silently dropped or reworded. Three
+absolutely necessary. Done items and details stay in the key. Items are never silently dropped or reworded. Three
 states: `- [ ]` not started, `- [~]` in progress, `- [x]` done. Mark `- [x]` only
 after the thing was verified or the human confirmed it — anything you believe is
 done but have not checked is `- [~]`. A tool reporting success is not
 verification; read the result back. Before you answer, check the list against
-`.context/ROOT_PROBLEM.md`: each deliverable it names keeps an item until it is done,
+`<key>.root-problem`: each deliverable it names keeps an item until it is done,
 so a side task cannot quietly replace the problem.
 
-Write and read `.context/ROOT_PROBLEM.md` with the Read, Edit and Write tools, never
-the shell, so an edit the human makes between turns arrives as a changed-on-disk
-note. The human's edit wins: render `## Problem` from it and re-plan.
+Both live in GNS, private to you, under a key named for the repo, plus the worktree if you use one.
+`python3 <this directory>/lazy-check.py --key` prints `<key>`; write a whole value
+by piping it to `gns set`. Read `<key>.root-problem` at the start of every turn:
+the human edits it in the Knowledge UI, and their edit wins. Render `## Problem`
+from it and re-plan.
 
-When an event changes nothing the human would act on, update the files and answer
+When an event changes nothing the human would act on, update the keys and answer
 with `### Conclusion` alone: one sentence that carries its own evidence, then the
 period. A bare "yes" gives the human nothing to check and costs them a turn.
 
@@ -104,7 +106,7 @@ Satisfy them the first time; a block costs a whole extra turn.
 4. Every `- [ ]` or `- [~]` preface item starts with who acts next, as `Name:`. None names you: work you could do now, you do now.
 5. End with a single period on its own line.
 6. Every PR or issue is a link that names its repo, like `[repo#12](url)`.
-7. `.context/ROOT_PROBLEM.md` exists and is not empty.
+7. `<key>.root-problem` exists and is not empty.
 
 If it is not yet wired, add it under `hooks.Stop` as `python3 <this directory>/lazy-check.py`
 — in `.claude/settings.json` to enforce it for one project, or in `~/.claude/settings.json`

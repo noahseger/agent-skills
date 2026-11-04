@@ -17,8 +17,7 @@ spec.loader.exec_module(lazy_check)
 @pytest.fixture
 def check(tmp_path, monkeypatch):
     """Failures for a reply wrapped in a valid contract, in a workspace with a root problem."""
-    (tmp_path / ".context").mkdir()
-    (tmp_path / ".context" / "ROOT_PROBLEM.md").write_text("problem")
+    monkeypatch.setattr(lazy_check, "gns_meta", lambda key: {"exists": True, "size": 7})
     monkeypatch.setattr(lazy_check, "preferred_address", lambda: None)
     required = lazy_check.required_headers()
 
@@ -78,6 +77,34 @@ def test_item_without_owner_blocks(check):
     assert check(preface="- [ ] Run tests: then deploy")
 
 
+@pytest.mark.parametrize("meta", [{"exists": False}, {"exists": True, "size": 0}])
+def test_missing_root_problem_blocks(check, monkeypatch, meta):
+    monkeypatch.setattr(lazy_check, "gns_meta", lambda key: meta)
+    assert any(".root-problem is missing" in failure for failure in check())
+
+
+def test_unreachable_gns_lets_the_turn_through(check, monkeypatch):
+    monkeypatch.setattr(lazy_check, "gns_meta", lambda key: None)
+    assert check() == []
+
+
+def test_workspace_key_names_repo_and_worktree(tmp_path):
+    repo, worktree = tmp_path / "My Repo", tmp_path / "Kuala_Lumpur"
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "--allow-empty", "-m", "x"], check=True,
+                   env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"})
+    subprocess.run(["git", "-C", str(repo), "worktree", "add", "-q", str(worktree)], check=True)
+    (worktree / "sub").mkdir()
+    (repo / "sub").mkdir()
+    assert lazy_check.workspace_key(str(worktree / "sub")) == ".lazy.my-repo.kuala-lumpur"
+    assert lazy_check.workspace_key(str(repo / "sub")) == ".lazy.my-repo"
+
+
+def test_workspace_key_outside_git_uses_the_folder(tmp_path):
+    (tmp_path / "Some Folder").mkdir()
+    assert lazy_check.workspace_key(str(tmp_path / "Some Folder")) == ".lazy.local.some-folder"
+
+
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "lazy"
 
 
@@ -88,7 +115,7 @@ def run_hook(payload, home):
         input=json.dumps(payload),
         capture_output=True,
         text=True,
-        env={**os.environ, "HOME": str(home)},
+        env={**os.environ, "HOME": str(home), "PATH": f"{home / 'bin'}{os.pathsep}{os.environ['PATH']}"},
         check=True,
     )
     return result.stdout
@@ -96,8 +123,11 @@ def run_hook(payload, home):
 
 @pytest.fixture
 def workspace(tmp_path):
-    (tmp_path / ".context").mkdir()
-    (tmp_path / ".context" / "ROOT_PROBLEM.md").write_text("problem")
+    """A workspace whose root problem GNS reports as stated, through a stand-in gns."""
+    gns = tmp_path / "bin" / "gns"
+    gns.parent.mkdir()
+    gns.write_text('#!/bin/sh\necho \'{"exists": true, "size": 7}\'\n')
+    gns.chmod(0o755)
     return tmp_path
 
 
@@ -135,7 +165,7 @@ def test_codex_blocks_once(workspace):
 def test_cursor_read_of_skill_arms_and_blocks_on_transcript_reply(workspace, transcript):
     output = run_hook(cursor_payload(workspace, transcript), workspace)
     assert '"decision": "block"' in output
-    assert "ROOT_PROBLEM" not in output
+    assert "root-problem" not in output
 
 
 def test_cursor_blocks_once(workspace):

@@ -12,6 +12,7 @@ business, so it stays silent in them.
 """
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -57,6 +58,10 @@ DEFERRAL = re.compile(
 
 
 def main():
+    if sys.argv[1:] == ["--key"]:
+        print(workspace_key(None))
+        return
+
     payload = read_payload()
 
     # The block re-enters this hook on the next stop; never fire twice in a row.
@@ -164,13 +169,11 @@ def contract_failures(response, required, cwd=None):
     if not ends_with_lone_period(response):
         failures.append("The response must end with a single period on its own line, nothing after it.")
 
-    # Every other check reads the response, so a file nobody renders is the one
-    # thing that can go missing and stay missing. Check the disk for this one.
-    if not root_problem_stated(cwd):
-        failures.append(
-            ".context/ROOT_PROBLEM.md is missing or empty in this workspace. Write the root "
-            "problem there, then answer."
-        )
+    # Every other check reads the response, so a key nobody renders is the one
+    # thing that can go missing and stay missing. Check GNS for this one.
+    key = workspace_key(cwd) + ".root-problem"
+    if not root_problem_stated(key):
+        failures.append(f"{key} is missing or empty. Write the root problem there with gns set, then answer.")
 
     bare = sorted(set(BARE_REF.findall(URL.sub(" ", body))))
     if bare:
@@ -190,22 +193,50 @@ def contract_failures(response, required, cwd=None):
     return failures
 
 
-def root_problem_stated(cwd):
-    """True when some ancestor of cwd carries a non-empty .context/ROOT_PROBLEM.md.
+def workspace_key(cwd):
+    """The GNS key, under the human's own keyspace, holding this workspace's state.
 
-    Walked upward rather than read from cwd directly: a shell `cd` during the
-    turn moves cwd into a subdirectory, and the workspace's root problem is
-    still the one that applies.
+    Named by the repo, then the worktree folder when there is one, rather than
+    the branch, because harnesses rename branches mid-session and the state
+    must survive that. Outside git the folder alone names it.
     """
     here = Path(cwd or ".").resolve()
-    for directory in (here, *here.parents):
-        candidate = directory / ".context" / "ROOT_PROBLEM.md"
-        try:
-            if candidate.read_text(encoding="utf-8", errors="replace").strip():
-                return True
-        except OSError:
-            continue
-    return False
+    top = git(here, "rev-parse", "--show-toplevel")
+    common = git(here, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    if not (top and common):
+        names = ["local", here.name]
+    elif Path(top) == Path(common).parent:
+        names = [Path(top).name]
+    else:
+        names = [Path(common).parent.name, Path(top).name]
+    return ".lazy." + ".".join(re.sub(r"[^a-z0-9-]+", "-", name.lower()).strip("-") or "root" for name in names)
+
+
+def git(directory, *args):
+    try:
+        result = subprocess.run(["git", "-C", str(directory), *args], capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def root_problem_stated(key):
+    """False only when GNS answers that the key is absent or empty.
+
+    An unreachable or missing gns lets the turn through: a hook that blocks
+    every turn while the network is down gets uninstalled.
+    """
+    meta = gns_meta(key)
+    return meta is None or bool(meta.get("exists") and meta.get("size"))
+
+
+def gns_meta(key):
+    try:
+        result = subprocess.run(["gns", "get", key, "--meta", "--json"], capture_output=True, text=True, timeout=10)
+        meta = json.loads(result.stdout) if result.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+    return meta if isinstance(meta, dict) and "exists" in meta else None
 
 
 def preferred_address():
