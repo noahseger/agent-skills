@@ -1,6 +1,7 @@
 """Unit tests for event_model.py validation logic, helpers, and rendering."""
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -53,14 +54,14 @@ class TestLooksPastTense:
     @pytest.mark.parametrize("name", [
         "OrderPlaced", "UserRegistered", "ItemAdded", "CartCleared",
         "InventoryReserved", "PaymentConfirmed", "ItemDeleted",
-        "PasswordFrozen", "TokenRevoked",
+        "PasswordFrozen", "TokenRevoked", "ItemsAddedToOrder",
     ])
     def test_recognizes_past_tense(self, name):
         assert _looks_past_tense(name) is True
 
     @pytest.mark.parametrize("name", [
         "PlaceOrder", "RegisterUser", "AddItem", "ClearCart",
-        "ReserveInventory", "ConfirmPayment", "DeleteItem",
+        "ReserveInventory", "ConfirmPayment", "DeleteItem", "AddItemsToOrder",
     ])
     def test_rejects_imperative(self, name):
         assert _looks_past_tense(name) is False
@@ -574,3 +575,23 @@ class TestNativeFields:
         svg = render_svg(EventModel.model_validate(data))
         assert "<title>One per id.</title>" in svg
         assert "<title>The first slice.</title>" in svg
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def test_render_prints_validation_messages_without_a_traceback(tmp_path):
+    data = json.loads((FIXTURES / "todo_app_model.json").read_text())
+    data["chapters"][0]["slices"][0]["events"] = ["AddList(listId)"]
+    model = tmp_path / "model.json"
+    model.write_text(json.dumps(data))
+    run = subprocess.run(
+        [sys.executable, str(Path(__file__).resolve().parent.parent / "event_model.py"),
+         "render", str(model), "-o", str(tmp_path / "out.svg")],
+        capture_output=True, text=True,
+    )
+    assert run.returncode == 1
+    assert "Traceback" not in run.stderr
+    assert run.stderr.startswith("Event model validation errors:")
+    assert "Event 'AddList'" in run.stderr

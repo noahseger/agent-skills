@@ -276,12 +276,15 @@ interface Commands {
   command<C extends Fields>(name: string, fields: C): NeedsEmits<C>
 }
 
-/** `.emits(Event)`, or `.emits("Name", fields)` to declare it here; `Em` is what came before. */
+/**
+ * `.emits(Event)`, or `.emits("Name", fields)` to declare it here; `Em` is what came before.
+ * The compiler reports the last overload that fails, so the common form comes last.
+ */
 interface Emits<C extends Fields, Em extends Fields> {
-  emits<E extends Fields>(event: EventDecl<E> & FilledBy<C, E>): Complete<C, Em | E>
-  emits<E extends Fields>(event: EventDecl<E>, map: FillsRest<C, E>): Complete<C, Em | E>
   emits<E extends Fields>(name: string, fields: E & FilledBy<C, E>): Complete<C, Em | E>
   emits<E extends Fields>(name: string, fields: E, map: FillsRest<C, E>): Complete<C, Em | E>
+  emits<E extends Fields>(event: EventDecl<E> & FilledBy<C, E>): Complete<C, Em | E>
+  emits<E extends Fields>(event: EventDecl<E>, map: FillsRest<C, E>): Complete<C, Em | E>
 }
 
 export interface ViewOrCommand extends View, Commands {}
@@ -364,6 +367,10 @@ function chain(data: SliceData) {
         typeof event === "string"
           ? [named("event", event, rest[0] as Fields), rest[1]]
           : [event[META], rest[0] as ((source: never) => object) | undefined]
+      if (map !== undefined && typeof map !== "function")
+        throw new Error(
+          "The second argument to .emits() is a function that fills the event's fields. To emit another event, chain another .emits().",
+        )
       return next({ emits: [...data.emits, flow(emitted, data.command?.fields ?? {}, map)] })
     },
     on: (event: EventDecl, map?: (source: never) => object) =>

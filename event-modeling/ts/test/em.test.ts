@@ -7,6 +7,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  renameSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -171,7 +172,9 @@ export default m.model("Chess", { chapters: { Play: [m.slice().actor(User).servi
 
     const feed = await fetch(`${server.url}/events`)
     const reader = feed.body?.getReader()
-    writeFileSync(file, model('.emits(GameStarted, () => ({ white: "me" }))'))
+    // Saved the way many editors save: a hidden temporary file renamed over the model.
+    writeFileSync(join(dir, ".!1!index.ts"), model('.emits(GameStarted, () => ({ white: "me" }))'))
+    renameSync(join(dir, ".!1!index.ts"), file)
     let seen = ""
     while (!seen.includes("data: changed")) {
       const chunk = await reader?.read()
@@ -181,7 +184,39 @@ export default m.model("Chess", { chapters: { Play: [m.slice().actor(User).servi
     await reader?.cancel()
     assert.ok(!(await warnings(server.url)).includes(error))
     const saved = server.log().slice(server.log().indexOf("Saved"))
-    assert.ok(saved !== "" && !saved.includes(error), server.log())
+    assert.ok(saved.startsWith("Saved index.ts ") && !saved.includes(error), server.log())
+  } finally {
+    server.close()
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test("a model that doesn't load shows the compiler's errors, not the JavaScript one", async () => {
+  const dir = mkdtempSync(here("../tmp-load-"))
+  writeFileSync(
+    join(dir, "index.ts"),
+    `import { z } from "zod"
+import { m } from "#em"
+
+export const Mail = m.external()
+export const Sync = m.command({ id: z.string() })
+export const Synced = m.event({ id: z.string() })
+export const Failed = m.event({ id: z.string() })
+export default m.model("x", { chapters: { Ch: [m.slice().on(Synced).command(Sync).emits(Synced, Failed)] } })
+`,
+  )
+  const server = await view(dir)
+  try {
+    const log = server.log()
+    const shown = log.slice(log.indexOf("The model didn't load:\n") + 23, log.indexOf("Showing"))
+    assert.equal(
+      shown,
+      [
+        "  index.ts:4  Expected 1 arguments, but got 0.",
+        "  index.ts:8  the second argument to .emits() is a function that fills the event's fields. To emit Failed too, chain .emits(Failed).",
+        "",
+      ].join("\n"),
+    )
   } finally {
     server.close()
     rmSync(dir, { recursive: true, force: true })

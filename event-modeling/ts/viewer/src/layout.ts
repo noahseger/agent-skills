@@ -175,7 +175,7 @@ export function parse(element: string): Element {
   }
 }
 
-/** `Name(a=1, b=[x, y])` or `Error: message` -> a name and one line per field. */
+/** `Name(a=1, b=[x, y], c={d=2})` or `Error: message` -> a name and one line per field. */
 export function parseClause(clause: string): { name: string; lines: string[]; error: boolean } {
   if (clause.startsWith("Error:")) {
     return { name: "Rejected", lines: [clause.slice("Error:".length).trim()], error: true }
@@ -186,8 +186,8 @@ export function parseClause(clause: string): { name: string; lines: string[]; er
   let depth = 0
   let current = ""
   for (const ch of clause.slice(open + 1, clause.lastIndexOf(")"))) {
-    if (ch === "[") depth++
-    if (ch === "]") depth--
+    if (ch === "[" || ch === "{") depth++
+    if (ch === "]" || ch === "}") depth--
     if (ch === "," && depth === 0) {
       lines.push(current)
       current = ""

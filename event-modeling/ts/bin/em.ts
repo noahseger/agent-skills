@@ -187,7 +187,8 @@ async function reload(path: string, types: Checker, changed?: string): Promise<S
     for (const w of warnings) console.log(`  ${w.message}`)
     return { json: JSON.stringify(count === 0 ? model : { ...model, warnings }) }
   }
-  const error = [(run.stderr || run.stdout).trimEnd(), ...errors].join("\n")
+  // A compiler error says where and why; the JavaScript error it caused only says what broke.
+  const error = errors.length > 0 ? errors.join("\n") : (run.stderr || run.stdout).trimEnd()
   console.log(`${stamp} ${cause} (${took}). The model didn't load:`)
   console.log(error.replace(/^/gm, "  "))
   return { error }

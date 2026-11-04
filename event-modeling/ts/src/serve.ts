@@ -1,7 +1,7 @@
 // `em view`: serves the viewer and the model, and tells the browser when to reload.
 import { existsSync, readFileSync, statSync, watch } from "node:fs"
 import { createServer, type ServerResponse } from "node:http"
-import { extname, join, normalize } from "node:path"
+import { basename, extname, join, normalize } from "node:path"
 
 /** The last assembly: the JSON it printed, or the error that stopped it. */
 export type Snapshot = { json: string; error?: undefined } | { error: string; json?: undefined }
@@ -73,7 +73,9 @@ export async function serve(options: ServeOptions): Promise<Server> {
   // One load at a time, so a slow load never overwrites a later save's.
   let loading = Promise.resolve()
   const watcher = watch(options.root, { recursive: true }, (_event, filename) => {
+    // A hidden file is an editor's temporary copy; the rename onto the model file follows it.
     if (!filename || filename.includes("node_modules") || pending) return
+    if (basename(filename.toString()).startsWith(".")) return
     pending = true
     setTimeout(() => {
       pending = false

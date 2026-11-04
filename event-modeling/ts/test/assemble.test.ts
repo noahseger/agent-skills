@@ -9,6 +9,7 @@ import { z } from "zod"
 import { m, type Slice } from "#em"
 
 import { assemble, assembleModules, load } from "../src/assemble.ts"
+import { layout } from "../viewer/src/layout.ts"
 
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url))
 
@@ -449,5 +450,66 @@ test("a name declared twice", () => {
   assert.throws(
     () => assembled(f, [twice("A"), twice("B")]),
     /Rename is declared twice\. Keep one and use it in both places\./,
+  )
+})
+
+test("an external system declared in two modules names both", async () => {
+  await assert.rejects(
+    load(here("./fixtures/external-twice"), { partial: true }),
+    /^Error: Mail is declared in both calendar\.ts and inbox\.ts\. Keep one and import it in the other\.$/,
+  )
+})
+
+test("a trigger nothing emits yet is drawn on its own", () => {
+  const f = fixture()
+  const Process = m.command({ id: z.string() })
+  const Processed = m.event({ id: z.string() })
+  const Ch = [m.slice("Processor").on(f.Created).command(Process).emits(Processed)]
+  const json = assembleModules(
+    [{ ...f, Process, Processed, default: m.model("x", { chapters: { Ch } }) }],
+    { partial: true },
+  )
+  assert.deepEqual(
+    json.loose?.find((l) => l.element.startsWith("Created")),
+    { kind: "event", element: "Created(id, name)", aggregate: "events" },
+  )
+  const { boxes, edges } = layout(json)
+  const id = (name: string) => boxes.find((b) => b.name === name)?.id
+  assert.ok(edges.some((e) => e.from === id("Created") && e.to === id("Processor")))
+})
+
+test("an example's nested values are printed", () => {
+  const f = fixture()
+  const Order = m.command({ id: z.string(), items: z.array(z.object({ name: z.string() })) })
+  const Ordered = m.event({ id: z.string(), items: z.array(z.object({ name: z.string() })) })
+  const slice = m
+    .slice()
+    .actor(f.User)
+    .service(f.Svc)
+    .command(Order)
+    .emits(Ordered)
+    .test("t", {
+      when: Order.with({ id: "1", items: [{ name: "a" }, { name: "b" }] }),
+      then: Ordered.with({ id: "1", items: [{ name: "a" }] }),
+    })
+  const json = assembleModules(
+    [{ Order, Ordered, ...f, default: m.model("x", { chapters: { Ch: [slice] } }) }],
+    { partial: true },
+  )
+  const t = json.chapters[0]?.slices[0]?.tests[0]
+  assert.deepEqual(
+    [t?.when, t?.then],
+    ["Order(id=1, items=[{name=a}, {name=b}])", ["Ordered(id=1, items=[{name=a}])"]],
+  )
+})
+
+// Last: the throw leaves an unfinished slice behind for the next assembly.
+test("a second event where .emits() takes a function", () => {
+  const f = fixture()
+  const Other = m.event({ id: z.string() })
+  assert.throws(
+    // @ts-expect-error the second argument is a mapping
+    () => m.slice().actor(f.User).service(f.Svc).command(f.Create).emits(f.Created, Other),
+    /^Error: The second argument to \.emits\(\) is a function that fills the event's fields\. To emit another event, chain another \.emits\(\)\.$/,
   )
 })
