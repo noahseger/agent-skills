@@ -30,9 +30,10 @@ import { m, z } from "@noahseger/event-modeling"
 
 ## How it fits together
 
-**Names come from exports.** You never write a name as a string. Export a declaration and the CLI
-uses the binding's name: `export const ListCreated = m.event(...)` is the event `ListCreated`.
-Names are CamelCase, and the diagram shows them as words. Any declaration accepts `.note("...")`.
+**Names come from exports.** Export a declaration and the CLI uses the binding's name:
+`export const ListCreated = m.event(...)` is the event `ListCreated`. A command or event can
+instead be declared where a slice uses it, named by a string. Names are CamelCase, and the diagram
+shows them as words. Any declaration accepts `.note("...")`.
 
 **Fields are [Zod](https://zod.dev) schemas.** Events, commands and read models declare their fields
 the same way. Zod types the example data in specifications and the generated messages.
@@ -52,7 +53,7 @@ a function. The editor offers only the calls that can come next.
 | automation | `.on().reads?().command().emits()` or `.polls().command().emits()` | An event, or a list of work, causes a command. No actor is involved. |
 | state view | `.projects().on()...` | Events build a read model. |
 
-`?` marks an optional call. A chain that stops before its last call is not a slice, and the chapter
+`?` marks an optional call. A chain that stops before its last call is not a slice, and a chapter
 rejects it.
 
 ## Quickstart
@@ -114,7 +115,7 @@ export const ListCreated = m.event({ listId: z.string(), userId: z.string(), nam
 export const AddItem   = m.command({ listId: z.string(), itemId: z.string(), text: z.string() })
 export const ItemAdded = m.event({ listId: z.string(), itemId: z.string(), title: z.string() })
 
-export const ListManagement = m.chapter([
+export const ListManagement = [
   m.slice()
     .actor(User)
     .service(TodoService)
@@ -126,12 +127,30 @@ export const ListManagement = m.chapter([
     .service(TodoService)
     .command(AddItem)
     .emits(ItemAdded, c => ({ title: c.text })),
-])
+]
 ```
+
+A chapter is an array of slices. Step 9 names it and puts it in order.
 
 In the first slice, every field of `ListCreated` has a namesake in `CreateList`, so nothing more is
 needed. In the second, the command says `text` and the event says `title`, so a function supplies the
 field that does not match. Fields that do match still flow on their own.
+
+A command or event can also be declared in the slice that uses it. The string is its name; it is
+drawn and checked like an exported one. A model can start from its commands this way:
+
+```ts
+m.slice()
+  .actor(User)
+  .service(TodoService)
+  .command("RenameList", { listId: z.string(), name: z.string() })
+  .emits("ListRenamed", { listId: z.string(), name: z.string() })
+```
+
+Export it once a specification needs `.with()` on it. Two declarations with one name are an error.
+
+A slice does not need a chapter to be drawn. Written on its own, as above, it is drawn after the
+story under "Not in a chapter yet" until a chapter lists it.
 
 A slice's column is headed by its command; by its read model when it projects one; by its service
 method when it is a view. Pass a name, `m.slice("StartList")`, only when that heading would say the
@@ -154,7 +173,7 @@ export const TodoList = m.readModel({
   status:    z.enum(["open", "completed", "deleted"]),
 })
 
-export const Views = m.chapter([
+export const Views = [
   m.slice()
     .projects(TodoList)
     .on(ListCreated, () => ({ itemCount: 0, status: "open" }))
@@ -167,7 +186,7 @@ export const Views = m.chapter([
     .query({ userId: z.string() })
     .reads(TodoList)
     .service(TodoService, "ListTodoLists"),
-])
+]
 ```
 
 `ListCreated` carries `userId`, `listId` and `name`, so those columns fill themselves. The function
@@ -247,13 +266,13 @@ An automation issues a command with no actor. It has two forms.
 export const CompleteList  = m.command({ listId: z.string() })
 export const ListCompleted = m.event({ listId: z.string() })
 
-export const Automations = m.chapter([
+export const Automations = [
   m.slice("ListCompleter")
     .on(ItemCompleted)
     .reads(ItemSearch)
     .command(CompleteList)
     .emits(ListCompleted),
-])
+]
 ```
 
 `.on()` starts the slice when the event occurs, and `listId` flows from the event into the command.
@@ -280,9 +299,9 @@ export const Calendar = m.external({
   TaskScheduled: m.event({ listId: z.string(), itemId: z.string(), text: z.string() }),
 })
 
-export const Integrations = m.chapter([
+export const Integrations = [
   m.slice().on(Calendar.TaskScheduled).command(AddItem).emits(ItemAdded, c => ({ title: c.text })),
-])
+]
 ```
 
 Declare the events of a system you do not own inside `m.external()`; each is named by its key.
@@ -316,13 +335,13 @@ import { Views, Automations, Integrations } from "./views.ts"
 
 export default m.model("Todo List Application", {
   description: "Users manage personal todo lists.",
-  chapters: [ListManagement, Views, Automations, Integrations],
+  chapters: { ListManagement, Views, Automations, Integrations },
 })
 ```
 
-Chapters are listed because their order is the timeline, and a module's exports come back in
-alphabetical order. Nothing else is listed. The CLI finds every other declaration by walking the
-directory. The worked example is `examples/todo-app/`.
+Each key names a chapter, and key order is the timeline. A chapter can also be written in place:
+`chapters: { Onboarding: [m.slice()...] }`. Nothing else is listed. The CLI finds every other
+declaration, and every slice, by walking the directory. The worked example is `examples/todo-app/`.
 
 ### 10. Look at it
 
@@ -337,8 +356,8 @@ npx em proto model -o proto
 file to share. `render` writes a still SVG; it needs python 3 with `pydantic`.
 
 You do not have to finish first. `view` draws a model as far as it goes: an event in no slice yet
-stands on its own in its lane, and what is left to do is listed above the picture. So the first
-thing to write is the events, in a stream, and look.
+stands on its own in its lane, a slice in no chapter yet is drawn after the story, and what is left
+to do is listed above the picture. So the first thing to write is the events, in a stream, and look.
 
 ## Validation
 
@@ -361,13 +380,14 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | What | Why the compiler cannot |
 |---|---|
 | A declaration used in a slice that no module exports, or one exported under two names | It has no name until it is exported. |
+| Two declarations with one name, such as `.emits("ListCreated", ...)` and an exported `ListCreated` | A name written in place is a string. |
 | A column no `.on()` writes | The columns are filled across several `.on()` calls. |
 | An event that carries none of the read model's key columns | Declarations are anonymous, so two events with the same fields are one type. |
 | An event nothing consumes: no `.on()`, no `given` | Same. |
 | An event no slice emits; a read model nothing reads or projects | Same. |
 | A slice that emits an external event | The group decides, and the group is a runtime value. |
 | Two slices claiming one service method | A union of literal types dedupes rather than counts. |
-| A declaration in no slice | Whether a value is used is not a type. |
+| A declaration in no slice, or a slice in no chapter | Whether a value is used is not a type. |
 
 `event_model.py` then checks the emitted JSON for what neither can: event names in the past tense,
 command names in the imperative, and example values that are not placeholders.

@@ -115,7 +115,7 @@ export const gameResigned = GameResigned.with({
   termination: "resignation",
 })
 
-export const DrawsAndResignation = m.chapter([
+export const DrawsAndResignation = [
   m
     .slice()
     .actor(Player)
@@ -209,7 +209,7 @@ export const DrawsAndResignation = m.chapter([
       }),
       then: gameResigned,
     }),
-])
+]
 
 export const Game = m.stream({
   OfferDraw,

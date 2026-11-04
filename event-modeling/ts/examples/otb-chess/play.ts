@@ -165,7 +165,7 @@ const clockStarted = ClockStarted.with({
   runningSide: "white",
 })
 
-export const Play = m.chapter([
+export const Play = [
   m
     .slice()
     .actor(Player)
@@ -385,7 +385,7 @@ export const Play = m.chapter([
         status: "struck",
       }),
     }),
-])
+]
 
 export const Game = m.stream({
   PlayMove,

@@ -40,7 +40,7 @@ const milk = ItemAdded.with({ userId: "u-1", listId: "list-1", itemId: "item-1",
 const milkDone = ItemCompleted.with({ listId: "list-1", itemId: "item-1" })
 const eggs = ItemAdded.with({ userId: "u-1", listId: "list-1", itemId: "item-2", title: "Eggs" })
 
-export const Views = m.chapter([
+export const Views = [
   m
     .slice()
     .projects(TodoList)
@@ -146,9 +146,9 @@ export const Views = m.chapter([
     .query({ text: z.string() })
     .reads(ItemSearch)
     .service(TodoService, "SearchItems"),
-])
+]
 
-export const Automations = m.chapter([
+export const Automations = [
   m
     .slice("ListCompleter")
     .on(ItemCompleted)
@@ -160,7 +160,7 @@ export const Automations = m.chapter([
       when: CompleteList.with({ listId: "list-1" }),
       then: ListCompleted.with({ listId: "list-1" }),
     }),
-])
+]
 
 // The calendar pushes a scheduled task in, and we translate it into an item.
 export const TaskScheduled = m.event({
@@ -171,13 +171,13 @@ export const TaskScheduled = m.event({
 })
 export const Calendar = m.external({ TaskScheduled })
 
-export const Integrations = m.chapter([
+export const Integrations = [
   m
     .slice()
     .on(TaskScheduled)
     .command(AddItem)
     .emits(ItemAdded, (c) => ({ title: c.text })),
-])
+]
 
 // The same lane as list-management.ts declares; the CLI merges them by name.
 export const Lists = m.stream({ CompleteList, ListCompleted })

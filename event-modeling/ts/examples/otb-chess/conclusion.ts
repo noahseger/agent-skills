@@ -127,7 +127,7 @@ const resultRecorded = ResultRecorded.with({
   termination: "agreement",
 })
 
-export const Conclusion = m.chapter([
+export const Conclusion = [
   m
     .slice()
     .actor(Player)
@@ -335,7 +335,7 @@ export const Conclusion = m.chapter([
         termination: "agreement",
       }),
     }),
-])
+]
 
 export const Game = m.stream({
   ClaimFlagFall,

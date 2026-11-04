@@ -370,6 +370,14 @@ test("a loose declaration is a column after the story, its card in its lane", ()
   assert.ok(storm.boxes.filter((b) => b.name === "ListCreated").every((b) => b.warned))
 })
 
+test("the slices in no chapter yet are the nameless chapter, titled as such", () => {
+  const slice = model.chapters[0]?.slices[0]
+  assert.ok(slice)
+  const storm = layout({ ...model, chapters: [...model.chapters, { name: "", slices: [slice] }] })
+  assert.equal(storm.chapters.at(-1)?.title, "Not in a chapter yet")
+  assert.equal(storm.columns.at(-1)?.chapter, storm.chapters.length - 1)
+})
+
 test("every actor gets a lane, and cards in one lane share a top edge", () => {
   const withIdle = layout({
     ...model,

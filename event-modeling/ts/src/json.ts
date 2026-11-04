@@ -58,6 +58,7 @@ export interface ModelJson {
   description: string
   actors: ActorJson[]
   aggregates: { id: string; name: string }[]
+  /** A partial assembly ends with a nameless one: the slices in no chapter yet. */
   chapters: { name: string; slices: SliceJson[] }[]
   notes: Record<string, string>
   /** Only a partial assembly has these: the model is still being written. */
@@ -103,7 +104,7 @@ function test(t: TestData): TestJson {
   }
 }
 
-export function toJson({ model, streams, loose, warnings }: Assembled): ModelJson {
+export function toJson({ model, streams, loose, unchaptered, warnings }: Assembled): ModelJson {
   const notes: Record<string, string> = {}
   const noted = (d: { name?: string; note?: string }) => {
     if (d.name !== undefined && d.note !== undefined) notes[d.name] = d.note
@@ -137,55 +138,56 @@ export function toJson({ model, streams, loose, warnings }: Assembled): ModelJso
     return actor.id
   }
 
-  const chapters = model.chapters.map((chapter) => ({
-    name: chapter.name ?? "",
-    slices: chapter.slices.map((slice): SliceJson => {
-      const out: Omit<SliceJson, "tests"> = {
-        name: slice.name ?? "",
-        actor: actorOf(slice),
-        aggregate: laneOf(slice),
-      }
-      const trigger = slice.on[0]?.event
-      const external = trigger?.external !== undefined
+  const sliceJson = (slice: SliceData): SliceJson => {
+    const out: Omit<SliceJson, "tests"> = {
+      name: slice.name ?? "",
+      actor: actorOf(slice),
+      aggregate: laneOf(slice),
+    }
+    const trigger = slice.on[0]?.event
+    const external = trigger?.external !== undefined
 
-      if (slice.service) {
-        const method = slice.service.method ?? slice.command?.name ?? ""
-        out.ui = `${slice.service.service.name}/${method}`
-        noted(slice.service.service)
-      }
-      if (trigger && external) out.external_event = element(trigger)
-      if ((trigger && !external && !slice.projects) || slice.polls) out.automation = out.name
-      if (trigger && !external) {
-        out.trigger = slice.projects ? slice.on.map((f) => element(f.event)) : element(trigger)
-      }
-      if (slice.command) {
-        out.command = element(slice.command)
-        noted(slice.command)
-      }
-      if (slice.emits.length > 0) out.events = slice.emits.map((f) => element(f.event))
-      if (slice.reads.length > 0) {
-        if (slice.command || trigger) out.reads = slice.reads.map((r) => r.name ?? "")
-        else out.read_models = slice.reads.map((r) => element(r))
-      }
-      if (slice.projects) out.read_models = [element(slice.projects)]
+    if (slice.service) {
+      const method = slice.service.method ?? slice.command?.name ?? ""
+      out.ui = `${slice.service.service.name}/${method}`
+      noted(slice.service.service)
+    }
+    if (trigger && external) out.external_event = element(trigger)
+    if ((trigger && !external && !slice.projects) || slice.polls) out.automation = out.name
+    if (trigger && !external) {
+      out.trigger = slice.projects ? slice.on.map((f) => element(f.event)) : element(trigger)
+    }
+    if (slice.command) {
+      out.command = element(slice.command)
+      noted(slice.command)
+    }
+    if (slice.emits.length > 0) out.events = slice.emits.map((f) => element(f.event))
+    if (slice.reads.length > 0) {
+      if (slice.command || trigger) out.reads = slice.reads.map((r) => r.name ?? "")
+      else out.read_models = slice.reads.map((r) => element(r))
+    }
+    if (slice.projects) out.read_models = [element(slice.projects)]
 
-      const json: SliceJson = { ...out, tests: slice.tests.map(test) }
-      if (slice.query) json.query = Object.keys(slice.query)
-      if (slice.polls) json.polls = slice.polls.name ?? ""
-      if (slice.note !== undefined) json.note = slice.note
-      const mapping = Object.fromEntries(
-        [...slice.emits, ...slice.on]
-          .filter((f) => Object.keys(f.mapping).length > 0)
-          .map((f) => [f.event.name ?? "", f.mapping]),
-      )
-      if (Object.keys(mapping).length > 0) json.mapping = mapping
+    const json: SliceJson = { ...out, tests: slice.tests.map(test) }
+    if (slice.query) json.query = Object.keys(slice.query)
+    if (slice.polls) json.polls = slice.polls.name ?? ""
+    if (slice.note !== undefined) json.note = slice.note
+    const mapping = Object.fromEntries(
+      [...slice.emits, ...slice.on]
+        .filter((f) => Object.keys(f.mapping).length > 0)
+        .map((f) => [f.event.name ?? "", f.mapping]),
+    )
+    if (Object.keys(mapping).length > 0) json.mapping = mapping
 
-      for (const d of [slice.actor, slice.projects, slice.polls, ...slice.reads]) if (d) noted(d)
-      for (const f of [...slice.emits, ...slice.on]) noted(f.event)
-      if (trigger?.external) noted(trigger.external)
-      return json
-    }),
-  }))
+    for (const d of [slice.actor, slice.projects, slice.polls, ...slice.reads]) if (d) noted(d)
+    for (const f of [...slice.emits, ...slice.on]) noted(f.event)
+    if (trigger?.external) noted(trigger.external)
+    return json
+  }
+  const chapters = [
+    ...model.chapters,
+    ...(unchaptered.length > 0 ? [{ name: "", slices: unchaptered }] : []),
+  ].map(({ name, slices }) => ({ name, slices: slices.map(sliceJson) }))
 
   const drawnLoose: LooseJson[] = []
   for (const d of loose) {

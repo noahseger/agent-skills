@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import type { ModelJson } from "../../src/json.ts"
-import { type Box, type Column, type Layout, parse, parseClause, words } from "./layout.ts"
+import { type Box, type Column, type Layout, parse, parseClause } from "./layout.ts"
 
 const props = defineProps<{
   box: Box | null
@@ -70,8 +70,8 @@ const groups = computed<Group[]>(() => {
         ? col.slice.tests
         : []
     if (tests.length === 0) continue
-    const chapter = props.layout.chapters[col.chapter]?.name ?? ""
-    out.push({ column: col.index, heading: `${words(chapter)} › ${col.title}`, tests })
+    const chapter = props.layout.chapters[col.chapter]?.title ?? ""
+    out.push({ column: col.index, heading: `${chapter} › ${col.title}`, tests })
   }
   return out
 })

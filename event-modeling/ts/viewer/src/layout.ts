@@ -385,7 +385,9 @@ export function layout(model: ModelJson): Layout {
       x += COL_W
     }
     if (chapter.slices.length === 0) x += COL_W
-    chapters.push({ name: chapter.name, title: words(chapter.name), x: start, w: x - start })
+    // Assembly leaves the slices in no chapter yet in a nameless one, last.
+    const title = chapter.name === "" ? "Not in a chapter yet" : words(chapter.name)
+    chapters.push({ name: chapter.name, title, x: start, w: x - start })
   })
   // A declaration in no slice yet gets its own column after the story.
   if (model.loose && model.loose.length > 0) {
