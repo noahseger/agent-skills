@@ -35,7 +35,7 @@ export const secondOffence = SecondIllegalMoveRuled.with({
   illegalMoveCount: 2,
 })
 
-export const ArbiterRulings = m.chapter([
+export const ArbiterRulings = [
   m
     .slice()
     .actor(Arbiter)
@@ -97,6 +97,6 @@ export const ArbiterRulings = m.chapter([
         illegalMoveCount: 2,
       }),
     }),
-])
+]
 
 export const Game = m.stream({ SecondIllegalMoveRuled })

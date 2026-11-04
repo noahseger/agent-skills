@@ -10,6 +10,7 @@ import {
   type ChapterData,
   type DeclData,
   type DeclKind,
+  DRAFTS,
   type ExampleData,
   type ExternalData,
   type Fields,
@@ -214,7 +215,7 @@ export interface Slice {
   readonly [META]: SliceData
 }
 
-/** Makes the `m.chapter()` error name the missing step. */
+/** Makes the error in `m.model()`'s chapters name the missing step. */
 export interface Unfinished<Next extends string> {
   readonly "finish this slice with": Next
 }
@@ -269,27 +270,34 @@ export interface View extends Slice {
   note(text: string): View
 }
 
-export interface ViewOrCommand extends View {
+/** `.command(Command)`, or `.command("Name", fields)` to declare it here. */
+interface Commands {
   command<C extends Fields>(command: CommandDecl<C>): NeedsEmits<C>
+  command<C extends Fields>(name: string, fields: C): NeedsEmits<C>
 }
 
-export interface NeedsCommand extends Unfinished<".command(Command)"> {
-  command<C extends Fields>(command: CommandDecl<C>): NeedsEmits<C>
+/** `.emits(Event)`, or `.emits("Name", fields)` to declare it here; `Em` is what came before. */
+interface Emits<C extends Fields, Em extends Fields> {
+  emits<E extends Fields>(event: EventDecl<E> & FilledBy<C, E>): Complete<C, Em | E>
+  emits<E extends Fields>(event: EventDecl<E>, map: FillsRest<C, E>): Complete<C, Em | E>
+  emits<E extends Fields>(name: string, fields: E & FilledBy<C, E>): Complete<C, Em | E>
+  emits<E extends Fields>(name: string, fields: E, map: FillsRest<C, E>): Complete<C, Em | E>
 }
+
+export interface ViewOrCommand extends View, Commands {}
+
+export interface NeedsCommand extends Unfinished<".command(Command)">, Commands {}
 
 export interface NeedsCommandOrReads extends NeedsCommand {
   /** What the decision looks at; once per read model. */
   reads(readModel: ReadModelDecl): NeedsCommandOrReads
 }
 
-export interface NeedsEmits<C extends Fields> extends Unfinished<".emits(Event)"> {
-  emits<E extends Fields>(event: EventDecl<E> & FilledBy<C, E>): Complete<C, E>
-  emits<E extends Fields>(event: EventDecl<E>, map: FillsRest<C, E>): Complete<C, E>
-}
+export interface NeedsEmits<C extends Fields>
+  extends Unfinished<".emits(Event)">,
+    Emits<C, never> {}
 
-export interface Complete<C extends Fields, Em extends Fields> extends Slice {
-  emits<E extends Fields>(event: EventDecl<E> & FilledBy<C, E>): Complete<C, Em | E>
-  emits<E extends Fields>(event: EventDecl<E>, map: FillsRest<C, E>): Complete<C, Em | E>
+export interface Complete<C extends Fields, Em extends Fields> extends Slice, Emits<C, Em> {
   test(name: string, spec: Spec<C, Em>): Complete<C, Em>
   note(text: string): Complete<C, Em>
 }
@@ -319,9 +327,21 @@ function testData(name: string, spec: Partial<Spec<Fields, Fields>>): TestData {
   return test
 }
 
-// Each step copies, so a shared chain prefix can start several slices.
+/** A declaration written in place, named by its string. */
+function named<K extends DeclKind>(kind: K, name: string, fields: Fields): DeclData {
+  const data = decl(kind, fields)[META]
+  data.name = name
+  return data
+}
+
+// Each step copies, so a shared chain prefix can start several slices. The
+// steps nothing extends are the slices, so assembly finds one in no chapter.
 function chain(data: SliceData) {
-  const next = (patch: Partial<SliceData>) => chain({ ...data, ...patch })
+  DRAFTS.add(data)
+  const next = (patch: Partial<SliceData>) => {
+    DRAFTS.delete(data)
+    return chain({ ...data, ...patch })
+  }
   return {
     [META]: data,
     actor: (actor: Actor) => next({ actor: actor[META] }),
@@ -332,9 +352,20 @@ function chain(data: SliceData) {
         service:
           method === undefined ? { service: service[META] } : { service: service[META], method },
       }),
-    command: (command: CommandDecl) => next({ command: command[META] }),
-    emits: (event: EventDecl, map?: (source: never) => object) =>
-      next({ emits: [...data.emits, flow(event[META], data.command?.fields ?? {}, map)] }),
+    command: (command: CommandDecl | string, fields: Fields = {}) =>
+      next({
+        command: typeof command === "string" ? named("command", command, fields) : command[META],
+      }),
+    emits: (
+      event: EventDecl | string,
+      ...rest: [map?: (source: never) => object] | [fields: Fields, map?: (source: never) => object]
+    ) => {
+      const [emitted, map] =
+        typeof event === "string"
+          ? [named("event", event, rest[0] as Fields), rest[1]]
+          : [event[META], rest[0] as ((source: never) => object) | undefined]
+      return next({ emits: [...data.emits, flow(emitted, data.command?.fields ?? {}, map)] })
+    },
     on: (event: EventDecl, map?: (source: never) => object) =>
       next({ on: [...data.on, flow(event[META], event[META].fields, map)] }),
     polls: (readModel: ReadModelDecl) => next({ polls: readModel[META] }),
@@ -353,44 +384,36 @@ function slice(name?: string): SliceStart {
 }
 
 // ---------------------------------------------------------------------------
-// Chapters and the model
+// The model
 // ---------------------------------------------------------------------------
 
-export interface Chapter {
-  readonly [META]: ChapterData
-}
+/** An unfinished slice fails here, naming its missing step. Distributes over an array's union. */
+type Finished<S> = S extends Slice
+  ? S
+  : S extends Unfinished<infer Next>
+    ? `finish this slice with ${Next}`
+    : Slice
 
-/** An unfinished slice fails here, naming its missing step. */
-type Finished<T> = {
-  [K in keyof T]: T[K] extends Slice
-    ? T[K]
-    : T[K] extends Unfinished<infer Next>
-      ? `finish this slice with ${Next}`
-      : Slice
-}
-
-function chapter<const T extends readonly unknown[]>(slices: T & Finished<T>): Chapter {
-  const finished = slices as unknown as readonly Slice[]
-  return { [META]: { kind: "chapter", slices: finished.map((s) => s[META]) } }
-}
+// Generic over the array, so the mapping keeps it an array.
+type Slices<T> = { [I in keyof T]: Finished<T[I]> }
+type Chapters<C> = { [K in keyof C]: Slices<C[K]> }
 
 export interface Model {
   readonly [META]: ModelData
 }
 
-/** Chapters in timeline order; none while storming. */
-function model(
+/** Each chapter is named by its key, in timeline order; none while storming. */
+function model<const C extends Record<string, readonly unknown[]>>(
   name: string,
-  spec: { description?: string; chapters?: readonly Chapter[] } = {},
+  spec: { description?: string; chapters?: C & Chapters<C> } = {},
 ): Model {
-  return {
-    [META]: {
-      kind: "model",
+  const chapters = Object.entries(spec.chapters ?? {}).map(
+    ([name, slices]): ChapterData => ({
       name,
-      description: spec.description ?? "",
-      chapters: (spec.chapters ?? []).map((c) => c[META]),
-    },
-  }
+      slices: (slices as readonly Slice[]).map((s) => s[META]),
+    }),
+  )
+  return { [META]: { kind: "model", name, description: spec.description ?? "", chapters } }
 }
 
 export const m = {
@@ -405,6 +428,5 @@ export const m = {
   external,
   stream,
   slice,
-  chapter,
   model,
 }

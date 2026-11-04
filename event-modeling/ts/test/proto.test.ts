@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
 import { z } from "zod"
-import { m } from "#em"
+import { m, type Slice } from "#em"
 
 import { load } from "../src/assemble.ts"
 import { generateProto } from "../src/proto.ts"
@@ -28,7 +28,7 @@ test("the checked-in proto is what the model generates", async () => {
 const User = m.actor()
 const Svc = m.service("t.v1")
 
-type Slices = Parameters<typeof m.chapter>[0]
+type Slices = Slice[]
 
 /** A one-service model of `slices`; `exports` are named as a module would name them. */
 function modelOf(
@@ -36,7 +36,7 @@ function modelOf(
   ...slices: Slices
 ): ModelData {
   for (const [name, decl] of Object.entries({ Svc, ...exports })) decl[META].name = name
-  return m.model("x", { chapters: [m.chapter(slices)] })[META]
+  return m.model("x", { chapters: { Ch: slices } })[META]
 }
 
 const source = (model: ModelData) => generateProto(model)[0]?.source ?? ""
@@ -50,6 +50,13 @@ test("field numbers follow declaration order", () => {
     source(modelOf({ Create }, stateChange(Create))),
     /message CreateRequest \{\n {2}string user_id = 1;\n {2}string list_id = 2;\n {2}string name = 3;\n\}/,
   )
+})
+
+test("a command declared in place generates like an exported one", () => {
+  const slice = m.slice().actor(User).service(Svc).command("Rename", { name: z.string() })
+  const proto = source(modelOf({}, slice.emits(m.event({}))))
+  assert.match(proto, /rpc Rename\(RenameRequest\) returns \(RenameResponse\);/)
+  assert.match(proto, /message RenameRequest \{\n {2}string name = 1;\n\}/)
 })
 
 test("every Zod type in the table maps as documented", () => {

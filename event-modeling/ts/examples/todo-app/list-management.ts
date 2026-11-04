@@ -45,7 +45,7 @@ export const ListDeleted = m.event({ listId: z.string() })
 const groceries = ListCreated.with({ listId: "list-1", userId: "u-1", name: "Groceries" })
 const milk = ItemAdded.with({ userId: "u-1", listId: "list-1", itemId: "item-1", title: "Milk" })
 
-export const ListManagement = m.chapter([
+export const ListManagement = [
   m
     .slice()
     .actor(User)
@@ -118,7 +118,7 @@ export const ListManagement = m.chapter([
       when: DeleteList.with({ listId: "list-1" }),
       then: ListDeleted.with({ listId: "list-1" }),
     }),
-])
+]
 
 // Two lanes in the diagram: what happens to lists, and what happens to items.
 export const Lists = m.stream({ CreateList, ListCreated, DeleteList, ListDeleted })

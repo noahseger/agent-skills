@@ -39,10 +39,15 @@ m.slice().emits(ListCreated)
 m.slice().on(ListCreated).actor(User)
 
 // @ts-expect-error a chain that stops at the command is not a slice
-m.chapter([m.slice().actor(User).service(TodoService).command(CreateList)])
+m.model("x", { chapters: { Ch: [m.slice().actor(User).service(TodoService).command(CreateList)] } })
 
 // @ts-expect-error a projection with no .on() is not a slice
-m.chapter([m.slice().projects(TodoList)])
+m.model("x", { chapters: { Ch: [m.slice().projects(TodoList)] } })
+
+// A chapter written in another module, `export const Sync = [...]`, is checked the same.
+const Sync = [m.slice().actor(User).service(TodoService).command(CreateList)]
+// @ts-expect-error a chain that stops at the command is not a slice
+m.model("x", { chapters: { Sync } })
 
 // The error names the missing step. These lines compile only while it does.
 const stopsAtCommand = m.slice().actor(User).service(TodoService).command(CreateList)
@@ -71,13 +76,32 @@ m.slice().actor(User).service(TodoService).command(AddItem).emits(ItemAdded, (c)
 // @ts-expect-error the argument is the command's fields, and AddItem has no name
 m.slice().actor(User).service(TodoService).command(AddItem).emits(ItemAdded, (c) => ({ title: c.name }))
 
+// --- a declaration written in place is checked like one declared apart -------
+
+// @ts-expect-error inline AddItem has no title, so inline ItemAdded.title has no value
+m.slice().actor(User).service(TodoService).command("AddItem", { text: z.string() }).emits("ItemAdded", { title: z.string() })
+
+// @ts-expect-error inline AddItem has no title, so ItemAdded.title has no value
+m.slice().actor(User).service(TodoService).command("AddItem", { listId: z.string() }).emits(ItemAdded)
+
+// @ts-expect-error CreateList has no title, so inline ItemAdded.title has no value
+m.slice().actor(User).service(TodoService).command(CreateList).emits("ItemAdded", { title: z.string() })
+
+// @ts-expect-error the mapping must set title, which inline AddItem lacks
+m.slice().actor(User).service(TodoService).command("AddItem", { text: z.string() }).emits("ItemAdded", { title: z.string() }, () => ({}))
+
+m.slice().actor(User).service(TodoService).command("AddItem", { text: z.string() }).emits("ItemAdded", { title: z.string() }, (c) => ({ title: c.text }))
+m.slice().actor(User).service(TodoService).command(CreateList).emits("ListNamed", { name: z.string() })
+m.slice().on(ListCreated).command("Archive", { listId: z.string() }).emits("Archived", { listId: z.string() })
+m.slice().polls(TodoList).command("Remind", { listId: z.string() }).emits(ListCreated, () => ({ name: "" }))
+
 // @ts-expect-error TodoList has no column done
 m.slice().projects(TodoList).on(ListCreated, () => ({ done: true }))
 
 // --- .service(): a view names its method -------------------------------------
 
 // @ts-expect-error stopping at .service() with no method is not a slice
-m.chapter([m.slice().actor(User).reads(TodoList).service(TodoService)])
+m.model("x", { chapters: { Ch: [m.slice().actor(User).reads(TodoList).service(TodoService)] } })
 
 // --- .test() -----------------------------------------------------------------
 

@@ -3,6 +3,13 @@ import type { z } from "zod"
 
 export const META = Symbol.for("event-modeling")
 
+// On globalThis, like META, so a model and a CLI holding two copies of the package share it.
+const DRAFTS_KEY: unique symbol = Symbol.for("event-modeling.drafts")
+const shared = globalThis as { [DRAFTS_KEY]?: Set<SliceData> }
+shared[DRAFTS_KEY] ??= new Set()
+/** Every chain step nothing has extended yet: the slices, in or out of a chapter. */
+export const DRAFTS: Set<SliceData> = shared[DRAFTS_KEY]
+
 export type Fields = Record<string, z.ZodType>
 
 export type DeclKind = "event" | "command" | "readModel"
@@ -46,8 +53,8 @@ export interface ExternalData extends Named {
   events: DeclData[]
 }
 
-export interface ChapterData extends Named {
-  kind: "chapter"
+export interface ChapterData {
+  name: string
   slices: SliceData[]
 }
 
@@ -58,16 +65,9 @@ export interface ModelData {
   chapters: ChapterData[]
 }
 
-export type Exported =
-  | DeclData
-  | ActorData
-  | ServiceData
-  | StreamData
-  | ExternalData
-  | ChapterData
-  | ModelData
+export type Exported = DeclData | ActorData | ServiceData | StreamData | ExternalData | ModelData
 
-/** A named thing a module exports, other than the model, a stream or a chapter. */
+/** A named thing a module exports, other than the model or a stream. */
 export type Declaration = DeclData | ActorData | ServiceData | ExternalData
 
 /** The named, checked model. The render target and the generators read this. */
@@ -76,6 +76,8 @@ export interface Assembled {
   streams: Map<string, DeclData[]>
   /** Exported but in no slice. Only a partial assembly keeps them; otherwise one is an error. */
   loose: Declaration[]
+  /** Slices in no chapter, likewise. */
+  unchaptered: SliceData[]
   /** The dead ends a partial assembly went on past. Empty otherwise. */
   warnings: Warning[]
 }

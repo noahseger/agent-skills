@@ -109,7 +109,7 @@ export const gameStarted = GameStarted.with({
   ply: 0,
 })
 
-export const GameSetup = m.chapter([
+export const GameSetup = [
   m
     .slice("ReceivePairing")
     .on(PairingPublished)
@@ -173,7 +173,7 @@ export const GameSetup = m.chapter([
         runningSide: "white",
       }),
     }),
-])
+]
 
 // Two lanes: what happens to the game, and what happens to the clock.
 export const Game = m.stream({ StartGame, GameStarted })

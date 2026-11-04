@@ -6,7 +6,7 @@ import { GameRecord } from "./conclusion.ts"
 import { GameState, MoveList } from "./play.ts"
 import { ChessService, Spectator } from "./setup.ts"
 
-export const Spectating = m.chapter([
+export const Spectating = [
   m
     .slice()
     .actor(Spectator)
@@ -23,4 +23,4 @@ export const Spectating = m.chapter([
     .reads(GameRecord)
     .service(ChessService, "GetCrosstable")
     .note("The finished games of a round."),
-])
+]

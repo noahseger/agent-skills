@@ -6,9 +6,9 @@ import { pathToFileURL } from "node:url"
 import { type ModelJson, toJson } from "./json.ts"
 import {
   type Assembled,
-  type ChapterData,
   type Declaration,
   type DeclData,
+  DRAFTS,
   type Exported,
   type Flow,
   META,
@@ -37,15 +37,20 @@ export function assembleModules(modules: readonly object[], options: Options = {
   return toJson(loadModules(modules, options))
 }
 
+/** A module runs once per process, so a second load of the same files finds no slice in no chapter. */
 export async function load(path: string, options: Options = {}): Promise<Assembled> {
   const files = statSync(path).isDirectory() ? walk(path) : [path]
+  DRAFTS.clear()
   const modules: object[] = await Promise.all(
     files.map((f) => import(pathToFileURL(resolve(f)).href) as Promise<object>),
   )
   return loadModules(modules, options)
 }
 
+/** Takes the slices written since the last assembly, so one model's never reach the next. */
 export function loadModules(modules: readonly object[], options: Options = {}): Assembled {
+  const drafts = [...DRAFTS]
+  DRAFTS.clear()
   const { model, streams, declared } = nameExports(modules)
   const warnings: Warning[] = []
   const fail: Fail = options.partial
@@ -55,10 +60,16 @@ export function loadModules(modules: readonly object[], options: Options = {}): 
     : (warning) => {
         throw new Error(warning.message)
       }
-  check(model, fail)
-  const loose = looseOf(model, streams, declared)
+  const chaptered = new Set(model.chapters.flatMap((c) => c.slices))
+  const unchaptered = drafts.filter((s) => !chaptered.has(s))
+  check(model, unchaptered, declared, fail)
+  for (const s of unchaptered) {
+    const name = s.name ?? "A slice"
+    fail({ message: `${name} isn't in a chapter yet.`, element: "", slice: s.name ?? "" })
+  }
+  const loose = looseOf([...chaptered, ...unchaptered], streams, declared)
   for (const d of loose) fail({ message: `${d.name} isn't in a slice yet.`, element: d.name ?? "" })
-  return { model, streams, loose, warnings }
+  return { model, streams, loose, unchaptered, warnings }
 }
 
 /** The model's own modules under `dir`. */
@@ -108,11 +119,9 @@ function nameExports(modules: readonly object[]): {
         for (const e of data.events) if (!declared.includes(e)) declared.push(e)
       } else if (data.name !== undefined && data.name !== key) {
         throw new Error(`${data.name} is exported twice, also as ${key}. Keep one.`)
-      } else if (data.kind !== "chapter") {
-        data.name = key
-        if (!declared.includes(data)) declared.push(data)
       } else {
         data.name = key
+        if (!declared.includes(data)) declared.push(data)
       }
     }
   }
@@ -123,14 +132,12 @@ function nameExports(modules: readonly object[]): {
 
 /** Declarations in no slice yet, stream members first. */
 function looseOf(
-  model: ModelData,
+  slices: SliceData[],
   streams: Map<string, DeclData[]>,
   declared: Declaration[],
 ): Declaration[] {
   const inUse = new Set<object>()
-  for (const chapter of model.chapters) {
-    for (const slice of chapter.slices) for (const [, d] of used(slice)) inUse.add(d)
-  }
+  for (const slice of slices) for (const [, d] of used(slice)) inUse.add(d)
   const members = [...streams.values()].flat()
   const ordered = [...members, ...declared.filter((d) => !members.includes(d as DeclData))]
   return ordered.filter((d) => !inUse.has(d))
@@ -154,8 +161,17 @@ interface Located {
   where: string
 }
 
-function check(model: ModelData, fail: Fail): void {
-  const located = model.chapters.flatMap((chapter, i) => locate(chapter, i))
+function check(
+  model: ModelData,
+  unchaptered: SliceData[],
+  declared: Declaration[],
+  fail: Fail,
+): void {
+  const located = [
+    ...model.chapters.flatMap((chapter) => locate(chapter.name, chapter.slices)),
+    ...locate(undefined, unchaptered),
+  ]
+  checkDeclaredOnce(located, declared)
   for (const at of located) {
     checkFilled(at, fail)
     checkKeys(at, fail)
@@ -165,14 +181,11 @@ function check(model: ModelData, fail: Fail): void {
   checkMethods(located)
 }
 
-function locate(chapter: ChapterData, index: number): Located[] {
-  if (chapter.name === undefined) {
-    throw new Error(
-      `Chapter ${index + 1} needs a name. Export it: \`export const Name = m.chapter([...])\`.`,
-    )
-  }
-  return chapter.slices.map((slice, i) => {
-    const where = `${chapter.name} › slice ${i + 1}`
+/** `chapter` is undefined for the slices in none yet. */
+function locate(chapter: string | undefined, slices: SliceData[]): Located[] {
+  const at = (slice: string) => (chapter === undefined ? slice : `${chapter} › ${slice}`)
+  return slices.map((slice, i) => {
+    const where = chapter === undefined ? "A slice in no chapter" : at(`slice ${i + 1}`)
     // The slice is named after its declarations, so until they are checked
     // `where` is its position.
     for (const [kind, d] of used(slice)) {
@@ -188,8 +201,21 @@ function locate(chapter: ChapterData, index: number): Located[] {
       slice.service?.method ??
       slice.reads[0]?.name
     if (slice.name === undefined && heading !== undefined) slice.name = heading
-    return { slice, where: `${chapter.name} › ${slice.name}` }
+    return { slice, where: slice.name === undefined ? where : at(slice.name) }
   })
+}
+
+/** A declaration written in place is not an export, so two can share a name. */
+function checkDeclaredOnce(located: Located[], declared: Declaration[]): void {
+  const byName = new Map<string, object>()
+  const all = [...declared, ...located.flatMap(({ slice }) => used(slice).map(([, d]) => d))]
+  for (const d of all) {
+    if (d.name === undefined) continue
+    const first = byName.get(d.name)
+    if (first !== undefined && first !== d)
+      throw new Error(`${d.name} is declared twice. Keep one and use it in both places.`)
+    byName.set(d.name, d)
+  }
 }
 
 /** Everything a slice refers to, with the word an error uses for it. */
@@ -361,7 +387,7 @@ function checkConnected(located: Located[], fail: Fail): void {
 function checkMethods(located: Located[]): void {
   const claimed = new Map<string, string>()
   for (const { slice, where } of located) {
-    if (!slice.service) continue
+    if (!slice.service || (slice.service.method ?? slice.command) === undefined) continue
     const method = `${slice.service.service.name}/${slice.service.method ?? slice.command?.name}`
     const first = claimed.get(method)
     if (first !== undefined)

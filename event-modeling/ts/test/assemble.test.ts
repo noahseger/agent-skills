@@ -6,7 +6,7 @@ import { join } from "node:path"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
 import { z } from "zod"
-import { m } from "#em"
+import { m, type Slice } from "#em"
 
 import { assemble, assembleModules, load } from "../src/assemble.ts"
 
@@ -59,9 +59,8 @@ const projectTable = project
 const view = (f: Fixture) => m.slice().actor(f.User).reads(f.Table).service(f.Svc, "Get")
 
 /** One module exporting `exports` and a model of one chapter, `Ch`. */
-function assembled(exports: Record<string, unknown>, slices: Parameters<typeof m.chapter>[0]) {
-  const Ch = m.chapter(slices)
-  return assembleModules([{ ...exports, Ch, default: m.model("x", { chapters: [Ch] }) }])
+function assembled(exports: Record<string, unknown>, slices: readonly Slice[]) {
+  return assembleModules([{ ...exports, default: m.model("x", { chapters: { Ch: slices } }) }])
 }
 
 test("a well-formed model assembles", () => {
@@ -113,8 +112,8 @@ test("an event field the command does not carry", () => {
 test("a model still being written draws with a field that has no value", () => {
   const f = fixture()
   const Created = m.event({ id: z.string(), name: z.string(), extra: z.string() })
-  const Ch = m.chapter([create({ ...f, Created })])
-  const json = assembleModules([{ ...f, Created, Ch, default: m.model("x", { chapters: [Ch] }) }], {
+  const Ch = [create({ ...f, Created })]
+  const json = assembleModules([{ ...f, Created, default: m.model("x", { chapters: { Ch } }) }], {
     partial: true,
   })
   assert.equal(json.chapters[0]?.slices.length, 1)
@@ -236,9 +235,9 @@ test("a .polls() automation has the read model as its trigger", () => {
 
 test("same-named streams from two modules are one lane", () => {
   const f = fixture()
-  const Ch = m.chapter([create(f), project(f), view(f)])
+  const Ch = [create(f), project(f), view(f)]
   const json = assembleModules([
-    { ...f, Ch, default: m.model("x", { chapters: [Ch] }) },
+    { ...f, default: m.model("x", { chapters: { Ch } }) },
     { Inventory: m.stream({ Create: f.Create }) },
     { Inventory: m.stream({ Created: f.Created }) },
   ])
@@ -293,9 +292,9 @@ test("a partial assembly lists the dead ends and keeps the loose declarations in
   const Started = m.event({ id: z.string() })
   const Ended = m.event({ id: z.string() })
   const Games = m.stream({ Started, Ended })
-  const Ch = m.chapter([create(f)])
+  const Ch = [create(f)]
   const json = assembleModules(
-    [{ ...f, Ended, Started, Games, Ch, default: m.model("x", { chapters: [Ch] }) }],
+    [{ ...f, Ended, Started, Games, default: m.model("x", { chapters: { Ch } }) }],
     { partial: true },
   )
   assert.deepEqual(json.warnings, [
@@ -319,11 +318,10 @@ test("a partial assembly lists the dead ends and keeps the loose declarations in
 test("an actor in no slice is still one of the model's actors", () => {
   const f = fixture()
   const Bartender = m.actor()
-  const Ch = m.chapter([create(f)])
-  const json = assembleModules(
-    [{ ...f, Bartender, Ch, default: m.model("x", { chapters: [Ch] }) }],
-    { partial: true },
-  )
+  const Ch = [create(f)]
+  const json = assembleModules([{ ...f, Bartender, default: m.model("x", { chapters: { Ch } }) }], {
+    partial: true,
+  })
   assert.deepEqual(
     json.actors.map((a) => a.id),
     ["user", "bartender"],
@@ -337,13 +335,119 @@ test("an event declared inside m.external is named by its key and drawn in the s
   })
   const Connect = m.command({ accessToken: z.string() })
   const Connected = m.event({ accessToken: z.string() })
-  const Ch = m.chapter([m.slice().on(Notion.Authenticated).command(Connect).emits(Connected)])
+  const Ch = [m.slice().on(Notion.Authenticated).command(Connect).emits(Connected)]
   const json = assembleModules(
-    [{ Notion, Connect, Connected, Ch, default: m.model("x", { chapters: [Ch] }) }],
+    [{ Notion, Connect, Connected, default: m.model("x", { chapters: { Ch } }) }],
     { partial: true },
   )
   assert.equal(json.chapters[0]?.slices[0]?.external_event, "Authenticated(accessToken)")
   assert.deepEqual(json.loose, [
     { kind: "external", element: "NoteSynced(notionId)", aggregate: "events", actor: "notion" },
   ])
+})
+
+// --- Slices in no chapter, and declarations written in place ------------------
+
+test("a slice in no chapter is drawn after the story, finished or not", () => {
+  const f = fixture()
+  const base = m.slice().actor(f.User).service(f.Svc)
+  base.command(f.Create).emits(f.Created)
+  base.command("Rename", { id: z.string(), name: z.string() }).emits(f.Created)
+  m.slice().projects(f.Table)
+  const json = assembleModules([{ ...f, default: m.model("x") }], { partial: true })
+  // The shared prefix is not a slice of its own.
+  assert.deepEqual(
+    json.chapters.map((c) => [c.name, c.slices.map((s) => s.name)]),
+    [["", ["Create", "Rename", "Table"]]],
+  )
+  assert.deepEqual(
+    json.warnings?.filter((w) => w.message.endsWith("isn't in a chapter yet.")),
+    ["Create", "Rename", "Table"].map((name) => ({
+      message: `${name} isn't in a chapter yet.`,
+      element: "",
+      slice: name,
+    })),
+  )
+})
+
+test("a slice in no chapter is an error", () => {
+  const f = fixture()
+  view(f)
+  assert.throws(() => assembled(f, [create(f), project(f)]), /Get isn't in a chapter yet\./)
+})
+
+test("an assembly sees only the slices written since the last one", () => {
+  const f = fixture()
+  create(f)
+  const first = assembleModules([{ ...f, default: m.model("x") }], { partial: true })
+  assert.equal(first.chapters[0]?.slices.length, 1)
+  const second = assembleModules([{ ...f, default: m.model("x") }], { partial: true })
+  assert.deepEqual(second.chapters, [])
+})
+
+test("loading a model from files sees only the slices its modules write", async () => {
+  const f = fixture()
+  create(f)
+  const { unchaptered } = await load(here("./fixtures/storming"), { partial: true })
+  assert.deepEqual(
+    unchaptered.map((s) => [s.name, s.emits.map((e) => e.event.name)]),
+    [["CreateNote", ["NoteCreated"]]],
+  )
+})
+
+test("a command and event declared in place are drawn and checked like exported ones", () => {
+  const f = fixture()
+  const rename = m
+    .slice()
+    .actor(f.User)
+    .service(f.Svc)
+    .command("Rename", { id: z.string(), name: z.string() })
+    .emits("Renamed", { id: z.string(), name: z.string() })
+  const json = assembleModules(
+    [
+      {
+        ...f,
+        default: m.model("x", { chapters: { Ch: [create(f), rename, project(f), view(f)] } }),
+      },
+    ],
+    { partial: true },
+  )
+  const slice = json.chapters[0]?.slices[1]
+  assert.deepEqual(
+    [slice?.ui, slice?.command, slice?.events],
+    ["Svc/Rename", "Rename(id, name)", ["Renamed(id, name)"]],
+  )
+  assert.deepEqual(json.warnings, [
+    {
+      message:
+        "Ch › Rename: nothing uses Renamed yet. Add .on(Renamed) where something reacts to it.",
+      element: "Renamed",
+      slice: "Rename",
+    },
+  ])
+})
+
+test("a name declared twice", () => {
+  const f = fixture()
+  const again = m
+    .slice()
+    .actor(f.User)
+    .service(f.Svc, "Again")
+    .command(f.Create)
+    .emits("Created", { id: z.string() })
+  assert.throws(
+    () => assembled(f, [create(f), again, project(f), view(f)]),
+    /Created is declared twice\. Keep one and use it in both places\./,
+  )
+  const twice = (method: string) =>
+    m
+      .slice()
+      .actor(f.User)
+      .service(f.Svc, method)
+      .command("Rename", { id: z.string(), name: z.string() })
+      .emits(f.Created)
+  assert.throws(
+    () => assembled(f, [twice("A"), twice("B")]),
+    /Rename is declared twice\. Keep one and use it in both places\./,
+  )
 })
