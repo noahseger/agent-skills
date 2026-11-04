@@ -41,6 +41,10 @@ test("parseClause gives one line per field, and a rejection its message", () => 
     lines: ["listId = list-1", "tags = [a, b]"],
     error: false,
   })
+  assert.deepEqual(parseClause("Ordered(items=[{name=a, qty=2}], to={city=b, zip=c})").lines, [
+    "items = [{name=a, qty=2}]",
+    "to = {city=b, zip=c}",
+  ])
   assert.deepEqual(parseClause("Error: maximum 3 items per list"), {
     name: "Rejected",
     lines: ["maximum 3 items per list"],

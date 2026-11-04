@@ -96,6 +96,7 @@ function modelFiles(dir: string): string[] {
 
 const MISSING = /"add to the command or set in the mapping": ("\w+"(?: \| "\w+")*)/
 const STEP = /"(finish this slice with [^"]+)"/
+const LAST_OVERLOAD = "The last overload gave the following error."
 
 /** `file:line  message`. The package's own type errors become the instruction they carry. */
 function describe(d: Diagnostic, text: string, file: string): string {
@@ -113,5 +114,18 @@ function describe(d: Diagnostic, text: string, file: string): string {
     const last = text.slice(d.pos, d.end).match(/\.\w+\([^()]*\)$/)?.[0]
     return last ? `${at(d.end - last.length)}${last}: ${step}` : `${at(d.pos)}${step}`
   }
-  return `${at(d.pos)}${d.text.split("\n")[0]}`
+  // A failed overload call heads a chain; the last overload's reason is the line after it.
+  const lines = messages(d)
+  // An event where the mapping goes: `.emits(A, B)`.
+  if (lines.some((l) => l.includes("parameter of type 'FillsRest<"))) {
+    const arg = text.slice(d.pos, d.end)
+    return `${at(d.pos)}the second argument to .emits() is a function that fills the event's fields. To emit ${arg} too, chain .emits(${arg}).`
+  }
+  // The last overload is the declaration form, the one written most.
+  const last = lines.indexOf(LAST_OVERLOAD)
+  return `${at(d.pos)}${(last >= 0 ? lines[last + 1] : lines[0]) ?? ""}`
+}
+
+function messages(d: Diagnostic): string[] {
+  return [d.text, ...(d.messageChain ?? []).flatMap(messages)]
 }

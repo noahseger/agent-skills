@@ -25,7 +25,7 @@ from html import escape
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 
 # ---------------------------------------------------------------------------
@@ -162,7 +162,7 @@ class EventModel(BaseModel):
                         )
                 if sl.command:
                     cmd_name = _parse_element(sl.command)[0]
-                    if _looks_past_tense(cmd_name):
+                    if _ends_past_tense(cmd_name):
                         errors.append(
                             f"Command '{cmd_name}' in {loc} looks past tense — "
                             f"commands should be imperative (e.g. PlaceOrder, RegisterUser)"
@@ -367,15 +367,20 @@ _IRREGULAR_PAST_WORDS = frozenset({
 })
 
 
+def _past_word(word: str) -> bool:
+    word = word.lower()
+    return word in _IRREGULAR_PAST_WORDS or word.endswith(_PAST_TENSE_SUFFIXES)
+
+
 def _looks_past_tense(name: str) -> bool:
-    """Heuristic: does a CamelCase name end with a past-tense word?"""
+    """Heuristic: does a CamelCase name hold a past-tense word? ItemsAddedToOrder is a fact."""
+    return any(_past_word(w) for w in re.findall(r"[A-Z][a-z]*", name))
+
+
+def _ends_past_tense(name: str) -> bool:
+    """A command may hold a participle (OpenAccount, RetryFailedSync), but not end on one."""
     words = re.findall(r"[A-Z][a-z]*", name)
-    if not words:
-        return False
-    last = words[-1].lower()
-    if last in _IRREGULAR_PAST_WORDS:
-        return True
-    return any(last.endswith(s) for s in _PAST_TENSE_SUFFIXES)
+    return bool(words) and _past_word(words[-1])
 
 
 def _has_concrete_data(test: GivenWhenThen) -> bool:
@@ -1660,10 +1665,21 @@ def render_svg(model: EventModel) -> str:
 # CLI
 # ---------------------------------------------------------------------------
 
+def _load(path: Path) -> EventModel:
+    """The model in the file; on a validation error, its messages and exit 1."""
+    try:
+        return EventModel.model_validate(json.loads(path.read_text()))
+    except ValidationError as e:
+        for err in e.errors():
+            where = ".".join(str(p) for p in err["loc"])
+            msg = err["msg"].removeprefix("Value error, ")
+            print(f"{where}: {msg}" if where else msg, file=sys.stderr)
+        sys.exit(1)
+
+
 def cmd_validate(args):
     path = Path(args.model)
-    data = json.loads(path.read_text())
-    model = EventModel.model_validate(data)
+    model = _load(path)
     total_slices = sum(len(ch.slices) for ch in model.chapters)
     total_tests = sum(len(sl.tests) for ch in model.chapters for sl in ch.slices)
     print(
@@ -1676,8 +1692,7 @@ def cmd_validate(args):
 
 def cmd_render(args):
     path = Path(args.model)
-    data = json.loads(path.read_text())
-    model = EventModel.model_validate(data)
+    model = _load(path)
     svg = render_svg(model)
     out = Path(args.output) if args.output else path.with_suffix(".svg")
     out.write_text(svg)

@@ -44,7 +44,7 @@ export interface ActorJson {
   type: "user" | "admin" | "system" | "external"
 }
 
-/** A declaration in no slice yet. */
+/** A declaration in no slice yet, or an event a slice hears and none emits. */
 export interface LooseJson {
   kind: "event" | "external" | "command" | "readModel"
   element: string
@@ -83,7 +83,12 @@ function element(decl: DeclData): string {
 }
 
 function value(v: unknown): string {
-  return Array.isArray(v) ? `[${v.map(value).join(", ")}]` : String(v)
+  if (Array.isArray(v)) return `[${v.map(value).join(", ")}]`
+  if (v?.constructor === Object) {
+    const pairs = Object.entries(v as object).map(([k, x]) => `${k}=${value(x)}`)
+    return `{${pairs.join(", ")}}`
+  }
+  return String(v)
 }
 
 function example(ex: ExampleData): string {
@@ -184,13 +189,21 @@ export function toJson({ model, streams, loose, unchaptered, warnings }: Assembl
     if (trigger?.external) noted(trigger.external)
     return json
   }
-  const chapters = [
+  const stories = [
     ...model.chapters,
     ...(unchaptered.length > 0 ? [{ name: "", slices: unchaptered }] : []),
-  ].map(({ name, slices }) => ({ name, slices: slices.map(sliceJson) }))
+  ]
+  const chapters = stories.map(({ name, slices }) => ({ name, slices: slices.map(sliceJson) }))
+
+  // A trigger nothing emits yet stands alone, so the arrow into its automation has a start.
+  const slices = stories.flatMap((c) => c.slices)
+  const emitted = new Set(slices.flatMap((s) => s.emits.map((f) => f.event)))
+  const unemitted = new Set(
+    slices.flatMap((s) => s.on.map((f) => f.event)).filter((e) => !e.external && !emitted.has(e)),
+  )
 
   const drawnLoose: LooseJson[] = []
-  for (const d of loose) {
+  for (const d of [...loose, ...unemitted]) {
     noted(d)
     if (d.kind === "event" && d.external) {
       const id = slug(d.external.name ?? "")
