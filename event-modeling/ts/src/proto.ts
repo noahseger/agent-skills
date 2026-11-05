@@ -105,20 +105,21 @@ const empty = (name: string): Message => ({ name, fields: [], nested: [] })
 
 /** A read model prints once per file, before the first response that repeats it. */
 function methodOf(slice: SliceData, printed: Set<DeclData>): Method {
-  const name = slice.service?.method ?? slice.command?.name ?? ""
-  if (slice.command) {
+  const command = slice.command?.decl
+  const name = slice.service?.method ?? command?.name ?? ""
+  if (command) {
     // Events are internal, so the response has nothing to carry.
-    const request = toMessage(`${name}Request`, slice.command.fields, slice.command.name)
+    const request = toMessage(`${name}Request`, command.fields, command.name)
     return { name, messages: [request, empty(`${name}Response`)] }
   }
-  const unprinted = slice.reads.filter((r) => !printed.has(r))
+  const unprinted = slice.shows.filter((r) => !printed.has(r))
   for (const r of unprinted) printed.add(r)
   // A query that names every key column of a read model picks one row.
   const query = new Set(Object.keys(slice.query ?? {}))
   const one = (r: DeclData) => r.keys.length > 0 && r.keys.every((k) => query.has(k))
   const response: Message = {
     name: `${name}Response`,
-    fields: slice.reads.map((r, i) => ({
+    fields: slice.shows.map((r, i) => ({
       name: snake(r.name ?? ""),
       type: r.name ?? "",
       number: i + 1,

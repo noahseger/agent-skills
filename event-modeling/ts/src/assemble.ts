@@ -11,8 +11,10 @@ import {
   DRAFTS,
   type Exported,
   type Flow,
+  heard,
   META,
   type ModelData,
+  recorded,
   type SliceData,
   type Warning,
 } from "./types.ts"
@@ -217,11 +219,11 @@ function locate(chapter: string | undefined, slices: SliceData[]): Located[] {
         )
     }
     const heading =
-      slice.command?.name ??
-      slice.projects?.name ??
-      slice.polls?.name ??
+      slice.command?.decl.name ??
+      slice.projection?.name ??
+      slice.todoList?.name ??
       slice.service?.method ??
-      slice.reads[0]?.name
+      slice.shows[0]?.name
     if (slice.name === undefined && heading !== undefined) slice.name = heading
     return { slice, where: slice.name === undefined ? where : at(slice.name) }
   })
@@ -253,14 +255,15 @@ function checkDeclaredOnce(
 /** Everything a slice refers to, with the word an error uses for it. */
 function used(slice: SliceData): [keyof typeof KIND_LABEL, { name?: string }][] {
   const out: [keyof typeof KIND_LABEL, { name?: string }][] = []
-  if (slice.actor) out.push(["actor", slice.actor])
+  for (const a of slice.actors) out.push(["actor", a])
   if (slice.service) out.push(["service", slice.service.service])
-  if (slice.command) out.push(["command", slice.command])
-  for (const f of [...slice.emits, ...slice.on]) {
-    out.push(["event", f.event])
-    if (f.event.external) out.push(["external", f.event.external])
+  if (slice.command) out.push(["command", slice.command.decl])
+  for (const e of [...slice.events.map((f) => f.decl), ...(slice.trigger ? [slice.trigger] : [])]) {
+    out.push(["event", e])
+    if (e.external) out.push(["external", e.external])
   }
-  for (const r of [...slice.reads, slice.polls, slice.projects]) if (r) out.push(["readModel", r])
+  const readModels = [...slice.readModels, ...slice.shows, slice.todoList, slice.projection]
+  for (const r of readModels) if (r) out.push(["readModel", r])
   for (const t of slice.tests) {
     for (const c of [...t.given, t.when, ...t.then])
       if (c && "decl" in c) out.push([c.decl.kind, c.decl])
@@ -268,60 +271,57 @@ function used(slice: SliceData): [keyof typeof KIND_LABEL, { name?: string }][] 
   return out
 }
 
-function filledBy(flow: Flow, carrier: DeclData): Set<string> {
-  return new Set([...Object.keys(carrier.fields), ...Object.keys(flow.mapping)])
+/** The fields a flow fills: those that copy by name from `source`, and those its mapping sets. */
+function filled(flow: Flow, source: DeclData): string[] {
+  return [...Object.keys(source.fields), ...Object.keys(flow.mapping)]
 }
 
 /** Every field has a source. A model still being written may lack one, so this warns. */
 function checkFilled({ slice, where }: Located, fail: Fail): void {
-  const about = (d: DeclData, message: string): Warning => ({
-    message,
-    element: d.name ?? "",
-    slice: slice.name ?? "",
-  })
-  if (slice.command) {
-    for (const flow of slice.emits) {
-      const filled = filledBy(flow, slice.command)
-      for (const field of Object.keys(flow.event.fields)) {
-        if (!filled.has(field)) {
-          fail(
-            about(
-              flow.event,
-              `${where}: ${flow.event.name}.${field} has no value. ` +
-                `Add ${field} to ${slice.command.name}, or set it in the .emits() mapping.`,
-            ),
-          )
-        }
-      }
+  const check = (target: DeclData, sources: string[], fix: (field: string) => string) => {
+    for (const field of Object.keys(target.fields)) {
+      if (!sources.includes(field))
+        fail({
+          message: `${where}: ${target.name}.${field} has no value. ${fix(field)}`,
+          element: target.name ?? "",
+          slice: slice.name ?? "",
+        })
     }
   }
-  if (slice.projects) {
-    const filled = new Set(slice.on.flatMap((flow) => [...filledBy(flow, flow.event)]))
-    for (const field of Object.keys(slice.projects.fields)) {
-      if (!filled.has(field)) {
-        fail(
-          about(
-            slice.projects,
-            `${where}: ${slice.projects.name}.${field} has no value. ` +
-              `Add .on() for an event that carries ${field}, or set it in a mapping.`,
-          ),
-        )
-      }
-    }
-  }
+  const { command, projection } = slice
+  const from = slice.trigger ?? slice.todoList
+  if (command && from)
+    check(
+      command.decl,
+      filled(command, from),
+      (f) => `Add ${f} to ${from.name}, or set it in the mapping.`,
+    )
+  if (command && !projection)
+    for (const flow of slice.events)
+      check(
+        flow.decl,
+        filled(flow, command.decl),
+        (f) => `Add ${f} to ${command.decl.name}, or set it in the mapping.`,
+      )
+  if (projection)
+    check(
+      projection,
+      slice.events.flatMap((flow) => filled(flow, flow.decl)),
+      (f) => `Add .event() for an event that carries ${f}, or set it in a mapping.`,
+    )
 }
 
 /** An event finds its row by the key columns it carries. */
 function checkKeys({ slice, where }: Located, fail: Fail): void {
-  if (!slice.projects || slice.projects.keys.length === 0) return
-  for (const flow of slice.on) {
-    const filled = filledBy(flow, flow.event)
-    if (!slice.projects.keys.some((k) => filled.has(k))) {
+  if (!slice.projection || slice.projection.keys.length === 0) return
+  for (const flow of slice.events) {
+    const carried = filled(flow, flow.decl)
+    if (!slice.projection.keys.some((k) => carried.includes(k))) {
       fail({
         message:
-          `${where}: ${flow.event.name} doesn't say which ${slice.projects.name} row it changes. ` +
-          `Give it a key field (${slice.projects.keys.join(", ")}), or map one in .on().`,
-        element: flow.event.name ?? "",
+          `${where}: ${flow.decl.name} doesn't say which ${slice.projection.name} row it changes. ` +
+          `Give it a key field (${slice.projection.keys.join(", ")}), or set one in its mapping.`,
+        element: flow.decl.name ?? "",
         slice: slice.name ?? "",
       })
     }
@@ -329,11 +329,11 @@ function checkKeys({ slice, where }: Located, fail: Fail): void {
 }
 
 function checkExternal({ slice, where }: Located): void {
-  for (const flow of slice.emits) {
-    if (flow.event.external) {
+  for (const event of recorded(slice)) {
+    if (event.external) {
       throw new Error(
-        `${where}: ${flow.event.name} belongs to ${flow.event.external.name}, so only it can emit it. ` +
-          `To react to it, start a slice with m.slice().on(${flow.event.name}).`,
+        `${where}: ${event.name} belongs to ${event.external.name}, so only it can emit it. ` +
+          `To react to it, start a slice with m.slice().trigger(${event.name}).`,
       )
     }
   }
@@ -346,11 +346,11 @@ function checkConnected(located: Located[], fail: Fail): void {
   const projected = new Set<DeclData>()
   const read = new Set<DeclData>()
   for (const { slice } of located) {
-    for (const f of slice.emits) emitted.add(f.event)
-    for (const f of slice.on) consumed.add(f.event)
+    for (const e of recorded(slice)) emitted.add(e)
+    for (const e of heard(slice)) consumed.add(e)
     for (const t of slice.tests) for (const g of t.given) consumed.add(g.decl)
-    if (slice.projects) projected.add(slice.projects)
-    for (const r of [...slice.reads, slice.polls]) if (r) read.add(r)
+    if (slice.projection) projected.add(slice.projection)
+    for (const r of [...slice.readModels, ...slice.shows, slice.todoList]) if (r) read.add(r)
   }
   for (const { slice, where } of located) {
     const about = (d: DeclData, message: string): Warning => ({
@@ -375,52 +375,56 @@ function checkConnected(located: Located[], fail: Fail): void {
         for (const c of t.then) {
           if ("decl" in c && c.decl.kind !== "event")
             throw new Error(
-              `${where}: ${c.decl.name} in then is ${KIND_LABEL[c.decl.kind]}. then lists the events that result, or m.reject().`,
+              `${where}: ${c.decl.name} in then is ${KIND_LABEL[c.decl.kind]}. then lists the events that result; reject says why the command is refused.`,
             )
         }
       }
     }
-    for (const f of slice.emits) {
-      if (!consumed.has(f.event))
+    for (const e of recorded(slice)) {
+      if (!consumed.has(e))
         fail(
           about(
-            f.event,
-            `${where}: nothing uses ${f.event.name} yet. Add .on(${f.event.name}) where something reacts to it.`,
+            e,
+            `${where}: nothing uses ${e.name} yet. Add .trigger(${e.name}) or a projection's .event(${e.name}) where something reacts to it.`,
           ),
         )
     }
     const given = slice.tests.flatMap((t) => t.given.map((g) => g.decl))
-    for (const e of [...slice.on.map((f) => f.event), ...given]) {
+    for (const e of [...heard(slice), ...given]) {
       if (!e.external && !emitted.has(e))
         fail(
           about(
             e,
-            `${where}: nothing emits ${e.name} yet. Add .emits(${e.name}) to the slice that causes it.`,
+            `${where}: nothing emits ${e.name} yet. Add .event(${e.name}) to the slice that causes it.`,
           ),
         )
     }
-    if (slice.projects && !read.has(slice.projects))
+    if (slice.projection && !read.has(slice.projection))
       fail(
         about(
-          slice.projects,
-          `${where}: nothing reads ${slice.projects.name} yet. Add .reads(${slice.projects.name}) or .polls(${slice.projects.name}) where it's needed.`,
+          slice.projection,
+          `${where}: nothing reads ${slice.projection.name} yet. Add .readModel(${slice.projection.name}), .view(${slice.projection.name}) or .todoList(${slice.projection.name}) where it's needed.`,
         ),
       )
-    for (const r of [...slice.reads, slice.polls]) {
+    for (const r of [...slice.readModels, ...slice.shows, slice.todoList]) {
       if (r && !projected.has(r))
         fail(
-          about(r, `${where}: nothing fills ${r.name} yet. Add a slice with .projects(${r.name}).`),
+          about(
+            r,
+            `${where}: nothing fills ${r.name} yet. Add a slice with .projection(${r.name}).`,
+          ),
         )
     }
   }
 }
 
-/** Types cannot count duplicates, so this runs at assembly. */
+/** Types cannot count duplicates, so this runs at assembly. A slice with no service has no method. */
 function checkMethods(located: Located[]): void {
   const claimed = new Map<string, string>()
   for (const { slice, where } of located) {
-    if (!slice.service || (slice.service.method ?? slice.command) === undefined) continue
-    const method = `${slice.service.service.name}/${slice.service.method ?? slice.command?.name}`
+    const name = slice.service?.method ?? slice.command?.decl.name
+    if (!slice.service || name === undefined) continue
+    const method = `${slice.service.service.name}/${name}`
     const first = claimed.get(method)
     if (first !== undefined)
       throw new Error(

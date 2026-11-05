@@ -46,10 +46,10 @@ const milk = ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-1", titl
 export const ListManagement = [
   m
     .slice()
+    .command(CreateList)
+    .event(ListCreated)
     .actor(User)
     .service(TodoService)
-    .command(CreateList)
-    .emits(ListCreated)
     .test("User creates a new list", {
       when: CreateList({ userId: "u-1", listId: "list-1", name: "Groceries" }),
       then: groceries,
@@ -62,10 +62,10 @@ export const ListManagement = [
 
   m
     .slice()
+    .command(AddItem)
+    .event(ItemAdded((c) => ({ title: c.text })))
     .actor(User)
     .service(TodoService)
-    .command(AddItem)
-    .emits(ItemAdded, (c) => ({ title: c.text }))
     .test("User adds an item to a list", {
       given: groceries,
       when: AddItem({ userId: "u-1", listId: "list-1", itemId: "item-1", text: "Milk" }),
@@ -83,10 +83,10 @@ export const ListManagement = [
 
   m
     .slice()
+    .command(CompleteItem)
+    .event(ItemCompleted)
     .actor(User)
     .service(TodoService)
-    .command(CompleteItem)
-    .emits(ItemCompleted)
     .test("User completes an item", {
       given: milk,
       when: CompleteItem({ listId: "list-1", itemId: "item-1" }),
@@ -95,10 +95,10 @@ export const ListManagement = [
 
   m
     .slice()
+    .command(DeleteItem)
+    .event(ItemDeleted)
     .actor(User)
     .service(TodoService)
-    .command(DeleteItem)
-    .emits(ItemDeleted)
     .test("User deletes an item from a list", {
       given: milk,
       when: DeleteItem({ listId: "list-1", itemId: "item-1" }),
@@ -107,10 +107,10 @@ export const ListManagement = [
 
   m
     .slice()
+    .command(DeleteList)
+    .event(ListDeleted)
     .actor(User)
     .service(TodoService)
-    .command(DeleteList)
-    .emits(ListDeleted)
     .test("User deletes a list", {
       given: groceries,
       when: DeleteList({ listId: "list-1" }),

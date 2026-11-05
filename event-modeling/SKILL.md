@@ -254,8 +254,8 @@ An automation issues a command with no actor. One of two things drives it.
 
 | Form | JSON | TypeScript | Use it when |
 |---|---|---|---|
-| event-driven | `trigger` names the event | `.on(Event)` | One event is enough to decide, and the work is quick and safe to repeat |
-| todo list | `polls` names a read model | `.polls(ReadModel)` | The work is slow, can fail, calls another system, or must not run twice |
+| event-driven | `trigger` names the event | `.trigger(Event)` | One event is enough to decide, and the work is quick and safe to repeat |
+| todo list | `polls` names a read model | `.todoList(ReadModel)` | The work is slow, can fail, calls another system, or must not run twice |
 
 A todo list is a read model of the work to do. A projection adds a row when the work becomes due and marks it done when the event that finishes it arrives. The processor reads the list on its own schedule and issues the command for each open row. This buys three things:
 
@@ -282,12 +282,13 @@ The read model in `polls` must exist in some slice's `read_models`. Its fields a
 
 ### Fields the TypeScript model adds
 
-The TypeScript model emits four fields beyond the example above. Hand-written JSON may use them too.
+The TypeScript model emits five fields beyond the example above. Hand-written JSON may use them too.
 
 - **`query`** (view slice) — the request fields of a view, drawn under the method on the interface card: `"ui": "TodoService/GetList", "query": ["listId"]`.
 - **`polls`** (automation slice) — the TODO-list read model that drives the automation, in place of `trigger`.
+- **`actors`** (slice) — every actor with a screen in the slice, when there is more than one; `actor` is the first.
 - **`note`** (slice) and **`notes`** (model, declaration name to text) — prose attached to a slice or to a declaration. The renderer shows a note as a tooltip and marks the card with ⓘ.
-- **`mapping`** (slice) — per event, the fields the handler fills that do not flow by name, and where each came from: `{"from": "text"}` for a renamed field, `{"value": 0}` for a constant, `{"count": true}` for a tally of that event, `{"generate": true}` for a value the handler assigns, such as an id or a clock. A mapped field counts as traced in the provenance checks.
+- **`mapping`** (slice) — per event, the fields the handler fills that do not flow by name, and where each came from; in an automation, also the command's fields filled from its trigger or to-do row: `{"from": "text"}` for a renamed field, `{"value": 0}` for a constant, `{"count": true}` for a tally of that event, `{"generate": true}` for a value the handler assigns, such as an id or a clock. A mapped field counts as traced in the provenance checks.
 
 ```json
 {

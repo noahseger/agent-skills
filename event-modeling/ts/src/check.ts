@@ -94,34 +94,36 @@ function modelFiles(dir: string): string[] {
     })
 }
 
-const MISSING = /"add to the command or set in the mapping": ("\w+"(?: \| "\w+")*)/
+const MISSING = /"add to the ([\w -]+) or set in the mapping": ("\w+"(?: \| "\w+")*)/
+const UNSET = /Property '(\w+)' is missing in type '.*' but required in type 'Pick</
 const STEP = /"(finish this slice with [^"]+)"/
 const LAST_OVERLOAD = "The last overload gave the following error."
 
 /** `file:line  message`. The package's own type errors become the instruction they carry. */
 function describe(d: Diagnostic, text: string, file: string): string {
   const at = (pos: number) => `${file}:${text.slice(0, pos).split("\n").length}  `
-  const missing = d.text.match(MISSING)
-  if (missing?.[1]) {
-    const fields = [...missing[1].matchAll(/"(\w+)"/g)].map((f) => f[1])
+  const lines = messages(d)
+  const missing = lines.map((l) => l.match(MISSING)).find((found) => found !== null)
+  if (missing?.[1] && missing[2]) {
+    const fields = [...missing[2].matchAll(/"(\w+)"/g)].map((f) => f[1])
     const method = text.slice(0, d.pos).match(/\.(\w+)\(\s*$/)?.[1]
     const call = method ? `.${method}(${text.slice(d.pos, d.end)}): ` : ""
-    return `${at(d.pos)}${call}add ${fields.join(", ")} to the command or set it in the mapping`
+    return `${at(d.pos)}${call}add ${fields.join(", ")} to the ${missing[1]} or set it in the mapping`
   }
+  const unset = lines.map((l) => l.match(UNSET)?.[1]).find((f) => f !== undefined)
+  if (unset) return `${at(d.pos)}the mapping must set ${unset}`
   const step = d.text.match(STEP)?.[1]
   if (step) {
     // The error spans the whole chain; its last call is where the next step goes.
     const last = text.slice(d.pos, d.end).match(/\.\w+\([^()]*\)$/)?.[0]
     return last ? `${at(d.end - last.length)}${last}: ${step}` : `${at(d.pos)}${step}`
   }
-  // A failed overload call heads a chain; the last overload's reason is the line after it.
-  const lines = messages(d)
-  // An event where the mapping goes: `.emits(A, B)`.
-  if (lines.some((l) => l.includes("parameter of type 'FillsRest<"))) {
-    const arg = text.slice(d.pos, d.end)
-    return `${at(d.pos)}the second argument to .emits() is a function that fills the event's fields. To emit ${arg} too, chain .emits(${arg}).`
+  // Two events in one call: `.event(A, B)`.
+  const second = text.slice(d.end).match(/^\s*,\s*([\w.]+)\s*\)/)?.[1]
+  if (second && text.slice(0, d.pos).match(/\.event\(\s*$/)) {
+    return `${at(d.pos)}.event() takes one event. To record ${second} too, chain .event(${second}).`
   }
-  // The last overload is the declaration form, the one written most.
+  // A failed overload call heads a chain; the last overload's reason is the line after it.
   const last = lines.indexOf(LAST_OVERLOAD)
   return `${at(d.pos)}${(last >= 0 ? lines[last + 1] : lines[0]) ?? ""}`
 }

@@ -5,4 +5,4 @@ import { m } from "#em"
 
 const Created = m.event({ id: z.string() })
 export const Table = m.readModel({ id: m.key(z.string()) })
-export default m.model("x", { chapters: { Ch: [m.slice().projects(Table).on(Created)] } })
+export default m.model("x", { chapters: { Ch: [m.slice().projection(Table).event(Created)] } })

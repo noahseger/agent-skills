@@ -37,9 +37,6 @@ export const StartGame = m.command({
   timeControl: z.string(),
   baseMinutes: z.number().int(),
   incrementSeconds: z.number().int(),
-  fen: z.string(),
-  sideToMove: z.enum(["white", "black"]),
-  ply: z.number().int(),
 })
 export const GameStarted = m.event({
   gameId: z.string(),
@@ -69,9 +66,6 @@ export const StartClock = m.command({
   gameId: z.string(),
   baseMinutes: z.number().int(),
   incrementSeconds: z.number().int(),
-  whiteTimeMs: z.number().int(),
-  blackTimeMs: z.number().int(),
-  runningSide: z.enum(["white", "black"]),
 })
 export const ClockStarted = m.event({
   gameId: z.string(),
@@ -112,9 +106,9 @@ export const gameStarted = GameStarted({
 export const GameSetup = [
   m
     .slice("ReceivePairing")
-    .on(PairingPublished)
+    .trigger(PairingPublished)
     .command(StartGame)
-    .emits(GameStarted)
+    .event(GameStarted(() => ({ fen: START_FEN, sideToMove: "white", ply: 0 })))
     .note("The pairing is translated, never stored. The starting position is ours to supply.")
     .test("Round 5 board 1 pairing starts a classical game", {
       given: pairing,
@@ -127,17 +121,14 @@ export const GameSetup = [
         timeControl: "classical",
         baseMinutes: 90,
         incrementSeconds: 30,
-        fen: START_FEN,
-        sideToMove: "white",
-        ply: 0,
       }),
       then: gameStarted,
     }),
 
   m
     .slice()
-    .projects(GamePairing)
-    .on(GameStarted)
+    .projection(GamePairing)
+    .event(GameStarted)
     .test("Pairing identity available after the game starts", {
       given: gameStarted,
       then: GamePairing({
@@ -151,19 +142,18 @@ export const GameSetup = [
 
   m
     .slice("ClockStarter")
-    .on(GameStarted)
+    .trigger(GameStarted)
     .command(StartClock)
-    .emits(ClockStarted)
+    .event(
+      ClockStarted((_, { generate }) => ({
+        whiteTimeMs: generate(),
+        blackTimeMs: generate(),
+        runningSide: "white",
+      })),
+    )
     .test("White's clock starts at 90 minutes", {
       given: gameStarted,
-      when: StartClock({
-        gameId: "otb-2024-ct-r5-b1",
-        baseMinutes: 90,
-        incrementSeconds: 30,
-        whiteTimeMs: 5400000,
-        blackTimeMs: 5400000,
-        runningSide: "white",
-      }),
+      when: StartClock({ gameId: "otb-2024-ct-r5-b1", baseMinutes: 90, incrementSeconds: 30 }),
       then: ClockStarted({
         gameId: "otb-2024-ct-r5-b1",
         baseMinutes: 90,

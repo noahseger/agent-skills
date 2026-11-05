@@ -43,9 +43,16 @@ const sliceWarnings = computed(() =>
     (w) => w.slice === slice.value.name && !elementWarnings.value.includes(w),
   ),
 )
-const actor = computed(() => props.model.actors.find((a) => a.id === slice.value.actor)?.name)
+const actor = computed(() =>
+  (slice.value.actors ?? [slice.value.actor])
+    .map((id) => props.model.actors.find((a) => a.id === id)?.name)
+    .filter((name) => name !== undefined)
+    .join(", "),
+)
 const mapping = computed(() =>
-  props.box?.kind === "event" ? slice.value.mapping?.[props.box.name] : undefined,
+  props.box?.kind === "event" || props.box?.kind === "command"
+    ? slice.value.mapping?.[props.box.name]
+    : undefined,
 )
 const triggers = computed(() => {
   const t = slice.value.trigger

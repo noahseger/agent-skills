@@ -54,10 +54,10 @@ function fixture() {
 type Fixture = ReturnType<typeof fixture>
 
 const create = (f: Fixture) =>
-  m.slice().actor(f.User).service(f.Svc).command(f.Create).emits(f.Created)
-const project = (f: Fixture) => m.slice().projects(f.Table).on(f.Created)
+  m.slice().command(f.Create).event(f.Created).actor(f.User).service(f.Svc)
+const project = (f: Fixture) => m.slice().projection(f.Table).event(f.Created)
 const projectTable = project
-const view = (f: Fixture) => m.slice().actor(f.User).reads(f.Table).service(f.Svc, "Get")
+const view = (f: Fixture) => m.slice().view(f.Table).actor(f.User).service(f.Svc, "Get")
 
 /** One module exporting `exports` and a model of one chapter, `Ch`. */
 function assembled(exports: Record<string, unknown>, slices: readonly Slice[]) {
@@ -106,7 +106,7 @@ test("an event field the command does not carry", () => {
         project({ ...f, Created }),
         view(f),
       ]),
-    /Ch › Create: Created\.extra has no value\. Add extra to Create, or set it in the \.emits\(\) mapping\./,
+    /Ch › Create: Created\.extra has no value\. Add extra to Create, or set it in the mapping\./,
   )
 })
 
@@ -126,10 +126,10 @@ test("a mapping function fills what the command does not carry", () => {
   const Created = m.event({ id: z.string(), name: z.string(), extra: z.string() })
   const slice = m
     .slice()
+    .command(f.Create)
+    .event(Created((c) => ({ extra: c.name })))
     .actor(f.User)
     .service(f.Svc)
-    .command(f.Create)
-    .emits(Created, (c) => ({ extra: c.name }))
   const json = assembled({ ...f, Created }, [slice, project({ ...f, Created }), view(f)])
   assert.deepEqual(json.chapters[0]?.slices[0]?.mapping, { Created: { extra: { from: "name" } } })
   assert.equal(json.chapters[0]?.slices[0]?.command, "Create(id, name)")
@@ -141,10 +141,10 @@ test("generate() fills a field the handler assigns, and a specification gives it
   const Created = m.event({ id: z.string(), name: z.string(), at: z.string() })
   const slice = m
     .slice()
+    .command(f.Create)
+    .event(Created((_, { generate }) => ({ at: generate() })))
     .actor(f.User)
     .service(f.Svc)
-    .command(f.Create)
-    .emits(Created, (_, { generate }) => ({ at: generate() }))
     .test("Create", {
       when: f.Create({ id: "id-1", name: "Groceries" }),
       then: Created({ id: "id-1", name: "Groceries", at: "2026-01-01T00:00:00Z" }),
@@ -154,12 +154,12 @@ test("generate() fills a field the handler assigns, and a specification gives it
   validate(json)
 })
 
-test("a column no .on() writes", () => {
+test("a column no .event() writes", () => {
   const f = fixture()
   const Table = m.readModel({ id: m.key(z.string()), name: z.string(), count: z.number() })
   assert.throws(
     () => assembled({ ...f, Table }, [create(f), project({ ...f, Table }), view({ ...f, Table })]),
-    /Ch › Table: Table\.count has no value\. Add \.on\(\) for an event that carries count, or set it in a mapping\./,
+    /Ch › Table: Table\.count has no value\. Add \.event\(\) for an event that carries count, or set it in a mapping\./,
   )
 })
 
@@ -167,11 +167,11 @@ test("an event that carries none of the read model's key columns", () => {
   const f = fixture()
   const Rename = m.command({ name: z.string() })
   const Renamed = m.event({ name: z.string() })
-  const rename = m.slice().actor(f.User).service(f.Svc).command(Rename).emits(Renamed)
-  const projection = m.slice().projects(f.Table).on(f.Created).on(Renamed)
+  const rename = m.slice().command(Rename).event(Renamed).actor(f.User).service(f.Svc)
+  const projection = m.slice().projection(f.Table).event(f.Created).event(Renamed)
   assert.throws(
     () => assembled({ ...f, Rename, Renamed }, [create(f), rename, projection, view(f)]),
-    /Ch › Table: Renamed doesn't say which Table row it changes\. Give it a key field \(id\), or map one in \.on\(\)\./,
+    /Ch › Table: Renamed doesn't say which Table row it changes\. Give it a key field \(id\), or set one in its mapping\./,
   )
 })
 
@@ -179,7 +179,7 @@ test("an event nothing consumes", () => {
   const f = fixture()
   assert.throws(
     () => assembled(f, [create(f)]),
-    /Ch › Create: nothing uses Created yet\. Add \.on\(Created\) where something reacts to it\./,
+    /Ch › Create: nothing uses Created yet\. Add \.trigger\(Created\) or a projection's \.event\(Created\) where something reacts to it\./,
   )
 })
 
@@ -187,7 +187,7 @@ test("an event no slice emits", () => {
   const f = fixture()
   assert.throws(
     () => assembled(f, [project(f), view(f)]),
-    /Ch › Table: nothing emits Created yet\. Add \.emits\(Created\) to the slice that causes it\./,
+    /Ch › Table: nothing emits Created yet\. Add \.event\(Created\) to the slice that causes it\./,
   )
 })
 
@@ -195,7 +195,7 @@ test("a read model nothing reads", () => {
   const f = fixture()
   assert.throws(
     () => assembled(f, [create(f), project(f)]),
-    /Ch › Table: nothing reads Table yet\. Add \.reads\(Table\) or \.polls\(Table\) where it's needed\./,
+    /Ch › Table: nothing reads Table yet\. Add \.readModel\(Table\), \.view\(Table\) or \.todoList\(Table\) where it's needed\./,
   )
 })
 
@@ -209,7 +209,7 @@ test("a read model nothing projects", () => {
   })
   assert.throws(
     () => assembled(f, [slice, view(f)]),
-    /Ch › Get: nothing fills Table yet\. Add a slice with \.projects\(Table\)\./,
+    /Ch › Get: nothing fills Table yet\. Add a slice with \.projection\(Table\)\./,
   )
 })
 
@@ -217,10 +217,10 @@ test("a slice that emits an external event", () => {
   const f = fixture()
   const Pushed = m.event({ id: z.string(), name: z.string() })
   const Cal = m.external({ Pushed })
-  const slice = m.slice().actor(f.User).service(f.Svc).command(f.Create).emits(Pushed)
+  const slice = m.slice().command(f.Create).event(Pushed).actor(f.User).service(f.Svc)
   assert.throws(
     () => assembled({ ...f, Pushed, Cal }, [slice]),
-    /Ch › Create: Pushed belongs to Cal, so only it can emit it\. To react to it, start a slice with m\.slice\(\)\.on\(Pushed\)\./,
+    /Ch › Create: Pushed belongs to Cal, so only it can emit it\. To react to it, start a slice with m\.slice\(\)\.trigger\(Pushed\)\./,
   )
 })
 
@@ -228,22 +228,91 @@ test("two slices claiming one service method", () => {
   const f = fixture()
   const Rename = m.command({ id: z.string(), name: z.string() })
   const Renamed = m.event({ id: z.string(), name: z.string() })
-  const rename = m.slice().actor(f.User).service(f.Svc, "Create").command(Rename).emits(Renamed)
-  const projection = m.slice().projects(f.Table).on(f.Created).on(Renamed)
+  const rename = m.slice().command(Rename).event(Renamed).actor(f.User).service(f.Svc, "Create")
+  const projection = m.slice().projection(f.Table).event(f.Created).event(Renamed)
   assert.throws(
     () => assembled({ ...f, Rename, Renamed }, [create(f), rename, projection, view(f)]),
     /Ch › Rename: Svc\/Create is already used by Ch › Create\. Name this one/,
   )
 })
 
+test("slices without a service claim no method", () => {
+  const f = fixture()
+  const again = m.slice().command(f.Create).event(f.Created).actor(f.User)
+  const json = assembled(f, [create(f), again, project(f), view(f)])
+  assert.equal(json.chapters[0]?.slices[1]?.ui, "Create")
+})
+
+test("an automation's command field its trigger does not carry", () => {
+  const f = fixture()
+  const Process = m.command({ id: z.string(), label: z.string() })
+  const Processed = m.event({ id: z.string() })
+  // @ts-expect-error the compiler refuses it too; assembly holds for a model run unchecked
+  const processor = m.slice("Processor").trigger(f.Created).command(Process).event(Processed)
+  assert.throws(
+    () => assembled({ ...f, Process, Processed }, [create(f), processor]),
+    /Ch › Processor: Process\.label has no value\. Add label to Created, or set it in the mapping\./,
+  )
+})
+
+test("an automation's mapping fills its command from the trigger", () => {
+  const f = fixture()
+  const Process = m.command({ id: z.string(), label: z.string() })
+  const Processed = m.event({ id: z.string() })
+  const processor = m
+    .slice("Processor")
+    .trigger(f.Created)
+    .command(Process((e) => ({ label: e.name })))
+    .event(Processed)
+  const projection = m.slice().projection(f.Table).event(f.Created).event(Processed)
+  const json = assembled({ ...f, Process, Processed }, [create(f), processor, projection, view(f)])
+  assert.deepEqual(json.chapters[0]?.slices[1]?.mapping, { Process: { label: { from: "name" } } })
+  validate(json)
+})
+
+test("a view without a service is named by its read model and has a screen", () => {
+  const f = fixture()
+  const Ch = [create(f), project(f), m.slice().view(f.Table).actor(f.User)]
+  const json = assembled(f, Ch)
+  const slice = json.chapters[0]?.slices[2]
+  assert.deepEqual([slice?.name, slice?.ui], ["Table", "Table"])
+  validate(json)
+})
+
+test("a slice with no actor has no screen", () => {
+  const f = fixture()
+  const Ch = [m.slice().command(f.Create).event(f.Created), project(f), m.slice().view(f.Table)]
+  const json = assembled({ Create: f.Create, Created: f.Created, Table: f.Table }, Ch)
+  assert.deepEqual(
+    json.chapters[0]?.slices.map((s) => s.ui),
+    [undefined, undefined, undefined],
+  )
+  assert.deepEqual(json.warnings, undefined)
+})
+
+test("a slice with several actors draws a screen in each one's lane", () => {
+  const f = fixture()
+  const Admin = m.actor({ icon: "admin" })
+  const both = m.slice().command(f.Create).event(f.Created).actor(f.User, Admin).service(f.Svc)
+  const json = assembled({ ...f, Admin }, [both, project(f), view(f)])
+  const slice = json.chapters[0]?.slices[0]
+  assert.deepEqual([slice?.actor, slice?.actors], ["user", ["user", "admin"]])
+  validate(json)
+  const { boxes, rows } = layout(json)
+  const lanes = boxes
+    .filter((b) => b.kind === "ui" && b.column === 0)
+    .map((b) => rows.find((r) => b.y >= r.y && b.y < r.y + r.h)?.id)
+  assert.deepEqual(lanes, ["actor:user", "actor:admin"])
+})
+
 // --- What the render target reads natively, and what it encodes ---------------
 
-test("a .polls() automation has the read model as its trigger", () => {
+test("a .todoList() automation polls the read model", () => {
   const f = fixture()
   const Process = m.command({ id: z.string() })
   const Processed = m.event({ id: z.string() })
-  const processor = m.slice("Processor").polls(f.Table).command(Process).emits(Processed)
-  const projection = m.slice().projects(f.Table).on(f.Created).on(Processed)
+  const processor = m.slice("Processor").todoList(f.Table).command(Process).event(Processed)
+  const projection = m.slice().projection(f.Table).event(f.Created).event(Processed)
   const json = assembled({ ...f, Process, Processed }, [create(f), processor, projection])
   const slice = json.chapters[0]?.slices[1]
   assert.equal(slice?.automation, "Processor")
@@ -267,14 +336,14 @@ test("same-named streams from two modules are one lane", () => {
   )
 })
 
-test("a slice may read more than one read model", () => {
+test("a view may show more than one read model", () => {
   const f = fixture()
   const Other = m.readModel({ id: m.key(z.string()), count: z.number() })
-  const view = m.slice().actor(f.User).reads(f.Table).reads(Other).service(f.Svc, "Both")
+  const view = m.slice().view(f.Table, Other).actor(f.User).service(f.Svc, "Both")
   const project = m
     .slice()
-    .projects(Other)
-    .on(f.Created, () => ({ count: 0 }))
+    .projection(Other)
+    .event(f.Created(() => ({ count: 0 })))
   const json = assembled({ ...f, Other }, [create(f), projectTable(f), project, view])
   assert.deepEqual(
     json.chapters[0]?.slices.at(-1)?.read_models?.map((r) => r.match(/^\w+/)?.[0]),
@@ -319,7 +388,7 @@ test("a partial assembly lists the dead ends and keeps the loose declarations in
   assert.deepEqual(json.warnings, [
     {
       message:
-        "Ch › Create: nothing uses Created yet. Add .on(Created) where something reacts to it.",
+        "Ch › Create: nothing uses Created yet. Add .trigger(Created) or a projection's .event(Created) where something reacts to it.",
       element: "Created",
       slice: "Create",
     },
@@ -354,7 +423,7 @@ test("an event declared inside m.external is named by its key and drawn in the s
   })
   const Connect = m.command({ accessToken: z.string() })
   const Connected = m.event({ accessToken: z.string() })
-  const Ch = [m.slice().on(Calendar.Authenticated).command(Connect).emits(Connected)]
+  const Ch = [m.slice().trigger(Calendar.Authenticated).command(Connect).event(Connected)]
   const json = assembleModules(
     [{ Calendar, Connect, Connected, default: m.model("x", { chapters: { Ch } }) }],
     { partial: true },
@@ -369,19 +438,19 @@ test("an event declared inside m.external is named by its key and drawn in the s
 
 test("a slice in no chapter is drawn after the story, finished or not", () => {
   const f = fixture()
-  const base = m.slice().actor(f.User).service(f.Svc)
-  base.command(f.Create).emits(f.Created)
-  base.command("Rename", { id: z.string(), name: z.string() }).emits(f.Created)
-  m.slice().projects(f.Table)
+  const base = m.slice().command(f.Create)
+  base.event(f.Created).actor(f.User)
+  base.event("Renamed", { id: z.string(), name: z.string() }).service(f.Svc)
+  m.slice().projection(f.Table)
   const json = assembleModules([{ ...f, default: m.model("x") }], { partial: true })
   // The shared prefix is not a slice of its own.
   assert.deepEqual(
     json.chapters.map((c) => [c.name, c.slices.map((s) => s.name)]),
-    [["", ["Create", "Rename", "Table"]]],
+    [["", ["Create", "Create", "Table"]]],
   )
   assert.deepEqual(
     json.warnings?.filter((w) => w.message.endsWith("isn't in a chapter yet.")),
-    ["Create", "Rename", "Table"].map((name) => ({
+    ["Create", "Create", "Table"].map((name) => ({
       message: `${name} isn't in a chapter yet.`,
       element: "",
       slice: name,
@@ -409,7 +478,7 @@ test("loading a model from files sees only the slices its modules write", async 
   create(f)
   const { unchaptered } = await load(here("./fixtures/storming"), { partial: true })
   assert.deepEqual(
-    unchaptered.map((s) => [s.name, s.emits.map((e) => e.event.name)]),
+    unchaptered.map((s) => [s.name, s.events.map((e) => e.decl.name)]),
     [["CreateNote", ["NoteCreated"]]],
   )
 })
@@ -418,10 +487,10 @@ test("a command and event declared in place are drawn and checked like exported 
   const f = fixture()
   const rename = m
     .slice()
+    .command("Rename", { id: z.string(), name: z.string() })
+    .event("Renamed", { id: z.string(), name: z.string() })
     .actor(f.User)
     .service(f.Svc)
-    .command("Rename", { id: z.string(), name: z.string() })
-    .emits("Renamed", { id: z.string(), name: z.string() })
   const json = assembleModules(
     [
       {
@@ -439,7 +508,7 @@ test("a command and event declared in place are drawn and checked like exported 
   assert.deepEqual(json.warnings, [
     {
       message:
-        "Ch › Rename: nothing uses Renamed yet. Add .on(Renamed) where something reacts to it.",
+        "Ch › Rename: nothing uses Renamed yet. Add .trigger(Renamed) or a projection's .event(Renamed) where something reacts to it.",
       element: "Renamed",
       slice: "Rename",
     },
@@ -450,10 +519,10 @@ test("a name declared twice", () => {
   const f = fixture()
   const again = m
     .slice()
+    .command(f.Create)
+    .event("Created", { id: z.string() })
     .actor(f.User)
     .service(f.Svc, "Again")
-    .command(f.Create)
-    .emits("Created", { id: z.string() })
   assert.throws(
     () => assembled(f, [create(f), again, project(f), view(f)]),
     /Created is declared twice\. Keep one and use it in both places\./,
@@ -461,10 +530,10 @@ test("a name declared twice", () => {
   const twice = (method: string) =>
     m
       .slice()
+      .command("Rename", { id: z.string(), name: z.string() })
+      .event(f.Created)
       .actor(f.User)
       .service(f.Svc, method)
-      .command("Rename", { id: z.string(), name: z.string() })
-      .emits(f.Created)
   assert.throws(
     () => assembled(f, [twice("A"), twice("B")]),
     /Rename is declared twice\. Keep one and use it in both places\./,
@@ -482,7 +551,7 @@ test("a trigger nothing emits yet is drawn on its own", () => {
   const f = fixture()
   const Process = m.command({ id: z.string() })
   const Processed = m.event({ id: z.string() })
-  const Ch = [m.slice("Processor").on(f.Created).command(Process).emits(Processed)]
+  const Ch = [m.slice("Processor").trigger(f.Created).command(Process).event(Processed)]
   const json = assembleModules(
     [{ ...f, Process, Processed, default: m.model("x", { chapters: { Ch } }) }],
     { partial: true },
@@ -502,10 +571,10 @@ test("an example's nested values are printed", () => {
   const Ordered = m.event({ id: z.string(), items: z.array(z.object({ name: z.string() })) })
   const slice = m
     .slice()
+    .command(Order)
+    .event(Ordered)
     .actor(f.User)
     .service(f.Svc)
-    .command(Order)
-    .emits(Ordered)
     .test("t", {
       when: Order({ id: "1", items: [{ name: "a" }, { name: "b" }] }),
       then: Ordered({ id: "1", items: [{ name: "a" }] }),
@@ -518,16 +587,5 @@ test("an example's nested values are printed", () => {
   assert.deepEqual(
     [t?.when, t?.then],
     ["Order(id=1, items=[{name=a}, {name=b}])", ["Ordered(id=1, items=[{name=a}])"]],
-  )
-})
-
-// Last: the throw leaves an unfinished slice behind for the next assembly.
-test("a second event where .emits() takes a function", () => {
-  const f = fixture()
-  const Other = m.event({ id: z.string() })
-  assert.throws(
-    // @ts-expect-error the second argument is a mapping
-    () => m.slice().actor(f.User).service(f.Svc).command(f.Create).emits(f.Created, Other),
-    /^Error: The second argument to \.emits\(\) is a function that fills the event's fields\. To emit another event, chain another \.emits\(\)\.$/,
   )
 })
