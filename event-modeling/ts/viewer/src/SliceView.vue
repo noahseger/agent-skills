@@ -101,7 +101,12 @@ const warnings = computed(() =>
     (w) => w.slice === slice.value.name || w.element === slice.value.name,
   ),
 )
-const actor = computed(() => props.model.actors.find((a) => a.id === slice.value.actor)?.name)
+const actor = computed(() =>
+  (slice.value.actors ?? [slice.value.actor])
+    .map((id) => props.model.actors.find((a) => a.id === id)?.name)
+    .filter((name) => name !== undefined)
+    .join(", "),
+)
 const triggers = computed(() => {
   const t = slice.value.trigger
   return t ? (Array.isArray(t) ? t : [t]).map((x) => parse(x).name) : []

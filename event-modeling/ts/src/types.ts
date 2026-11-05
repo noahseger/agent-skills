@@ -92,10 +92,19 @@ export interface Warning {
 /** Where a mapping function got one target field from. */
 export type Source = { from: string } | { count: true } | { generate: true } | { value: unknown }
 
-/** An event wired into a slice; `mapping` lists only fields not copied by name. */
+/** A declaration a slice uses; `mapping` lists only fields not copied by name. */
 export interface Flow {
-  event: DeclData
+  decl: DeclData
   mapping: Record<string, Source>
+}
+
+/** A function that fills a declaration's fields; run once on probe values. */
+export type MapFn = (source: never, helpers: never) => object
+
+/** A declaration called with a function, before a slice knows its source. */
+export interface MappedData {
+  decl: DeclData
+  map: MapFn
 }
 
 export interface ExampleData {
@@ -120,15 +129,34 @@ export interface SliceData {
   /** Given to `m.slice()`, or derived from the command or read model at assembly. */
   name?: string
   note?: string
-  actor?: ActorData
-  query?: Fields
-  reads: DeclData[]
+  /** Who issues the command or reads the view; each has a screen. */
+  actors: ActorData[]
   service?: { service: ServiceData; method?: string }
-  command?: DeclData
-  emits: Flow[]
-  /** The automation's trigger, or the events a projection writes from. */
-  on: Flow[]
-  polls?: DeclData
-  projects?: DeclData
+  /** A view's request fields. */
+  query?: Fields
+  /** The read models a view shows. */
+  shows: DeclData[]
+  /** What starts an automation: an event, or a to-do list it works through. */
+  trigger?: DeclData
+  todoList?: DeclData
+  /** The read model a state view builds from `events`. */
+  projection?: DeclData
+  /** In an automation, mapped from the trigger or the to-do row. */
+  command?: Flow
+  /** What the command's handler reads. */
+  readModels: DeclData[]
+  /** What the command records; in a projection, what builds the read model. */
+  events: Flow[]
   tests: TestData[]
+}
+
+/** The events a slice records. A projection records none. */
+export function recorded(slice: SliceData): DeclData[] {
+  return slice.projection ? [] : slice.events.map((f) => f.decl)
+}
+
+/** The events a slice reacts to: its trigger, or what builds its projection. */
+export function heard(slice: SliceData): DeclData[] {
+  if (slice.projection) return slice.events.map((f) => f.decl)
+  return slice.trigger ? [slice.trigger] : []
 }

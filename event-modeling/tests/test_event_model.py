@@ -550,6 +550,19 @@ class TestNativeFields:
         with pytest.raises(ValidationError, match="reads 'nope', which Create does not carry"):
             EventModel.model_validate(self._model(create, self.PROJECT, self.VIEW))
 
+    def test_an_automations_command_maps_from_what_starts_it(self):
+        poller = {**self.POLLER, "command": "Process(id, label)",
+                  "mapping": {"Process": {"label": {"from": "title"}}}}
+        EventModel.model_validate(self._model(self.CREATE, self.PROJECT, self.VIEW, poller))
+        poller["mapping"] = {"Process": {"label": {"from": "nope"}}}
+        with pytest.raises(ValidationError, match="reads 'nope', which Table does not carry"):
+            EventModel.model_validate(self._model(self.CREATE, self.PROJECT, self.VIEW, poller))
+
+    def test_every_actor_of_a_slice_is_known(self):
+        EventModel.model_validate(self._model(self.CREATE, self.PROJECT, {**self.VIEW, "actors": ["u", "s"]}))
+        with pytest.raises(ValidationError, match="unknown actor 'x'"):
+            EventModel.model_validate(self._model(self.CREATE, self.PROJECT, {**self.VIEW, "actors": ["u", "x"]}))
+
     def test_mapping_source_rejects_unknown_keys(self):
         create = {**self.CREATE, "mapping": {"Created": {"title": {"form": "text"}}}}
         with pytest.raises(ValidationError):

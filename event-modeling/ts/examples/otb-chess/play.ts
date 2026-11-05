@@ -166,12 +166,12 @@ const clockStarted = ClockStarted({
 export const Play = [
   m
     .slice()
-    .actor(Player)
-    .reads(GameState)
-    .service(ChessService)
     .command(PlayMove)
-    .emits(MovePlayed)
-    .emits(GameEnded)
+    .readModel(GameState)
+    .event(MovePlayed)
+    .event(GameEnded)
+    .actor(Player)
+    .service(ChessService)
     .test("White opens with 1. e4", {
       given: gameStarted,
       when: PlayMove({
@@ -265,10 +265,10 @@ export const Play = [
 
   m
     .slice()
-    .projects(GameState)
-    .on(GameStarted)
-    .on(MovePlayed)
-    .on(IllegalMoveRuled)
+    .projection(GameState)
+    .event(GameStarted)
+    .event(MovePlayed)
+    .event(IllegalMoveRuled)
     .test("The board advances after the opening move", {
       given: [gameStarted, e4],
       then: GameState({
@@ -290,11 +290,11 @@ export const Play = [
 
   m
     .slice()
-    .actor(Player)
-    .reads(ClockState)
-    .service(ChessService)
     .command(PressClock)
-    .emits(ClockPressed)
+    .readModel(ClockState)
+    .event(ClockPressed)
+    .actor(Player)
+    .service(ChessService)
     .note("FIDE 6.2.1: pressing banks the increment and starts the opponent's clock.")
     .test("White presses the clock, the increment is banked, Black's clock runs", {
       given: clockStarted,
@@ -324,9 +324,9 @@ export const Play = [
 
   m
     .slice()
-    .projects(ClockState)
-    .on(ClockStarted)
-    .on(ClockPressed)
+    .projection(ClockState)
+    .event(ClockStarted)
+    .event(ClockPressed)
     .test("The clock starts with White's time running", {
       given: clockStarted,
       then: ClockState({
@@ -356,9 +356,9 @@ export const Play = [
 
   m
     .slice()
-    .projects(MoveList)
-    .on(MovePlayed, () => ({ status: "recorded" }))
-    .on(IllegalMoveRuled, () => ({ status: "struck" }))
+    .projection(MoveList)
+    .event(MovePlayed(() => ({ status: "recorded" })))
+    .event(IllegalMoveRuled(() => ({ status: "struck" })))
     .test("A move is recorded on the scoresheet", {
       given: e4,
       then: MoveList({

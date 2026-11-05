@@ -117,11 +117,11 @@ export const gameResigned = GameResigned({
 export const DrawsAndResignation = [
   m
     .slice()
-    .actor(Player)
-    .reads(GameState)
-    .service(ChessService)
     .command(OfferDraw)
-    .emits(DrawOffered)
+    .readModel(GameState)
+    .event(DrawOffered)
+    .actor(Player)
+    .service(ChessService)
     .test("White offers a draw on move 21", {
       given: rd1,
       when: OfferDraw({ gameId: "otb-2024-ct-r5-b1", offeringSide: "white", ply: 41 }),
@@ -130,10 +130,10 @@ export const DrawsAndResignation = [
 
   m
     .slice()
-    .projects(PendingDrawOffer)
-    .on(DrawOffered, () => ({ status: "pending" }))
-    .on(MovePlayed, () => ({ status: "declined" }))
-    .on(DrawAgreed, () => ({ status: "accepted" }))
+    .projection(PendingDrawOffer)
+    .event(DrawOffered(() => ({ status: "pending" })))
+    .event(MovePlayed(() => ({ status: "declined" })))
+    .event(DrawAgreed(() => ({ status: "accepted" })))
     .note("A move by the opponent declines the offer. FIDE 9.1.2.3.")
     .test("The offer is pending on the opponent", {
       given: drawOffered,
@@ -165,11 +165,11 @@ export const DrawsAndResignation = [
 
   m
     .slice()
-    .actor(Player)
-    .reads(PendingDrawOffer)
-    .service(ChessService)
     .command(AcceptDraw)
-    .emits(DrawAgreed)
+    .readModel(PendingDrawOffer)
+    .event(DrawAgreed)
+    .actor(Player)
+    .service(ChessService)
     .test("Black accepts the pending draw offer", {
       given: drawOffered,
       when: AcceptDraw({
@@ -193,11 +193,11 @@ export const DrawsAndResignation = [
 
   m
     .slice()
-    .actor(Player)
-    .reads(GameState)
-    .service(ChessService)
     .command(Resign)
-    .emits(GameResigned)
+    .readModel(GameState)
+    .event(GameResigned)
+    .actor(Player)
+    .service(ChessService)
     .test("Black resigns a lost endgame", {
       given: kf6,
       when: Resign({

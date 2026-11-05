@@ -43,11 +43,11 @@ const eggs = ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-2", titl
 export const Views = [
   m
     .slice()
-    .projects(TodoList)
-    .on(ListCreated, () => ({ itemCount: 0, status: "open" }))
-    .on(ItemAdded, (e, { count }) => ({ itemCount: count(e) }))
-    .on(ListCompleted, () => ({ status: "completed" }))
-    .on(ListDeleted, () => ({ status: "deleted" }))
+    .projection(TodoList)
+    .event(ListCreated(() => ({ itemCount: 0, status: "open" })))
+    .event(ItemAdded((e, { count }) => ({ itemCount: count(e) })))
+    .event(ListCompleted(() => ({ status: "completed" })))
+    .event(ListDeleted(() => ({ status: "deleted" })))
     .test("A new list shows with no items", {
       given: groceries,
       then: TodoList({
@@ -91,17 +91,17 @@ export const Views = [
 
   m
     .slice()
-    .actor(User)
+    .view(TodoList)
     .query({ userId: z.string() })
-    .reads(TodoList)
+    .actor(User)
     .service(TodoService, "ListTodoLists"),
 
   m
     .slice()
-    .projects(ItemSearch)
-    .on(ItemAdded, () => ({ done: false, deleted: false }))
-    .on(ItemCompleted, () => ({ done: true }))
-    .on(ItemDeleted, () => ({ deleted: true }))
+    .projection(ItemSearch)
+    .event(ItemAdded(() => ({ done: false, deleted: false })))
+    .event(ItemCompleted(() => ({ done: true })))
+    .event(ItemDeleted(() => ({ deleted: true })))
     .test("A completed item shows as done", {
       given: [milk, milkDone],
       then: ItemSearch({
@@ -135,26 +135,26 @@ export const Views = [
 
   m
     .slice()
-    .actor(User)
+    .view(ItemSearch)
     .query({ listId: z.string() })
-    .reads(ItemSearch)
+    .actor(User)
     .service(TodoService, "GetList"),
 
   m
     .slice()
-    .actor(User)
+    .view(ItemSearch)
     .query({ text: z.string() })
-    .reads(ItemSearch)
+    .actor(User)
     .service(TodoService, "SearchItems"),
 ]
 
 export const Automations = [
   m
     .slice("ListCompleter")
-    .on(ItemCompleted)
-    .reads(ItemSearch)
+    .trigger(ItemCompleted)
     .command(CompleteList)
-    .emits(ListCompleted)
+    .readModel(ItemSearch)
+    .event(ListCompleted)
     .test("List completes when every item is done", {
       given: [milk, milkDone],
       when: CompleteList({ listId: "list-1" }),
@@ -174,9 +174,9 @@ export const Calendar = m.external({ TaskScheduled })
 export const Integrations = [
   m
     .slice()
-    .on(TaskScheduled)
+    .trigger(TaskScheduled)
     .command(AddItem)
-    .emits(ItemAdded, (c) => ({ title: c.text })),
+    .event(ItemAdded((c) => ({ title: c.text }))),
 ]
 
 // The same lane as list-management.ts declares; the CLI merges them by name.

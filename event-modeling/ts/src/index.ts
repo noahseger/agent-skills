@@ -15,6 +15,8 @@ import {
   type ExternalData,
   type Fields,
   type Flow,
+  type MapFn,
+  type MappedData,
   META,
   type ModelData,
   type ServiceData,
@@ -27,36 +29,53 @@ import {
 type Infer<F extends Fields> = { [P in keyof F]: z.infer<F[P]> }
 type OneOrMany<T> = T | readonly T[]
 
-/** What a `.emits()` mapping gets as its second argument. */
+/** What a function gets as its second argument where a command's handler fills an event. */
 export interface EmitHelpers {
   /** A value the handler assigns, such as an id or a clock. */
   generate<T>(): T
 }
 
-/** What a projection's `.on()` mapping gets as its second argument. */
+/** What a function gets as its second argument in a projection. */
 export interface ProjectionHelpers {
   /** The number of the source's events seen for the row. */
   count(source: object): number
 }
 
-/** Fills target fields from the source; the rest copy by name. */
-export type Mapping<S extends Fields, T extends Fields> = (
-  source: Infer<S>,
-  helpers: ProjectionHelpers,
-) => Partial<Infer<T>>
+/** An automation's command is filled from its trigger with no helpers. */
+type NoHelpers = Record<never, never>
 
 type Unfilled<S extends Fields, T extends Fields> = Exclude<keyof T, keyof S> & string
 
-/** Puts the event fields the command lacks into the editor's error, so the fix is in front of you. */
-type FilledBy<S extends Fields, T extends Fields> = [Unfilled<S, T>] extends [never]
+/** Puts the fields the source lacks into the editor's error, so the fix is in front of you. */
+type FilledBy<S extends Fields, T extends Fields, From extends string> = [Unfilled<S, T>] extends [
+  never,
+]
   ? unknown
-  : { readonly "add to the command or set in the mapping": Unfilled<S, T> }
+  : { readonly [K in `add to the ${From} or set in the mapping`]: Unfilled<S, T> }
 
-/** A mapping must set every event field the command lacks. A declaration is callable, so the result refuses one's example. */
-type FillsRest<S extends Fields, T extends Fields> = (
-  source: Infer<S>,
-  helpers: EmitHelpers,
-) => Pick<Infer<T>, Unfilled<S, T>> & Partial<Infer<T>> & { readonly [META]?: never }
+/** A use where a handler fills the declaration from `S`'s fields. */
+export interface Into<S extends Fields, H> {
+  readonly source: S
+  readonly helpers: H
+}
+
+/** A use in a projection, where the event fills `R`'s columns. */
+export interface Onto<R extends Fields> {
+  readonly readModel: R
+}
+
+export type Place = Into<Fields, unknown> | Onto<Fields>
+
+/**
+ * The function a declaration with fields `F` is called with, typed by where the slice uses it. A
+ * handler's must set every field its source lacks; a projection's sets any columns.
+ */
+export type Mapper<F extends Fields, P> =
+  P extends Onto<infer R>
+    ? (event: Infer<F>, helpers: ProjectionHelpers) => Partial<Infer<R>>
+    : P extends Into<infer S, infer H>
+      ? (source: Infer<S>, helpers: H) => Pick<Infer<F>, Unfilled<S, F>> & Partial<Infer<F>>
+      : never
 
 // ---------------------------------------------------------------------------
 // Declarations
@@ -68,9 +87,23 @@ export interface Example<K extends DeclKind = DeclKind, F extends Fields = Field
   readonly __fields: F
 }
 
+/** A declaration called with a function: its use in a slice, filling what does not flow by name. */
+export interface Mapped<K extends DeclKind, F extends Fields, P extends Place> {
+  readonly [META]: MappedData
+  readonly __kind: K
+  readonly __fields: F
+  readonly __place: P
+}
+
 export interface Decl<K extends DeclKind, F extends Fields> {
-  /** Example data for a given, when or then clause. Zod checks the values. */
-  (data: Partial<Infer<F>>): Example<K, F>
+  /**
+   * With data, an example for a given, when or then clause; Zod checks the values. With a function,
+   * its use in a slice, filling the fields its source does not carry by name. One signature, not two
+   * overloads, so the compiler's error is about the form written. The slice step decides `P`.
+   */
+  <P extends Place = never>(
+    arg: [P] extends [never] ? Partial<Infer<F>> : Mapper<F, P>,
+  ): [P] extends [never] ? Example<K, F> : Mapped<K, F, P>
   readonly [META]: DeclData
   readonly __kind: K
   readonly __fields: F
@@ -85,12 +118,12 @@ function decl<K extends DeclKind, F extends Fields>(kind: K, fields: F): Decl<K,
   const keys = Object.keys(fields).filter((f) => fields[f]?.meta()?.key === true)
   const data: DeclData = { kind, fields, keys }
   const schema = z.object(fields).partial()
-  const example = (values: Partial<Infer<F>>): Example<K, F> => ({
-    [META]: { decl: data, data: schema.parse(values) },
-    __kind: kind,
-    __fields: fields,
-  })
-  const declared: Decl<K, F> = Object.assign(example, {
+  // A function makes a use for a slice; anything else is an example.
+  const call = (arg: object): object =>
+    typeof arg === "function"
+      ? { [META]: { decl: data, map: arg as MapFn } }
+      : { [META]: { decl: data, data: schema.parse(arg) }, __kind: kind, __fields: fields }
+  const declared = Object.assign(call as Decl<K, F>, {
     [META]: data,
     __kind: kind,
     __fields: fields,
@@ -198,8 +231,6 @@ function isProbe(value: unknown): value is Probe {
   return typeof value === "object" && value !== null && FIELD in value
 }
 
-type MapFn = (source: never, helpers: never) => object
-
 function probe(fields: Fields, map: MapFn): Record<string, Source> {
   const source = Object.fromEntries(Object.keys(fields).map((f) => [f, { [FIELD]: f }]))
   const mapping: Record<string, Source> = {}
@@ -216,8 +247,13 @@ function probe(fields: Fields, map: MapFn): Record<string, Source> {
   return mapping
 }
 
-function flow(event: DeclData, sourceFields: Fields, map?: MapFn): Flow {
-  return { event, mapping: map ? probe(sourceFields, map) : {} }
+type Used = { readonly [META]: DeclData | MappedData }
+
+/** A declaration as a slice uses it: as it is, or called with a function that reads `source`. */
+function flow(use: Used, source?: Fields): Flow {
+  const data = use[META]
+  if (!("map" in data)) return { decl: data, mapping: {} }
+  return { decl: data.decl, mapping: probe(source ?? data.decl.fields, data.map) }
 }
 
 // ---------------------------------------------------------------------------
@@ -234,7 +270,7 @@ export interface Unfinished<Next extends string> {
   readonly "finish this slice with": Next
 }
 
-/** Exactly one of `then`, the events emitted, or `reject`, why the command is refused. */
+/** Exactly one of `then`, the events recorded, or `reject`, why the command is refused. */
 export type Spec<C extends Fields, Em extends Fields> = {
   given?: OneOrMany<Example<"event">>
   when: Example<"command", C>
@@ -246,85 +282,107 @@ export interface ProjectionSpec<R extends Fields> {
   then: OneOrMany<Example<"readModel", R>>
 }
 
-export interface SliceStart extends Unfinished<".actor(), .on(), .polls() or .projects()"> {
-  actor(actor: Actor): Acting
-  /** Automation: the event starts it. */
-  on(event: EventDecl): NeedsCommandOrReads
-  /** Automation: works through the read model on its own schedule. */
-  polls(readModel: ReadModelDecl): NeedsCommand
-  /** State view: events build the read model. */
-  projects<R extends Fields>(readModel: ReadModelDecl<R>): Projecting<R>
-}
+type Actors = [Actor, ...Actor[]]
 
-export interface Acting extends Unfinished<".service(), .query() or .reads()"> {
-  reads(readModel: ReadModelDecl): ActingRead
-  /** The request fields of a view. */
-  query(fields: Fields): Querying
-  service(service: Service, method?: string): NeedsCommand
-}
-
-export interface ActingRead
-  extends Unfinished<'.service(Service, "Method") to show data, or .service(Service).command(Command) to change it'> {
-  reads(readModel: ReadModelDecl): ActingRead
-  service(service: Service): NeedsCommand
-  /** With a method this is a view, and may still go on to a command. */
-  service(service: Service, method: string): ViewOrCommand
-}
-
-export interface Querying extends Unfinished<".reads(ReadModel)"> {
-  reads(readModel: ReadModelDecl): NeedsMethod
-}
-
-export interface NeedsMethod extends Unfinished<'.service(Service, "Method")'> {
-  reads(readModel: ReadModelDecl): NeedsMethod
-  service(service: Service, method: string): View
+export interface SliceStart
+  extends Unfinished<".command(), .view(), .trigger(), .todoList() or .projection()"> {
+  /** State change: the command an actor issues, or `.command("Name", fields)` to declare it here. */
+  command<C extends Fields>(command: CommandDecl<C>): Handling<C>
+  command<C extends Fields>(name: string, fields: C): Handling<C>
+  /** View: the read models it shows. */
+  view(...readModels: [ReadModelDecl, ...ReadModelDecl[]]): View
+  /** Automation: the event that starts it, a translation when the event is external. */
+  trigger<E extends Fields>(event: EventDecl<E>): NeedsCommand<E, "trigger">
+  /** Automation: the to-do list it works through on its own schedule. */
+  todoList<R extends Fields>(readModel: ReadModelDecl<R>): NeedsCommand<R, "to-do list">
+  /** State view: the read model that events build. */
+  projection<R extends Fields>(readModel: ReadModelDecl<R>): Projecting<R>
 }
 
 export interface View extends Slice {
+  /** The request fields; without them the request is empty. */
+  query(fields: Fields): View
+  actor(...actors: Actors): View
+  /** A view has no command to name its method after. */
+  service(service: Service, method: string): View
   note(text: string): View
 }
 
-/** `.command(Command)`, or `.command("Name", fields)` to declare it here. */
-interface Commands {
-  command<C extends Fields>(command: CommandDecl<C>): NeedsEmits<C>
-  command<C extends Fields>(name: string, fields: C): NeedsEmits<C>
+/** `S` is the trigger's fields or the to-do row's; `From` names which in the editor's error. */
+export interface NeedsCommand<S extends Fields, From extends string>
+  extends Unfinished<".command(Command)"> {
+  /** `.command(Command)`, `.command(Command(map))`, or `.command("Name", fields)` to declare it here. */
+  command<C extends Fields>(
+    command: (CommandDecl<C> & FilledBy<S, C, From>) | Mapped<"command", C, Into<S, NoHelpers>>,
+  ): Deciding<C>
+  command<C extends Fields>(name: string, fields: C & FilledBy<S, C, From>): Deciding<C>
 }
 
-/**
- * `.emits(Event)`, or `.emits("Name", fields)` to declare it here; `Em` is what came before.
- * The compiler reports the last overload that fails, so the common form comes last.
- */
-interface Emits<C extends Fields, Em extends Fields> {
-  emits<E extends Fields>(name: string, fields: E & FilledBy<C, E>): Complete<C, Em | E>
-  emits<E extends Fields>(name: string, fields: E, map: FillsRest<C, E>): Complete<C, Em | E>
-  emits<E extends Fields>(event: EventDecl<E> & FilledBy<C, E>): Complete<C, Em | E>
-  emits<E extends Fields>(event: EventDecl<E>, map: FillsRest<C, E>): Complete<C, Em | E>
+type Who = "actor" | "system"
+
+/** The next step of a state change (an actor's) or an automation (the system's). */
+type After<W extends Who, C extends Fields, Em extends Fields> = [Em] extends [never]
+  ? W extends "actor"
+    ? Handling<C>
+    : Deciding<C>
+  : W extends "actor"
+    ? StateChange<C, Em>
+    : Automation<C, Em>
+
+/** What the command's handler reads and records. */
+interface Handles<C extends Fields, Em extends Fields, W extends Who> {
+  /** What the handler reads to decide; once per read model. */
+  readModel(readModel: ReadModelDecl): After<W, C, Em>
+  /**
+   * `.event(Event)`, `.event(Event(map))`, or `.event("Name", fields)` to declare it here.
+   * The compiler reports the last overload that fails, so the common form comes last.
+   */
+  event<E extends Fields>(name: string, fields: E & FilledBy<C, E, "command">): After<W, C, Em | E>
+  event<E extends Fields>(
+    event: (EventDecl<E> & FilledBy<C, E, "command">) | Mapped<"event", E, Into<C, EmitHelpers>>,
+  ): After<W, C, Em | E>
 }
 
-export interface ViewOrCommand extends View, Commands {}
-
-export interface NeedsCommand extends Unfinished<".command(Command)">, Commands {}
-
-export interface NeedsCommandOrReads extends NeedsCommand {
-  /** What the decision looks at; once per read model. */
-  reads(readModel: ReadModelDecl): NeedsCommandOrReads
+/** Who issues a state change's command, and the method it goes through. */
+interface Issued<C extends Fields, Em extends Fields> {
+  actor(...actors: Actors): After<"actor", C, Em>
+  /** The method is named after the command unless given. */
+  service(service: Service, method?: string): After<"actor", C, Em>
 }
 
-export interface NeedsEmits<C extends Fields>
-  extends Unfinished<".emits(Event)">,
-    Emits<C, never> {}
+export interface Deciding<C extends Fields>
+  extends Unfinished<".event(Event)">,
+    Handles<C, never, "system"> {}
 
-export interface Complete<C extends Fields, Em extends Fields> extends Slice, Emits<C, Em> {
-  test(name: string, spec: Spec<C, Em>): Complete<C, Em>
-  note(text: string): Complete<C, Em>
+export interface Handling<C extends Fields>
+  extends Unfinished<".event(Event)">,
+    Handles<C, never, "actor">,
+    Issued<C, never> {}
+
+export interface Automation<C extends Fields, Em extends Fields>
+  extends Slice,
+    Handles<C, Em, "system"> {
+  test(name: string, spec: Spec<C, Em>): Automation<C, Em>
+  note(text: string): Automation<C, Em>
 }
 
-export interface Projecting<R extends Fields> extends Unfinished<".on(Event)"> {
-  on<E extends Fields>(event: EventDecl<E>, map?: Mapping<E, R>): Projection<R>
+export interface StateChange<C extends Fields, Em extends Fields>
+  extends Slice,
+    Handles<C, Em, "actor">,
+    Issued<C, Em> {
+  test(name: string, spec: Spec<C, Em>): StateChange<C, Em>
+  note(text: string): StateChange<C, Em>
+}
+
+/** `.event(Event)`, or `.event(Event(map))` to fill columns the event does not carry by name. */
+type ProjectedEvent<R extends Fields, E extends Fields> = EventDecl<E> | Mapped<"event", E, Onto<R>>
+
+export interface Projecting<R extends Fields> extends Unfinished<".event(Event)"> {
+  event<E extends Fields>(event: ProjectedEvent<R, E>): Projection<R>
 }
 
 export interface Projection<R extends Fields> extends Slice {
-  on<E extends Fields>(event: EventDecl<E>, map?: Mapping<E, R>): Projection<R>
+  event<E extends Fields>(event: ProjectedEvent<R, E>): Projection<R>
   test(name: string, spec: ProjectionSpec<R>): Projection<R>
   note(text: string): Projection<R>
 }
@@ -353,10 +411,10 @@ function testData(name: string, spec: AnySpec): TestData {
 }
 
 /** A declaration written in place, named by its string. */
-function named<K extends DeclKind>(kind: K, name: string, fields: Fields): DeclData {
+function named<K extends DeclKind>(kind: K, name: string, fields: Fields): Flow {
   const data = decl(kind, fields)[META]
   data.name = name
-  return data
+  return { decl: data, mapping: {} }
 }
 
 // Each step copies, so a shared chain prefix can start several slices. The
@@ -369,41 +427,45 @@ function chain(data: SliceData) {
   }
   return {
     [META]: data,
-    actor: (actor: Actor) => next({ actor: actor[META] }),
+    command: (command: Used | string, fields: Fields = {}) =>
+      next({
+        command:
+          typeof command === "string"
+            ? named("command", command, fields)
+            : flow(command, (data.trigger ?? data.todoList)?.fields),
+      }),
+    view: (...readModels: ReadModelDecl[]) => next({ shows: readModels.map((r) => r[META]) }),
+    trigger: (event: EventDecl) => next({ trigger: event[META] }),
+    todoList: (readModel: ReadModelDecl) => next({ todoList: readModel[META] }),
+    projection: (readModel: ReadModelDecl) => next({ projection: readModel[META] }),
+    readModel: (readModel: ReadModelDecl) =>
+      next({ readModels: [...data.readModels, readModel[META]] }),
+    // A projection's event is its own source; a handler's source is the command.
+    event: (event: Used | string, fields: Fields = {}) =>
+      next({
+        events: [
+          ...data.events,
+          typeof event === "string"
+            ? named("event", event, fields)
+            : flow(event, data.projection ? undefined : (data.command?.decl.fields ?? {})),
+        ],
+      }),
     query: (fields: Fields) => next({ query: fields }),
-    reads: (readModel: ReadModelDecl) => next({ reads: [...data.reads, readModel[META]] }),
+    actor: (...actors: Actor[]) =>
+      next({ actors: [...data.actors, ...actors.map((a) => a[META])] }),
     service: (service: Service, method?: string) =>
       next({
         service:
           method === undefined ? { service: service[META] } : { service: service[META], method },
       }),
-    command: (command: CommandDecl | string, fields: Fields = {}) =>
-      next({
-        command: typeof command === "string" ? named("command", command, fields) : command[META],
-      }),
-    emits: (event: EventDecl | string, ...rest: [map?: MapFn] | [fields: Fields, map?: MapFn]) => {
-      const [emitted, map] =
-        typeof event === "string"
-          ? [named("event", event, rest[0] as Fields), rest[1]]
-          : [event[META], rest[0] as MapFn | undefined]
-      if (map !== undefined && (typeof map !== "function" || META in map))
-        throw new Error(
-          "The second argument to .emits() is a function that fills the event's fields. To emit another event, chain another .emits().",
-        )
-      return next({ emits: [...data.emits, flow(emitted, data.command?.fields ?? {}, map)] })
-    },
-    on: (event: EventDecl, map?: MapFn) =>
-      next({ on: [...data.on, flow(event[META], event[META].fields, map)] }),
-    polls: (readModel: ReadModelDecl) => next({ polls: readModel[META] }),
-    projects: (readModel: ReadModelDecl) => next({ projects: readModel[META] }),
     test: (name: string, spec: AnySpec) => next({ tests: [...data.tests, testData(name, spec)] }),
     note: (text: string) => next({ note: text }),
   }
 }
 
-/** A column of the diagram. Pass a name only when the command's would mislead. */
+/** A column of the diagram. Pass a name only when the one it would take misleads. */
 function slice(name?: string): SliceStart {
-  const data: SliceData = { reads: [], emits: [], on: [], tests: [] }
+  const data: SliceData = { actors: [], shows: [], readModels: [], events: [], tests: [] }
   if (name !== undefined) data.name = name
   return chain(data) as unknown as SliceStart
 }

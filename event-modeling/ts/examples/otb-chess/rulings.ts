@@ -38,13 +38,13 @@ export const secondOffence = SecondIllegalMoveRuled({
 export const ArbiterRulings = [
   m
     .slice()
-    .actor(Arbiter)
-    .reads(MoveList)
-    .reads(IllegalMoveTally)
-    .service(ChessService)
     .command(RuleIllegalMove)
-    .emits(IllegalMoveRuled)
-    .emits(SecondIllegalMoveRuled)
+    .readModel(MoveList)
+    .readModel(IllegalMoveTally)
+    .event(IllegalMoveRuled)
+    .event(SecondIllegalMoveRuled)
+    .actor(Arbiter)
+    .service(ChessService)
     .note(
       "FIDE 7.5.1: the position before the illegal move is reinstated. 7.5.5: the first one adds two minutes to the opponent, the second one loses the game.",
     )
@@ -79,8 +79,8 @@ export const ArbiterRulings = [
 
   m
     .slice()
-    .projects(IllegalMoveTally)
-    .on(IllegalMoveRuled, (e, { count }) => ({ illegalMoveCount: count(e) }))
+    .projection(IllegalMoveTally)
+    .event(IllegalMoveRuled((e, { count }) => ({ illegalMoveCount: count(e) })))
     .test("One ruling puts the offender on one illegal move", {
       given: illegalMoveRuled,
       then: IllegalMoveTally({

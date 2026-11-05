@@ -506,13 +506,14 @@ export function layout(model: ModelJson): Layout {
   for (const col of columns) {
     const s = col.slice
     const i = col.index
-    let ui: Placed | undefined
+    const uis: Placed[] = []
     let external: Placed | undefined
     let command: Placed | undefined
     let gear: Placed | undefined
     const readModels: Placed[] = []
     const events: Placed[] = []
 
+    // A screen in each actor's lane.
     if (s.ui) {
       const slash = s.ui.indexOf("/")
       const service = slash < 0 ? undefined : s.ui.slice(0, slash)
@@ -520,19 +521,22 @@ export function layout(model: ModelJson): Layout {
       // The wireframe is the command's form or the read model's table.
       const commandFields = s.command ? parse(s.command).fields : []
       const shown = s.read_models?.[0] ? parse(s.read_models[0]).fields : undefined
-      ui = make(
-        i,
-        "ui",
-        { name: method, fields: s.query ?? [], keys: [] },
-        {
-          ...(service === undefined ? {} : { detail: service }),
-          form: s.command ? commandFields : (s.query ?? []),
-          ...(s.command ? { button: parse(s.command).name } : {}),
-          ...(shown === undefined ? {} : { table: shown }),
-        },
-      )
-      into(`actor:${s.actor}`, i, ui)
-      useActor(s.actor)
+      for (const actor of s.actors ?? [s.actor]) {
+        const ui = make(
+          i,
+          "ui",
+          { name: method, fields: s.query ?? [], keys: [] },
+          {
+            ...(service === undefined ? {} : { detail: service }),
+            form: s.command ? commandFields : (s.query ?? []),
+            ...(s.command ? { button: parse(s.command).name } : {}),
+            ...(shown === undefined ? {} : { table: shown }),
+          },
+        )
+        uis.push(ui)
+        into(`actor:${actor}`, i, ui)
+        useActor(actor)
+      }
     }
     if (s.external_event) {
       external = make(i, "external", parse(s.external_event))
@@ -569,12 +573,12 @@ export function layout(model: ModelJson): Layout {
       eventBoxes.set(box.name, seen)
     }
 
-    if (ui && command) edge(ui, command)
+    if (command) for (const ui of uis) edge(ui, command)
     if (external) {
       const next = gear ?? command
       if (next) edge(external, next)
     }
-    if (ui && !command) for (const rm of readModels) edge(rm, ui)
+    if (!command) for (const ui of uis) for (const rm of readModels) edge(rm, ui)
     if (gear && command) edge(gear, command)
     if (command) for (const ev of events) edge(command, ev)
     consumers.set(i, { ...(command ? { command } : {}), ...(gear ? { gear } : {}) })

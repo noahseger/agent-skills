@@ -9,18 +9,17 @@ import { ChessService, Spectator } from "./setup.ts"
 export const Spectating = [
   m
     .slice()
-    .actor(Spectator)
+    .view(GameState, MoveList)
     .query({ gameId: z.string() })
-    .reads(GameState)
-    .reads(MoveList)
+    .actor(Spectator)
     .service(ChessService, "WatchBroadcast")
     .note("The live position and the moves so far, as the broadcast shows them."),
 
   m
     .slice()
-    .actor(Spectator)
+    .view(GameRecord)
     .query({ round: z.number().int() })
-    .reads(GameRecord)
+    .actor(Spectator)
     .service(ChessService, "GetCrosstable")
     .note("The finished games of a round."),
 ]

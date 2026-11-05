@@ -7,9 +7,9 @@ export const User = m.actor()
 export const Notes = m.service("notes.v1")
 
 m.slice()
+  .command("CreateNote", { title: z.string() })
+  .event("NoteCreated", { title: z.string() })
   .actor(User)
   .service(Notes)
-  .command("CreateNote", { title: z.string() })
-  .emits("NoteCreated", { title: z.string() })
 
 export default m.model("Storm")

@@ -42,7 +42,7 @@ function modelOf(
 const source = (model: ModelData) => generateProto(model)[0]?.source ?? ""
 
 const stateChange = (Create: ReturnType<typeof m.command>) =>
-  m.slice().actor(User).service(Svc).command(Create).emits(m.event({}))
+  m.slice().command(Create).event(m.event({})).actor(User).service(Svc)
 
 test("field numbers follow declaration order", () => {
   const Create = m.command({ userId: z.string(), listId: z.string(), name: z.string() })
@@ -53,8 +53,8 @@ test("field numbers follow declaration order", () => {
 })
 
 test("a command declared in place generates like an exported one", () => {
-  const slice = m.slice().actor(User).service(Svc).command("Rename", { name: z.string() })
-  const proto = source(modelOf({}, slice.emits(m.event({}))))
+  const slice = m.slice().command("Rename", { name: z.string() }).event(m.event({}))
+  const proto = source(modelOf({}, slice.actor(User).service(Svc)))
   assert.match(proto, /rpc Rename\(RenameRequest\) returns \(RenameResponse\);/)
   assert.match(proto, /message RenameRequest \{\n {2}string name = 1;\n\}/)
 })
@@ -110,14 +110,14 @@ test("a type outside the table is an error naming the declaration and the field"
   )
   const Table = m.readModel({ id: m.key(z.string()), amount: z.bigint() })
   assert.throws(
-    () => source(modelOf({ Table }, m.slice().actor(User).reads(Table).service(Svc, "Get"))),
+    () => source(modelOf({ Table }, m.slice().view(Table).actor(User).service(Svc, "Get"))),
     /Table\.amount can't become protobuf/,
   )
 })
 
 test("a view with no .query() has an empty request", () => {
   const Table = m.readModel({ id: m.key(z.string()) })
-  const proto = source(modelOf({ Table }, m.slice().actor(User).reads(Table).service(Svc, "Get")))
+  const proto = source(modelOf({ Table }, m.slice().view(Table).actor(User).service(Svc, "Get")))
   assert.match(proto, /rpc Get\(GetRequest\) returns \(GetResponse\);/)
   assert.match(
     proto,
@@ -129,9 +129,16 @@ test("a service with no procedures produces no file", () => {
   const Table = m.readModel({ id: m.key(z.string()) })
   const Created = m.event({ id: z.string() })
   assert.deepEqual(
-    generateProto(modelOf({ Table, Created }, m.slice().projects(Table).on(Created))),
+    generateProto(modelOf({ Table, Created }, m.slice().projection(Table).event(Created))),
     [],
   )
+})
+
+test("a slice without a service has no procedure", () => {
+  const Table = m.readModel({ id: m.key(z.string()) })
+  const Create = m.command({ id: z.string() })
+  const slices = [m.slice().view(Table).actor(User), m.slice().command(Create).event(m.event({}))]
+  assert.deepEqual(generateProto(modelOf({ Table, Create }, ...slices)), [])
 })
 
 test("two read models read by one view both appear in the response", () => {
@@ -139,12 +146,11 @@ test("two read models read by one view both appear in the response", () => {
   const Items = m.readModel({ id: m.key(z.string()), listId: z.string() })
   const view = m
     .slice()
-    .actor(User)
+    .view(Lists, Items)
     .query({ listId: z.string() })
-    .reads(Lists)
-    .reads(Items)
+    .actor(User)
     .service(Svc, "Get")
-  const again = m.slice().actor(User).reads(Items).service(Svc, "GetItems")
+  const again = m.slice().view(Items).actor(User).service(Svc, "GetItems")
   const proto = source(modelOf({ Lists, Items }, view, again))
   assert.match(
     proto,
@@ -162,11 +168,11 @@ test("a query that names every key column returns one row, not a list", () => {
   const Table = m.readModel({ userId: m.key(z.string()), id: m.key(z.string()), name: z.string() })
   const one = m
     .slice()
-    .actor(User)
+    .view(Table)
     .query({ userId: z.string(), id: z.string() })
-    .reads(Table)
+    .actor(User)
     .service(Svc, "Get")
-  const many = m.slice().actor(User).query({ userId: z.string() }).reads(Table).service(Svc, "List")
+  const many = m.slice().view(Table).query({ userId: z.string() }).actor(User).service(Svc, "List")
   const proto = source(modelOf({ Table }, one, many))
   assert.match(proto, /message GetResponse \{\n {2}Table table = 1;\n\}/)
   assert.match(proto, /message ListResponse \{\n {2}repeated Table table = 1;\n\}/)

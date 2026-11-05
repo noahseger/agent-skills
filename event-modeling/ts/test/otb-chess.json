@@ -47,7 +47,7 @@
           "actor": "pairing-system",
           "aggregate": "game",
           "external_event": "PairingPublished(gameId, round, boardNumber, whitePlayerId, blackPlayerId, timeControl, baseMinutes, incrementSeconds)",
-          "command": "StartGame(gameId, round, boardNumber, whitePlayerId, blackPlayerId, timeControl, baseMinutes, incrementSeconds, fen, sideToMove, ply)",
+          "command": "StartGame(gameId, round, boardNumber, whitePlayerId, blackPlayerId, timeControl, baseMinutes, incrementSeconds)",
           "events": [
             "GameStarted(gameId, round, boardNumber, whitePlayerId, blackPlayerId, timeControl, baseMinutes, incrementSeconds, fen, sideToMove, ply)"
           ],
@@ -57,13 +57,26 @@
               "given": [
                 "PairingPublished(gameId=otb-2024-ct-r5-b1, round=5, boardNumber=1, whitePlayerId=gm-carlsen, blackPlayerId=gm-nepo, timeControl=classical, baseMinutes=90, incrementSeconds=30)"
               ],
-              "when": "StartGame(gameId=otb-2024-ct-r5-b1, round=5, boardNumber=1, whitePlayerId=gm-carlsen, blackPlayerId=gm-nepo, timeControl=classical, baseMinutes=90, incrementSeconds=30, fen=rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1, sideToMove=white, ply=0)",
+              "when": "StartGame(gameId=otb-2024-ct-r5-b1, round=5, boardNumber=1, whitePlayerId=gm-carlsen, blackPlayerId=gm-nepo, timeControl=classical, baseMinutes=90, incrementSeconds=30)",
               "then": [
                 "GameStarted(gameId=otb-2024-ct-r5-b1, round=5, boardNumber=1, whitePlayerId=gm-carlsen, blackPlayerId=gm-nepo, timeControl=classical, baseMinutes=90, incrementSeconds=30, fen=rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1, sideToMove=white, ply=0)"
               ]
             }
           ],
-          "note": "The pairing is translated, never stored. The starting position is ours to supply."
+          "note": "The pairing is translated, never stored. The starting position is ours to supply.",
+          "mapping": {
+            "GameStarted": {
+              "fen": {
+                "value": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+              },
+              "sideToMove": {
+                "value": "white"
+              },
+              "ply": {
+                "value": 0
+              }
+            }
+          }
         },
         {
           "name": "GamePairing",
@@ -94,7 +107,7 @@
           "aggregate": "clock",
           "automation": "ClockStarter",
           "trigger": "GameStarted(gameId, round, boardNumber, whitePlayerId, blackPlayerId, timeControl, baseMinutes, incrementSeconds, fen, sideToMove, ply)",
-          "command": "StartClock(gameId, baseMinutes, incrementSeconds, whiteTimeMs, blackTimeMs, runningSide)",
+          "command": "StartClock(gameId, baseMinutes, incrementSeconds)",
           "events": [
             "ClockStarted(gameId, baseMinutes, incrementSeconds, whiteTimeMs, blackTimeMs, runningSide)"
           ],
@@ -104,12 +117,25 @@
               "given": [
                 "GameStarted(gameId=otb-2024-ct-r5-b1, round=5, boardNumber=1, whitePlayerId=gm-carlsen, blackPlayerId=gm-nepo, timeControl=classical, baseMinutes=90, incrementSeconds=30, fen=rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1, sideToMove=white, ply=0)"
               ],
-              "when": "StartClock(gameId=otb-2024-ct-r5-b1, baseMinutes=90, incrementSeconds=30, whiteTimeMs=5400000, blackTimeMs=5400000, runningSide=white)",
+              "when": "StartClock(gameId=otb-2024-ct-r5-b1, baseMinutes=90, incrementSeconds=30)",
               "then": [
                 "ClockStarted(gameId=otb-2024-ct-r5-b1, baseMinutes=90, incrementSeconds=30, whiteTimeMs=5400000, blackTimeMs=5400000, runningSide=white)"
               ]
             }
-          ]
+          ],
+          "mapping": {
+            "ClockStarted": {
+              "whiteTimeMs": {
+                "generate": true
+              },
+              "blackTimeMs": {
+                "generate": true
+              },
+              "runningSide": {
+                "value": "white"
+              }
+            }
+          }
         }
       ]
     },
@@ -615,7 +641,7 @@
           "aggregate": "game",
           "automation": "OutcomeAdjudicator",
           "trigger": "GameEnded(gameId, ply, fen, ending)",
-          "command": "AdjudicateOutcome(gameId, ply, fen, result, termination)",
+          "command": "AdjudicateOutcome(gameId, ply, fen, termination)",
           "events": [
             "BoardOutcomeAdjudicated(gameId, ply, fen, result, termination)"
           ],
@@ -628,7 +654,7 @@
               "given": [
                 "GameEnded(gameId=otb-2024-ct-r5-b1, ply=7, fen=r1bqkb1r/pppp1Qpp/2n2n2/8/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 4, ending=checkmate)"
               ],
-              "when": "AdjudicateOutcome(gameId=otb-2024-ct-r5-b1, ply=7, fen=r1bqkb1r/pppp1Qpp/2n2n2/8/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 4, result=white_won, termination=checkmate)",
+              "when": "AdjudicateOutcome(gameId=otb-2024-ct-r5-b1, ply=7, fen=r1bqkb1r/pppp1Qpp/2n2n2/8/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 4, termination=checkmate)",
               "then": [
                 "BoardOutcomeAdjudicated(gameId=otb-2024-ct-r5-b1, ply=7, fen=r1bqkb1r/pppp1Qpp/2n2n2/8/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 4, result=white_won, termination=checkmate)"
               ]
@@ -638,7 +664,7 @@
               "given": [
                 "GameEnded(gameId=otb-2024-ct-r5-b1, ply=103, fen=7k/5Q2/6K1/8/8/8/8/8 b - - 0 52, ending=stalemate)"
               ],
-              "when": "AdjudicateOutcome(gameId=otb-2024-ct-r5-b1, ply=103, fen=7k/5Q2/6K1/8/8/8/8/8 b - - 0 52, result=draw, termination=stalemate)",
+              "when": "AdjudicateOutcome(gameId=otb-2024-ct-r5-b1, ply=103, fen=7k/5Q2/6K1/8/8/8/8/8 b - - 0 52, termination=stalemate)",
               "then": [
                 "BoardOutcomeAdjudicated(gameId=otb-2024-ct-r5-b1, ply=103, fen=7k/5Q2/6K1/8/8/8/8/8 b - - 0 52, result=draw, termination=stalemate)"
               ]
@@ -648,13 +674,25 @@
               "given": [
                 "GameEnded(gameId=otb-2024-ct-r5-b1, ply=88, fen=8/8/4k3/8/8/4K3/8/8 w - - 0 45, ending=dead_position)"
               ],
-              "when": "AdjudicateOutcome(gameId=otb-2024-ct-r5-b1, ply=88, fen=8/8/4k3/8/8/4K3/8/8 w - - 0 45, result=draw, termination=dead_position)",
+              "when": "AdjudicateOutcome(gameId=otb-2024-ct-r5-b1, ply=88, fen=8/8/4k3/8/8/4K3/8/8 w - - 0 45, termination=dead_position)",
               "then": [
                 "BoardOutcomeAdjudicated(gameId=otb-2024-ct-r5-b1, ply=88, fen=8/8/4k3/8/8/4K3/8/8 w - - 0 45, result=draw, termination=dead_position)"
               ]
             }
           ],
-          "note": "The move that ended the game says how. This turns that into a result."
+          "note": "The move that ended the game says how. This turns that into a result.",
+          "mapping": {
+            "AdjudicateOutcome": {
+              "termination": {
+                "from": "ending"
+              }
+            },
+            "BoardOutcomeAdjudicated": {
+              "result": {
+                "generate": true
+              }
+            }
+          }
         },
         {
           "name": "IllegalMoveForfeiter",
@@ -662,7 +700,7 @@
           "aggregate": "game",
           "automation": "IllegalMoveForfeiter",
           "trigger": "SecondIllegalMoveRuled(gameId, offendingSide, illegalMoveCount)",
-          "command": "ForfeitGame(gameId, offendingSide, illegalMoveCount, result, termination)",
+          "command": "ForfeitGame(gameId, offendingSide, illegalMoveCount)",
           "events": [
             "IllegalMoveForfeited(gameId, offendingSide, illegalMoveCount, result, termination)"
           ],
@@ -675,12 +713,22 @@
               "given": [
                 "SecondIllegalMoveRuled(gameId=otb-2024-ct-r5-b1, offendingSide=white, illegalMoveCount=2)"
               ],
-              "when": "ForfeitGame(gameId=otb-2024-ct-r5-b1, offendingSide=white, illegalMoveCount=2, result=black_won, termination=illegal_move_forfeit)",
+              "when": "ForfeitGame(gameId=otb-2024-ct-r5-b1, offendingSide=white, illegalMoveCount=2)",
               "then": [
                 "IllegalMoveForfeited(gameId=otb-2024-ct-r5-b1, offendingSide=white, illegalMoveCount=2, result=black_won, termination=illegal_move_forfeit)"
               ]
             }
-          ]
+          ],
+          "mapping": {
+            "IllegalMoveForfeited": {
+              "result": {
+                "generate": true
+              },
+              "termination": {
+                "value": "illegal_move_forfeit"
+              }
+            }
+          }
         },
         {
           "name": "GameResult",

@@ -71,6 +71,7 @@ class Slice(BaseModel):
     """One vertical cut through the timeline. At most one command."""
     name: str | None = None
     actor: str
+    actors: list[str] = Field(default_factory=list)  # every actor with a screen, when there are several; actor is the first
     aggregate: str
     ui: str | None = None
     external_event: str | None = None  # event arriving from outside the system boundary
@@ -134,10 +135,11 @@ class EventModel(BaseModel):
             for si, sl in enumerate(ch.slices):
                 loc = f"'{sl.name}'" if sl.name else f"slice #{si + 1}"
                 loc = f"{loc} in '{ch.name}'"
-                if sl.actor not in actor_ids:
-                    errors.append(
-                        f"{loc} references unknown actor '{sl.actor}'"
-                    )
+                for actor in [sl.actor, *sl.actors]:
+                    if actor not in actor_ids:
+                        errors.append(
+                            f"{loc} references unknown actor '{actor}'"
+                        )
                 if sl.aggregate not in agg_ids:
                     errors.append(
                         f"{loc} references unknown aggregate '{sl.aggregate}'"
@@ -286,9 +288,14 @@ class EventModel(BaseModel):
                             )
                 # A mapping that reads a source field names one the handler
                 # actually receives: the command for a state change, the
-                # trigger event for a projection.
+                # trigger event for a projection, and for an automation's own
+                # command what starts it.
                 for ev_name, targets in sl.mapping.items():
-                    if sl.command:
+                    if sl.command and ev_name == _parse_element(sl.command)[0]:
+                        start = sl.external_event or (sl.trigger if isinstance(sl.trigger, str) else None)
+                        source = _parse_fields(start) if start else rm_registry.get(sl.polls or "", set())
+                        owner = _parse_element(start)[0] if start else (sl.polls or "")
+                    elif sl.command:
                         source, owner = _parse_fields(sl.command), _parse_element(sl.command)[0]
                     else:
                         matching = [t for t in _trigger_list(sl) if _parse_element(t)[0] == ev_name]
@@ -318,9 +325,9 @@ class EventModel(BaseModel):
                     for ev in sl.events:
                         non_cmd_fields |= _parse_fields(ev)
                     cmd_fields = _parse_fields(sl.command)
-                    cmd_untraced = cmd_fields - non_cmd_fields
+                    cmd_name = _parse_element(sl.command)[0]
+                    cmd_untraced = cmd_fields - non_cmd_fields - _mapped_fields(sl, cmd_name)
                     if cmd_untraced and non_cmd_fields:
-                        cmd_name = _parse_element(sl.command)[0]
                         errors.append(
                             f"Automation command '{cmd_name}' in {loc} has "
                             f"fields with no source: "

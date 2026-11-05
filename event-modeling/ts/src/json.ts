@@ -1,14 +1,17 @@
 // The assembled model as the JSON `event_model.py` reads. That format is older
 // than this package: streams are `aggregates` and key columns are `*field`.
-import type {
-  Assembled,
-  ClauseData,
-  DeclData,
-  ExampleData,
-  SliceData,
-  Source,
-  TestData,
-  Warning,
+import {
+  type ActorData,
+  type Assembled,
+  type ClauseData,
+  type DeclData,
+  type ExampleData,
+  heard,
+  recorded,
+  type SliceData,
+  type Source,
+  type TestData,
+  type Warning,
 } from "./types.ts"
 
 export interface TestJson {
@@ -20,7 +23,10 @@ export interface TestJson {
 
 export interface SliceJson {
   name: string
+  /** The first of `actors`, or who else starts the slice. */
   actor: string
+  /** Every actor with a screen in this slice, when there is more than one. */
+  actors?: string[]
   aggregate: string
   ui?: string
   external_event?: string
@@ -34,7 +40,7 @@ export interface SliceJson {
   query?: string[]
   polls?: string
   note?: string
-  /** Per event, the fields a function filled and where each came from. */
+  /** Per event or command, the fields a function filled and where each came from. */
   mapping?: Record<string, Record<string, Source>>
 }
 
@@ -125,22 +131,27 @@ export function toJson({ model, streams, loose, unchaptered, warnings }: Assembl
     return undefined
   }
   const fallback = aggregates[0]?.id ?? ""
-  // The command decides the lane, then what the slice emits, then what it hears.
+  // The command decides the lane, then what the slice records, then what it hears.
   const laneOf = (slice: SliceData): string =>
-    [slice.command, ...slice.emits.map((f) => f.event), ...slice.on.map((f) => f.event)]
+    [slice.command?.decl, ...recorded(slice), ...heard(slice)]
       .map((d) => (d === undefined ? undefined : streamOf(d)))
       .find((lane) => lane !== undefined) ?? fallback
 
   const actors = new Map<string, ActorJson>()
-  const actorOf = (slice: SliceData): string => {
-    const external = slice.on[0]?.event.external
-    const actor: ActorJson = slice.actor
-      ? { id: slug(slice.actor.name ?? ""), name: slice.actor.name ?? "", type: slice.actor.icon }
-      : external
-        ? { id: slug(external.name ?? ""), name: external.name ?? "", type: "external" }
-        : SYSTEM
+  const add = (actor: ActorJson): string => {
     if (!actors.has(actor.id)) actors.set(actor.id, actor)
     return actor.id
+  }
+  const person = (a: ActorData): ActorJson => ({
+    id: slug(a.name ?? ""),
+    name: a.name ?? "",
+    type: a.icon,
+  })
+  const actorOf = (slice: SliceData): string => {
+    const external = slice.trigger?.external
+    if (external)
+      return add({ id: slug(external.name ?? ""), name: external.name ?? "", type: "external" })
+    return slice.actors.map((a) => add(person(a)))[0] ?? add(SYSTEM)
   }
 
   const sliceJson = (slice: SliceData): SliceJson => {
@@ -149,43 +160,45 @@ export function toJson({ model, streams, loose, unchaptered, warnings }: Assembl
       actor: actorOf(slice),
       aggregate: laneOf(slice),
     }
-    const trigger = slice.on[0]?.event
+    if (slice.actors.length > 1) out.actors = slice.actors.map((a) => slug(a.name ?? ""))
+    const { trigger, command, projection } = slice
     const external = trigger?.external !== undefined
 
-    if (slice.service) {
-      const method = slice.service.method ?? slice.command?.name ?? ""
-      out.ui = `${slice.service.service.name}/${method}`
-      noted(slice.service.service)
+    // An actor has a screen; it is the service method when there is one.
+    if (slice.actors.length > 0) {
+      const method = slice.service?.method ?? command?.decl.name ?? slice.shows[0]?.name ?? ""
+      out.ui = slice.service ? `${slice.service.service.name}/${method}` : method
     }
+    if (slice.service) noted(slice.service.service)
     if (trigger && external) out.external_event = element(trigger)
-    if ((trigger && !external && !slice.projects) || slice.polls) out.automation = out.name
-    if (trigger && !external) {
-      out.trigger = slice.projects ? slice.on.map((f) => element(f.event)) : element(trigger)
+    if ((trigger && !external) || slice.todoList) out.automation = out.name
+    if (trigger && !external) out.trigger = element(trigger)
+    if (projection) out.trigger = slice.events.map((f) => element(f.decl))
+    if (command) {
+      out.command = element(command.decl)
+      noted(command.decl)
     }
-    if (slice.command) {
-      out.command = element(slice.command)
-      noted(slice.command)
-    }
-    if (slice.emits.length > 0) out.events = slice.emits.map((f) => element(f.event))
-    if (slice.reads.length > 0) {
-      if (slice.command || trigger) out.reads = slice.reads.map((r) => r.name ?? "")
-      else out.read_models = slice.reads.map((r) => element(r))
-    }
-    if (slice.projects) out.read_models = [element(slice.projects)]
+    if (!projection && slice.events.length > 0)
+      out.events = slice.events.map((f) => element(f.decl))
+    if (slice.readModels.length > 0) out.reads = slice.readModels.map((r) => r.name ?? "")
+    if (slice.shows.length > 0) out.read_models = slice.shows.map((r) => element(r))
+    if (projection) out.read_models = [element(projection)]
 
     const json: SliceJson = { ...out, tests: slice.tests.map(test) }
     if (slice.query) json.query = Object.keys(slice.query)
-    if (slice.polls) json.polls = slice.polls.name ?? ""
+    if (slice.todoList) json.polls = slice.todoList.name ?? ""
     if (slice.note !== undefined) json.note = slice.note
     const mapping = Object.fromEntries(
-      [...slice.emits, ...slice.on]
+      [...(command ? [command] : []), ...slice.events]
         .filter((f) => Object.keys(f.mapping).length > 0)
-        .map((f) => [f.event.name ?? "", f.mapping]),
+        .map((f) => [f.decl.name ?? "", f.mapping]),
     )
     if (Object.keys(mapping).length > 0) json.mapping = mapping
 
-    for (const d of [slice.actor, slice.projects, slice.polls, ...slice.reads]) if (d) noted(d)
-    for (const f of [...slice.emits, ...slice.on]) noted(f.event)
+    const decls = [...slice.actors, projection, slice.todoList, ...slice.readModels, ...slice.shows]
+    for (const d of decls) if (d) noted(d)
+    for (const f of slice.events) noted(f.decl)
+    if (trigger) noted(trigger)
     if (trigger?.external) noted(trigger.external)
     return json
   }
@@ -197,10 +210,8 @@ export function toJson({ model, streams, loose, unchaptered, warnings }: Assembl
 
   // A trigger nothing emits yet stands alone, so the arrow into its automation has a start.
   const slices = stories.flatMap((c) => c.slices)
-  const emitted = new Set(slices.flatMap((s) => s.emits.map((f) => f.event)))
-  const unemitted = new Set(
-    slices.flatMap((s) => s.on.map((f) => f.event)).filter((e) => !e.external && !emitted.has(e)),
-  )
+  const emitted = new Set(slices.flatMap(recorded))
+  const unemitted = new Set(slices.flatMap(heard).filter((e) => !e.external && !emitted.has(e)))
 
   const drawnLoose: LooseJson[] = []
   for (const d of [...loose, ...unemitted]) {

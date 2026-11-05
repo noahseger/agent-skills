@@ -5,4 +5,4 @@ import { m } from "#em"
 export const Mail = m.external({ Bounced: m.event({ id: z.string() }) })
 export const Note = m.command({ id: z.string() })
 export const Noted = m.event({ id: z.string() })
-export const Inbox = [m.slice().on(Mail.Bounced).command(Note).emits(Noted)]
+export const Inbox = [m.slice().trigger(Mail.Bounced).command(Note).event(Noted)]
