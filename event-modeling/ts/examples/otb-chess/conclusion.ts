@@ -19,7 +19,7 @@ export const TimeForfeited = m.event({
   result: Result,
   termination: Termination,
 })
-export const FlagStanding = m.rejected("that side still has time on the clock")
+export const FlagStanding = m.reject("that side still has time on the clock")
 
 // The position itself ends the game: checkmate, stalemate, or a dead position.
 export const AdjudicateOutcome = m.command({

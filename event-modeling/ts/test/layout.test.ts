@@ -6,6 +6,7 @@ import { test } from "node:test"
 import { fileURLToPath } from "node:url"
 
 import type { ModelJson } from "../src/json.ts"
+import type { Source } from "../src/types.ts"
 import {
   type Box,
   fitColumns,
@@ -14,6 +15,7 @@ import {
   parseClause,
   path,
   polyline,
+  source,
   words,
   wrap,
 } from "../viewer/src/layout.ts"
@@ -54,6 +56,11 @@ test("parseClause gives one line per field, and a rejection its message", () => 
     "Adding a fourth item",
     "is rejected",
   ])
+})
+
+test("a mapped field shows where its value came from", () => {
+  const sources: Source[] = [{ from: "text" }, { count: true }, { auto: true }, { value: 0 }]
+  assert.deepEqual(sources.map(source), ["← text", "count", "auto", "= 0"])
 })
 
 test("one column per slice, in chapter order, inside its chapter", () => {

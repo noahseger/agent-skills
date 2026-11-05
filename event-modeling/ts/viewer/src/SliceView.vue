@@ -13,6 +13,7 @@ import {
   parse,
   path,
   STACK_GAP,
+  source,
 } from "./layout.ts"
 
 // One slice at full width, with room to read its specifications.
@@ -200,7 +201,7 @@ function cardClass(b: Box) {
               <template v-for="(src, field) in fields" :key="field">
                 <dt>{{ event }}.{{ field }}</dt>
                 <dd>
-                  {{ src.from !== undefined ? `← ${src.from}` : src.count !== undefined ? `count of ${src.count}` : `= ${JSON.stringify(src.value)}` }}
+                  {{ source(src) }}
                 </dd>
               </template>
             </dl>

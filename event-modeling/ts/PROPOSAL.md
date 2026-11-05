@@ -145,5 +145,5 @@ Each with a recommendation. Rule on any you see differently.
 
 ## Not in this proposal
 
-The hotel example, the release, and the ruled notes still open: `.note()` on `m.rejected`, D5 in
+The hotel example, the release, and the ruled notes still open: `.note()` on `m.reject`, D5 in
 the README.

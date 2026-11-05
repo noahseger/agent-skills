@@ -45,7 +45,7 @@ export const Views = [
     .slice()
     .projects(TodoList)
     .on(ListCreated, () => ({ itemCount: 0, status: "open" }))
-    .on(ItemAdded, (e) => ({ itemCount: m.count(e) }))
+    .on(ItemAdded, (e, { count }) => ({ itemCount: count(e) }))
     .on(ListCompleted, () => ({ status: "completed" }))
     .on(ListDeleted, () => ({ status: "deleted" }))
     .test("A new list shows with no items", {

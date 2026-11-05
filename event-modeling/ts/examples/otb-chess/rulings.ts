@@ -80,7 +80,7 @@ export const ArbiterRulings = [
   m
     .slice()
     .projects(IllegalMoveTally)
-    .on(IllegalMoveRuled, (e) => ({ illegalMoveCount: m.count(e) }))
+    .on(IllegalMoveRuled, (e, { count }) => ({ illegalMoveCount: count(e) }))
     .test("One ruling puts the offender on one illegal move", {
       given: illegalMoveRuled,
       then: IllegalMoveTally.with({

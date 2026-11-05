@@ -59,11 +59,12 @@ class SourceRef(BaseModel):
 
 
 class FieldSource(BaseModel):
-    """Where a handler got one field it fills: a source field, a constant, or a count."""
+    """Where a handler got one field it fills: a source field, a constant, a count, or its own value."""
     model_config = ConfigDict(extra="forbid")
     from_: str | None = Field(default=None, alias="from")
     value: Any = None
     count: bool = False
+    auto: bool = False  # the handler assigns it, like an id or a clock
 
 
 class Slice(BaseModel):

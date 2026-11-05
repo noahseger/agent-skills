@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import type { ModelJson } from "../../src/json.ts"
-import { type Box, type Column, type Layout, parse, parseClause } from "./layout.ts"
+import { type Box, type Column, type Layout, parse, parseClause, source } from "./layout.ts"
 
 const props = defineProps<{
   box: Box | null
@@ -76,11 +76,6 @@ const groups = computed<Group[]>(() => {
   return out
 })
 
-function source(s: { from?: string; value?: unknown; count?: string }): string {
-  if (s.from !== undefined) return `← ${s.from}`
-  if (s.count !== undefined) return `count of ${s.count}`
-  return `= ${JSON.stringify(s.value)}`
-}
 const isError = (clause: string) => clause.startsWith("Error:")
 /** The JSON says `Error:`; the model and the manual say rejected. */
 const show = (clause: string) => clause.replace(/^Error:/, "Rejected:")

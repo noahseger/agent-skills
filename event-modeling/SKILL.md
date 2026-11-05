@@ -287,7 +287,7 @@ The TypeScript model emits four fields beyond the example above. Hand-written JS
 - **`query`** (view slice) — the request fields of a view, drawn under the method on the interface card: `"ui": "TodoService/GetList", "query": ["listId"]`.
 - **`polls`** (automation slice) — the TODO-list read model that drives the automation, in place of `trigger`.
 - **`note`** (slice) and **`notes`** (model, declaration name to text) — prose attached to a slice or to a declaration. The renderer shows a note as a tooltip and marks the card with ⓘ.
-- **`mapping`** (slice) — per event, the fields the handler fills that do not flow by name, and where each came from: `{"from": "text"}` for a renamed field, `{"value": 0}` for a constant, `{"count": true}` for a tally of that event. A mapped field counts as traced in the provenance checks.
+- **`mapping`** (slice) — per event, the fields the handler fills that do not flow by name, and where each came from: `{"from": "text"}` for a renamed field, `{"value": 0}` for a constant, `{"count": true}` for a tally of that event, `{"auto": true}` for a value the handler assigns, such as an id or a clock. A mapped field counts as traced in the provenance checks.
 
 ```json
 {
