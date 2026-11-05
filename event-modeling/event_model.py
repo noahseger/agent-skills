@@ -64,7 +64,7 @@ class FieldSource(BaseModel):
     from_: str | None = Field(default=None, alias="from")
     value: Any = None
     count: bool = False
-    auto: bool = False  # the handler assigns it, like an id or a clock
+    generate: bool = False  # the handler assigns it, like an id or a clock
 
 
 class Slice(BaseModel):

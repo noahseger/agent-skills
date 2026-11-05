@@ -7,7 +7,7 @@ import type { Source } from "../../src/types.ts"
 export function source(s: Source): string {
   if ("from" in s) return `← ${s.from}`
   if ("count" in s) return "count"
-  if ("auto" in s) return "auto"
+  if ("generate" in s) return "generated"
   return `= ${JSON.stringify(s.value)}`
 }
 

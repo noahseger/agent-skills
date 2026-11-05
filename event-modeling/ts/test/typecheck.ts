@@ -12,7 +12,6 @@ const ListCreated = m.event({ listId: z.string(), name: z.string() })
 const AddItem = m.command({ listId: z.string(), text: z.string() })
 const ItemAdded = m.event({ listId: z.string(), title: z.string() })
 const TodoList = m.readModel({ listId: m.key(z.string()), name: z.string(), itemCount: z.number().int() })
-const Nope = m.reject("nope")
 
 // --- any reference: a reference is a value, so a string is not one -----------
 
@@ -69,8 +68,8 @@ m.slice().actor(User).service(TodoService).command(AddItem).emits(ItemAdded)
 m.slice().actor(User).service(TodoService).command(AddItem).emits(ItemAdded, (c) => ({ listId: c.listId }))
 
 m.slice().actor(User).service(TodoService).command(AddItem).emits(ItemAdded, (c) => ({ title: c.text }))
-// auto() fills the field the command lacks.
-m.slice().actor(User).service(TodoService).command(AddItem).emits(ItemAdded, (c, { auto }) => ({ title: auto() }))
+// generate() fills the field the command lacks.
+m.slice().actor(User).service(TodoService).command(AddItem).emits(ItemAdded, (c, { generate }) => ({ title: generate() }))
 
 // @ts-expect-error count applies to a projection, not to .emits()
 m.slice().actor(User).service(TodoService).command(AddItem).emits(ItemAdded, (c, { count }) => ({ title: "" }))
@@ -116,25 +115,41 @@ m.model("x", { chapters: { Ch: [m.slice().actor(User).reads(TodoList).service(To
 const create = m.slice().actor(User).service(TodoService).command(CreateList).emits(ListCreated)
 
 // @ts-expect-error when is the slice's command
-create.test("x", { when: AddItem.with({ listId: "l-1" }), then: ListCreated.with({ listId: "l-1" }) })
+create.test("x", { when: AddItem({ listId: "l-1" }), then: ListCreated({ listId: "l-1" }) })
 
 // @ts-expect-error then is the slice's events, not any event
-create.test("x", { when: CreateList.with({ listId: "l-1" }), then: ItemAdded.with({ listId: "l-1" }) })
+create.test("x", { when: CreateList({ listId: "l-1" }), then: ItemAdded({ listId: "l-1" }) })
 
-// @ts-expect-error a rejection is m.reject(), not a string
-create.test("x", { when: CreateList.with({ listId: "l-1" }), then: "Error: nope" })
+// @ts-expect-error a rejection is reject: "why", not a string in then
+create.test("x", { when: CreateList({ listId: "l-1" }), then: "Error: nope" })
+
+// @ts-expect-error a specification has then or reject, not both
+create.test("x", { when: CreateList({ listId: "l-1" }), then: ListCreated({ listId: "l-1" }), reject: "nope" })
+
+// @ts-expect-error a specification has then or reject, not neither
+create.test("x", { when: CreateList({ listId: "l-1" }) })
+
+// @ts-expect-error a rejection is written in the specification, not declared on m
+m.reject
 
 // @ts-expect-error a projection has no when
-m.slice().projects(TodoList).on(ListCreated).test("x", { given: ListCreated.with({ listId: "l-1" }), when: CreateList.with({}), then: TodoList.with({}) })
+m.slice().projects(TodoList).on(ListCreated).test("x", { given: ListCreated({ listId: "l-1" }), when: CreateList({}), then: TodoList({}) })
 
-// --- .with(): the declaration's fields, with Zod's types ---------------------
+// @ts-expect-error a read model cannot reject
+m.slice().projects(TodoList).on(ListCreated).test("x", { given: ListCreated({ listId: "l-1" }), then: TodoList({}), reject: "nope" })
+
+// --- calling a declaration: its fields, with Zod's types ---------------------
 
 // @ts-expect-error nickname is not a field of CreateList
-CreateList.with({ listId: "l-1", nickname: "shopping" })
+CreateList({ listId: "l-1", nickname: "shopping" })
 
 // @ts-expect-error listId is a string
-CreateList.with({ listId: 42 })
+CreateList({ listId: 42 })
+
+// @ts-expect-error a declaration is called for an example; there is no .with()
+CreateList.with({ listId: "l-1" })
 
 // The legal forms of the same calls, so a check that fires too widely also fails.
-create.test("x", { given: ListCreated.with({ listId: "l-1" }), when: CreateList.with({ listId: "l-2" }), then: [ListCreated.with({ listId: "l-2" }), Nope] })
+create.test("x", { given: ListCreated({ listId: "l-1" }), when: CreateList({ listId: "l-2" }), then: [ListCreated({ listId: "l-2" })] })
+create.test("x", { given: [ListCreated({ listId: "l-1" })], when: CreateList({ listId: "l-1" }), reject: "nope" })
 m.slice().projects(TodoList).on(ListCreated, () => ({ itemCount: 0 })).on(ItemAdded, (e, { count }) => ({ itemCount: count(e), name: e.title }))

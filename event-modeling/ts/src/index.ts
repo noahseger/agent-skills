@@ -17,7 +17,6 @@ import {
   type Flow,
   META,
   type ModelData,
-  type RejectionData,
   type ServiceData,
   type SliceData,
   type Source,
@@ -31,7 +30,7 @@ type OneOrMany<T> = T | readonly T[]
 /** What a `.emits()` mapping gets as its second argument. */
 export interface EmitHelpers {
   /** A value the handler assigns, such as an id or a clock. */
-  auto<T>(): T
+  generate<T>(): T
 }
 
 /** What a projection's `.on()` mapping gets as its second argument. */
@@ -53,11 +52,11 @@ type FilledBy<S extends Fields, T extends Fields> = [Unfilled<S, T>] extends [ne
   ? unknown
   : { readonly "add to the command or set in the mapping": Unfilled<S, T> }
 
-/** A mapping must set every event field the command lacks. */
+/** A mapping must set every event field the command lacks. A declaration is callable, so the result refuses one's example. */
 type FillsRest<S extends Fields, T extends Fields> = (
   source: Infer<S>,
   helpers: EmitHelpers,
-) => Pick<Infer<T>, Unfilled<S, T>> & Partial<Infer<T>>
+) => Pick<Infer<T>, Unfilled<S, T>> & Partial<Infer<T>> & { readonly [META]?: never }
 
 // ---------------------------------------------------------------------------
 // Declarations
@@ -69,17 +68,12 @@ export interface Example<K extends DeclKind = DeclKind, F extends Fields = Field
   readonly __fields: F
 }
 
-export interface Rejection {
-  readonly [META]: RejectionData
-  readonly __kind: "rejected"
-}
-
 export interface Decl<K extends DeclKind, F extends Fields> {
+  /** Example data for a given, when or then clause. Zod checks the values. */
+  (data: Partial<Infer<F>>): Example<K, F>
   readonly [META]: DeclData
   readonly __kind: K
   readonly __fields: F
-  /** Example data for a given, when or then clause. Zod checks the values. */
-  with(data: Partial<Infer<F>>): Example<K, F>
   note(text: string): this
 }
 
@@ -91,21 +85,22 @@ function decl<K extends DeclKind, F extends Fields>(kind: K, fields: F): Decl<K,
   const keys = Object.keys(fields).filter((f) => fields[f]?.meta()?.key === true)
   const data: DeclData = { kind, fields, keys }
   const schema = z.object(fields).partial()
-  return {
+  const example = (values: Partial<Infer<F>>): Example<K, F> => ({
+    [META]: { decl: data, data: schema.parse(values) },
+    __kind: kind,
+    __fields: fields,
+  })
+  const declared: Decl<K, F> = Object.assign(example, {
     [META]: data,
     __kind: kind,
     __fields: fields,
-    with: (values) => ({
-      [META]: { decl: data, data: schema.parse(values) },
-      __kind: kind,
-      __fields: fields,
-    }),
     // Mutating is safe: .note() is called on the declaration before anything else holds it.
-    note(text) {
+    note(text: string) {
       data.note = text
-      return this
+      return declared
     },
-  }
+  })
+  return declared
 }
 
 function event<F extends Fields>(fields: F): EventDecl<F> {
@@ -183,10 +178,6 @@ function external<const E extends Record<string, EventDecl>>(events: E): Externa
   return { ...events, [META]: data }
 }
 
-function reject(message: string): Rejection {
-  return { [META]: { message }, __kind: "rejected" }
-}
-
 // ---------------------------------------------------------------------------
 // Mapping functions
 // ---------------------------------------------------------------------------
@@ -194,10 +185,10 @@ function reject(message: string): Rejection {
 // A mapping runs once, on probe values, to learn which source fills each field.
 const FIELD = Symbol("field")
 const COUNT = Symbol("count")
-const AUTO = Symbol("auto")
+const GENERATE = Symbol("generate")
 
 // Each helper returns its marker, so the probe can tell it from a source field or a constant.
-const helpers = { count: () => COUNT, auto: () => AUTO }
+const helpers = { count: () => COUNT, generate: () => GENERATE }
 
 interface Probe {
   readonly [FIELD]: string
@@ -216,8 +207,8 @@ function probe(fields: Fields, map: MapFn): Record<string, Source> {
     mapping[field] =
       value === COUNT
         ? { count: true }
-        : value === AUTO
-          ? { auto: true }
+        : value === GENERATE
+          ? { generate: true }
           : isProbe(value)
             ? { from: value[FIELD] }
             : { value }
@@ -243,11 +234,11 @@ export interface Unfinished<Next extends string> {
   readonly "finish this slice with": Next
 }
 
-export interface Spec<C extends Fields, Em extends Fields> {
+/** Exactly one of `then`, the events emitted, or `reject`, why the command is refused. */
+export type Spec<C extends Fields, Em extends Fields> = {
   given?: OneOrMany<Example<"event">>
   when: Example<"command", C>
-  then: OneOrMany<Example<"event", Em> | Rejection>
-}
+} & ({ then: OneOrMany<Example<"event", Em>>; reject?: never } | { reject: string; then?: never })
 
 /** A read model cannot reject an event, so a projection's example has no `when`. */
 export interface ProjectionSpec<R extends Fields> {
@@ -343,11 +334,19 @@ function many<T>(clauses: OneOrMany<T> | undefined): T[] {
   return Array.isArray(clauses) ? [...(clauses as readonly T[])] : [clauses as T]
 }
 
-function testData(name: string, spec: Partial<Spec<Fields, Fields>>): TestData {
+interface AnySpec {
+  given?: OneOrMany<Example>
+  when?: Example
+  then?: OneOrMany<Example>
+  reject?: string
+}
+
+function testData(name: string, spec: AnySpec): TestData {
   const test: TestData = {
     name,
     given: many(spec.given).map((c) => c[META]),
-    then: many(spec.then).map((c) => c[META]),
+    then:
+      spec.reject === undefined ? many(spec.then).map((c) => c[META]) : [{ message: spec.reject }],
   }
   if (spec.when) test.when = spec.when[META]
   return test
@@ -387,7 +386,7 @@ function chain(data: SliceData) {
         typeof event === "string"
           ? [named("event", event, rest[0] as Fields), rest[1]]
           : [event[META], rest[0] as MapFn | undefined]
-      if (map !== undefined && typeof map !== "function")
+      if (map !== undefined && (typeof map !== "function" || META in map))
         throw new Error(
           "The second argument to .emits() is a function that fills the event's fields. To emit another event, chain another .emits().",
         )
@@ -397,8 +396,7 @@ function chain(data: SliceData) {
       next({ on: [...data.on, flow(event[META], event[META].fields, map)] }),
     polls: (readModel: ReadModelDecl) => next({ polls: readModel[META] }),
     projects: (readModel: ReadModelDecl) => next({ projects: readModel[META] }),
-    test: (name: string, spec: Partial<Spec<Fields, Fields>>) =>
-      next({ tests: [...data.tests, testData(name, spec)] }),
+    test: (name: string, spec: AnySpec) => next({ tests: [...data.tests, testData(name, spec)] }),
     note: (text: string) => next({ note: text }),
   }
 }
@@ -450,7 +448,6 @@ export const m = {
   command,
   readModel,
   key,
-  reject,
   external,
   stream,
   slice,

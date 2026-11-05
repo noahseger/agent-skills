@@ -30,7 +30,6 @@ export const MovePlayed = m.event({
   isCheck: z.boolean(),
   isCapture: z.boolean(),
 })
-export const NotYourMove = m.reject("the other side is to move")
 
 // A move that mates, stalemates, or leaves a dead position ends the game as it is played.
 // FIDE 5.1.1, 5.2.1 and 5.2.2: the game is over at that moment, before anyone rules on it.
@@ -62,7 +61,6 @@ export const ClockPressed = m.event({
   blackTimeMs: z.number().int(),
   runningSide: z.enum(["white", "black"]),
 })
-export const NotYourClock = m.reject("only the side that has just moved may press the clock")
 
 // Whose clock runs, and how much time each side has left.
 export const ClockState = m.readModel({
@@ -112,7 +110,7 @@ export const MATE_FEN = "r1bqkb1r/pppp1Qpp/2n2n2/8/2B1P3/8/PPPP1PPP/RNB1K1NR b K
 const FORK_FEN = "r1bqk2r/pppp1Qpp/2n2n2/2b1p3/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 7"
 export const STRUCK_FEN = "r4rk1/pp3ppp/2p5/8/8/2P2N2/PP3PPP/R4RK1 w - - 4 17"
 
-const kf1 = MovePlayed.with({
+const kf1 = MovePlayed({
   gameId: "otb-2024-ct-r5-b1",
   ply: 32,
   san: "Kf1",
@@ -125,7 +123,7 @@ const kf1 = MovePlayed.with({
   isCapture: false,
 })
 
-export const illegalMoveRuled = IllegalMoveRuled.with({
+export const illegalMoveRuled = IllegalMoveRuled({
   gameId: "otb-2024-ct-r5-b1",
   ply: 32,
   offendingSide: "white",
@@ -136,14 +134,14 @@ export const illegalMoveRuled = IllegalMoveRuled.with({
   sideToMove: "white",
 })
 
-export const mated = GameEnded.with({
+export const mated = GameEnded({
   gameId: "otb-2024-ct-r5-b1",
   ply: 7,
   fen: MATE_FEN,
   ending: "checkmate",
 })
 
-export const e4 = MovePlayed.with({
+export const e4 = MovePlayed({
   gameId: "otb-2024-ct-r5-b1",
   ply: 1,
   san: "e4",
@@ -156,7 +154,7 @@ export const e4 = MovePlayed.with({
   isCapture: false,
 })
 
-const clockStarted = ClockStarted.with({
+const clockStarted = ClockStarted({
   gameId: "otb-2024-ct-r5-b1",
   baseMinutes: 90,
   incrementSeconds: 30,
@@ -176,7 +174,7 @@ export const Play = [
     .emits(GameEnded)
     .test("White opens with 1. e4", {
       given: gameStarted,
-      when: PlayMove.with({
+      when: PlayMove({
         gameId: "otb-2024-ct-r5-b1",
         ply: 1,
         san: "e4",
@@ -192,7 +190,7 @@ export const Play = [
     })
     .test("A capture that gives check sets both flags", {
       given: gameStarted,
-      when: PlayMove.with({
+      when: PlayMove({
         gameId: "otb-2024-ct-r5-b1",
         ply: 15,
         san: "Qxf7+",
@@ -204,7 +202,7 @@ export const Play = [
         isCheck: true,
         isCapture: true,
       }),
-      then: MovePlayed.with({
+      then: MovePlayed({
         gameId: "otb-2024-ct-r5-b1",
         ply: 15,
         san: "Qxf7+",
@@ -219,7 +217,7 @@ export const Play = [
     })
     .test("Qxf7 mates, so the move ends the game", {
       given: gameStarted,
-      when: PlayMove.with({
+      when: PlayMove({
         gameId: "otb-2024-ct-r5-b1",
         ply: 7,
         san: "Qxf7#",
@@ -233,7 +231,7 @@ export const Play = [
         ending: "checkmate",
       }),
       then: [
-        MovePlayed.with({
+        MovePlayed({
           gameId: "otb-2024-ct-r5-b1",
           ply: 7,
           san: "Qxf7#",
@@ -250,7 +248,7 @@ export const Play = [
     })
     .test("Black cannot move while it is White's turn", {
       given: gameStarted,
-      when: PlayMove.with({
+      when: PlayMove({
         gameId: "otb-2024-ct-r5-b1",
         ply: 1,
         san: "e5",
@@ -262,7 +260,7 @@ export const Play = [
         isCheck: false,
         isCapture: false,
       }),
-      then: NotYourMove,
+      reject: "the other side is to move",
     }),
 
   m
@@ -273,7 +271,7 @@ export const Play = [
     .on(IllegalMoveRuled)
     .test("The board advances after the opening move", {
       given: [gameStarted, e4],
-      then: GameState.with({
+      then: GameState({
         gameId: "otb-2024-ct-r5-b1",
         ply: 1,
         sideToMove: "black",
@@ -282,7 +280,7 @@ export const Play = [
     })
     .test("The board reverts when an illegal move is struck", {
       given: [gameStarted, e4, illegalMoveRuled],
-      then: GameState.with({
+      then: GameState({
         gameId: "otb-2024-ct-r5-b1",
         ply: 32,
         sideToMove: "white",
@@ -300,13 +298,13 @@ export const Play = [
     .note("FIDE 6.2.1: pressing banks the increment and starts the opponent's clock.")
     .test("White presses the clock, the increment is banked, Black's clock runs", {
       given: clockStarted,
-      when: PressClock.with({
+      when: PressClock({
         gameId: "otb-2024-ct-r5-b1",
         whiteTimeMs: 5412000,
         blackTimeMs: 5400000,
         runningSide: "black",
       }),
-      then: ClockPressed.with({
+      then: ClockPressed({
         gameId: "otb-2024-ct-r5-b1",
         whiteTimeMs: 5412000,
         blackTimeMs: 5400000,
@@ -315,13 +313,13 @@ export const Play = [
     })
     .test("Black cannot press the clock while White's clock runs", {
       given: clockStarted,
-      when: PressClock.with({
+      when: PressClock({
         gameId: "otb-2024-ct-r5-b1",
         whiteTimeMs: 5400000,
         blackTimeMs: 5412000,
         runningSide: "white",
       }),
-      then: NotYourClock,
+      reject: "only the side that has just moved may press the clock",
     }),
 
   m
@@ -331,7 +329,7 @@ export const Play = [
     .on(ClockPressed)
     .test("The clock starts with White's time running", {
       given: clockStarted,
-      then: ClockState.with({
+      then: ClockState({
         gameId: "otb-2024-ct-r5-b1",
         whiteTimeMs: 5400000,
         blackTimeMs: 5400000,
@@ -341,14 +339,14 @@ export const Play = [
     .test("The running side follows the press", {
       given: [
         clockStarted,
-        ClockPressed.with({
+        ClockPressed({
           gameId: "otb-2024-ct-r5-b1",
           whiteTimeMs: 5412000,
           blackTimeMs: 5400000,
           runningSide: "black",
         }),
       ],
-      then: ClockState.with({
+      then: ClockState({
         gameId: "otb-2024-ct-r5-b1",
         whiteTimeMs: 5412000,
         blackTimeMs: 5400000,
@@ -363,7 +361,7 @@ export const Play = [
     .on(IllegalMoveRuled, () => ({ status: "struck" }))
     .test("A move is recorded on the scoresheet", {
       given: e4,
-      then: MoveList.with({
+      then: MoveList({
         gameId: "otb-2024-ct-r5-b1",
         ply: 1,
         san: "e4",
@@ -375,7 +373,7 @@ export const Play = [
     })
     .test("An illegal move at ply 32 is struck, and stays on the sheet marked", {
       given: [kf1, illegalMoveRuled],
-      then: MoveList.with({
+      then: MoveList({
         gameId: "otb-2024-ct-r5-b1",
         ply: 32,
         san: "Kf1",

@@ -18,7 +18,7 @@ export const SecondIllegalMoveRuled = m.event({
   illegalMoveCount: z.number().int(),
 })
 
-export const secondIllegalMoveRuled = IllegalMoveRuled.with({
+export const secondIllegalMoveRuled = IllegalMoveRuled({
   gameId: "otb-2024-ct-r5-b1",
   ply: 44,
   offendingSide: "white",
@@ -29,7 +29,7 @@ export const secondIllegalMoveRuled = IllegalMoveRuled.with({
   sideToMove: "white",
 })
 
-export const secondOffence = SecondIllegalMoveRuled.with({
+export const secondOffence = SecondIllegalMoveRuled({
   gameId: "otb-2024-ct-r5-b1",
   offendingSide: "white",
   illegalMoveCount: 2,
@@ -50,7 +50,7 @@ export const ArbiterRulings = [
     )
     .test("An illegal move is struck and two minutes are added to the opponent", {
       given: illegalMoveRuled,
-      when: RuleIllegalMove.with({
+      when: RuleIllegalMove({
         gameId: "otb-2024-ct-r5-b1",
         ply: 32,
         offendingSide: "white",
@@ -64,7 +64,7 @@ export const ArbiterRulings = [
     })
     .test("A second illegal move by the same player carries the loss", {
       given: illegalMoveRuled,
-      when: RuleIllegalMove.with({
+      when: RuleIllegalMove({
         gameId: "otb-2024-ct-r5-b1",
         ply: 44,
         offendingSide: "white",
@@ -83,7 +83,7 @@ export const ArbiterRulings = [
     .on(IllegalMoveRuled, (e, { count }) => ({ illegalMoveCount: count(e) }))
     .test("One ruling puts the offender on one illegal move", {
       given: illegalMoveRuled,
-      then: IllegalMoveTally.with({
+      then: IllegalMoveTally({
         gameId: "otb-2024-ct-r5-b1",
         offendingSide: "white",
         illegalMoveCount: 1,
@@ -91,7 +91,7 @@ export const ArbiterRulings = [
     })
     .test("A second ruling puts the offender on two", {
       given: [illegalMoveRuled, secondIllegalMoveRuled],
-      then: IllegalMoveTally.with({
+      then: IllegalMoveTally({
         gameId: "otb-2024-ct-r5-b1",
         offendingSide: "white",
         illegalMoveCount: 2,

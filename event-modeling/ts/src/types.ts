@@ -90,7 +90,7 @@ export interface Warning {
 }
 
 /** Where a mapping function got one target field from. */
-export type Source = { from: string } | { count: true } | { auto: true } | { value: unknown }
+export type Source = { from: string } | { count: true } | { generate: true } | { value: unknown }
 
 /** An event wired into a slice; `mapping` lists only fields not copied by name. */
 export interface Flow {

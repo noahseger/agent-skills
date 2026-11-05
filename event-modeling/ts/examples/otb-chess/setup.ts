@@ -84,7 +84,7 @@ export const ClockStarted = m.event({
 
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
-const pairing = PairingPublished.with({
+const pairing = PairingPublished({
   gameId: "otb-2024-ct-r5-b1",
   round: 5,
   boardNumber: 1,
@@ -95,7 +95,7 @@ const pairing = PairingPublished.with({
   incrementSeconds: 30,
 })
 
-export const gameStarted = GameStarted.with({
+export const gameStarted = GameStarted({
   gameId: "otb-2024-ct-r5-b1",
   round: 5,
   boardNumber: 1,
@@ -118,7 +118,7 @@ export const GameSetup = [
     .note("The pairing is translated, never stored. The starting position is ours to supply.")
     .test("Round 5 board 1 pairing starts a classical game", {
       given: pairing,
-      when: StartGame.with({
+      when: StartGame({
         gameId: "otb-2024-ct-r5-b1",
         round: 5,
         boardNumber: 1,
@@ -140,7 +140,7 @@ export const GameSetup = [
     .on(GameStarted)
     .test("Pairing identity available after the game starts", {
       given: gameStarted,
-      then: GamePairing.with({
+      then: GamePairing({
         gameId: "otb-2024-ct-r5-b1",
         round: 5,
         boardNumber: 1,
@@ -156,7 +156,7 @@ export const GameSetup = [
     .emits(ClockStarted)
     .test("White's clock starts at 90 minutes", {
       given: gameStarted,
-      when: StartClock.with({
+      when: StartClock({
         gameId: "otb-2024-ct-r5-b1",
         baseMinutes: 90,
         incrementSeconds: 30,
@@ -164,7 +164,7 @@ export const GameSetup = [
         blackTimeMs: 5400000,
         runningSide: "white",
       }),
-      then: ClockStarted.with({
+      then: ClockStarted({
         gameId: "otb-2024-ct-r5-b1",
         baseMinutes: 90,
         incrementSeconds: 30,
