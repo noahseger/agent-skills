@@ -101,7 +101,9 @@ function walk(dir: string): string[] {
 // ---------------------------------------------------------------------------
 
 function exported(value: unknown): Exported | undefined {
-  if (typeof value !== "object" || value === null || !(META in value)) return undefined
+  // A declaration is a function; calling it builds an example.
+  const holder = typeof value === "object" || typeof value === "function"
+  if (!holder || value === null || !(META in value)) return undefined
   const data: unknown = (value as { [META]: unknown })[META]
   return typeof data === "object" && data !== null && "kind" in data
     ? (data as Exported)

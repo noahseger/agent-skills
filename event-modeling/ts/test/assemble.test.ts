@@ -136,7 +136,7 @@ test("a mapping function fills what the command does not carry", () => {
   validate(json)
 })
 
-test("auto() fills a field the handler assigns, and a specification gives it any value", () => {
+test("generate() fills a field the handler assigns, and a specification gives it any value", () => {
   const f = fixture()
   const Created = m.event({ id: z.string(), name: z.string(), at: z.string() })
   const slice = m
@@ -144,13 +144,13 @@ test("auto() fills a field the handler assigns, and a specification gives it any
     .actor(f.User)
     .service(f.Svc)
     .command(f.Create)
-    .emits(Created, (_, { auto }) => ({ at: auto() }))
+    .emits(Created, (_, { generate }) => ({ at: generate() }))
     .test("Create", {
-      when: f.Create.with({ id: "id-1", name: "Groceries" }),
-      then: Created.with({ id: "id-1", name: "Groceries", at: "2026-01-01T00:00:00Z" }),
+      when: f.Create({ id: "id-1", name: "Groceries" }),
+      then: Created({ id: "id-1", name: "Groceries", at: "2026-01-01T00:00:00Z" }),
     })
   const json = assembled({ ...f, Created }, [slice, project({ ...f, Created }), view(f)])
-  assert.deepEqual(json.chapters[0]?.slices[0]?.mapping, { Created: { at: { auto: true } } })
+  assert.deepEqual(json.chapters[0]?.slices[0]?.mapping, { Created: { at: { generate: true } } })
   validate(json)
 })
 
@@ -201,10 +201,10 @@ test("a read model nothing reads", () => {
 
 test("a read model nothing projects", () => {
   const f = fixture()
-  const created = f.Created.with({ id: "1", name: "n" })
+  const created = f.Created({ id: "1", name: "n" })
   const slice = create(f).test("t", {
     given: created,
-    when: f.Create.with({ id: "1", name: "n" }),
+    when: f.Create({ id: "1", name: "n" }),
     then: created,
   })
   assert.throws(
@@ -284,12 +284,12 @@ test("a slice may read more than one read model", () => {
 
 test("a read model in given is named as one", () => {
   const f = fixture()
-  const row = f.Table.with({ id: "1", name: "n" })
+  const row = f.Table({ id: "1", name: "n" })
   const slice = create(f).test("t", {
     // @ts-expect-error a read model is not an event
     given: row,
-    when: f.Create.with({ id: "1", name: "n" }),
-    then: f.Created.with({ id: "1", name: "n" }),
+    when: f.Create({ id: "1", name: "n" }),
+    then: f.Created({ id: "1", name: "n" }),
   })
   assert.throws(
     () => assembled(f, [slice, project(f), view(f)]),
@@ -507,8 +507,8 @@ test("an example's nested values are printed", () => {
     .command(Order)
     .emits(Ordered)
     .test("t", {
-      when: Order.with({ id: "1", items: [{ name: "a" }, { name: "b" }] }),
-      then: Ordered.with({ id: "1", items: [{ name: "a" }] }),
+      when: Order({ id: "1", items: [{ name: "a" }, { name: "b" }] }),
+      then: Ordered({ id: "1", items: [{ name: "a" }] }),
     })
   const json = assembleModules(
     [{ Order, Ordered, ...f, default: m.model("x", { chapters: { Ch: [slice] } }) }],

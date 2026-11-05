@@ -30,17 +30,13 @@ import { m, z } from "@noahseger/event-modeling"
 
 ## Naming
 
-Your names follow the practice: events in the past tense (`NoteCreated`), commands in the
+`m.` names what you declare, with nouns: `m.event`, `m.command`, `m.readModel`, ... A chain step
+that fills a slot is a noun too (`.actor()`, `.command()`); one that connects is a verb (`.emits`,
+`.reads`, `.projects`). A mapping's helpers are verbs (`count`, `generate`).
+
+Your own names follow the practice: events in the past tense (`NoteCreated`), commands in the
 imperative (`CreateNote`), read models as nouns (`Inbox`). A declaration is named by its export, or
 by its key where it is grouped: a chapter in `m.model`, an event in `m.external`.
-
-The library's names follow Zod: short plain words.
-
-| | | |
-|---|---|---|
-| `m.` | what you declare | `m.event`, `m.command`, `m.reject`, ... |
-| chain steps | verbs for what the slice does | `.emits`, `.reads`, `.projects` |
-| a mapping's second argument | helpers you use inside it | `count`, `auto` |
 
 ## How it fits together
 
@@ -150,11 +146,11 @@ In the first slice, every field of `ListCreated` has a namesake in `CreateList`,
 needed. In the second, the command says `text` and the event says `title`, so a function supplies the
 field that does not match. Fields that do match still flow on their own.
 
-A value the handler assigns itself, such as an id or a clock, has no source. Mark it with `auto()`,
+A value the handler assigns itself, such as an id or a clock, has no source. Mark it with `generate()`,
 which the function gets as its second argument; a specification may give it any value:
 
 ```ts
-.emits(NoteAdded, (c, { auto }) => ({ noteId: auto(), capturedAt: auto() }))
+.emits(NoteAdded, (c, { generate }) => ({ noteId: generate(), capturedAt: generate() }))
 ```
 
 A command or event can also be declared in the slice that uses it. The string is its name; it is
@@ -168,7 +164,7 @@ m.slice()
   .emits("ListRenamed", { listId: z.string(), name: z.string() })
 ```
 
-Export it once a specification needs `.with()` on it. Two declarations with one name are an error.
+Export it once a specification needs an example of it. Two declarations with one name are an error.
 
 A slice does not need a chapter to be drawn. Written on its own, as above, it is drawn after the
 story under "Not in a chapter yet" until a chapter lists it.
@@ -248,33 +244,32 @@ m.slice()
 A specification is a Given, When, Then example attached to a slice with `.test()`.
 
 ```ts
-export const DuplicateName = m.reject("list name already exists")
-
 m.slice()
   .actor(User).service(TodoService).command(CreateList).emits(ListCreated)
   .test("User creates a new list", {
-    when: CreateList.with({ userId: "u-1", listId: "list-1", name: "Groceries" }),
-    then: ListCreated.with({ listId: "list-1", userId: "u-1", name: "Groceries" }),
+    when: CreateList({ userId: "u-1", listId: "list-1", name: "Groceries" }),
+    then: ListCreated({ listId: "list-1", userId: "u-1", name: "Groceries" }),
   })
   .test("Duplicate list name rejected", {
-    given: ListCreated.with({ listId: "list-1", userId: "u-1", name: "Groceries" }),
-    when:  CreateList.with({ userId: "u-1", listId: "list-2", name: "Groceries" }),
-    then:  DuplicateName,
+    given:  ListCreated({ listId: "list-1", userId: "u-1", name: "Groceries" }),
+    when:   CreateList({ userId: "u-1", listId: "list-2", name: "Groceries" }),
+    reject: "list name already exists",
   }),
 ```
 
-`given` and `then` accept one clause or a list. `.with()` takes the declaration's fields with example
-values, and Zod checks them. A rejection is declared with `m.reject()`; a bare string in `then`
-does not compile.
+Calling a declaration builds an example of it from its fields, and Zod checks the values. `given`
+and `then` accept one example or a list. A specification has `then`, the events recorded, or
+`reject`, why the command is refused; never both.
 
-A projection is specified the same way, without `when`, because a read model cannot reject an event:
+A projection is specified the same way, without `when` or `reject`, because a read model cannot
+reject an event:
 
 ```ts
 m.slice()
   .projects(TodoList).on(ListCreated, () => ({ itemCount: 0, status: "open" }))
   .test("A new list shows with no items", {
-    given: ListCreated.with({ listId: "list-1", userId: "u-1", name: "Groceries" }),
-    then:  TodoList.with({ userId: "u-1", listId: "list-1", name: "Groceries", itemCount: 0, status: "open" }),
+    given: ListCreated({ listId: "list-1", userId: "u-1", name: "Groceries" }),
+    then:  TodoList({ userId: "u-1", listId: "list-1", name: "Groceries", itemCount: 0, status: "open" }),
   }),
 ```
 
@@ -391,10 +386,10 @@ The compiler catches:
 |---|---|
 | any reference | An unknown actor, event, command, read model or service cannot be written, because references are values, not strings. |
 | the chain | Only a legal chain compiles. A chapter given an unfinished slice says what finishes it, such as `.emits(Event)`. |
-| a function | Its argument is the source's fields. Its result must be fields of the target, with matching types. Its second argument holds only the helpers that apply: `auto` in `.emits()`, `count` in a projection. |
-| `.emits()` | Every event field the command lacks must be set by the mapping, or marked `auto()`. The error names the fields. |
+| a function | Its argument is the source's fields. Its result must be fields of the target, with matching types. Its second argument holds only the helpers that apply: `generate` in `.emits()`, `count` in a projection. |
+| `.emits()` | Every event field the command lacks must be set by the mapping, or marked `generate()`. The error names the fields. |
 | `.service()` | A view must name its method. |
-| `.test()` | `when` is the slice's command. `then` is its events, its read model, or a rejection. Zod checks the values. |
+| `.test()` | `when` is the slice's command. `then` is its events or its read model; `reject` replaces `then`, and a projection has none. Zod checks the values. |
 
 Assembly catches the rest, and each error names the slice it found the problem in:
 

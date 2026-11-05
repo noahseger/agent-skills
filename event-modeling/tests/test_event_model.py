@@ -532,7 +532,7 @@ class TestNativeFields:
         EventModel.model_validate(self._model(self.CREATE, self.PROJECT, self.VIEW))
 
     def test_mapping_traces_a_value_the_handler_assigns(self):
-        create = {**self.CREATE, "mapping": {"Created": {"title": {"auto": True}}}}
+        create = {**self.CREATE, "mapping": {"Created": {"title": {"generate": True}}}}
         EventModel.model_validate(self._model(create, self.PROJECT, self.VIEW))
 
     def test_renamed_field_without_mapping_is_an_error(self):

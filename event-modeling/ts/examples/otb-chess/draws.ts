@@ -49,7 +49,6 @@ export const DrawAgreed = m.event({
   result: Result,
   termination: Termination,
 })
-export const NoOfferPending = m.reject("no draw offer is pending")
 
 // FIDE 5.1.2: a player may resign at any time.
 export const Resign = m.command({
@@ -69,7 +68,7 @@ const MIDDLEGAME_FEN = "r4rk1/pp3ppp/2p5/8/8/2P5/PP3PPP/R4RK1 b - - 0 21"
 const ENDGAME_FEN = "8/8/8/4k3/8/4K3/4P3/8 b - - 0 39"
 
 // A state change is specified from events, so the position comes as the move that reached it.
-const rd1 = MovePlayed.with({
+const rd1 = MovePlayed({
   gameId: "otb-2024-ct-r5-b1",
   ply: 41,
   san: "Rd1",
@@ -82,7 +81,7 @@ const rd1 = MovePlayed.with({
   isCapture: false,
 })
 
-const kf6 = MovePlayed.with({
+const kf6 = MovePlayed({
   gameId: "otb-2024-ct-r5-b1",
   ply: 76,
   san: "Ke3",
@@ -95,20 +94,20 @@ const kf6 = MovePlayed.with({
   isCapture: false,
 })
 
-export const drawOffered = DrawOffered.with({
+export const drawOffered = DrawOffered({
   gameId: "otb-2024-ct-r5-b1",
   offeringSide: "white",
   ply: 41,
 })
 
-export const drawAgreed = DrawAgreed.with({
+export const drawAgreed = DrawAgreed({
   gameId: "otb-2024-ct-r5-b1",
   offeringSide: "white",
   result: "draw",
   termination: "agreement",
 })
 
-export const gameResigned = GameResigned.with({
+export const gameResigned = GameResigned({
   gameId: "otb-2024-ct-r5-b1",
   resigningSide: "black",
   result: "white_won",
@@ -125,7 +124,7 @@ export const DrawsAndResignation = [
     .emits(DrawOffered)
     .test("White offers a draw on move 21", {
       given: rd1,
-      when: OfferDraw.with({ gameId: "otb-2024-ct-r5-b1", offeringSide: "white", ply: 41 }),
+      when: OfferDraw({ gameId: "otb-2024-ct-r5-b1", offeringSide: "white", ply: 41 }),
       then: drawOffered,
     }),
 
@@ -138,7 +137,7 @@ export const DrawsAndResignation = [
     .note("A move by the opponent declines the offer. FIDE 9.1.2.3.")
     .test("The offer is pending on the opponent", {
       given: drawOffered,
-      then: PendingDrawOffer.with({
+      then: PendingDrawOffer({
         gameId: "otb-2024-ct-r5-b1",
         offeringSide: "white",
         ply: 41,
@@ -147,7 +146,7 @@ export const DrawsAndResignation = [
     })
     .test("The offer is declined when the opponent replies with a move", {
       given: [drawOffered, e4],
-      then: PendingDrawOffer.with({
+      then: PendingDrawOffer({
         gameId: "otb-2024-ct-r5-b1",
         offeringSide: "white",
         ply: 1,
@@ -156,7 +155,7 @@ export const DrawsAndResignation = [
     })
     .test("The offer is closed once the draw is agreed", {
       given: [drawOffered, drawAgreed],
-      then: PendingDrawOffer.with({
+      then: PendingDrawOffer({
         gameId: "otb-2024-ct-r5-b1",
         offeringSide: "white",
         ply: 41,
@@ -173,7 +172,7 @@ export const DrawsAndResignation = [
     .emits(DrawAgreed)
     .test("Black accepts the pending draw offer", {
       given: drawOffered,
-      when: AcceptDraw.with({
+      when: AcceptDraw({
         gameId: "otb-2024-ct-r5-b1",
         offeringSide: "white",
         result: "draw",
@@ -183,13 +182,13 @@ export const DrawsAndResignation = [
     })
     .test("Accepting with no offer pending is rejected", {
       given: e4,
-      when: AcceptDraw.with({
+      when: AcceptDraw({
         gameId: "otb-2024-ct-r5-b1",
         offeringSide: "white",
         result: "draw",
         termination: "agreement",
       }),
-      then: NoOfferPending,
+      reject: "no draw offer is pending",
     }),
 
   m
@@ -201,7 +200,7 @@ export const DrawsAndResignation = [
     .emits(GameResigned)
     .test("Black resigns a lost endgame", {
       given: kf6,
-      when: Resign.with({
+      when: Resign({
         gameId: "otb-2024-ct-r5-b1",
         resigningSide: "black",
         result: "white_won",

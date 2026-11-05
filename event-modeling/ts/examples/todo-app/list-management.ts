@@ -13,7 +13,6 @@ export const CreateList = m.command({ userId: z.string(), listId: z.string(), na
 export const ListCreated = m
   .event({ listId: z.string(), userId: z.string(), name: z.string() })
   .note("Names are unique per user.")
-export const DuplicateName = m.reject("list name already exists")
 
 // A user adds an item to a list. A list holds at most 3.
 export const AddItem = m.command({
@@ -28,7 +27,6 @@ export const ItemAdded = m.event({
   itemId: z.string(),
   title: z.string(),
 })
-export const TooManyItems = m.reject("maximum 3 items per list")
 
 // A user marks an item done.
 export const CompleteItem = m.command({ listId: z.string(), itemId: z.string() })
@@ -42,8 +40,8 @@ export const ItemDeleted = m.event({ listId: z.string(), itemId: z.string() })
 export const DeleteList = m.command({ listId: z.string() })
 export const ListDeleted = m.event({ listId: z.string() })
 
-const groceries = ListCreated.with({ listId: "list-1", userId: "u-1", name: "Groceries" })
-const milk = ItemAdded.with({ userId: "u-1", listId: "list-1", itemId: "item-1", title: "Milk" })
+const groceries = ListCreated({ listId: "list-1", userId: "u-1", name: "Groceries" })
+const milk = ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-1", title: "Milk" })
 
 export const ListManagement = [
   m
@@ -53,13 +51,13 @@ export const ListManagement = [
     .command(CreateList)
     .emits(ListCreated)
     .test("User creates a new list", {
-      when: CreateList.with({ userId: "u-1", listId: "list-1", name: "Groceries" }),
+      when: CreateList({ userId: "u-1", listId: "list-1", name: "Groceries" }),
       then: groceries,
     })
     .test("Duplicate list name rejected", {
       given: groceries,
-      when: CreateList.with({ userId: "u-1", listId: "list-2", name: "Groceries" }),
-      then: DuplicateName,
+      when: CreateList({ userId: "u-1", listId: "list-2", name: "Groceries" }),
+      reject: "list name already exists",
     }),
 
   m
@@ -70,17 +68,17 @@ export const ListManagement = [
     .emits(ItemAdded, (c) => ({ title: c.text }))
     .test("User adds an item to a list", {
       given: groceries,
-      when: AddItem.with({ userId: "u-1", listId: "list-1", itemId: "item-1", text: "Milk" }),
+      when: AddItem({ userId: "u-1", listId: "list-1", itemId: "item-1", text: "Milk" }),
       then: milk,
     })
     .test("Adding a fourth item is rejected", {
       given: [
         milk,
-        ItemAdded.with({ userId: "u-1", listId: "list-1", itemId: "item-2", title: "Eggs" }),
-        ItemAdded.with({ userId: "u-1", listId: "list-1", itemId: "item-3", title: "Bread" }),
+        ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-2", title: "Eggs" }),
+        ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-3", title: "Bread" }),
       ],
-      when: AddItem.with({ userId: "u-1", listId: "list-1", itemId: "item-4", text: "Butter" }),
-      then: TooManyItems,
+      when: AddItem({ userId: "u-1", listId: "list-1", itemId: "item-4", text: "Butter" }),
+      reject: "maximum 3 items per list",
     }),
 
   m
@@ -91,8 +89,8 @@ export const ListManagement = [
     .emits(ItemCompleted)
     .test("User completes an item", {
       given: milk,
-      when: CompleteItem.with({ listId: "list-1", itemId: "item-1" }),
-      then: ItemCompleted.with({ listId: "list-1", itemId: "item-1" }),
+      when: CompleteItem({ listId: "list-1", itemId: "item-1" }),
+      then: ItemCompleted({ listId: "list-1", itemId: "item-1" }),
     }),
 
   m
@@ -103,8 +101,8 @@ export const ListManagement = [
     .emits(ItemDeleted)
     .test("User deletes an item from a list", {
       given: milk,
-      when: DeleteItem.with({ listId: "list-1", itemId: "item-1" }),
-      then: ItemDeleted.with({ listId: "list-1", itemId: "item-1" }),
+      when: DeleteItem({ listId: "list-1", itemId: "item-1" }),
+      then: ItemDeleted({ listId: "list-1", itemId: "item-1" }),
     }),
 
   m
@@ -115,8 +113,8 @@ export const ListManagement = [
     .emits(ListDeleted)
     .test("User deletes a list", {
       given: groceries,
-      when: DeleteList.with({ listId: "list-1" }),
-      then: ListDeleted.with({ listId: "list-1" }),
+      when: DeleteList({ listId: "list-1" }),
+      then: ListDeleted({ listId: "list-1" }),
     }),
 ]
 

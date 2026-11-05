@@ -35,10 +35,10 @@ export const ItemSearch = m.readModel({
   deleted: z.boolean(),
 })
 
-const groceries = ListCreated.with({ listId: "list-1", userId: "u-1", name: "Groceries" })
-const milk = ItemAdded.with({ userId: "u-1", listId: "list-1", itemId: "item-1", title: "Milk" })
-const milkDone = ItemCompleted.with({ listId: "list-1", itemId: "item-1" })
-const eggs = ItemAdded.with({ userId: "u-1", listId: "list-1", itemId: "item-2", title: "Eggs" })
+const groceries = ListCreated({ listId: "list-1", userId: "u-1", name: "Groceries" })
+const milk = ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-1", title: "Milk" })
+const milkDone = ItemCompleted({ listId: "list-1", itemId: "item-1" })
+const eggs = ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-2", title: "Eggs" })
 
 export const Views = [
   m
@@ -50,7 +50,7 @@ export const Views = [
     .on(ListDeleted, () => ({ status: "deleted" }))
     .test("A new list shows with no items", {
       given: groceries,
-      then: TodoList.with({
+      then: TodoList({
         userId: "u-1",
         listId: "list-1",
         name: "Groceries",
@@ -60,7 +60,7 @@ export const Views = [
     })
     .test("Items are counted as they are added", {
       given: [groceries, milk, eggs],
-      then: TodoList.with({
+      then: TodoList({
         userId: "u-1",
         listId: "list-1",
         name: "Groceries",
@@ -69,8 +69,8 @@ export const Views = [
       }),
     })
     .test("A completed list shows as completed", {
-      given: [groceries, ListCompleted.with({ listId: "list-1" })],
-      then: TodoList.with({
+      given: [groceries, ListCompleted({ listId: "list-1" })],
+      then: TodoList({
         userId: "u-1",
         listId: "list-1",
         name: "Groceries",
@@ -79,8 +79,8 @@ export const Views = [
       }),
     })
     .test("A deleted list shows as deleted", {
-      given: [groceries, ListDeleted.with({ listId: "list-1" })],
-      then: TodoList.with({
+      given: [groceries, ListDeleted({ listId: "list-1" })],
+      then: TodoList({
         userId: "u-1",
         listId: "list-1",
         name: "Groceries",
@@ -104,7 +104,7 @@ export const Views = [
     .on(ItemDeleted, () => ({ deleted: true }))
     .test("A completed item shows as done", {
       given: [milk, milkDone],
-      then: ItemSearch.with({
+      then: ItemSearch({
         itemId: "item-1",
         listId: "list-1",
         title: "Milk",
@@ -114,7 +114,7 @@ export const Views = [
     })
     .test("An added item shows as not done", {
       given: milk,
-      then: ItemSearch.with({
+      then: ItemSearch({
         itemId: "item-1",
         listId: "list-1",
         title: "Milk",
@@ -123,8 +123,8 @@ export const Views = [
       }),
     })
     .test("A deleted item shows as deleted", {
-      given: [milk, ItemDeleted.with({ listId: "list-1", itemId: "item-1" })],
-      then: ItemSearch.with({
+      given: [milk, ItemDeleted({ listId: "list-1", itemId: "item-1" })],
+      then: ItemSearch({
         itemId: "item-1",
         listId: "list-1",
         title: "Milk",
@@ -157,8 +157,8 @@ export const Automations = [
     .emits(ListCompleted)
     .test("List completes when every item is done", {
       given: [milk, milkDone],
-      when: CompleteList.with({ listId: "list-1" }),
-      then: ListCompleted.with({ listId: "list-1" }),
+      when: CompleteList({ listId: "list-1" }),
+      then: ListCompleted({ listId: "list-1" }),
     }),
 ]
 

@@ -19,7 +19,6 @@ export const TimeForfeited = m.event({
   result: Result,
   termination: Termination,
 })
-export const FlagStanding = m.reject("that side still has time on the clock")
 
 // The position itself ends the game: checkmate, stalemate, or a dead position.
 export const AdjudicateOutcome = m.command({
@@ -94,14 +93,14 @@ export const GameRecord = m.readModel({
 const STALEMATE_FEN = "7k/5Q2/6K1/8/8/8/8/8 b - - 0 52"
 const BARE_KINGS_FEN = "8/8/4k3/8/8/4K3/8/8 w - - 0 45"
 
-const timeForfeited = TimeForfeited.with({
+const timeForfeited = TimeForfeited({
   gameId: "otb-2024-ct-r5-b1",
   flaggedSide: "black",
   result: "white_won",
   termination: "time_forfeit",
 })
 
-const checkmate = BoardOutcomeAdjudicated.with({
+const checkmate = BoardOutcomeAdjudicated({
   gameId: "otb-2024-ct-r5-b1",
   ply: 7,
   fen: MATE_FEN,
@@ -109,7 +108,7 @@ const checkmate = BoardOutcomeAdjudicated.with({
   termination: "checkmate",
 })
 
-const illegalMoveForfeited = IllegalMoveForfeited.with({
+const illegalMoveForfeited = IllegalMoveForfeited({
   gameId: "otb-2024-ct-r5-b1",
   offendingSide: "white",
   illegalMoveCount: 2,
@@ -117,7 +116,7 @@ const illegalMoveForfeited = IllegalMoveForfeited.with({
   termination: "illegal_move_forfeit",
 })
 
-const resultRecorded = ResultRecorded.with({
+const resultRecorded = ResultRecorded({
   gameId: "otb-2024-ct-r5-b1",
   round: 5,
   boardNumber: 1,
@@ -136,13 +135,13 @@ export const Conclusion = [
     .command(ClaimFlagFall)
     .emits(TimeForfeited)
     .test("White claims Black's fallen flag", {
-      given: ClockPressed.with({
+      given: ClockPressed({
         gameId: "otb-2024-ct-r5-b1",
         whiteTimeMs: 61000,
         blackTimeMs: 0,
         runningSide: "black",
       }),
-      when: ClaimFlagFall.with({
+      when: ClaimFlagFall({
         gameId: "otb-2024-ct-r5-b1",
         flaggedSide: "black",
         result: "white_won",
@@ -151,19 +150,19 @@ export const Conclusion = [
       then: timeForfeited,
     })
     .test("A claim while time remains is rejected", {
-      given: ClockPressed.with({
+      given: ClockPressed({
         gameId: "otb-2024-ct-r5-b1",
         whiteTimeMs: 61000,
         blackTimeMs: 240000,
         runningSide: "black",
       }),
-      when: ClaimFlagFall.with({
+      when: ClaimFlagFall({
         gameId: "otb-2024-ct-r5-b1",
         flaggedSide: "black",
         result: "white_won",
         termination: "time_forfeit",
       }),
-      then: FlagStanding,
+      reject: "that side still has time on the clock",
     }),
 
   m
@@ -175,7 +174,7 @@ export const Conclusion = [
     .note("The move that ended the game says how. This turns that into a result.")
     .test("Checkmate on the board ends the game", {
       given: mated,
-      when: AdjudicateOutcome.with({
+      when: AdjudicateOutcome({
         gameId: "otb-2024-ct-r5-b1",
         ply: 7,
         fen: MATE_FEN,
@@ -185,20 +184,20 @@ export const Conclusion = [
       then: checkmate,
     })
     .test("Stalemate on the board draws the game", {
-      given: GameEnded.with({
+      given: GameEnded({
         gameId: "otb-2024-ct-r5-b1",
         ply: 103,
         fen: STALEMATE_FEN,
         ending: "stalemate",
       }),
-      when: AdjudicateOutcome.with({
+      when: AdjudicateOutcome({
         gameId: "otb-2024-ct-r5-b1",
         ply: 103,
         fen: STALEMATE_FEN,
         result: "draw",
         termination: "stalemate",
       }),
-      then: BoardOutcomeAdjudicated.with({
+      then: BoardOutcomeAdjudicated({
         gameId: "otb-2024-ct-r5-b1",
         ply: 103,
         fen: STALEMATE_FEN,
@@ -207,20 +206,20 @@ export const Conclusion = [
       }),
     })
     .test("A capture leaving king against king is a dead position", {
-      given: GameEnded.with({
+      given: GameEnded({
         gameId: "otb-2024-ct-r5-b1",
         ply: 88,
         fen: BARE_KINGS_FEN,
         ending: "dead_position",
       }),
-      when: AdjudicateOutcome.with({
+      when: AdjudicateOutcome({
         gameId: "otb-2024-ct-r5-b1",
         ply: 88,
         fen: BARE_KINGS_FEN,
         result: "draw",
         termination: "dead_position",
       }),
-      then: BoardOutcomeAdjudicated.with({
+      then: BoardOutcomeAdjudicated({
         gameId: "otb-2024-ct-r5-b1",
         ply: 88,
         fen: BARE_KINGS_FEN,
@@ -237,7 +236,7 @@ export const Conclusion = [
     .emits(IllegalMoveForfeited)
     .test("The second illegal move forfeits the game", {
       given: secondOffence,
-      when: ForfeitGame.with({
+      when: ForfeitGame({
         gameId: "otb-2024-ct-r5-b1",
         offendingSide: "white",
         illegalMoveCount: 2,
@@ -258,7 +257,7 @@ export const Conclusion = [
     .note("Five ways a game ends. Each one carries the result and how it came about.")
     .test("Settled after a resignation", {
       given: gameResigned,
-      then: GameResult.with({
+      then: GameResult({
         gameId: "otb-2024-ct-r5-b1",
         result: "white_won",
         termination: "resignation",
@@ -266,7 +265,7 @@ export const Conclusion = [
     })
     .test("Settled after a draw agreement", {
       given: drawAgreed,
-      then: GameResult.with({
+      then: GameResult({
         gameId: "otb-2024-ct-r5-b1",
         result: "draw",
         termination: "agreement",
@@ -274,7 +273,7 @@ export const Conclusion = [
     })
     .test("Settled after checkmate on the board", {
       given: checkmate,
-      then: GameResult.with({
+      then: GameResult({
         gameId: "otb-2024-ct-r5-b1",
         result: "white_won",
         termination: "checkmate",
@@ -282,7 +281,7 @@ export const Conclusion = [
     })
     .test("Settled after a time forfeit", {
       given: timeForfeited,
-      then: GameResult.with({
+      then: GameResult({
         gameId: "otb-2024-ct-r5-b1",
         result: "white_won",
         termination: "time_forfeit",
@@ -290,7 +289,7 @@ export const Conclusion = [
     })
     .test("Settled after a second illegal move", {
       given: illegalMoveForfeited,
-      then: GameResult.with({
+      then: GameResult({
         gameId: "otb-2024-ct-r5-b1",
         result: "black_won",
         termination: "illegal_move_forfeit",
@@ -307,7 +306,7 @@ export const Conclusion = [
     .emits(ResultRecorded)
     .test("The arbiter records the signed draw on the pairing sheet", {
       given: [gameStarted, drawAgreed],
-      when: RecordResult.with({
+      when: RecordResult({
         gameId: "otb-2024-ct-r5-b1",
         round: 5,
         boardNumber: 1,
@@ -325,7 +324,7 @@ export const Conclusion = [
     .on(ResultRecorded)
     .test("The recorded game enters the crosstable", {
       given: resultRecorded,
-      then: GameRecord.with({
+      then: GameRecord({
         gameId: "otb-2024-ct-r5-b1",
         round: 5,
         boardNumber: 1,
