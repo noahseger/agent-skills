@@ -49,7 +49,7 @@ export const DrawAgreed = m.event({
   result: Result,
   termination: Termination,
 })
-export const NoOfferPending = m.rejected("no draw offer is pending")
+export const NoOfferPending = m.reject("no draw offer is pending")
 
 // FIDE 5.1.2: a player may resign at any time.
 export const Resign = m.command({

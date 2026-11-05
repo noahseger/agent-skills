@@ -30,7 +30,7 @@ export const MovePlayed = m.event({
   isCheck: z.boolean(),
   isCapture: z.boolean(),
 })
-export const NotYourMove = m.rejected("the other side is to move")
+export const NotYourMove = m.reject("the other side is to move")
 
 // A move that mates, stalemates, or leaves a dead position ends the game as it is played.
 // FIDE 5.1.1, 5.2.1 and 5.2.2: the game is over at that moment, before anyone rules on it.
@@ -62,7 +62,7 @@ export const ClockPressed = m.event({
   blackTimeMs: z.number().int(),
   runningSide: z.enum(["white", "black"]),
 })
-export const NotYourClock = m.rejected("only the side that has just moved may press the clock")
+export const NotYourClock = m.reject("only the side that has just moved may press the clock")
 
 // Whose clock runs, and how much time each side has left.
 export const ClockState = m.readModel({

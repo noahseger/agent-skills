@@ -373,7 +373,7 @@ function checkConnected(located: Located[], fail: Fail): void {
         for (const c of t.then) {
           if ("decl" in c && c.decl.kind !== "event")
             throw new Error(
-              `${where}: ${c.decl.name} in then is ${KIND_LABEL[c.decl.kind]}. then lists the events that result, or m.rejected().`,
+              `${where}: ${c.decl.name} in then is ${KIND_LABEL[c.decl.kind]}. then lists the events that result, or m.reject().`,
             )
         }
       }

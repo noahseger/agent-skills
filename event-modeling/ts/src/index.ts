@@ -28,8 +28,23 @@ import {
 type Infer<F extends Fields> = { [P in keyof F]: z.infer<F[P]> }
 type OneOrMany<T> = T | readonly T[]
 
+/** What a `.emits()` mapping gets as its second argument. */
+export interface EmitHelpers {
+  /** A value the handler assigns, such as an id or a clock. */
+  auto<T>(): T
+}
+
+/** What a projection's `.on()` mapping gets as its second argument. */
+export interface ProjectionHelpers {
+  /** The number of the source's events seen for the row. */
+  count(source: object): number
+}
+
 /** Fills target fields from the source; the rest copy by name. */
-export type Mapping<S extends Fields, T extends Fields> = (source: Infer<S>) => Partial<Infer<T>>
+export type Mapping<S extends Fields, T extends Fields> = (
+  source: Infer<S>,
+  helpers: ProjectionHelpers,
+) => Partial<Infer<T>>
 
 type Unfilled<S extends Fields, T extends Fields> = Exclude<keyof T, keyof S> & string
 
@@ -41,6 +56,7 @@ type FilledBy<S extends Fields, T extends Fields> = [Unfilled<S, T>] extends [ne
 /** A mapping must set every event field the command lacks. */
 type FillsRest<S extends Fields, T extends Fields> = (
   source: Infer<S>,
+  helpers: EmitHelpers,
 ) => Pick<Infer<T>, Unfilled<S, T>> & Partial<Infer<T>>
 
 // ---------------------------------------------------------------------------
@@ -167,7 +183,7 @@ function external<const E extends Record<string, EventDecl>>(events: E): Externa
   return { ...events, [META]: data }
 }
 
-function rejected(message: string): Rejection {
+function reject(message: string): Rejection {
   return { [META]: { message }, __kind: "rejected" }
 }
 
@@ -178,6 +194,10 @@ function rejected(message: string): Rejection {
 // A mapping runs once, on probe values, to learn which source fills each field.
 const FIELD = Symbol("field")
 const COUNT = Symbol("count")
+const AUTO = Symbol("auto")
+
+// Each helper returns its marker, so the probe can tell it from a source field or a constant.
+const helpers = { count: () => COUNT, auto: () => AUTO }
 
 interface Probe {
   readonly [FIELD]: string
@@ -187,22 +207,25 @@ function isProbe(value: unknown): value is Probe {
   return typeof value === "object" && value !== null && FIELD in value
 }
 
-function probe(fields: Fields, map: (source: never) => object): Record<string, Source> {
+type MapFn = (source: never, helpers: never) => object
+
+function probe(fields: Fields, map: MapFn): Record<string, Source> {
   const source = Object.fromEntries(Object.keys(fields).map((f) => [f, { [FIELD]: f }]))
   const mapping: Record<string, Source> = {}
-  for (const [field, value] of Object.entries(map(source as never))) {
+  for (const [field, value] of Object.entries(map(source as never, helpers as never))) {
     mapping[field] =
-      value === COUNT ? { count: true } : isProbe(value) ? { from: value[FIELD] } : { value }
+      value === COUNT
+        ? { count: true }
+        : value === AUTO
+          ? { auto: true }
+          : isProbe(value)
+            ? { from: value[FIELD] }
+            : { value }
   }
   return mapping
 }
 
-/** The number of the source's events seen for the row. */
-function count(_source: object): number {
-  return COUNT as unknown as number
-}
-
-function flow(event: DeclData, sourceFields: Fields, map?: (source: never) => object): Flow {
+function flow(event: DeclData, sourceFields: Fields, map?: MapFn): Flow {
   return { event, mapping: map ? probe(sourceFields, map) : {} }
 }
 
@@ -359,21 +382,18 @@ function chain(data: SliceData) {
       next({
         command: typeof command === "string" ? named("command", command, fields) : command[META],
       }),
-    emits: (
-      event: EventDecl | string,
-      ...rest: [map?: (source: never) => object] | [fields: Fields, map?: (source: never) => object]
-    ) => {
+    emits: (event: EventDecl | string, ...rest: [map?: MapFn] | [fields: Fields, map?: MapFn]) => {
       const [emitted, map] =
         typeof event === "string"
           ? [named("event", event, rest[0] as Fields), rest[1]]
-          : [event[META], rest[0] as ((source: never) => object) | undefined]
+          : [event[META], rest[0] as MapFn | undefined]
       if (map !== undefined && typeof map !== "function")
         throw new Error(
           "The second argument to .emits() is a function that fills the event's fields. To emit another event, chain another .emits().",
         )
       return next({ emits: [...data.emits, flow(emitted, data.command?.fields ?? {}, map)] })
     },
-    on: (event: EventDecl, map?: (source: never) => object) =>
+    on: (event: EventDecl, map?: MapFn) =>
       next({ on: [...data.on, flow(event[META], event[META].fields, map)] }),
     polls: (readModel: ReadModelDecl) => next({ polls: readModel[META] }),
     projects: (readModel: ReadModelDecl) => next({ projects: readModel[META] }),
@@ -430,8 +450,7 @@ export const m = {
   command,
   readModel,
   key,
-  count,
-  rejected,
+  reject,
   external,
   stream,
   slice,

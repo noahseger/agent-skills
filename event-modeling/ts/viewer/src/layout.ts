@@ -1,6 +1,15 @@
 // Lays out the eventmodeling.org canvas from the assembled JSON. Pure, so it
 // is tested without a browser.
 import type { ModelJson, SliceJson } from "../../src/json.ts"
+import type { Source } from "../../src/types.ts"
+
+/** Where a mapped field got its value, as the detail panes show it. */
+export function source(s: Source): string {
+  if ("from" in s) return `← ${s.from}`
+  if ("count" in s) return "count"
+  if ("auto" in s) return "auto"
+  return `= ${JSON.stringify(s.value)}`
+}
 
 export type Kind = "ui" | "external" | "command" | "event" | "readModel" | "automation"
 export type Pt = [number, number]

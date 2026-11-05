@@ -28,6 +28,20 @@ import { m, z } from "@noahseger/event-modeling"
 | **slice** | one column of the diagram | the "Create List" column |
 | **chapter** | a run of slices under one heading | `ListManagement` |
 
+## Naming
+
+Your names follow the practice: events in the past tense (`NoteCreated`), commands in the
+imperative (`CreateNote`), read models as nouns (`Inbox`). A declaration is named by its export, or
+by its key where it is grouped: a chapter in `m.model`, an event in `m.external`.
+
+The library's names follow Zod: short plain words.
+
+| | | |
+|---|---|---|
+| `m.` | what you declare | `m.event`, `m.command`, `m.reject`, ... |
+| chain steps | verbs for what the slice does | `.emits`, `.reads`, `.projects` |
+| a mapping's second argument | helpers you use inside it | `count`, `auto` |
+
 ## How it fits together
 
 **Names come from exports.** Export a declaration and the CLI uses the binding's name:
@@ -136,6 +150,13 @@ In the first slice, every field of `ListCreated` has a namesake in `CreateList`,
 needed. In the second, the command says `text` and the event says `title`, so a function supplies the
 field that does not match. Fields that do match still flow on their own.
 
+A value the handler assigns itself, such as an id or a clock, has no source. Mark it with `auto()`,
+which the function gets as its second argument; a specification may give it any value:
+
+```ts
+.emits(NoteAdded, (c, { auto }) => ({ noteId: auto(), capturedAt: auto() }))
+```
+
 A command or event can also be declared in the slice that uses it. The string is its name; it is
 drawn and checked like an exported one. A model can start from its commands this way:
 
@@ -177,7 +198,7 @@ export const Views = [
   m.slice()
     .projects(TodoList)
     .on(ListCreated, () => ({ itemCount: 0, status: "open" }))
-    .on(ItemAdded, e => ({ itemCount: m.count(e) }))
+    .on(ItemAdded, (e, { count }) => ({ itemCount: count(e) }))
     .on(ListCompleted, () => ({ status: "completed" }))
     .on(ListDeleted, () => ({ status: "deleted" })),
 
@@ -190,7 +211,7 @@ export const Views = [
 ```
 
 `ListCreated` carries `userId`, `listId` and `name`, so those columns fill themselves. The function
-sets the two it does not carry. `m.count(e)` is the number of `ItemAdded` events seen for the row.
+sets the two it does not carry. `count(e)`, from the function's second argument, is the number of `ItemAdded` events seen for the row.
 
 An event finds its row by the key columns it carries. `ItemAdded` carries `listId` and not `userId`,
 so this projection fails at assembly. Add `userId` to the event, or make `listId` the only key.
@@ -227,7 +248,7 @@ m.slice()
 A specification is a Given, When, Then example attached to a slice with `.test()`.
 
 ```ts
-export const DuplicateName = m.rejected("list name already exists")
+export const DuplicateName = m.reject("list name already exists")
 
 m.slice()
   .actor(User).service(TodoService).command(CreateList).emits(ListCreated)
@@ -243,7 +264,7 @@ m.slice()
 ```
 
 `given` and `then` accept one clause or a list. `.with()` takes the declaration's fields with example
-values, and Zod checks them. A rejection is declared with `m.rejected()`; a bare string in `then`
+values, and Zod checks them. A rejection is declared with `m.reject()`; a bare string in `then`
 does not compile.
 
 A projection is specified the same way, without `when`, because a read model cannot reject an event:
@@ -370,8 +391,8 @@ The compiler catches:
 |---|---|
 | any reference | An unknown actor, event, command, read model or service cannot be written, because references are values, not strings. |
 | the chain | Only a legal chain compiles. A chapter given an unfinished slice says what finishes it, such as `.emits(Event)`. |
-| a function | Its argument is the source's fields. Its result must be fields of the target, with matching types. |
-| `.emits()` | Every event field the command lacks must be set by the mapping. The error names the fields. |
+| a function | Its argument is the source's fields. Its result must be fields of the target, with matching types. Its second argument holds only the helpers that apply: `auto` in `.emits()`, `count` in a projection. |
+| `.emits()` | Every event field the command lacks must be set by the mapping, or marked `auto()`. The error names the fields. |
 | `.service()` | A view must name its method. |
 | `.test()` | `when` is the slice's command. `then` is its events, its read model, or a rejection. Zod checks the values. |
 

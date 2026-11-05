@@ -13,7 +13,7 @@ export const CreateList = m.command({ userId: z.string(), listId: z.string(), na
 export const ListCreated = m
   .event({ listId: z.string(), userId: z.string(), name: z.string() })
   .note("Names are unique per user.")
-export const DuplicateName = m.rejected("list name already exists")
+export const DuplicateName = m.reject("list name already exists")
 
 // A user adds an item to a list. A list holds at most 3.
 export const AddItem = m.command({
@@ -28,7 +28,7 @@ export const ItemAdded = m.event({
   itemId: z.string(),
   title: z.string(),
 })
-export const TooManyItems = m.rejected("maximum 3 items per list")
+export const TooManyItems = m.reject("maximum 3 items per list")
 
 // A user marks an item done.
 export const CompleteItem = m.command({ listId: z.string(), itemId: z.string() })

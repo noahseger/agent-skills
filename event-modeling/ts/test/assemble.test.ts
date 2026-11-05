@@ -136,6 +136,24 @@ test("a mapping function fills what the command does not carry", () => {
   validate(json)
 })
 
+test("auto() fills a field the handler assigns, and a specification gives it any value", () => {
+  const f = fixture()
+  const Created = m.event({ id: z.string(), name: z.string(), at: z.string() })
+  const slice = m
+    .slice()
+    .actor(f.User)
+    .service(f.Svc)
+    .command(f.Create)
+    .emits(Created, (_, { auto }) => ({ at: auto() }))
+    .test("Create", {
+      when: f.Create.with({ id: "id-1", name: "Groceries" }),
+      then: Created.with({ id: "id-1", name: "Groceries", at: "2026-01-01T00:00:00Z" }),
+    })
+  const json = assembled({ ...f, Created }, [slice, project({ ...f, Created }), view(f)])
+  assert.deepEqual(json.chapters[0]?.slices[0]?.mapping, { Created: { at: { auto: true } } })
+  validate(json)
+})
+
 test("a column no .on() writes", () => {
   const f = fixture()
   const Table = m.readModel({ id: m.key(z.string()), name: z.string(), count: z.number() })
