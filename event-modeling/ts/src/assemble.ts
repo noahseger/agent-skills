@@ -270,6 +270,7 @@ function check(
     checkSpecs(at, columns, fail)
     checkGenerated(at, fail)
   }
+  checkFilledSomewhere(located, fail)
   checkConnected(located, columns, fail)
   checkMethods(located)
 }
@@ -417,6 +418,11 @@ function filled(flow: Flow, source: DeclData): string[] {
   return [...Object.keys(source.fields), ...Object.keys(flow.mapping)]
 }
 
+/** The fields that may go without a value. */
+function optional(decl: DeclData): string[] {
+  return Object.keys(decl.fields).filter((f) => decl.fields[f]?.safeParse(undefined).success)
+}
+
 /** Each read model's projection slices, the first of them, and the events they build it from together. */
 type Columns = Map<DeclData, { first: Located; flows: Flow[] }>
 
@@ -433,8 +439,9 @@ function columnsOf(located: Located[]): Columns {
 }
 
 /**
- * Every field has a source. A model still being written may lack one, so this warns. A read model's
- * columns are filled by all its projection slices, and reported at the first.
+ * Every field has a source. A model still being written may lack one, so this warns. An optional
+ * field may go unfilled here, if another slice fills it. A read model's columns are filled by all
+ * its projection slices, and reported at the first.
  */
 function checkFilled(at: Located, columns: Columns, fail: Fail): void {
   const { slice, where } = at
@@ -453,7 +460,7 @@ function checkFilled(at: Located, columns: Columns, fail: Fail): void {
   if (command && from)
     check(
       command.decl,
-      filled(command, from),
+      [...filled(command, from), ...optional(command.decl)],
       (f) => `Add ${f} to ${from.name}, or set it in the mapping.`,
     )
   // An external event's fields come from outside.
@@ -461,7 +468,7 @@ function checkFilled(at: Located, columns: Columns, fail: Fail): void {
     for (const flow of slice.events.filter((f) => !f.decl.external))
       check(
         flow.decl,
-        filled(flow, command.decl),
+        [...filled(flow, command.decl), ...optional(flow.decl)],
         (f) => `Add ${f} to ${command.decl.name}, or set it in the mapping.`,
       )
   const together = projection && columns.get(projection)
@@ -471,6 +478,32 @@ function checkFilled(at: Located, columns: Columns, fail: Fail): void {
       together.flows.flatMap((flow) => filled(flow, flow.decl)),
       (f) => `Add .event() for an event that carries ${f}, or set it in a mapping.`,
     )
+}
+
+/**
+ * An optional field one slice leaves unfilled needs another to fill it. An actor fills its own
+ * command, and an external event's fields come from outside.
+ */
+function checkFilledSomewhere(located: Located[], fail: Fail): void {
+  const fills = new Map<DeclData, Set<string>>()
+  const add = (decl: DeclData, fields: string[]) =>
+    fills.set(decl, new Set([...(fills.get(decl) ?? []), ...fields]))
+  for (const { slice } of located) {
+    const { command, projection } = slice
+    if (!command || projection) continue
+    const from = slice.trigger ?? slice.todoList
+    add(command.decl, from ? filled(command, from) : Object.keys(command.decl.fields))
+    for (const flow of slice.events)
+      add(flow.decl, flow.decl.external ? optional(flow.decl) : filled(flow, command.decl))
+  }
+  for (const [decl, fields] of fills) {
+    const to = decl.kind === "command" ? "what issues" : "a command that records"
+    for (const field of optional(decl).filter((f) => !fields.has(f)))
+      fail({
+        message: `${decl.name}.${field} is never filled by any slice. Add ${field} to ${to} ${decl.name}, or set it in a mapping.`,
+        element: decl.name ?? "",
+      })
+  }
 }
 
 /** An event finds its row by the key columns it carries. */

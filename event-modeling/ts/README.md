@@ -153,6 +153,19 @@ needed. In the second, the command says `text` and the event says `title`, so th
 with a function that supplies the field that does not match. Its argument is the command. Fields that
 do match still flow on their own.
 
+A field declared `.optional()` may go unfilled in a slice, as long as another slice fills it:
+
+```ts
+export const NoteShared = m.event({ noteId: z.uuid(), imageUri: z.string().optional() })
+
+m.slice().command(ShareText, NoteShared)    // ShareText has no imageUri
+m.slice().command(ShareImage, NoteShared)   // ShareImage carries it
+```
+
+An optional field no slice fills is left to do. The same holds for an automation's command. Write
+no default in a mapping, such as `c.imageUri ?? ""`: the model cannot see it. Make the field optional
+instead.
+
 A value the handler makes has no field to copy. Say what it is made from with `generate()`, which the
 function gets as its second argument: the command's fields, and any read model the handler looks it
 up in, which the slice names with `.readModel()`. From nothing, it is an id or a clock. A
@@ -450,9 +463,9 @@ The compiler catches:
 | any reference | An unknown actor, event, command, read model, screen or service cannot be written, because references are values, not strings. |
 | the chain | Only a legal chain compiles; each start offers only its own steps. A slice missing part of its pattern is an error where it is written: `Expected 2 arguments, but got 1`, beside which the editor names the missing argument, such as `event`. |
 | a function | Its argument is the slice's source: the command for a handler's event, the trigger event or the to-do row for an automation's command, the event in a projection. Its result must be fields of the target, with matching types. Its second argument holds only the helpers that apply: `generate` where a handler records an event, `count` in a projection. |
-| a command's event | Every event field the command lacks must be set by the function, or marked `generate()`. The error names the fields. |
+| a command's event | Every event field the command lacks must be set by the function, or marked `generate()`, unless it is optional. The error names the fields. |
 | a function outside a slice | A mapper only works inside a slice: `.event(...)`, `.command(...)` or a projection. The error says so. |
-| an automation's command | Every command field the trigger, or the to-do row, lacks must be set by the function. The error names the fields. |
+| an automation's command | Every command field the trigger, or the to-do row, lacks must be set by the function, unless it is optional. The error names the fields. |
 | `.service()` on a view | It names the method. |
 | `.test()` | `when` is the slice's command. `then` is its events or its read model; `reject` replaces `then`, and a projection has none. Zod checks the values. |
 
@@ -463,6 +476,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | A declaration used in a slice that no module exports, or one exported under two names | It has no name until it is exported. |
 | Two modules exporting one name, such as `ListCreated` | Each module is compiled on its own. |
 | A column no event of the read model's projections writes | The columns are filled across several events, in several slices. |
+| An optional field no slice fills | Same. |
 | An event that carries none of the read model's key columns | Declarations are anonymous, so two events with the same fields are one type. |
 | An event nothing consumes: no `.trigger()`, no projection, no `given` | Same. |
 | An event no slice records; a read model nothing reads or projects | Same. |

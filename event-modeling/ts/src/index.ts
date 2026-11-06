@@ -49,7 +49,12 @@ export interface ProjectionHelpers {
 /** An automation's command is filled from its trigger with no helpers. */
 type NoHelpers = Record<never, never>
 
-type Unfilled<S extends Fields, T extends Fields> = Exclude<keyof T, keyof S> & string
+/** The fields that must have a value: an optional one may go unfilled in a slice, if another fills it. */
+type Needed<T extends Fields> = {
+  [K in keyof T]: undefined extends z.input<T[K]> ? never : K
+}[keyof T]
+
+type Unfilled<S extends Fields, T extends Fields> = Exclude<Needed<T>, keyof S> & string
 
 /**
  * Puts the fields the source lacks into the editor's error, so the fix is in front of you. Spelled
@@ -60,7 +65,8 @@ type FilledBy<S extends Fields, T extends Fields, From extends string> = [Unfill
 ]
   ? unknown
   : {
-      readonly [K in `add to the ${From} or set in the mapping`]: Exclude<keyof T, keyof S> & string
+      readonly [K in `add to the ${From} or set in the mapping`]: Exclude<Needed<T>, keyof S> &
+        string
     }
 
 /** A use where a handler fills the declaration from `S`'s fields. */
