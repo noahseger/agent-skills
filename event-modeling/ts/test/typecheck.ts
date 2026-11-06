@@ -189,13 +189,21 @@ m.slice().todoList(TodoList, AddItem((row) => ({ text: row.name })), ListCreated
 
 // --- a call ends in the external event that brings the data back -------------
 
+const Shop = m.external()
+
+// @ts-expect-error "Shop" is a string, not an external system
+m.event({ listId: z.string() }).external("Shop")
+
+// @ts-expect-error an external system's events join it; they are not declared inside it
+m.external({ CartUpdated: m.event({ listId: z.string() }) })
+
 // An external event's fields come from outside, so the command need not carry them.
-const Shop = m.external({ CartUpdated: m.event({ listId: z.string(), unavailable: z.array(z.string()) }) })
-m.slice().command(AddItem, Shop.CartUpdated).actor(User)
-m.slice().trigger(Shop.CartUpdated, NameList((e) => ({ name: "" })), ListCreated)
+const CartUpdated = m.event({ listId: z.string(), unavailable: z.array(z.string()) }).external(Shop)
+m.slice().command(AddItem, CartUpdated).actor(User)
+m.slice().trigger(CartUpdated, NameList((e) => ({ name: "" })), ListCreated)
 
 // @ts-expect-error ItemAdded is ours, so AddItem must still carry its title
-m.slice().command(AddItem, Shop.CartUpdated).event(ItemAdded)
+m.slice().command(AddItem, CartUpdated).event(ItemAdded)
 
 // --- everything is declared with m.command or m.event, so a spec can name it --
 

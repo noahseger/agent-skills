@@ -36,8 +36,8 @@ names the elements it takes, so both are nouns: `m.command`, `.command()`, `.eve
 `count`, `generate`.
 
 Your own names follow the practice: events in the past tense (`NoteCreated`), commands in the
-imperative (`CreateNote`), read models as nouns (`Inbox`). A declaration is named by its export, or
-by its key where it is grouped: a chapter in `m.model`, an event in `m.external`.
+imperative (`CreateNote`), read models as nouns (`Inbox`). A declaration is named by its export; a
+chapter, by its key in `m.model`.
 
 ## How it fits together
 
@@ -320,29 +320,33 @@ projection that builds `PaymentsToProcess` marks the row done when it sees `Paym
 
 ```ts
 // The calendar pushes a scheduled task in, and we translate it into an item.
-export const Calendar = m.external({
-  TaskScheduled: m.event({ listId: z.string(), itemId: z.string(), text: z.string() }),
-})
+export const Calendar = m.external()
+
+export const TaskScheduled = m
+  .event({ listId: z.string(), itemId: z.string(), text: z.string() })
+  .external(Calendar)
 
 export const Integrations = [
   m.slice()
-    .trigger(Calendar.TaskScheduled, AddItem, ItemAdded(c => ({ title: c.text }))),
+    .trigger(TaskScheduled, AddItem, ItemAdded(c => ({ title: c.text }))),
 ]
 ```
 
-Declare the events of a system you do not own inside `m.external()`; each is named by its key.
-They are drawn in the system's lane, and we translate them and never store them.
+A system you do not own is a lane, declared once with `m.external()` and named by its export, like
+a stream. An event joins it where the event is declared, with `.external()`. We translate its events
+and never store them, so an event is in a stream or a system, not both. A system no event has joined
+yet is drawn empty, and two modules may export one under the same name.
 
 The model says that data arrives, not how. A call to such a system is our command followed by the
 event that brings its data back, and that event's fields come from outside, so the command need
-not carry them. Use it as `Shop.CartUpdated`: the editor only knows an event is external through
-the group.
+not carry them:
 
 ```ts
-export const Shop = m.external({ CartUpdated: m.event({ added: z.array(Item), unavailable: z.array(Item) }) })
+export const Shop = m.external()
+export const CartUpdated = m.event({ added: z.array(Item), unavailable: z.array(Item) }).external(Shop)
 
-m.slice().todoList(GroceriesToOrder, AddGroceriesToCart, Shop.CartUpdated)   // the call
-m.slice().trigger(Shop.CartUpdated, RecordOrder, OrderUpdated)               // we keep what came back
+m.slice().todoList(GroceriesToOrder, AddGroceriesToCart, CartUpdated)   // the call
+m.slice().trigger(CartUpdated, RecordOrder, OrderUpdated)               // we keep what came back
 ```
 
 ### 8. Streams
@@ -427,6 +431,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | A field with no value, in a model the compiler did not check | `em json` runs the model without `tsc`. |
 | Two slices claiming one service method; a slice without a service claims none | A union of literal types dedupes rather than counts. |
 | A declaration in no slice, or a slice in no chapter | Whether a value is used is not a type. |
+| An event in both a stream and an external system | `.stream()` and `.external()` can be called on it in separate statements. |
 | An event a command lists that no specification's `then` shows | Each `.test()` is checked on its own, not against the slice's other specifications. |
 
 `event_model.py` then checks the emitted JSON for what neither can: event names in the past tense,

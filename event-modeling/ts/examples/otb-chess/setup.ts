@@ -19,17 +19,20 @@ export const Game = m.stream()
 export const Clock = m.stream()
 
 // The tournament pairing system publishes the round. We do not own it.
-export const PairingPublished = m.event({
-  gameId: z.string(),
-  round: z.number().int(),
-  boardNumber: z.number().int(),
-  whitePlayerId: z.string(),
-  blackPlayerId: z.string(),
-  timeControl: z.string(),
-  baseMinutes: z.number().int(),
-  incrementSeconds: z.number().int(),
-})
-export const PairingSystem = m.external({ PairingPublished })
+export const PairingSystem = m.external()
+
+export const PairingPublished = m
+  .event({
+    gameId: z.string(),
+    round: z.number().int(),
+    boardNumber: z.number().int(),
+    whitePlayerId: z.string(),
+    blackPlayerId: z.string(),
+    timeControl: z.string(),
+    baseMinutes: z.number().int(),
+    incrementSeconds: z.number().int(),
+  })
+  .external(PairingSystem)
 
 // The pairing becomes a game at the starting position, White to move.
 export const StartGame = m.command({

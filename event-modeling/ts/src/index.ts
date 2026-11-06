@@ -113,12 +113,14 @@ export interface Decl<K extends DeclKind, F extends Fields> {
 export interface EventDecl<F extends Fields = Fields> extends Decl<"event", F> {
   /** Draws the event in the stream's lane. */
   stream(stream: Stream): this
+  /** Makes it the event of a system we do not own, drawn in that system's lane. */
+  external(system: External): ExternalEventDecl<F>
 }
 export type CommandDecl<F extends Fields = Fields> = Decl<"command", F>
 export type ReadModelDecl<F extends Fields = Fields> = Decl<"readModel", F>
 
 /**
- * An event of a system we do not own, as `m.external()` returns it. Its fields come from outside,
+ * An event of a system we do not own, as `.external()` returns it. Its fields come from outside,
  * so it passes the check that the command carries them: `never` fills any list of missing fields.
  */
 export interface ExternalEventDecl<F extends Fields = Fields> extends EventDecl<F> {
@@ -152,6 +154,10 @@ function event<F extends Fields>(fields: F): EventDecl<F> {
   return Object.assign(declared, {
     stream(stream: Stream) {
       stream[META].members.push(declared[META])
+      return declared
+    },
+    external(system: External) {
+      declared[META].external = system[META]
       return declared
     },
   }) as EventDecl<F>
@@ -219,19 +225,9 @@ export interface External {
   readonly [META]: ExternalData
 }
 
-type Externals<E> = {
-  [K in keyof E]: E[K] extends EventDecl<infer F> ? ExternalEventDecl<F> : never
-}
-
-/** A system we do not own. A slice's command can end in its event, and a slice can trigger on one. */
-function external<const E extends Record<string, EventDecl>>(events: E): External & Externals<E> {
-  const data: ExternalData = { kind: "external", events: [] }
-  for (const [key, event] of Object.entries(events)) {
-    event[META].name ??= key
-    event[META].external = data
-    data.events.push(event[META])
-  }
-  return { ...events, [META]: data } as External & Externals<E>
+/** A system we do not own, named by its export: a lane its events join with `.external()`. */
+function external(): External {
+  return { [META]: { kind: "external" } }
 }
 
 // ---------------------------------------------------------------------------
