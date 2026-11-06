@@ -235,7 +235,7 @@ function locate(chapter: string | undefined, slices: SliceData[]): Located[] {
   })
 }
 
-/** A declaration written in place is not an export, so two can share a name. */
+/** Two modules can export one name. An external system is found through the slices that use it. */
 function checkDeclaredOnce(
   located: Located[],
   declared: Declaration[],

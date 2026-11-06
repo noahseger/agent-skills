@@ -283,14 +283,9 @@ function flow(use: Used, source?: Fields): Flow {
 // The slice chain
 // ---------------------------------------------------------------------------
 
-/** A finished slice: the only thing a chapter accepts. */
+/** A slice: the only thing a chapter accepts. */
 export interface Slice {
   readonly [META]: SliceData
-}
-
-/** Makes the error in `m.model()`'s chapters name the missing step. */
-export interface Unfinished<Next extends string> {
-  readonly "finish this slice with": Next
 }
 
 /** Exactly one of `then`, the events recorded, or `reject`, why the command is refused. */
@@ -307,19 +302,45 @@ export interface ProjectionSpec<R extends Fields> {
 
 type Actors = [Actor, ...Actor[]]
 
-export interface SliceStart
-  extends Unfinished<".command(), .view(), .trigger(), .todoList() or .projection()"> {
-  /** State change: the command an actor issues, or `.command("Name", fields)` to declare it here. */
-  command<C extends Fields>(command: CommandDecl<C>): Handling<C>
-  command<C extends Fields>(name: string, fields: C): Handling<C>
+/** An event command `C` records: `Event`, or `Event(map)` to fill what `C` does not carry. */
+type Outcome<C extends Fields, E extends Fields> =
+  | (EventDecl<E> & FilledBy<C, E, "command">)
+  | Mapped<"event", E, Into<C, EmitHelpers>>
+
+/** An automation's command, filled from `S`: `Command`, or `Command(map)`. `From` names `S` in the editor's error. */
+type Issue<S extends Fields, C extends Fields, From extends string> =
+  | (CommandDecl<C> & FilledBy<S, C, From>)
+  | Mapped<"command", C, Into<S, NoHelpers>>
+
+/** `Event`, or `Event(map)` to fill columns the event does not carry by name. */
+type ProjectedEvent<R extends Fields, E extends Fields> = EventDecl<E> | Mapped<"event", E, Onto<R>>
+
+/** A slice starts with its whole pattern, so an incomplete one does not compile where it is written. */
+export interface SliceStart {
+  /** State change: the command an actor issues, and an event it records. */
+  command<C extends Fields, E extends Fields>(
+    command: CommandDecl<C>,
+    event: Outcome<C, E>,
+  ): StateChange<C, E>
   /** View: the read models it shows. */
   view(...readModels: [ReadModelDecl, ...ReadModelDecl[]]): View
-  /** Automation: the event that starts it, a translation when the event is external. */
-  trigger<E extends Fields>(event: EventDecl<E>): NeedsCommand<E, "trigger">
-  /** Automation: the to-do list it works through on its own schedule. */
-  todoList<R extends Fields>(readModel: ReadModelDecl<R>): NeedsCommand<R, "to-do list">
-  /** State view: the read model that events build. */
-  projection<R extends Fields>(readModel: ReadModelDecl<R>): Projecting<R>
+  /** Automation: the event that starts it, the command it issues, and an event that records. */
+  trigger<T extends Fields, C extends Fields, E extends Fields>(
+    trigger: EventDecl<T>,
+    command: Issue<T, C, "trigger">,
+    event: Outcome<C, E>,
+  ): Automation<C, E>
+  /** Automation: the to-do list it works through on its own schedule, the command, and an event. */
+  todoList<R extends Fields, C extends Fields, E extends Fields>(
+    todoList: ReadModelDecl<R>,
+    command: Issue<R, C, "to-do list">,
+    event: Outcome<C, E>,
+  ): Automation<C, E>
+  /** State view: the read model, and an event that builds it. */
+  projection<R extends Fields, E extends Fields>(
+    readModel: ReadModelDecl<R>,
+    event: ProjectedEvent<R, E>,
+  ): Projection<R>
 }
 
 export interface View extends Slice {
@@ -331,80 +352,29 @@ export interface View extends Slice {
   note(text: string): View
 }
 
-/** `S` is the trigger's fields or the to-do row's; `From` names which in the editor's error. */
-export interface NeedsCommand<S extends Fields, From extends string>
-  extends Unfinished<".command(Command)"> {
-  /** `.command(Command)`, `.command(Command(map))`, or `.command("Name", fields)` to declare it here. */
-  command<C extends Fields>(
-    command: (CommandDecl<C> & FilledBy<S, C, From>) | Mapped<"command", C, Into<S, NoHelpers>>,
-  ): Deciding<C>
-  command<C extends Fields>(name: string, fields: C & FilledBy<S, C, From>): Deciding<C>
-}
-
-type Who = "actor" | "system"
-
-/** The next step of a state change (an actor's) or an automation (the system's). */
-type After<W extends Who, C extends Fields, Em extends Fields> = [Em] extends [never]
-  ? W extends "actor"
-    ? Handling<C>
-    : Deciding<C>
-  : W extends "actor"
-    ? StateChange<C, Em>
-    : Automation<C, Em>
-
-/** What the command's handler reads and records. */
-interface Handles<C extends Fields, Em extends Fields, W extends Who> {
+export interface StateChange<C extends Fields, Em extends Fields> extends Slice {
   /** What the handler reads to decide; once per read model. */
-  readModel(readModel: ReadModelDecl): After<W, C, Em>
-  /**
-   * `.event(Event)`, `.event(Event(map))`, or `.event("Name", fields)` to declare it here.
-   * The compiler reports the last overload that fails, so the common form comes last.
-   */
-  event<E extends Fields>(name: string, fields: E & FilledBy<C, E, "command">): After<W, C, Em | E>
-  event<E extends Fields>(
-    event: (EventDecl<E> & FilledBy<C, E, "command">) | Mapped<"event", E, Into<C, EmitHelpers>>,
-  ): After<W, C, Em | E>
-}
-
-/** Who issues a state change's command, and the method it goes through. */
-interface Issued<C extends Fields, Em extends Fields> {
-  actor(...actors: Actors): After<"actor", C, Em>
+  readModel(readModel: ReadModelDecl): StateChange<C, Em>
+  /** Another event the command can record instead. */
+  event<E extends Fields>(event: Outcome<C, E>): StateChange<C, Em | E>
+  actor(...actors: Actors): StateChange<C, Em>
   /** The method is named after the command unless given. */
-  service(service: Service, method?: string): After<"actor", C, Em>
-}
-
-export interface Deciding<C extends Fields>
-  extends Unfinished<".event(Event)">,
-    Handles<C, never, "system"> {}
-
-export interface Handling<C extends Fields>
-  extends Unfinished<".event(Event)">,
-    Handles<C, never, "actor">,
-    Issued<C, never> {}
-
-export interface Automation<C extends Fields, Em extends Fields>
-  extends Slice,
-    Handles<C, Em, "system"> {
-  test(name: string, spec: Spec<C, Em>): Automation<C, Em>
-  note(text: string): Automation<C, Em>
-}
-
-export interface StateChange<C extends Fields, Em extends Fields>
-  extends Slice,
-    Handles<C, Em, "actor">,
-    Issued<C, Em> {
+  service(service: Service, method?: string): StateChange<C, Em>
   test(name: string, spec: Spec<C, Em>): StateChange<C, Em>
   note(text: string): StateChange<C, Em>
 }
 
-/** `.event(Event)`, or `.event(Event(map))` to fill columns the event does not carry by name. */
-type ProjectedEvent<R extends Fields, E extends Fields> = EventDecl<E> | Mapped<"event", E, Onto<R>>
-
-export interface Projecting<R extends Fields> extends Unfinished<".event(Event)"> {
-  event<E extends Fields>(event: ProjectedEvent<R, E>): Projection<R>
+export interface Automation<C extends Fields, Em extends Fields> extends Slice {
+  /** What the handler reads to decide; once per read model. */
+  readModel(readModel: ReadModelDecl): Automation<C, Em>
+  /** Another event the command can record instead. */
+  event<E extends Fields>(event: Outcome<C, E>): Automation<C, Em | E>
+  test(name: string, spec: Spec<C, Em>): Automation<C, Em>
+  note(text: string): Automation<C, Em>
 }
 
 export interface Projection<R extends Fields> extends Slice {
+  /** Another event that writes the read model. */
   event<E extends Fields>(event: ProjectedEvent<R, E>): Projection<R>
   test(name: string, spec: ProjectionSpec<R>): Projection<R>
   note(text: string): Projection<R>
@@ -433,13 +403,6 @@ function testData(name: string, spec: AnySpec): TestData {
   return test
 }
 
-/** A declaration written in place, named by its string. */
-function named<K extends DeclKind>(kind: K, name: string, fields: Fields): Flow {
-  const data = decl(kind, fields)[META]
-  data.name = name
-  return { decl: data, mapping: {} }
-}
-
 // Each step copies, so a shared chain prefix can start several slices. The
 // steps nothing extends are the slices, so assembly finds one in no chapter.
 function chain(data: SliceData) {
@@ -450,27 +413,14 @@ function chain(data: SliceData) {
   }
   return {
     [META]: data,
-    command: (command: Used | string, fields: Fields = {}) =>
-      next({
-        command:
-          typeof command === "string"
-            ? named("command", command, fields)
-            : flow(command, (data.trigger ?? data.todoList)?.fields),
-      }),
-    view: (...readModels: ReadModelDecl[]) => next({ shows: readModels.map((r) => r[META]) }),
-    trigger: (event: EventDecl) => next({ trigger: event[META] }),
-    todoList: (readModel: ReadModelDecl) => next({ todoList: readModel[META] }),
-    projection: (readModel: ReadModelDecl) => next({ projection: readModel[META] }),
     readModel: (readModel: ReadModelDecl) =>
       next({ readModels: [...data.readModels, readModel[META]] }),
     // A projection's event is its own source; a handler's source is the command.
-    event: (event: Used | string, fields: Fields = {}) =>
+    event: (event: Used) =>
       next({
         events: [
           ...data.events,
-          typeof event === "string"
-            ? named("event", event, fields)
-            : flow(event, data.projection ? undefined : (data.command?.decl.fields ?? {})),
+          flow(event, data.projection ? undefined : data.command?.decl.fields),
         ],
       }),
     query: (fields: Fields) => next({ query: fields }),
@@ -488,40 +438,42 @@ function chain(data: SliceData) {
 
 /** A column of the diagram. Pass a name only when the one it would take misleads. */
 function slice(name?: string): SliceStart {
-  const data: SliceData = { actors: [], shows: [], readModels: [], events: [], tests: [] }
-  if (name !== undefined) data.name = name
-  return chain(data) as unknown as SliceStart
+  const empty: SliceData = { actors: [], shows: [], readModels: [], events: [], tests: [] }
+  if (name !== undefined) empty.name = name
+  // A command's events read the command; an automation's command reads what starts it.
+  const handled = (from: Partial<SliceData>, command: Used, event: Used, source?: Fields) => {
+    const issued = flow(command, source)
+    return chain({ ...empty, ...from, command: issued, events: [flow(event, issued.decl.fields)] })
+  }
+  const start = {
+    command: (command: Used, event: Used) => handled({}, command, event),
+    view: (...readModels: ReadModelDecl[]) =>
+      chain({ ...empty, shows: readModels.map((r) => r[META]) }),
+    trigger: (trigger: EventDecl, command: Used, event: Used) =>
+      handled({ trigger: trigger[META] }, command, event, trigger[META].fields),
+    todoList: (todoList: ReadModelDecl, command: Used, event: Used) =>
+      handled({ todoList: todoList[META] }, command, event, todoList[META].fields),
+    projection: (readModel: ReadModelDecl, event: Used) =>
+      chain({ ...empty, projection: readModel[META], events: [flow(event)] }),
+  }
+  return start as unknown as SliceStart
 }
 
 // ---------------------------------------------------------------------------
 // The model
 // ---------------------------------------------------------------------------
 
-/** An unfinished slice fails here, naming its missing step. Distributes over an array's union. */
-type Finished<S> = S extends Slice
-  ? S
-  : S extends Unfinished<infer Next>
-    ? `finish this slice with ${Next}`
-    : Slice
-
-// Generic over the array, so the mapping keeps it an array.
-type Slices<T> = { [I in keyof T]: Finished<T[I]> }
-type Chapters<C> = { [K in keyof C]: Slices<C[K]> }
-
 export interface Model {
   readonly [META]: ModelData
 }
 
 /** Each chapter is named by its key, in timeline order; none while storming. */
-function model<const C extends Record<string, readonly unknown[]>>(
+function model(
   name: string,
-  spec: { description?: string; chapters?: C & Chapters<C> } = {},
+  spec: { description?: string; chapters?: Record<string, readonly Slice[]> } = {},
 ): Model {
   const chapters = Object.entries(spec.chapters ?? {}).map(
-    ([name, slices]): ChapterData => ({
-      name,
-      slices: (slices as readonly Slice[]).map((s) => s[META]),
-    }),
+    ([name, slices]): ChapterData => ({ name, slices: slices.map((s) => s[META]) }),
   )
   return { [META]: { kind: "model", name, description: spec.description ?? "", chapters } }
 }

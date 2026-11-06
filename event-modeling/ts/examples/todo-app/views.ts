@@ -44,8 +44,10 @@ const eggs = ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-2", titl
 export const Views = [
   m
     .slice()
-    .projection(TodoList)
-    .event(ListCreated(() => ({ itemCount: 0, status: "open" })))
+    .projection(
+      TodoList,
+      ListCreated(() => ({ itemCount: 0, status: "open" })),
+    )
     .event(ItemAdded((e, { count }) => ({ itemCount: count(e) })))
     .event(ListCompleted(() => ({ status: "completed" })))
     .event(ListDeleted(() => ({ status: "deleted" })))
@@ -99,8 +101,10 @@ export const Views = [
 
   m
     .slice()
-    .projection(ItemSearch)
-    .event(ItemAdded(() => ({ done: false, deleted: false })))
+    .projection(
+      ItemSearch,
+      ItemAdded(() => ({ done: false, deleted: false })),
+    )
     .event(ItemCompleted(() => ({ done: true })))
     .event(ItemDeleted(() => ({ deleted: true })))
     .test("A completed item shows as done", {
@@ -152,10 +156,8 @@ export const Views = [
 export const Automations = [
   m
     .slice("ListCompleter")
-    .trigger(ItemCompleted)
-    .command(CompleteList)
+    .trigger(ItemCompleted, CompleteList, ListCompleted)
     .readModel(ItemSearch)
-    .event(ListCompleted)
     .test("List completes when every item is done", {
       given: [milk, milkDone],
       when: CompleteList({ listId: "list-1" }),
@@ -175,9 +177,11 @@ export const Calendar = m.external({ TaskScheduled })
 export const Integrations = [
   m
     .slice()
-    .trigger(TaskScheduled)
-    .command(AddItem)
-    .event(ItemAdded((c) => ({ title: c.text })))
+    .trigger(
+      TaskScheduled,
+      AddItem,
+      ItemAdded((c) => ({ title: c.text })),
+    )
     .test("A scheduled task becomes an item", {
       given: groceries,
       when: AddItem({ userId: "u-1", listId: "list-1", itemId: "item-4", text: "Flour" }),

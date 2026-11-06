@@ -30,8 +30,8 @@ import { m, z } from "@noahseger/event-modeling"
 
 ## Naming
 
-A slice starts with what starts it. `m.` names what you declare, and every step of a slice's chain
-names an element of the slice, so both are nouns: `m.command`, `.command()`, `.event()`,
+A slice starts with what starts it. `m.` names what you declare, and every call of a slice's chain
+names the elements it takes, so both are nouns: `m.command`, `.command()`, `.event()`,
 `.readModel()`, `.actor()`. Only a mapping's helpers are verbs, because they do something:
 `count`, `generate`.
 
@@ -42,15 +42,14 @@ by its key where it is grouped: a chapter in `m.model`, an event in `m.external`
 ## How it fits together
 
 **Names come from exports.** Export a declaration and the CLI uses the binding's name:
-`export const ListCreated = m.event(...)` is the event `ListCreated`. A command or event can
-instead be declared where a slice uses it, named by a string. Names are CamelCase, and the diagram
-shows them as words. Any declaration accepts `.note("...")`.
+`export const ListCreated = m.event(...)` is the event `ListCreated`. Names are CamelCase, and the
+diagram shows them as words. Any declaration accepts `.note("...")`.
 
 **Fields are [Zod](https://zod.dev) schemas.** Events, commands and read models declare their fields
 the same way. Zod types the example data in specifications and the generated messages.
 
-**Slices connect declarations.** A slice is a chain of calls that starts with what starts the slice
-and names each element it holds. When a slice connects two declarations, fields with the same name
+**Slices connect declarations.** A slice is a chain of calls. The first takes the slice's whole
+pattern, starting with what starts it, so an incomplete slice does not compile; the rest add to it. When a slice connects two declarations, fields with the same name
 flow from one to the other. When the names differ, or a value has to be computed, call the
 declaration with a function: `ItemAdded((c) => ({ title: c.text }))`. The function's argument is the
 slice's source, so the editor knows its fields. The editor offers only the calls that can come next.
@@ -59,15 +58,16 @@ slice's source, so the editor knows its fields. The editor offers only the calls
 
 | Pattern | Starts with | Chain | Meaning |
 |---|---|---|---|
-| state change | the command | `.command().readModel?().event()` | An actor issues a command and events are recorded. |
-| view | the read model | `.view().query?()` | An actor reads a read model. |
-| automation | the trigger event, or a to-do list | `.trigger().command().readModel?().event()` or `.todoList().command().readModel?().event()` | An event, or a list of work, causes a command. No actor is involved. |
-| state view | the read model | `.projection().event()` | Events build a read model. |
+| state change | the command | `.command(Command, Event)` | An actor issues a command and events are recorded. |
+| view | the read model | `.view(ReadModel)` | An actor reads a read model. |
+| automation | the trigger event, or a to-do list | `.trigger(Event, Command, Event)` or `.todoList(ReadModel, Command, Event)` | An event, or a list of work, causes a command. No actor is involved. |
+| state view | the read model | `.projection(ReadModel, Event)` | Events build a read model. |
 
-`?` marks an optional step; `.readModel()` and `.event()` repeat. A state change or a view also takes
-`.actor()` and `.service()` anywhere after its start, and needs neither. A state change, an
-automation or a projection is finished at its first `.event()`; a view as soon as it starts. A
-chapter rejects a slice that is not finished.
+The first call is the whole pattern, and leaving out any of its arguments is an error where the slice
+is written. Every later step is optional: `.event()` adds another event, `.readModel()` names what
+the handler reads, once per read model, `.query()` gives a view its request fields, and `.test()`
+adds a specification. A state change or a view also takes `.actor()` and `.service()`, and needs
+neither.
 
 ## Quickstart
 
@@ -130,14 +130,12 @@ export const ItemAdded = m.event({ listId: z.string(), itemId: z.string(), title
 
 export const ListManagement = [
   m.slice()
-    .command(CreateList)
-    .event(ListCreated)
+    .command(CreateList, ListCreated)
     .actor(User)
     .service(TodoService),
 
   m.slice()
-    .command(AddItem)
-    .event(ItemAdded(c => ({ title: c.text })))
+    .command(AddItem, ItemAdded(c => ({ title: c.text })))
     .actor(User)
     .service(TodoService),
 ]
@@ -154,29 +152,15 @@ A value the handler assigns itself, such as an id or a clock, has no source. Mar
 which the function gets as its second argument; a specification may give it any value:
 
 ```ts
-.event(NoteAdded((c, { generate }) => ({ noteId: generate(), capturedAt: generate() })))
+.command(AddNote, NoteAdded((c, { generate }) => ({ noteId: generate(), capturedAt: generate() })))
 ```
 
 `.actor()` takes any number of actors, and each is drawn with a screen. Without one the slice has
 no screen; without `.service()` it has no service method. When the handler reads a read model to
-decide, name it after the command: `.command(FileNote).readModel(Inbox).event(NoteFiled)`.
+decide, name it: `.command(FileNote, NoteFiled).readModel(Inbox)`.
 
-A command or event can also be declared in the slice that uses it. The string is its name; it is
-drawn and checked like an exported one. A model can start from its commands this way:
-
-```ts
-m.slice()
-  .command("RenameList", { listId: z.string(), name: z.string() })
-  .event("ListRenamed", { listId: z.string(), name: z.string() })
-  .actor(User)
-  .service(TodoService)
-```
-
-Export it once a specification needs an example of it, or a function needs to fill its fields. Two
-declarations with one name are an error.
-
-A slice does not need a chapter to be drawn. Written on its own, as above, it is drawn after the
-story under "Not in a chapter yet" until a chapter lists it.
+A slice does not need a chapter to be drawn. Written on its own, `m.slice().command(...)` with no
+array around it, it is drawn after the story under "Not in a chapter yet" until a chapter lists it.
 
 A slice's column is headed by its command; by its read model when it projects one; by its service
 method when it is a view, or its read model when the view has no service. Pass a name,
@@ -201,8 +185,7 @@ export const TodoList = m.readModel({
 
 export const Views = [
   m.slice()
-    .projection(TodoList)
-    .event(ListCreated(() => ({ itemCount: 0, status: "open" })))
+    .projection(TodoList, ListCreated(() => ({ itemCount: 0, status: "open" })))
     .event(ItemAdded((e, { count }) => ({ itemCount: count(e) })))
     .event(ListCompleted(() => ({ status: "completed" })))
     .event(ListDeleted(() => ({ status: "deleted" }))),
@@ -238,8 +221,7 @@ export const ItemSearch = m.readModel({
 })
 
 m.slice()
-  .projection(ItemSearch)
-  .event(ItemAdded(() => ({ done: false })))
+  .projection(ItemSearch, ItemAdded(() => ({ done: false })))
   .event(ItemCompleted(() => ({ done: true }))),
 
 m.slice()
@@ -255,9 +237,9 @@ fills is filled.
 
 ```ts
 // chapter Capture
-m.slice().projection(Inbox).event(NoteCreated(() => ({ status: "inbox" }))),
+m.slice().projection(Inbox, NoteCreated(() => ({ status: "inbox" }))),
 // chapter Filing, further down the file
-m.slice().projection(Inbox).event(NoteFiled(() => ({ status: "filed" }))),
+m.slice().projection(Inbox, NoteFiled(() => ({ status: "filed" }))),
 ```
 
 ### 5. Specifications
@@ -266,7 +248,7 @@ A specification is a Given, When, Then example attached to a slice with `.test()
 
 ```ts
 m.slice()
-  .command(CreateList).event(ListCreated).actor(User).service(TodoService)
+  .command(CreateList, ListCreated).actor(User).service(TodoService)
   .test("User creates a new list", {
     when: CreateList({ userId: "u-1", listId: "list-1", name: "Groceries" }),
     then: ListCreated({ listId: "list-1", userId: "u-1", name: "Groceries" }),
@@ -283,17 +265,18 @@ and `then` accept one example or a list. A specification has `then`, the events 
 `reject`, why the command is refused; never both. Called with data, a declaration is an example;
 called with a function, it is a use in a slice.
 
-The events a command lists, `.event(ItemAdded).event(ListFull)`, are what it can produce, not a
-sequence; the diagram draws them side by side. A specification says which happens: its `then` lists
-the events recorded in that case, one, or several when the command records them together. Until a
-specification's `then` shows each of them, external events included, the model is unfinished.
+The events a command lists, `.command(AddItem, ItemAdded).event(ListFull)`, are what it can
+produce, not a sequence; the diagram draws them side by side. A specification says which happens:
+its `then` lists the events recorded in that case, one, or several when the command records them
+together. Until a specification's `then` shows each of them, external events included, the model is
+unfinished.
 
 A projection is specified the same way, without `when` or `reject`, because a read model cannot
 reject an event:
 
 ```ts
 m.slice()
-  .projection(TodoList).event(ListCreated(() => ({ itemCount: 0, status: "open" })))
+  .projection(TodoList, ListCreated(() => ({ itemCount: 0, status: "open" })))
   .test("A new list shows with no items", {
     given: ListCreated({ listId: "list-1", userId: "u-1", name: "Groceries" }),
     then:  TodoList({ userId: "u-1", listId: "list-1", name: "Groceries", itemCount: 0, status: "open" }),
@@ -311,16 +294,14 @@ export const ListCompleted = m.event({ listId: z.string() })
 
 export const Automations = [
   m.slice("ListCompleter")
-    .trigger(ItemCompleted)
-    .command(CompleteList)
-    .readModel(ItemSearch)
-    .event(ListCompleted),
+    .trigger(ItemCompleted, CompleteList, ListCompleted)
+    .readModel(ItemSearch),
 ]
 ```
 
 `.trigger()` starts the slice when the event occurs, and `listId` flows from the event into the
 command. A command field the event does not carry is set by calling the command with a function,
-whose argument is the event: `.command(ClassifyNote((e) => ({ noteId: e.id })))`.
+whose argument is the event: `.trigger(NoteCreated, ClassifyNote((e) => ({ noteId: e.id })), NoteClassified)`.
 `.readModel()` names what the handler looks at, once per read model. An automation's column is
 headed by a gear as well as its command, so it is the one slice that usually takes a name. Name it
 for what it does.
@@ -329,9 +310,7 @@ The second form works through a list. From a hotel model:
 
 ```ts
 m.slice("PaymentProcessor")
-  .todoList(PaymentsToProcess)
-  .command(ProcessPayment)
-  .event(PaymentSucceeded),
+  .todoList(PaymentsToProcess, ProcessPayment, PaymentSucceeded),
 ```
 
 `.todoList()` runs on the processor's own schedule, and the command's fields come from the row. No event and no service method starts it. The
@@ -347,9 +326,7 @@ export const Calendar = m.external({
 
 export const Integrations = [
   m.slice()
-    .trigger(Calendar.TaskScheduled)
-    .command(AddItem)
-    .event(ItemAdded(c => ({ title: c.text }))),
+    .trigger(Calendar.TaskScheduled, AddItem, ItemAdded(c => ({ title: c.text }))),
 ]
 ```
 
@@ -364,8 +341,8 @@ the group.
 ```ts
 export const Shop = m.external({ CartUpdated: m.event({ added: z.array(Item), unavailable: z.array(Item) }) })
 
-m.slice().todoList(GroceriesToOrder).command(AddGroceriesToCart).event(Shop.CartUpdated)   // the call
-m.slice().trigger(Shop.CartUpdated).command(RecordOrder).event(OrderUpdated)               // we keep what came back
+m.slice().todoList(GroceriesToOrder, AddGroceriesToCart, Shop.CartUpdated)   // the call
+m.slice().trigger(Shop.CartUpdated, RecordOrder, OrderUpdated)               // we keep what came back
 ```
 
 ### 8. Streams
@@ -430,10 +407,10 @@ The compiler catches:
 | Where | What |
 |---|---|
 | any reference | An unknown actor, event, command, read model or service cannot be written, because references are values, not strings. |
-| the chain | Only a legal chain compiles; each start offers only its own steps. A chapter given an unfinished slice says what finishes it, such as `.event(Event)` or `.command(Command)`. |
-| a function | Its argument is the slice's source: the command for a handler's `.event()`, the trigger event or the to-do row for an automation's `.command()`, the event in a projection. Its result must be fields of the target, with matching types. Its second argument holds only the helpers that apply: `generate` where a handler records an event, `count` in a projection. |
-| `.event()` after a command | Every event field the command lacks must be set by the function, or marked `generate()`. The error names the fields. |
-| an automation's `.command()` | Every command field the trigger, or the to-do row, lacks must be set by the function. The error names the fields. |
+| the chain | Only a legal chain compiles; each start offers only its own steps. A slice missing part of its pattern is an error where it is written: `Expected 2 arguments, but got 1`, beside which the editor names the missing argument, such as `event`. |
+| a function | Its argument is the slice's source: the command for a handler's event, the trigger event or the to-do row for an automation's command, the event in a projection. Its result must be fields of the target, with matching types. Its second argument holds only the helpers that apply: `generate` where a handler records an event, `count` in a projection. |
+| a command's event | Every event field the command lacks must be set by the function, or marked `generate()`. The error names the fields. |
+| an automation's command | Every command field the trigger, or the to-do row, lacks must be set by the function. The error names the fields. |
 | `.service()` on a view | It names the method. |
 | `.test()` | `when` is the slice's command. `then` is its events or its read model; `reject` replaces `then`, and a projection has none. Zod checks the values. |
 
@@ -442,8 +419,8 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | What | Why the compiler cannot |
 |---|---|
 | A declaration used in a slice that no module exports, or one exported under two names | It has no name until it is exported. |
-| Two declarations with one name, such as `.event("ListCreated", ...)` and an exported `ListCreated` | A name written in place is a string. |
-| A column no `.event()` of the read model's projections writes | The columns are filled across several `.event()` calls, in several slices. |
+| Two modules exporting one name, such as `ListCreated` | Each module is compiled on its own. |
+| A column no event of the read model's projections writes | The columns are filled across several events, in several slices. |
 | An event that carries none of the read model's key columns | Declarations are anonymous, so two events with the same fields are one type. |
 | An event nothing consumes: no `.trigger()`, no projection, no `given` | Same. |
 | An event no slice records; a read model nothing reads or projects | Same. |

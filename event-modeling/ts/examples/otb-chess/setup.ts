@@ -114,9 +114,11 @@ export const gameStarted = GameStarted({
 export const GameSetup = [
   m
     .slice("ReceivePairing")
-    .trigger(PairingPublished)
-    .command(StartGame)
-    .event(GameStarted(() => ({ fen: START_FEN, sideToMove: "white", ply: 0 })))
+    .trigger(
+      PairingPublished,
+      StartGame,
+      GameStarted(() => ({ fen: START_FEN, sideToMove: "white", ply: 0 })),
+    )
     .note("The pairing is translated, never stored. The starting position is ours to supply.")
     .test("Round 5 board 1 pairing starts a classical game", {
       given: pairing,
@@ -135,8 +137,7 @@ export const GameSetup = [
 
   m
     .slice()
-    .projection(GamePairing)
-    .event(GameStarted)
+    .projection(GamePairing, GameStarted)
     .test("Pairing identity available after the game starts", {
       given: gameStarted,
       then: GamePairing({
@@ -150,9 +151,9 @@ export const GameSetup = [
 
   m
     .slice("ClockStarter")
-    .trigger(GameStarted)
-    .command(StartClock)
-    .event(
+    .trigger(
+      GameStarted,
+      StartClock,
       ClockStarted((_, { generate }) => ({
         whiteTimeMs: generate(),
         blackTimeMs: generate(),

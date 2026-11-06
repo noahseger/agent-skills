@@ -42,7 +42,7 @@ function modelOf(
 const source = (model: ModelData) => generateProto(model)[0]?.source ?? ""
 
 const stateChange = (Create: ReturnType<typeof m.command>) =>
-  m.slice().command(Create).event(m.event({})).actor(User).service(Svc)
+  m.slice().command(Create, m.event({})).actor(User).service(Svc)
 
 test("field numbers follow declaration order", () => {
   const Create = m.command({ userId: z.string(), listId: z.string(), name: z.string() })
@@ -50,13 +50,6 @@ test("field numbers follow declaration order", () => {
     source(modelOf({ Create }, stateChange(Create))),
     /message CreateRequest \{\n {2}string user_id = 1;\n {2}string list_id = 2;\n {2}string name = 3;\n\}/,
   )
-})
-
-test("a command declared in place generates like an exported one", () => {
-  const slice = m.slice().command("Rename", { name: z.string() }).event(m.event({}))
-  const proto = source(modelOf({}, slice.actor(User).service(Svc)))
-  assert.match(proto, /rpc Rename\(RenameRequest\) returns \(RenameResponse\);/)
-  assert.match(proto, /message RenameRequest \{\n {2}string name = 1;\n\}/)
 })
 
 test("every Zod type in the table maps as documented", () => {
@@ -129,7 +122,7 @@ test("a service with no procedures produces no file", () => {
   const Table = m.readModel({ id: m.key(z.string()) })
   const Created = m.event({ id: z.string() })
   assert.deepEqual(
-    generateProto(modelOf({ Table, Created }, m.slice().projection(Table).event(Created))),
+    generateProto(modelOf({ Table, Created }, m.slice().projection(Table, Created))),
     [],
   )
 })
@@ -137,7 +130,7 @@ test("a service with no procedures produces no file", () => {
 test("a slice without a service has no procedure", () => {
   const Table = m.readModel({ id: m.key(z.string()) })
   const Create = m.command({ id: z.string() })
-  const slices = [m.slice().view(Table).actor(User), m.slice().command(Create).event(m.event({}))]
+  const slices = [m.slice().view(Table).actor(User), m.slice().command(Create, m.event({}))]
   assert.deepEqual(generateProto(modelOf({ Table, Create }, ...slices)), [])
 })
 

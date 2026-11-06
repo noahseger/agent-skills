@@ -106,7 +106,7 @@ The same discipline runs in reverse — **invent nothing.** No event, read model
 
 Write the model as TypeScript in `ts/`, or write the JSON directly and hand it to `event_model.py`. The TypeScript assembles to that same JSON, so the validator and the renderer below apply either way.
 
-Write TypeScript for a system you are about to build. The compiler and the assembler enforce most of this document: a reference is a value, so an unknown event cannot be written; a slice is a chain of calls, so an illegal combination of elements does not compile; a field nothing fills is an assembly error. The same model generates the protobuf for the service it describes. See `ts/README.md`.
+Write TypeScript for a system you are about to build. The compiler and the assembler enforce most of this document: a reference is a value, so an unknown event cannot be written; a slice is a chain of calls that starts with its whole pattern, so an illegal or incomplete slice does not compile; a field nothing fills is an assembly error. The same model generates the protobuf for the service it describes. See `ts/README.md`.
 
 Keep `npx em view` running while you write the model: after every save its terminal lists everything left to fix, compiler errors included.
 
@@ -254,8 +254,8 @@ An automation issues a command with no actor. One of two things drives it.
 
 | Form | JSON | TypeScript | Use it when |
 |---|---|---|---|
-| event-driven | `trigger` names the event | `.trigger(Event)` | One event is enough to decide, and the work is quick and safe to repeat |
-| todo list | `polls` names a read model | `.todoList(ReadModel)` | The work is slow, can fail, calls another system, or must not run twice |
+| event-driven | `trigger` names the event | `.trigger(Event, Command, Event)` | One event is enough to decide, and the work is quick and safe to repeat |
+| todo list | `polls` names a read model | `.todoList(ReadModel, Command, Event)` | The work is slow, can fail, calls another system, or must not run twice |
 
 A todo list is a read model of the work to do. A projection adds a row when the work becomes due and marks it done when the event that finishes it arrives. The processor reads the list on its own schedule and issues the command for each open row. This buys three things:
 

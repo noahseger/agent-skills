@@ -40,10 +40,9 @@ export const secondOffence = SecondIllegalMoveRuled({
 export const ArbiterRulings = [
   m
     .slice()
-    .command(RuleIllegalMove)
+    .command(RuleIllegalMove, IllegalMoveRuled)
     .readModel(MoveList)
     .readModel(IllegalMoveTally)
-    .event(IllegalMoveRuled)
     .event(SecondIllegalMoveRuled)
     .actor(Arbiter)
     .service(ChessService)
@@ -81,8 +80,10 @@ export const ArbiterRulings = [
 
   m
     .slice()
-    .projection(IllegalMoveTally)
-    .event(IllegalMoveRuled((e, { count }) => ({ illegalMoveCount: count(e) })))
+    .projection(
+      IllegalMoveTally,
+      IllegalMoveRuled((e, { count }) => ({ illegalMoveCount: count(e) })),
+    )
     .test("One ruling puts the offender on one illegal move", {
       given: illegalMoveRuled,
       then: IllegalMoveTally({

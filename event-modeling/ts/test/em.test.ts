@@ -157,14 +157,14 @@ export const User = m.actor()
 export const Chess = m.service("chess.v1")
 export const StartGame = m.command({ gameId: z.string() })
 export const GameStarted = m.event({ gameId: z.string(), white: z.string() }).stream(Games)
-export default m.model("Chess", { chapters: { Play: [m.slice().command(StartGame)${emits}.actor(User).service(Chess)] } })
+export default m.model("Chess", { chapters: { Play: [m.slice().command(StartGame, ${emits}).actor(User).service(Chess)] } })
 `
-  const error = "index.ts:9  .event(GameStarted): add white to the command or set it in the mapping"
+  const error = "index.ts:9  GameStarted: add white to the command or set it in the mapping"
   const warnings = async (url: string) =>
     (
       (await (await fetch(`${url}/model.json`)).json()) as { warnings?: { message: string }[] }
     ).warnings?.map((w) => w.message) ?? []
-  writeFileSync(file, model(".event(GameStarted)"))
+  writeFileSync(file, model("GameStarted"))
   const server = await view(dir)
   try {
     assert.ok(server.log().includes(`\n  ${error}\n`), server.log())
@@ -173,7 +173,7 @@ export default m.model("Chess", { chapters: { Play: [m.slice().command(StartGame
     const feed = await fetch(`${server.url}/events`)
     const reader = feed.body?.getReader()
     // Saved the way many editors save: a hidden temporary file renamed over the model.
-    writeFileSync(join(dir, ".!1!index.ts"), model('.event(GameStarted(() => ({ white: "me" })))'))
+    writeFileSync(join(dir, ".!1!index.ts"), model('GameStarted(() => ({ white: "me" }))'))
     renameSync(join(dir, ".!1!index.ts"), file)
     let seen = ""
     while (!seen.includes("data: changed")) {
@@ -202,7 +202,8 @@ export const Mail = m.external()
 export const Sync = m.command({ id: z.string() })
 export const Synced = m.event({ id: z.string() })
 export const Failed = m.event({ id: z.string() })
-export default m.model("x", { chapters: { Ch: [m.slice().trigger(Synced).command(Sync).event(Synced, Failed)] } })
+export default m.model("x", { chapters: { Ch: [m.slice().command(Sync, Synced).event(Synced, Failed)] } })
+m.slice().command(Sync)
 `,
   )
   const server = await view(dir)
@@ -212,8 +213,9 @@ export default m.model("x", { chapters: { Ch: [m.slice().trigger(Synced).command
     assert.equal(
       shown,
       [
-        "  index.ts:4  Expected 1 arguments, but got 0.",
+        "  index.ts:4  Expected 1 arguments, but got 0. An argument for 'events' was not provided.",
         "  index.ts:8  .event() takes one event. To record Failed too, chain .event(Failed).",
+        "  index.ts:9  Expected 2 arguments, but got 1. An argument for 'event' was not provided.",
         "",
       ].join("\n"),
     )
