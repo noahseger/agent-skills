@@ -154,6 +154,8 @@ export interface TestData {
   name: string
   given: ExampleData[]
   when?: ExampleData
+  /** A view's `when`: the values its query is asked with. */
+  query?: Record<string, unknown>
   then: ClauseData[]
 }
 

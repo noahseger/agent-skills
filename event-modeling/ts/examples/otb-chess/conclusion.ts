@@ -121,7 +121,7 @@ const illegalMoveForfeited = IllegalMoveForfeited({
   termination: "illegal_move_forfeit",
 })
 
-const resultRecorded = ResultRecorded({
+export const resultRecorded = ResultRecorded({
   gameId: "otb-2024-ct-r5-b1",
   round: 5,
   boardNumber: 1,

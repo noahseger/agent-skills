@@ -100,6 +100,17 @@ m.slice()
   .query({ userId: z.string() })
   .actor(User)
   .service(TodoService, "ListTodoLists")
+  .test("A user sees only their own lists", {
+    given: [groceries, ListCreated({ listId: "list-2", userId: "u-2", name: "Hardware" })],
+    when: { userId: "u-1" },
+    then: TodoList({
+      userId: "u-1",
+      listId: "list-1",
+      name: "Groceries",
+      itemCount: 0,
+      status: "open",
+    }),
+  })
 
 m.slice()
   .projection(
@@ -147,6 +158,31 @@ m.slice()
   .actor(User)
   .screen(ListScreen)
   .service(TodoService, "GetList")
+  .test("A list shows its own items", {
+    given: [
+      groceries,
+      milk,
+      eggs,
+      ItemAdded({ userId: "u-1", listId: "list-2", itemId: "item-3", title: "Nails" }),
+    ],
+    when: { listId: "list-1" },
+    then: [
+      ItemSearch({
+        itemId: "item-1",
+        listId: "list-1",
+        title: "Milk",
+        done: false,
+        deleted: false,
+      }),
+      ItemSearch({
+        itemId: "item-2",
+        listId: "list-1",
+        title: "Eggs",
+        done: false,
+        deleted: false,
+      }),
+    ],
+  })
 
 m.slice()
   .view(ItemSearch)
@@ -154,6 +190,17 @@ m.slice()
   .query({ text: z.string() })
   .actor(User)
   .service(TodoService, "SearchItems")
+  .test("A search finds a done item by its title", {
+    given: [milk, milkDone],
+    when: { text: "Milk" },
+    then: ItemSearch({
+      itemId: "item-1",
+      listId: "list-1",
+      title: "Milk",
+      done: true,
+      deleted: false,
+    }),
+  })
 
 export const Automations = m.chapter()
 

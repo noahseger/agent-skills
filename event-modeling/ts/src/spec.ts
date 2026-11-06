@@ -358,11 +358,12 @@ function sliceOf(
         }
       : undefined
   // An actor sees the slice on a screen: the command's form, or the view's request.
+  const asked = slice.screen?.name ?? method
   const screen: SpecElement | undefined =
     slice.actors.length > 0
       ? {
-          id: idOf("SCREEN", slice.screen?.name ?? method),
-          title: slice.screen?.name ?? method,
+          id: idOf("SCREEN", asked),
+          title: asked,
           type: "SCREEN",
           fields: command ? fieldsOf(command.decl.fields) : fieldsOf(slice.query ?? {}),
           dependencies: [],
@@ -397,7 +398,7 @@ function sliceOf(
     screens: screen ? [screen] : [],
     processors: processor ? [processor] : [],
     tables: [],
-    specifications: slice.tests.map((t, i) => specification(t, `${id}:spec:${i}`, name, id)),
+    specifications: slice.tests.map((t, i) => specification(t, `${id}:spec:${i}`, name, id, asked)),
     ...(slice.note !== undefined && {
       storylines: [{ id: `${id}:note`, title: slice.note, elements: [] }],
     }),
@@ -411,13 +412,25 @@ function step(c: ClauseData, id: string): SpecStep {
   return { id, title: c.decl.name ?? "", type: STEP[c.decl.kind], examples: [c.data] }
 }
 
-function specification(t: TestData, id: string, sliceName: string, linkedId: string) {
+/** A view's query is asked from its screen, as a command is sent from one: so `asked` titles it. */
+function specification(
+  t: TestData,
+  id: string,
+  sliceName: string,
+  linkedId: string,
+  asked: string,
+): Specification {
+  const when = `${id}:when:0`
   return {
     id,
     title: t.name,
     sliceName,
     given: t.given.map((c, i) => step(c, `${id}:given:${i}`)),
-    when: t.when ? [step(t.when, `${id}:when:0`)] : [],
+    when: t.when
+      ? [step(t.when, when)]
+      : t.query
+        ? [{ id: when, title: asked, type: "SPEC_COMMAND", examples: [t.query] }]
+        : [],
     then: t.then.map((c, i) => step(c, `${id}:then:${i}`)),
     linkedId,
   }

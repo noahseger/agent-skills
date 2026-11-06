@@ -287,6 +287,31 @@ m.slice().projection(TodoList, ListCreated).test("x", { given: ListCreated({ lis
 // @ts-expect-error a read model cannot reject
 m.slice().projection(TodoList, ListCreated).test("x", { given: ListCreated({ listId: "l-1" }), then: TodoList({}), reject: "nope" })
 
+// A view's when is its query's values; its then, rows of the read models it shows.
+const Shelf = m.readModel({ shelfId: m.key(z.string()) })
+const inbox = m.slice().view(TodoList).query({ name: z.string() })
+
+// @ts-expect-error name is a string
+inbox.test("x", { when: { name: 1 }, then: [] })
+
+// @ts-expect-error the query has no field nope
+inbox.test("x", { when: { name: "a", nope: 1 }, then: [] })
+
+// @ts-expect-error a view with a query is asked with its values
+inbox.test("x", { then: [] })
+
+// @ts-expect-error a view with no query has no when
+m.slice().view(TodoList).test("x", { when: { name: "a" }, then: [] })
+
+// @ts-expect-error then is rows of what the view shows, and it does not show Shelf
+inbox.test("x", { when: { name: "a" }, then: Shelf({ shelfId: "s-1" }) })
+
+// @ts-expect-error then is rows, not events
+inbox.test("x", { when: { name: "a" }, then: ListCreated({ listId: "l-1" }) })
+
+// @ts-expect-error a view cannot reject
+inbox.test("x", { when: { name: "a" }, then: [], reject: "nope" })
+
 // @ts-expect-error an example is not a use in a slice
 m.slice().command(CreateList, ListCreated({ listId: "l-1" }))
 
@@ -306,4 +331,6 @@ create.test("x", { given: ListCreated({ listId: "l-1" }), when: CreateList({ lis
 create.test("x", { given: [ListCreated({ listId: "l-1" })], when: CreateList({ listId: "l-1" }), reject: "nope" })
 m.slice().trigger(ListCreated, NameList, ListCreated).test("x", { given: ListCreated({ listId: "l-1" }), when: NameList({ listId: "l-1" }), then: ListCreated({ listId: "l-1" }) })
 m.slice().projection(TodoList, ListCreated(() => ({ itemCount: 0 }))).event(ItemAdded((e, { count }) => ({ itemCount: count(e), name: e.title })))
+inbox.test("x", { given: [ListCreated({ listId: "l-1", name: "a" }), ItemAdded({ listId: "l-1" })], when: { name: "a" }, then: [TodoList({ listId: "l-1" })] })
+m.slice().view(TodoList, Shelf).test("x", { then: [TodoList({ listId: "l-1" }), Shelf({ shelfId: "s-1" })] })
 m.event({ noteId: z.string() }).stream(Notes)

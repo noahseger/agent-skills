@@ -304,8 +304,7 @@ called with a function, it is a use in a slice.
 The events a command lists, `.command(AddItem, ItemAdded).event(ListFull)`, are what it can
 produce, not a sequence; the diagram draws them side by side. A specification says which happens:
 its `then` lists the events recorded in that case, one, or several when the command records them
-together. Until a specification's `then` shows each of them, external events included, the model is
-unfinished.
+together.
 
 A projection is specified the same way, without `when` or `reject`, because a read model cannot
 reject an event:
@@ -320,10 +319,38 @@ m.slice()
   })
 ```
 
+A view's specification has `when`, the values its query is asked with, and `then`, the rows the
+screen shows. A view with no `.query()` has no `when`.
+
+```ts
+m.slice()
+  .view(TodoList)
+  .chapter(Views)
+  .query({ userId: z.string() })
+  .actor(User)
+  .service(TodoService, "ListTodoLists")
+  .test("A user sees only their own lists", {
+    given: [groceries, ListCreated({ listId: "list-2", userId: "u-2", name: "Hardware" })],
+    when:  { userId: "u-1" },
+    then:  TodoList({ userId: "u-1", listId: "list-1", name: "Groceries", itemCount: 0, status: "open" }),
+  })
+```
+
+Every event a slice handles or produces is in one of its specifications: each event a command lists
+in some `then`, external events included, and each event a projection names in some `given`. Every
+view has a specification. Until then the model is unfinished. A `given` may also hold other events,
+the history that shaped the state.
+
 A specification must agree with its slice's wiring. A value copied or mapped from the command, the
 trigger or a given event must equal the value there; a constant the mapping sets, the constant; a
 `count()`, the number of those events in `given`. A `generate()` field, and any field of an
 external event, may be anything. A disagreement names the spec, the field and both values.
+
+A view's `given` builds the rows through every projection of the read models it shows. Each row in
+`then` must be one of them, matched by its key columns, with the values they have. A row built and
+left out of `then` must be one the query excludes: a query field filters by equality with the
+column of the same name. A query field with no such column, such as a search's `text`, excludes
+nothing, so its specification lists every row built.
 
 ### 6. Automations
 
@@ -467,7 +494,7 @@ The compiler catches:
 | a function outside a slice | A mapper only works inside a slice: `.event(...)`, `.command(...)` or a projection. The error says so. |
 | an automation's command | Every command field the trigger, or the to-do row, lacks must be set by the function, unless it is optional. The error names the fields. |
 | `.service()` on a view | It names the method. |
-| `.test()` | `when` is the slice's command. `then` is its events or its read model; `reject` replaces `then`, and a projection has none. Zod checks the values. |
+| `.test()` | `when` is the slice's command, or a view's query values. `then` is its events, its read model, or the rows of the read models a view shows; `reject` replaces `then`, and a projection or view has none. Zod checks the values. |
 
 Assembly catches the rest, and each error names the slice it found the problem in:
 
@@ -485,8 +512,9 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | A declaration in no slice, a slice in no chapter, or a chapter no slice joins | Whether a value is used is not a type. |
 | A slice joining two chapters | `.chapter()` can be called again further down the chain. |
 | An event in both a stream and an external system | `.stream()` and `.external()` can be called on it in separate statements. |
-| An event a command lists that no specification's `then` shows | Each `.test()` is checked on its own, not against the slice's other specifications. |
+| An event a command lists that no specification's `then` shows, an event a projection names that no specification's `given` has, or a view with no specification | Each `.test()` is checked on its own, not against the slice's other specifications. |
 | A specification value that is not what flows in: from `when`, the trigger in `given`, or the events that build the row | Example values are data, not types. |
+| A view's row that `given` does not build, or a built row `then` leaves out and the query does not exclude | Same. |
 | A source field put into a string or arithmetic in a mapping | A string built from a string is a string, and a number from a number a number. |
 | A read model passed to `generate()` that the slice does not name with `.readModel()` | `.readModel()` can be called anywhere down the chain. |
 
@@ -511,7 +539,7 @@ Naming is yours: the conventions above are not checked.
 | `m.key` | `idAttribute: true` |
 | `.optional()`, `z.array()`, `z.object()` | `optional`, `cardinality: "List"`, `subfields` |
 | a note | an element's `description` |
-| a specification | a `Specification`: `given`, `when` and `then` steps, each an example in `examples`. A `reject` is a `SPEC_ERROR` step titled with the reason |
+| a specification | a `Specification`: `given`, `when` and `then` steps, each an example in `examples`. A `reject` is a `SPEC_ERROR` step titled with the reason. A view's query values are a `SPEC_COMMAND` step titled with its screen, the request it is asked from, as a command is sent from one |
 
 The schema allows no property it does not name, at any level, so the JSON adds no keys. Where it
 needs to say what the spec has no field for, it uses a field the spec has, as follows. A model
