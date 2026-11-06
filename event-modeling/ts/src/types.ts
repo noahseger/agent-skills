@@ -86,7 +86,7 @@ export type Exported =
 /** A named thing a module exports, other than the model, a stream or a chapter. */
 export type Declaration = DeclData | ActorData | ServiceData | ScreenData | ExternalData
 
-/** The named, checked model. The render target and the generators read this. */
+/** The named, checked model. The spec JSON and the generators read this. */
 export interface Assembled {
   model: ModelData
   streams: Map<string, DeclData[]>

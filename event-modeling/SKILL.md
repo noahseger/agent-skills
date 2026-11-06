@@ -78,15 +78,9 @@ A `StartSync` command takes `(bucket, path)` from the operator, but the `SyncSta
 
 Missing information blocks work. A field with no source might depend on another team's API with a 3-month backlog — discovering this during implementation instead of during modeling is the most expensive mistake you can make.
 
-The `event_model.py` validator enforces both directions:
+A TypeScript model is checked in both directions as it assembles: a field nothing fills, or a column no event writes, is an error that names the slice. A model written as JSON is checked against the schema only, so the tracing is yours.
 
-1. **Projection check (State Change / Automation)** — every `read_models` entry must share at least one field with the slice's events.
-2. **Projection check (State View) — strict** — every field in a State View's read model must appear in the union of trigger event fields, consumed read model fields (from `reads`), and the fields the slice's `mapping` fills. For multi-trigger State Views, the union of all trigger fields is used.
-3. **Provenance check** — every event field must be connected to its inputs: the command, trigger(s), external event, consumed read model in `reads`, or an entry in `mapping`. A field that traces to none of these is an error.
-4. **Automation command strictness** — every field in an automation command must trace to a non-command source (trigger, polled or consumed read models, external event). Commands receive data; they don't invent it.
-5. **Cross-reference check** — every read model name in `reads` or `polls` must exist in some other slice's `read_models`.
-
-**A command lists what the actor sends.** When the handler renames a field or computes one, say so in the slice's `mapping` (see "Fields the TypeScript model adds") instead of padding the command with output fields. Every event field then traces either by name or through the mapping.
+**A command lists what the actor sends.** When the handler renames a field or computes one, say where it comes from in the field's `mapping` (see "Spec JSON") instead of padding the command with output fields. Every event field then traces either by name or through the mapping.
 
 ## Finish the Model
 
@@ -104,159 +98,134 @@ The same discipline runs in reverse — **invent nothing.** No event, read model
 
 ## Tooling: two ways in
 
-Write the model as TypeScript in `ts/`, or write the JSON directly and hand it to `event_model.py`. The TypeScript assembles to that same JSON, so the validator and the renderer below apply either way.
+Write the model as TypeScript in `ts/`, or write it directly as [event-modeling-spec](https://github.com/dilgerma/event-modeling-spec) JSON. The TypeScript emits that same JSON (`npx em json model/`), and the viewer draws either.
 
 Write TypeScript for a system you are about to build. The compiler and the assembler enforce most of this document: a reference is a value, so an unknown event cannot be written; a slice is a chain of calls that starts with its whole pattern, so an illegal or incomplete slice does not compile; a field nothing fills is an assembly error. The same model generates the protobuf for the service it describes. See `ts/README.md`.
 
-Keep `npx em view` running while you write the model: after every save its terminal lists everything left to fix, compiler errors included.
+Keep `npx em view model/` running while you write the model: after every save its terminal lists everything left to fix, compiler errors included.
 
-Write the JSON directly when extracting a model from a system that already exists, especially one written in another language. The TypeScript names interfaces as RPC methods it will generate. Inventing those for a service written in Go or Kotlin is the hallucinated-interface antipattern below. An extracted model names the real entry points: `POST /v1/orders`, `OrderService.PlaceOrder`, a Kafka topic.
-
-## Tooling: event_model.py
-
-The `event_model.py` script in this skill directory validates and renders the JSON. It enforces a Pydantic schema with invariant validation and renders SVG diagrams.
-
-### Commands
-
-```bash
-python event_model.py validate <model.json>   # Validate schema + invariants
-python event_model.py render <model.json>      # Render to SVG
-python event_model.py schema                   # Print JSON schema
-python event_model.py init <model.json>        # Create template
-```
+Write spec JSON directly when extracting a model from a system that already exists, especially one written in another language. The TypeScript names interfaces as RPC methods it will generate. Inventing those for a service written in Go or Kotlin is the hallucinated-interface antipattern below. An extracted model names the real entry points: `POST /v1/orders`, `OrderService.PlaceOrder`, a Kafka topic. Check it with `npx em view model.json`: it draws the file, lists each place it breaks the schema above the picture, and redraws on save.
 
 ### Naming
 
 Name events as facts, usually in the past tense (`OrderPlaced`), and commands as intents (`PlaceOrder`), in the domain's own words. A name the domain already uses, like `MenuReady`, beats a grammatical one. The tool does not check names.
 
-### Schema Enforcement
+### Spec JSON
 
-The tool validates these invariants automatically:
-- **Automations must have a trigger** — every gear is driven by an event (`trigger`) or a TODO-list read model (`polls`)
-- **GWT tests must include concrete example data** — real values like `userId=42, amount=59.98`
-- **Actor and aggregate references must exist** in the model's actor/aggregate lists
-- **Read model fields must overlap with events** — at least one field in a read model must exist in the slice's events. Additive events (e.g. ItemAdded) carry all view fields; destructive events (e.g. ItemRemoved, CartCleared) carry only identifying fields needed to update or delete rows
+The file is `{ "slices": [...] }`, validated by `ts/schema/eventmodeling.schema.json`. Each slice lists its elements by kind, each element its `fields`, and `dependencies` point along the arrows. `ts/README.md` ("The JSON") maps every concept; these are the ones an extraction needs.
 
-### JSON Model Structure
+| `sliceType` | Elements | Meaning |
+|---|---|---|
+| `STATE_CHANGE` | screen → command → events | An actor uses an interface to issue a command that records events |
+| `STATE_VIEW` | events → read model | A projection: events build a read model |
+| `STATE_VIEW` | read model → screen | A view: an actor queries a read model, with no state change |
+| `AUTOMATION` | event or to-do read model → processor → command → events | An event, or a list of work, drives a command with no actor |
+| `TRANSLATION` | external event → processor → command → events | An event from outside the system boundary becomes one of ours |
+
+- **Interfaces**: one `SCREEN` per slice with an actor, titled with the real entry point, and the actors in the slice's `actors`. The command's `apiEndpoint` says the same; `service` names an RPC service.
+- **Streams**: each event's `aggregate`. One lane per aggregate.
+- **Chapters**: each slice's `context`.
+- **External events**: `"context": "EXTERNAL"`, with `service` naming the system they come from. They have no `aggregate`; we never store them. A command's outbound event that is external is a call to that system.
+- **What a handler reads**: a read model with an `OUTBOUND` dependency on the command. One pointing at the processor is the automation's to-do list.
+- **Key columns**: `"idAttribute": true`. A list: `"cardinality": "List"`.
+- **Mapping**: a field filled by a renamed source gives the source field's name in `mapping`; `count()` is a tally of the event, `= 0` a constant, and `"generated": true` a value the handler assigns, such as an id or a clock.
+- **Specifications**: `given`, `when` and `then` steps, each with one example in `examples`. A refusal is a `SPEC_ERROR` step titled with the reason.
+- **Notes**: an element's `description`.
 
 ```json
 {
-  "name": "Order Management",
-  "source_base": "https://github.com/org/repo/blob/main",
-  "actors": [
-    { "id": "customer", "name": "Customer", "type": "user" },
-    { "id": "warehouse", "name": "Warehouse System", "type": "system" },
-    { "id": "payments", "name": "Payment Provider", "type": "external" }
-  ],
-  "aggregates": [
-    { "id": "order", "name": "Order" },
-    { "id": "inventory", "name": "Inventory" }
-  ],
-  "chapters": [
+  "slices": [
     {
-      "name": "Order Lifecycle",
-      "slices": [
-        {
-          "name": "Place Order",
-          "actor": "customer",
-          "aggregate": "order",
-          "ui": "POST /v1/orders",
-          "command": "PlaceOrder(customerId, items, shippingAddress)",
-          "events": ["OrderPlaced(orderId, customerId, items, total)"],
-          "read_models": ["OrderSummary(orderId, customerId, status, total)"],
-          "tests": [
-            {
-              "name": "Customer places order with two items",
-              "given": [],
-              "when": "PlaceOrder(customerId=c-42, items=[sku-1, sku-2], shippingAddress=123 Main St)",
-              "then": ["OrderPlaced(orderId=ord-100, customerId=c-42, items=[sku-1, sku-2], total=59.98)"]
-            }
-          ]
-        },
-        {
-          "name": "View Order",
-          "actor": "customer",
-          "aggregate": "order",
-          "ui": "GET /v1/orders/{orderId}",
-          "read_models": ["OrderSummary(orderId, customerId, status, total)"],
-          "tests": []
-        }
+      "id": "place-order",
+      "title": "PlaceOrder",
+      "context": "OrderLifecycle",
+      "sliceType": "STATE_CHANGE",
+      "actors": [{ "name": "Customer", "authRequired": true }],
+      "screens": [
+        { "id": "s1", "title": "POST /v1/orders", "type": "SCREEN", "fields": [],
+          "dependencies": [{ "id": "c1", "type": "OUTBOUND", "title": "PlaceOrder", "elementType": "COMMAND" }] }
+      ],
+      "commands": [
+        { "id": "c1", "title": "PlaceOrder", "type": "COMMAND", "apiEndpoint": "POST /v1/orders",
+          "fields": [{ "name": "customerId", "type": "String" }, { "name": "items", "type": "String", "cardinality": "List" }],
+          "dependencies": [{ "id": "e1", "type": "OUTBOUND", "title": "OrderPlaced", "elementType": "EVENT" }] }
+      ],
+      "events": [
+        { "id": "e1", "title": "OrderPlaced", "type": "EVENT", "aggregate": "Order",
+          "fields": [
+            { "name": "orderId", "type": "UUID", "generated": true },
+            { "name": "customerId", "type": "String" },
+            { "name": "items", "type": "String", "cardinality": "List" }
+          ],
+          "dependencies": [{ "id": "c1", "type": "INBOUND", "title": "PlaceOrder", "elementType": "COMMAND" }] }
+      ],
+      "readmodels": [], "processors": [], "tables": [],
+      "specifications": [
+        { "id": "t1", "title": "Customer places an order with two items", "linkedId": "place-order",
+          "given": [],
+          "when": [{ "id": "t1w", "title": "PlaceOrder", "type": "SPEC_COMMAND",
+                     "examples": [{ "customerId": "c-42", "items": ["sku-1", "sku-2"] }] }],
+          "then": [{ "id": "t1t", "title": "OrderPlaced", "type": "SPEC_EVENT",
+                     "examples": [{ "orderId": "ord-100", "customerId": "c-42", "items": ["sku-1", "sku-2"] }] }] }
       ]
     },
     {
-      "name": "Fulfillment",
-      "slices": [
-        {
-          "name": "Reserve Inventory",
-          "actor": "warehouse",
-          "aggregate": "inventory",
-          "automation": "OnOrderPlaced",
-          "trigger": "OrderPlaced",
-          "command": "ReserveInventory(orderId, items)",
-          "events": ["InventoryReserved(orderId, items, warehouseId)"],
-          "read_models": ["InventoryLevel(sku, warehouseId, available, reserved)"],
-          "tests": [
-            {
-              "name": "Inventory reserved after order placed",
-              "given": [
-                "OrderPlaced(orderId=ord-100, items=[sku-1])",
-                "InventoryLevel(sku=sku-1, available=50, reserved=0)"
-              ],
-              "when": "ReserveInventory(orderId=ord-100, items=[sku-1])",
-              "then": ["InventoryReserved(orderId=ord-100, items=[sku-1], warehouseId=wh-east)"]
-            }
-          ]
-        }
-      ]
+      "id": "inventory-reserver",
+      "title": "InventoryReserver",
+      "context": "Fulfillment",
+      "sliceType": "AUTOMATION",
+      "events": [
+        { "id": "e2", "title": "OrderPlaced", "type": "EVENT", "aggregate": "Order", "fields": [],
+          "dependencies": [{ "id": "p1", "type": "OUTBOUND", "title": "InventoryReserver", "elementType": "AUTOMATION" }] },
+        { "id": "e3", "title": "InventoryReserved", "type": "EVENT", "aggregate": "Inventory",
+          "fields": [{ "name": "orderId", "type": "UUID" }, { "name": "warehouseId", "type": "String" }],
+          "dependencies": [{ "id": "c2", "type": "INBOUND", "title": "ReserveInventory", "elementType": "COMMAND" }] }
+      ],
+      "processors": [
+        { "id": "p1", "title": "InventoryReserver", "type": "AUTOMATION", "fields": [],
+          "dependencies": [{ "id": "c2", "type": "OUTBOUND", "title": "ReserveInventory", "elementType": "COMMAND" }] }
+      ],
+      "commands": [
+        { "id": "c2", "title": "ReserveInventory", "type": "COMMAND",
+          "fields": [{ "name": "orderId", "type": "UUID" }],
+          "dependencies": [{ "id": "e3", "type": "OUTBOUND", "title": "InventoryReserved", "elementType": "EVENT" }] }
+      ],
+      "readmodels": [
+        { "id": "r1", "title": "InventoryLevel", "type": "READMODEL",
+          "fields": [{ "name": "sku", "type": "String", "idAttribute": true }, { "name": "warehouseId", "type": "String" }],
+          "dependencies": [{ "id": "c2", "type": "OUTBOUND", "title": "ReserveInventory", "elementType": "COMMAND" }] }
+      ],
+      "screens": [], "tables": [], "specifications": []
     },
     {
-      "name": "External Payment Events",
-      "slices": [
-        {
-          "name": "Confirm Payment",
-          "actor": "payments",
-          "aggregate": "order",
-          "external_event": "ExternalPaymentReceived(orderId, amount, transactionId)",
-          "command": "ConfirmPayment(orderId, amount, transactionId)",
-          "events": ["PaymentConfirmed(orderId, amount, transactionId)"],
-          "read_models": ["OrderSummary(orderId, customerId, status, total)"],
-          "tests": [
-            {
-              "name": "Payment confirmed updates order status",
-              "given": ["ExternalPaymentReceived(orderId=ord-100, amount=59.98, transactionId=txn-7)"],
-              "when": "ConfirmPayment(orderId=ord-100, amount=59.98, transactionId=txn-7)",
-              "then": ["PaymentConfirmed(orderId=ord-100, amount=59.98, transactionId=txn-7)"]
-            }
-          ]
-        }
-      ]
+      "id": "confirm-payment",
+      "title": "ConfirmPayment",
+      "context": "Payments",
+      "sliceType": "TRANSLATION",
+      "events": [
+        { "id": "e4", "title": "PaymentReceived", "type": "EVENT", "context": "EXTERNAL", "service": "PaymentProvider",
+          "fields": [{ "name": "orderId", "type": "UUID" }, { "name": "amount", "type": "Decimal" }],
+          "dependencies": [{ "id": "p2", "type": "OUTBOUND", "title": "PaymentConfirmer", "elementType": "AUTOMATION" }] },
+        { "id": "e5", "title": "PaymentConfirmed", "type": "EVENT", "aggregate": "Order",
+          "fields": [{ "name": "orderId", "type": "UUID" }, { "name": "paid", "type": "Decimal", "mapping": "amount" }],
+          "dependencies": [] }
+      ],
+      "processors": [{ "id": "p2", "title": "PaymentConfirmer", "type": "AUTOMATION", "fields": [], "dependencies": [] }],
+      "commands": [{ "id": "c3", "title": "ConfirmPayment", "type": "COMMAND", "fields": [{ "name": "orderId", "type": "UUID" }, { "name": "amount", "type": "Decimal" }], "dependencies": [] }],
+      "readmodels": [], "screens": [], "tables": [], "specifications": []
     }
   ]
 }
 ```
 
-### Slice Types
-
-Every slice has an optional **`name`** field — a short human-readable label (e.g. "Place Order", "OAuth Callback"). When present, names render as column headers in the SVG diagram and appear in validation error messages. Always provide a name.
-
-The model supports three kinds of slices:
-
-| Slice Type | Required Fields | Description |
-|-----------|----------------|-------------|
-| **Command slice** | `ui` + `command` + `events` | Actor uses an interface to issue a command that produces events |
-| **External event slice** | `external_event` + `command` + `events` | An event from outside the system boundary triggers an internal command |
-| **View-only slice** | `ui` + `read_models` (no command/events) | Actor queries a read model through an interface — no state change |
-| **Automation slice** | `automation` + (`trigger` or `polls`) + `command` + `events` | An event, or a TODO-list read model, drives an automated command |
-| **State View slice** | `trigger` + `read_models` (no command/events/ui) | Event triggers a read model projection |
-
 ### Automations: two forms
 
 An automation issues a command with no actor. One of two things drives it.
 
-| Form | JSON | TypeScript | Use it when |
+| Form | Spec JSON | TypeScript | Use it when |
 |---|---|---|---|
-| event-driven | `trigger` names the event | `.trigger(Event, Command, Event)` | One event is enough to decide, and the work is quick and safe to repeat |
-| todo list | `polls` names a read model | `.todoList(ReadModel, Command, Event)` | The work is slow, can fail, calls another system, or must not run twice |
+| event-driven | the event points at the processor | `.trigger(Event, Command, Event)` | One event is enough to decide, and the work is quick and safe to repeat |
+| todo list | the read model points at the processor | `.todoList(ReadModel, Command, Event)` | The work is slow, can fail, calls another system, or must not run twice |
 
 A todo list is a read model of the work to do. A projection adds a row when the work becomes due and marks it done when the event that finishes it arrives. The processor reads the list on its own schedule and issues the command for each open row. This buys three things:
 
@@ -266,68 +235,9 @@ A todo list is a read model of the work to do. A projection adds a row when the 
 
 An event-driven automation has none of this. If the handler fails after the event, the work is lost unless the transport replays it.
 
-```json
-{
-  "name": "PaymentProcessor",
-  "actor": "system",
-  "aggregate": "payment",
-  "automation": "PaymentProcessor",
-  "polls": "PaymentsToProcess",
-  "command": "ProcessPayment(bookingId, amount)",
-  "events": ["PaymentSucceeded(bookingId, amount)"],
-  "tests": []
-}
-```
-
-The read model in `polls` must exist in some slice's `read_models`. Its fields are inputs to the command, like `reads`.
-
-### Fields the TypeScript model adds
-
-The TypeScript model emits five fields beyond the example above. Hand-written JSON may use them too.
-
-- **`query`** (view slice) — the request fields of a view, drawn under the method on the interface card: `"ui": "TodoService/GetList", "query": ["listId"]`.
-- **`polls`** (automation slice) — the TODO-list read model that drives the automation, in place of `trigger`.
-- **`actors`** (slice) — every actor with a screen in the slice, when there is more than one; `actor` is the first.
-- **`note`** (slice) and **`notes`** (model, declaration name to text) — prose attached to a slice or to a declaration. The renderer shows a note as a tooltip and marks the card with ⓘ.
-- **`mapping`** (slice) — per event, the fields the handler fills that do not flow by name, and where each came from; in an automation, also the command's fields filled from its trigger or to-do row: `{"from": "text"}` for a renamed field, `{"value": 0}` for a constant, `{"count": true}` for a tally of that event, `{"generate": true}` for a value the handler assigns, such as an id or a clock. A mapped field counts as traced in the provenance checks.
-
-```json
-{
-  "command": "AddItem(listId, itemId, text)",
-  "events": ["ItemAdded(listId, itemId, title)"],
-  "mapping": { "ItemAdded": { "title": { "from": "text" } } }
-}
-```
-
-**State View with reads:** A State View can declare `reads` to access data from consumed read models in addition to its trigger event. The trigger is the availability signal ("this data is ready"); the reads provide the actual data. The validator checks that every read model field appears in the union of trigger fields AND consumed read model fields.
-
-```json
-{
-  "name": "Project Archive Games",
-  "trigger": "PeriodExported(period, gameCount, gcsPath)",
-  "reads": ["BufferedGames"],
-  "read_models": ["ArchiveGames*(*period, gameCount, gcsPath, gameKey, endedAt, ...)"]
-}
-```
-
-**Multi-trigger State Views:** A State View's `trigger` field can be a single event string or a list of event strings. When a read model accumulates data from multiple event types (common in CQRS projections), list all the events the projection subscribes to. The validator checks that every read model field appears in the **union** of all trigger event fields.
-
-### Cardinality Notation
-
-Read models and fields use `*` to indicate cardinality and aggregate pointers:
-
-- **`ReadModel*`** — suffix `*` on the name indicates a collection (many rows), not a singleton
-- **`*field`** — prefix `*` on a field name indicates an aggregate pointer / partition key
-
-```json
-"read_models": ["BufferedGames*(*period, gameKey, endedAt, startedAt, variant, ...)"]
-```
-
-This says: BufferedGames is a collection partitioned by period, containing game records with all their fields. Downstream slices that `reads: ["BufferedGames"]` have access to the full schema.
-
 ### Processor Naming
 
-Automation slices should use descriptive processor names that describe WHAT the automation does, not WHAT triggers it. The trigger event is already shown via the `trigger` field.
+Automation slices should use descriptive processor names that describe WHAT the automation does, not WHAT triggers it. The trigger event is already shown by its arrow into the processor.
 
 | Instead of | Use |
 |-----------|-----|
@@ -335,61 +245,7 @@ Automation slices should use descriptive processor names that describe WHAT the 
 | `OnPeriodAggregated` | `PeriodExporter` |
 | `OnMonthPeriodsDownloaded` | `MonthEncoder` |
 
-The `On*` naming duplicates information that's already in the trigger field and tells the reader nothing about what the processor actually does.
-
-### Source Code Annotations
-
-Cards can link to source code with the `refs` field on slices and `source_base` on the model. Keys are the full element label (matching `command`, `events[]`, `read_models[]`, `ui`, `external_event`). Values are lists of `{label, path}` objects.
-
-- **`source_base`** (model-level, optional): URL prefix for relative paths (e.g. `"https://github.com/org/repo/blob/main"`)
-- **`refs`** (slice-level, optional): `dict[str, list[SourceRef]]` mapping element labels to annotations
-- **Single ref**: card becomes clickable (`<a href>`) with `↗` indicator and tooltip
-- **Multiple refs**: annotation panel renders below the card with clickable `↗ Label` links
-- **Layout**: aggregate lanes and actor lanes expand automatically when annotation panels are present. Models without refs render identically to before.
-
-```json
-{
-  "refs": {
-    "AddItem(aggregateId, itemId, productId)": [
-      { "label": "Command", "path": "src/main/kotlin/.../AddItemCommand.kt#L7" },
-      { "label": "Handler", "path": "src/main/kotlin/.../CartAggregate.kt#L35" }
-    ],
-    "ItemAdded(aggregateId, itemId, productId)": [
-      { "label": "Event", "path": "src/main/kotlin/.../ItemAddedEvent.kt#L8" }
-    ]
-  }
-}
-```
-
-Paths can be relative (resolved against `source_base`) or absolute URLs (`https://...`, `vscode://...`).
-
-### SVG Diagram Layout
-
-The rendered diagram uses this vertical layout:
-
-1. **Title** — model name
-2. **Chapter headers** — blue bars spanning each chapter's columns
-3. **Actor swimlanes** — one row per actor, containing:
-   - UI/interface cards (grey) for internal entry points
-   - External event cards (orange) for events arriving from outside the system boundary
-   - Automation gears (purple) for event-driven side effects
-4. **Read model row** — green cards near the top (they feed the interfaces above), shifted right to clear down-flow arrows
-5. **Aggregate swim lanes** — horizontal bands per DDD aggregate, containing:
-   - Command cards (blue) in the upper part
-   - Event cards (orange) in the lower part
-6. **GWT tests** — Given/When/Then cards aligned under each slice, with wrapped test names
-
-### Arrow Semantics
-
-- **Interface → Command**: solid grey down arrow from actor lane to aggregate lane (actor initiates)
-- **External Event → Command**: dashed orange down arrow from actor lane to aggregate lane (external system pushes data in)
-- **Automation → Command**: solid purple down arrow from actor lane to aggregate lane (gear triggers)
-- **Command → Event**: solid grey down arrow within aggregate lane
-- **Event → Read Model**: dashed green up arrow from aggregate lane to read model row (projection)
-- **Read Model → Interface**: dashed green up arrow (feeds screen, view-only slices)
-- **Event → Automation**: L-shaped dashed purple arrow from event up to gear in actor lane
-- **NEVER event → event** — events are facts, they don't cause each other
-- **Down-flow arrows offset left (35%)**, up-flow arrows offset right (65%) — prevents visual overlap
+The `On*` naming duplicates information that's already in the trigger and tells the reader nothing about what the processor actually does.
 
 ## Process
 
@@ -420,9 +276,9 @@ This phase is optional when extracting from code (Phase 1 covers discovery throu
 
 ### Phase 2: Identify Real Interfaces and External Events
 
-**NEVER hallucinate interface names.** Use `ui` for internal entry points and `external_event` for inbound events from outside the system boundary.
+**NEVER hallucinate interface names.** Use a screen for internal entry points and an external event for inbound events from outside the system boundary.
 
-**Internal interfaces** (`ui` field) — entry points the system exposes:
+**Internal interfaces** (a `SCREEN` titled with the entry point) — entry points the system exposes:
 
 | Interface Type | Example | What to Look For |
 |---------------|---------|-----------------|
@@ -431,7 +287,7 @@ This phase is optional when extracting from code (Phase 1 covers discovery throu
 | Cron/scheduled job | `CronJob: daily-cleanup` | Scheduler configs, job classes |
 | Query endpoint | `GET /v1/orders/{orderId}` | Read-only controllers (view-only slices) |
 
-**External events** (`external_event` field) — events arriving from outside the system boundary:
+**External events** (`"context": "EXTERNAL"`, starting a `TRANSLATION`) — events arriving from outside the system boundary:
 
 | Source | Example | What to Look For |
 |--------|---------|-----------------|
@@ -439,7 +295,7 @@ This phase is optional when extracting from code (Phase 1 covers discovery throu
 | Webhook | `ExternalPaymentReceived(orderId, amount)` | Webhook controllers, event handlers |
 | Message queue | `ExternalAccountCreated(userId, username)` | SQS/RabbitMQ consumers |
 
-**Key distinction:** If an external system pushes data *into* your system via a message/event, use `external_event` (rendered as an orange card with a dashed orange arrow). If a user or system calls an endpoint you expose, use `ui` (rendered as a grey card with a solid grey arrow).
+**Key distinction:** If an external system pushes data *into* your system via a message/event, use an external event, drawn in that system's lane. If a user or system calls an endpoint you expose, use a screen, drawn in the actor's lane.
 
 ### Phase 3: Walk the Happy Path
 
@@ -465,30 +321,27 @@ For one workflow at a time, trace from trigger to completion:
 
 Define GWT tests **collaboratively with business experts** — not in isolation. Each slice gets GWT tests with **concrete example data** — real IDs, real numbers, real outcomes. Business knowledge becomes an executable specification in code:
 
-```json
-{
-  "name": "Inventory reserved after order placed",
-  "given": [
-    "OrderPlaced(orderId=ord-100, items=[sku-1])",
-    "InventoryLevel(sku=sku-1, available=50, reserved=0)"
-  ],
-  "when": "ReserveInventory(orderId=ord-100, items=[sku-1])",
-  "then": [
-    "InventoryReserved(orderId=ord-100, items=[sku-1], warehouseId=wh-east)"
-  ]
-}
+```ts
+.test("Inventory reserved after order placed", {
+  given: [OrderPlaced({ orderId: "ord-100", items: ["sku-1"] }), InventoryLevel({ sku: "sku-1", available: 50, reserved: 0 })],
+  when:  ReserveInventory({ orderId: "ord-100", items: ["sku-1"] }),
+  then:  InventoryReserved({ orderId: "ord-100", items: ["sku-1"], warehouseId: "wh-east" }),
+})
 ```
 
-**Projection check:** For each read model in a slice, verify that the read model shares at least one field with the slice's events. Additive events (e.g. `ItemAdded`) should carry all the data the view needs. Destructive events (e.g. `ItemRemoved`, `CartCleared`) only need identifying fields — enough to locate and remove rows. The validator enforces field overlap automatically.
+In spec JSON each of these is a step with its values in `examples`, as in the example above.
 
-### Phase 6: Generate the Diagram
+**Projection check:** For each read model, verify that the events that build it carry its fields. Additive events (e.g. `ItemAdded`) should carry all the data the view needs. Destructive events (e.g. `ItemRemoved`, `CartCleared`) only need identifying fields — enough to locate and remove rows.
+
+### Phase 6: Look at the Diagram
 
 ```bash
-python event_model.py render model.json -o model.svg   # from JSON
-npx em render model/ -o model.svg                      # from the TypeScript model
+npx em view model/                        # the TypeScript model; redraws on save
+npx em view model.json                    # a spec JSON model; redraws on save
+npx em export model/ -o model.html        # one self-contained page, for sharing
 ```
 
-Open the SVG in a browser to review. Iterate on the model until the diagram clearly tells the story of the system.
+Iterate on the model until the diagram clearly tells the story of the system and nothing is left to do above it.
 
 ### Phase 7: Extract Vertical Slices for Delivery
 
@@ -505,7 +358,7 @@ Event models are living documents. When production reveals gaps:
 
 1. Observe unexpected behavior or missing capabilities in the running system
 2. Add new events, commands, or slices to the model to capture the gap
-3. Re-validate and re-render to verify the model still tells a coherent story
+3. Look at it again in `em view` to verify the model still tells a coherent story
 4. Treat the updated model as the specification for the fix
 
 ## Slices as Work Items
@@ -532,15 +385,15 @@ Each slice type (state change, state view, automation) follows a known pattern. 
 - **Events are immutable facts** in past tense — never update, only append
 - **Commands are imperative intents** — each produces one or a small cluster of events
 - **Read models are pure functions of events** — given same events, same view
-- **Projections are State View slices** — each read model projection gets its own State View slice with `trigger` (the event it subscribes to) and `read_models` (what it builds). State Change slices produce events; State View slices project events into read models. `reads` lists read models consumed by the slice's command (inputs from other slices). The read model names in `reads` must exist in some State View slice's `read_models`.
-- **Event fields must trace to declared sources** — every field in an event must come from: (1) the command, trigger, or external event, (2) a consumed read model declared in `reads`, or (3) a produced read model of the same slice (transformation output). The validator enforces this exhaustively. If a command handler reads external state, that state must be declared in `reads`.
+- **Projections are State View slices** — each read model projection gets its own State View slice: the events it subscribes to, and the read model it builds. State Change slices produce events; State View slices project events into read models. A read model a slice's handler reads is an input from another slice, and some State View slice must build it.
+- **Event fields must trace to declared sources** — every field in an event must come from: (1) the command, trigger, or external event, (2) a read model the handler reads, or (3) a mapping that says how it is computed. If a command handler reads external state, that state must be a read model it reads.
 - **Not every event needs a read model** — terminal events that cross the system boundary outward (e.g. publishing to a Kafka topic for other bounded contexts) have no projection within this system. They are valid dead ends on the timeline.
 - **Read models feed interfaces** — they belong near the top, close to the entry points they serve
-- **External events represent inbound data from outside the system** — Kafka topics, webhooks, message queues. Use `external_event` (not `ui`) for these. They render as orange cards with dashed orange arrows.
-- **View-only slices show read model consumption** — `ui` + `read_models` without command/events. They render a green dashed arrow from read model up to the interface.
+- **External events represent inbound data from outside the system** — Kafka topics, webhooks, message queues. Use an external event (not a screen) for these, drawn in the system's lane.
+- **View-only slices show read model consumption** — a read model and a screen without command or events, drawn with an arrow from the read model up to the interface.
 - **Actor swimlanes show real interfaces** — REST endpoints, RPC methods — NEVER made-up screen names
 - **Aggregate swimlanes contain commands and events** — grouped by DDD aggregate / event stream
-- **Automations are driven by events or TODO lists** — never standalone; `trigger` names the event, `polls` names the TODO-list read model (see "Automations: two forms")
+- **Automations are driven by events or TODO lists** — never standalone; the event or the TODO-list read model points at the processor (see "Automations: two forms")
 - **Every state change appears on the timeline** — no hidden triggers or side effects
 - **Names are CamelCase** — no spaces, e.g. `PlaceOrder` not `Place Order`
 - **GWT uses concrete data** — real IDs, real numbers, real outcomes
@@ -565,8 +418,8 @@ Each slice type (state change, state view, automation) follows a known pattern. 
 ## Antipatterns
 
 - **Hallucinated interfaces** — using made-up screen names like "OrderDashboard" instead of the actual `POST /v1/orders` endpoint
-- **Using `ui` for external events** — if a Kafka consumer or webhook receives data from another system, use `external_event` not `ui`. The arrow direction and rendering are different.
-- **One command always producing multiple events simultaneously** (suggests the events should be combined into one). Note: alternative outcomes from one command (success/failure) are NOT an antipattern — model the primary outcome in `events` and capture alternatives in GWT `then` clauses.
+- **Using a screen for external events** — if a Kafka consumer or webhook receives data from another system, use an external event, not a screen. The lane and the arrow are different.
+- **One command always producing multiple events simultaneously** (suggests the events should be combined into one). Note: alternative outcomes from one command (success/failure) are NOT an antipattern — list each as an event the command can record, and let each GWT `then` show which one happened.
 - One slice with multiple commands
 - Many events updating the same read model
 - Events with arrows into other events (events don't cause each other)
@@ -578,8 +431,8 @@ Each slice type (state change, state view, automation) follows a known pattern. 
 - "The thing" — too much business logic in a single slice
 - **Dead-end events** — events that don't feed any read model or trigger any automation, with no justification (terminal boundary events are the exception)
 - **Invented read model names** — read models should use domain terms the team already uses. If you can't name it from the domain vocabulary, it may not be a real concept.
-- **Inline projections** — putting read models as outputs of state change slices instead of giving each projection its own State View slice. Projections are their own slices: a State View with a `trigger` (the event it subscribes to) and `read_models` (what it builds). State Change slices produce events; State View slices project events into read models.
-- **Hidden data sources in events** — an event field that doesn't trace to any input within the slice (command, trigger, external event, or consumed read model in `given`). Example: `SyncStarted(bucket, path, remoteCount)` where `remoteCount` comes from querying an external system that isn't declared as a consumed read model. Fix: add the consumed read model to the GWT `given`, or move the computation to a downstream automation that explicitly consumes the read model.
+- **Inline projections** — putting read models as outputs of state change slices instead of giving each projection its own State View slice. Projections are their own slices: a State View with the events it subscribes to and the read model it builds. State Change slices produce events; State View slices project events into read models.
+- **Hidden data sources in events** — an event field that doesn't trace to any input within the slice (command, trigger, external event, or a read model the handler reads). Example: `SyncStarted(bucket, path, remoteCount)` where `remoteCount` comes from querying an external system that isn't declared as a consumed read model. Fix: add the consumed read model to the GWT `given`, or move the computation to a downstream automation that explicitly consumes the read model.
 - **"Design" language** — saying "design the read models" or "architect the commands." Event modeling captures what happens; it doesn't prescribe what should happen.
 - **Dead-end state** — a read model that tracks a condition the domain reacts to (a count nearing a limit, a status, a deadline) with no slice that consumes it. The same defect as a dead-end event, one level up.
 - **Punting a known rule** — flagging a real, traceable domain rule as an optional add-on instead of modeling it. Deferring a rule you already understand just moves the work to a more expensive phase. Model it; report what you modeled.

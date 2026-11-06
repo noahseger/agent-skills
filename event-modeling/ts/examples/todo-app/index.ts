@@ -1,4 +1,4 @@
-// The model of tests/fixtures/todo_app_brief.md.
+// The model of test/fixtures/todo_app_brief.md.
 import { m } from "#em"
 
 export default m.model("Todo List Application", {
