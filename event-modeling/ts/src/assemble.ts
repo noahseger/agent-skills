@@ -77,7 +77,7 @@ export function loadModules(
       }
   const chaptered = new Set(model.chapters.flatMap((c) => c.slices))
   const unchaptered = drafts.filter((s) => !chaptered.has(s))
-  check(model, unchaptered, declared, fileOf, fail)
+  check(model, unchaptered, declared, fileOf, fail, !options.partial)
   for (const s of unchaptered) {
     const name = s.name ?? "A slice"
     fail({ message: `${name} isn't in a chapter yet.`, element: "", slice: s.name ?? "" })
@@ -195,11 +195,18 @@ function check(
   declared: Declaration[],
   fileOf: Map<object, string>,
   fail: Fail,
+  strict: boolean,
 ): void {
   const located = [
     ...model.chapters.flatMap((chapter) => locate(chapter.name, chapter.slices)),
     ...locate(undefined, unchaptered),
   ]
+  // The compiler reports it where the slice is written, so a partial model only draws it.
+  if (strict)
+    for (const { slice, where } of located) {
+      const missing = missingCore(slice)
+      if (missing) throw new Error(`${where}: ${missing}`)
+    }
   checkDeclaredOnce(located, declared, fileOf)
   const columns = columnsOf(located)
   for (const at of located) {
@@ -209,6 +216,18 @@ function check(
   }
   checkConnected(located, columns, fail)
   checkMethods(located)
+}
+
+/** What a slice's first call left out. `em json` runs the model without the compiler. */
+function missingCore(slice: SliceData): string | undefined {
+  const { command, trigger, todoList, projection, shows, events } = slice
+  if (!command && !trigger && !todoList && !projection && shows.length === 0)
+    return "this slice is empty. Give its first call what starts it."
+  if ((trigger || todoList) && !command)
+    return "this slice has no command yet. Add it to the slice's first call."
+  if ((command || projection) && events.length === 0)
+    return "this slice has no event yet. Add it to the slice's first call."
+  return undefined
 }
 
 /** `chapter` is undefined for the slices in none yet. */
