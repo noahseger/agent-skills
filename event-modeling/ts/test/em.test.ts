@@ -117,15 +117,11 @@ import { m } from "#em"
 export const Start = m.command({ id: z.string() })
 export const Started = m.event({ id: z.string() })
 export const Table = m.readModel({ id: m.key(z.string()) })
-export default m.model("x", {
-  chapters: {
-    Ch: [
-      m.slice().command(Start, Started).test("starts", { when: Start({ id: "1" }), then: [Started({ id: "1" })] }),
-      m.slice().projection(Table, Started),
-      m.slice().view(Table),
-    ],
-  },
-})
+export const Ch = m.chapter()
+m.slice().command(Start, Started).chapter(Ch).test("starts", { when: Start({ id: "1" }), then: [Started({ id: "1" })] })
+m.slice().projection(Table, Started).chapter(Ch)
+m.slice().view(Table).chapter(Ch)
+export default m.model("x")
 `,
     )
     const run = em("proto", dir, "-o", join(dir, "out"))
@@ -210,9 +206,11 @@ export const User = m.actor()
 export const Chess = m.service("chess.v1")
 export const StartGame = m.command({ gameId: z.string() })
 export const GameStarted = m.event({ gameId: z.string(), white: z.string(), black: z.string() }).stream(Games)
-export default m.model("Chess", { chapters: { Play: [m.slice().command(StartGame, ${emits}).actor(User).service(Chess)] } })
+export const Play = m.chapter()
+m.slice().command(StartGame, ${emits}).actor(User).service(Chess).chapter(Play)
+export default m.model("Chess")
 `
-  const error = "index.ts:9  GameStarted: add black, white to the command or set it in the mapping"
+  const error = "index.ts:10  GameStarted: add black, white to the command or set it in the mapping"
   const warnings = async (url: string) =>
     (
       (await (await fetch(`${url}/model.json`)).json()) as { warnings?: { message: string }[] }
@@ -251,12 +249,19 @@ test("a model that doesn't load shows the compiler's errors, not the JavaScript 
     `import { z } from "zod"
 import { m } from "#em"
 
+m.slice().command(Retry, Retried).chapter(Ch)
+m.slice().command(Retry, Retried).chapter(Later)
 export const Received = m.event({ id: z.string() }).stream("Inbox")
 export const Sync = m.command({ id: z.string() })
 export const Synced = m.event({ id: z.string() })
 export const Failed = m.event({ id: z.string() })
-export default m.model("x", { chapters: { Ch: [m.slice().command(Sync, Synced).event(Synced, Failed)] } })
+export const Ch = m.chapter()
+m.slice().command(Sync, Synced).event(Synced, Failed).chapter(Ch)
 m.slice().command(Sync)
+export const Retry = m.command({ id: z.string() })
+export const Retried = m.event({ id: z.string() })
+export const Later = m.chapter()
+export default m.model("x")
 `,
   )
   const server = await view(dir)
@@ -266,9 +271,10 @@ m.slice().command(Sync)
     assert.equal(
       shown,
       [
-        "  index.ts:4  Argument of type 'string' is not assignable to parameter of type 'Stream'.",
-        "  index.ts:8  .event() takes one event. To record Failed too, chain .event(Failed).",
-        "  index.ts:9  Expected 2 arguments, but got 1. An argument for 'event' was not provided.",
+        "  index.ts: declare Retry, Retried, Ch, Later above where they are used.",
+        "  index.ts:6  Argument of type 'string' is not assignable to parameter of type 'Stream'.",
+        "  index.ts:11  .event() takes one event. To record Failed too, chain .event(Failed).",
+        "  index.ts:12  Expected 2 arguments, but got 1. An argument for 'event' was not provided.",
         "",
       ].join("\n"),
     )

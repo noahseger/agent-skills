@@ -81,6 +81,7 @@ export interface Chapter {
   name: string
   /** `name` as words, for the picture. */
   title: string
+  note?: string
   x: number
   w: number
 }
@@ -406,7 +407,8 @@ export function layout(model: ModelJson): Layout {
     if (chapter.slices.length === 0) x += COL_W
     // Assembly leaves the slices in no chapter yet in a nameless one, last.
     const title = chapter.name === "" ? "Not in a chapter yet" : words(chapter.name)
-    chapters.push({ name: chapter.name, title, x: start, w: x - start })
+    const note = model.notes[chapter.name]
+    chapters.push({ name: chapter.name, title, ...(note && { note }), x: start, w: x - start })
   })
   // A declaration in no slice yet gets its own column after the story.
   if (model.loose && model.loose.length > 0) {

@@ -2,7 +2,7 @@
 // protobuf equivalent is an error, never a guess.
 import { z } from "zod"
 
-import type { DeclData, Fields, ModelData, ServiceData, SliceData } from "./types.ts"
+import type { Assembled, DeclData, Fields, ServiceData, SliceData } from "./types.ts"
 
 export interface ProtoFile {
   /** Under the output directory, where the package puts it for buf. */
@@ -160,9 +160,9 @@ function render(msg: Message, indent = ""): string {
 }
 
 /** One file per service that has a method, at the path its package implies. */
-export function generateProto(model: ModelData): ProtoFile[] {
+export function generateProto({ chapters }: Pick<Assembled, "chapters">): ProtoFile[] {
   const byService = new Map<ServiceData, SliceData[]>()
-  for (const chapter of model.chapters) {
+  for (const chapter of chapters) {
     for (const slice of chapter.slices) {
       if (!slice.service) continue
       const service = slice.service.service

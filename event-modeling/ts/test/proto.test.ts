@@ -7,13 +7,12 @@ import { m, type Slice } from "#em"
 
 import { load } from "../src/assemble.ts"
 import { generateProto } from "../src/proto.ts"
-import { META, type ModelData, type Named } from "../src/types.ts"
+import { type Assembled, META, type Named } from "../src/types.ts"
 
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url))
 
 test("the checked-in proto is what the model generates", async () => {
-  const { model } = await load(here("../examples/todo-app"))
-  const files = generateProto(model)
+  const files = generateProto(await load(here("../examples/todo-app")))
   assert.equal(files.length, 1)
   assert.equal(files[0]?.path, "todo/v1/todo_service.proto")
   assert.equal(
@@ -30,16 +29,15 @@ const Svc = m.service("t.v1")
 
 type Slices = Slice[]
 
+type Chapters = Pick<Assembled, "chapters">
+
 /** A one-service model of `slices`; `exports` are named as a module would name them. */
-function modelOf(
-  exports: Record<string, { readonly [META]: Named }>,
-  ...slices: Slices
-): ModelData {
+function modelOf(exports: Record<string, { readonly [META]: Named }>, ...slices: Slices): Chapters {
   for (const [name, decl] of Object.entries({ Svc, ...exports })) decl[META].name = name
-  return m.model("x", { chapters: { Ch: slices } })[META]
+  return { chapters: [{ name: "Ch", slices: slices.map((s) => s[META]) }] }
 }
 
-const source = (model: ModelData) => generateProto(model)[0]?.source ?? ""
+const source = (model: Chapters) => generateProto(model)[0]?.source ?? ""
 
 const stateChange = (Create: ReturnType<typeof m.command>) =>
   m.slice().command(Create, m.event({})).actor(User).service(Svc)

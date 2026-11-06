@@ -179,60 +179,75 @@ const clockStarted = ClockStarted({
   runningSide: "white",
 })
 
-export const Play = [
-  m
-    .slice()
-    .command(PlayMove, MovePlayed)
-    .readModel(GameState)
-    .event(GameEnded)
-    .actor(Player)
-    .service(ChessService)
-    .test("White opens with 1. e4", {
-      given: gameStarted,
-      when: PlayMove({
-        gameId: "otb-2024-ct-r5-b1",
-        ply: 1,
-        san: "e4",
-        fromSquare: "e2",
-        toSquare: "e4",
-        piece: "pawn",
-        fen: OPENING_FEN,
-        sideToMove: "black",
-        isCheck: false,
-        isCapture: false,
-      }),
-      then: e4,
-    })
-    .test("A capture that gives check sets both flags", {
-      given: gameStarted,
-      when: PlayMove({
-        gameId: "otb-2024-ct-r5-b1",
-        ply: 15,
-        san: "Qxf7+",
-        fromSquare: "f5",
-        toSquare: "f7",
-        piece: "queen",
-        fen: FORK_FEN,
-        sideToMove: "black",
-        isCheck: true,
-        isCapture: true,
-      }),
-      then: MovePlayed({
-        gameId: "otb-2024-ct-r5-b1",
-        ply: 15,
-        san: "Qxf7+",
-        fromSquare: "f5",
-        toSquare: "f7",
-        piece: "queen",
-        fen: FORK_FEN,
-        sideToMove: "black",
-        isCheck: true,
-        isCapture: true,
-      }),
-    })
-    .test("Qxf7 mates, so the move ends the game", {
-      given: gameStarted,
-      when: PlayMove({
+export const Play = m.chapter()
+
+m.slice()
+  .command(PlayMove, MovePlayed)
+  .chapter(Play)
+  .readModel(GameState)
+  .event(GameEnded)
+  .actor(Player)
+  .service(ChessService)
+  .test("White opens with 1. e4", {
+    given: gameStarted,
+    when: PlayMove({
+      gameId: "otb-2024-ct-r5-b1",
+      ply: 1,
+      san: "e4",
+      fromSquare: "e2",
+      toSquare: "e4",
+      piece: "pawn",
+      fen: OPENING_FEN,
+      sideToMove: "black",
+      isCheck: false,
+      isCapture: false,
+    }),
+    then: e4,
+  })
+  .test("A capture that gives check sets both flags", {
+    given: gameStarted,
+    when: PlayMove({
+      gameId: "otb-2024-ct-r5-b1",
+      ply: 15,
+      san: "Qxf7+",
+      fromSquare: "f5",
+      toSquare: "f7",
+      piece: "queen",
+      fen: FORK_FEN,
+      sideToMove: "black",
+      isCheck: true,
+      isCapture: true,
+    }),
+    then: MovePlayed({
+      gameId: "otb-2024-ct-r5-b1",
+      ply: 15,
+      san: "Qxf7+",
+      fromSquare: "f5",
+      toSquare: "f7",
+      piece: "queen",
+      fen: FORK_FEN,
+      sideToMove: "black",
+      isCheck: true,
+      isCapture: true,
+    }),
+  })
+  .test("Qxf7 mates, so the move ends the game", {
+    given: gameStarted,
+    when: PlayMove({
+      gameId: "otb-2024-ct-r5-b1",
+      ply: 7,
+      san: "Qxf7#",
+      fromSquare: "h5",
+      toSquare: "f7",
+      piece: "queen",
+      fen: MATE_FEN,
+      sideToMove: "black",
+      isCheck: true,
+      isCapture: true,
+      ending: "checkmate",
+    }),
+    then: [
+      MovePlayed({
         gameId: "otb-2024-ct-r5-b1",
         ply: 7,
         san: "Qxf7#",
@@ -243,158 +258,143 @@ export const Play = [
         sideToMove: "black",
         isCheck: true,
         isCapture: true,
-        ending: "checkmate",
       }),
-      then: [
-        MovePlayed({
-          gameId: "otb-2024-ct-r5-b1",
-          ply: 7,
-          san: "Qxf7#",
-          fromSquare: "h5",
-          toSquare: "f7",
-          piece: "queen",
-          fen: MATE_FEN,
-          sideToMove: "black",
-          isCheck: true,
-          isCapture: true,
-        }),
-        mated,
-      ],
-    })
-    .test("Black cannot move while it is White's turn", {
-      given: gameStarted,
-      when: PlayMove({
-        gameId: "otb-2024-ct-r5-b1",
-        ply: 1,
-        san: "e5",
-        fromSquare: "e7",
-        toSquare: "e5",
-        piece: "pawn",
-        fen: OPENING_FEN,
-        sideToMove: "white",
-        isCheck: false,
-        isCapture: false,
-      }),
-      reject: "the other side is to move",
+      mated,
+    ],
+  })
+  .test("Black cannot move while it is White's turn", {
+    given: gameStarted,
+    when: PlayMove({
+      gameId: "otb-2024-ct-r5-b1",
+      ply: 1,
+      san: "e5",
+      fromSquare: "e7",
+      toSquare: "e5",
+      piece: "pawn",
+      fen: OPENING_FEN,
+      sideToMove: "white",
+      isCheck: false,
+      isCapture: false,
     }),
+    reject: "the other side is to move",
+  })
 
-  m
-    .slice()
-    .projection(GameState, GameStarted)
-    .event(MovePlayed)
-    .event(IllegalMoveRuled)
-    .test("The board advances after the opening move", {
-      given: [gameStarted, e4],
-      then: GameState({
-        gameId: "otb-2024-ct-r5-b1",
-        ply: 1,
-        sideToMove: "black",
-        fen: OPENING_FEN,
-      }),
-    })
-    .test("The board reverts when an illegal move is struck", {
-      given: [gameStarted, e4, illegalMoveRuled],
-      then: GameState({
-        gameId: "otb-2024-ct-r5-b1",
-        ply: 32,
-        sideToMove: "white",
-        fen: STRUCK_FEN,
-      }),
+m.slice()
+  .projection(GameState, GameStarted)
+  .chapter(Play)
+  .event(MovePlayed)
+  .event(IllegalMoveRuled)
+  .test("The board advances after the opening move", {
+    given: [gameStarted, e4],
+    then: GameState({
+      gameId: "otb-2024-ct-r5-b1",
+      ply: 1,
+      sideToMove: "black",
+      fen: OPENING_FEN,
     }),
+  })
+  .test("The board reverts when an illegal move is struck", {
+    given: [gameStarted, e4, illegalMoveRuled],
+    then: GameState({
+      gameId: "otb-2024-ct-r5-b1",
+      ply: 32,
+      sideToMove: "white",
+      fen: STRUCK_FEN,
+    }),
+  })
 
-  m
-    .slice()
-    .command(PressClock, ClockPressed)
-    .readModel(ClockState)
-    .actor(Player)
-    .service(ChessService)
-    .note("FIDE 6.2.1: pressing banks the increment and starts the opponent's clock.")
-    .test("White presses the clock, the increment is banked, Black's clock runs", {
-      given: clockStarted,
-      when: PressClock({
+m.slice()
+  .command(PressClock, ClockPressed)
+  .chapter(Play)
+  .readModel(ClockState)
+  .actor(Player)
+  .service(ChessService)
+  .note("FIDE 6.2.1: pressing banks the increment and starts the opponent's clock.")
+  .test("White presses the clock, the increment is banked, Black's clock runs", {
+    given: clockStarted,
+    when: PressClock({
+      gameId: "otb-2024-ct-r5-b1",
+      whiteTimeMs: 5412000,
+      blackTimeMs: 5400000,
+      runningSide: "black",
+    }),
+    then: ClockPressed({
+      gameId: "otb-2024-ct-r5-b1",
+      whiteTimeMs: 5412000,
+      blackTimeMs: 5400000,
+      runningSide: "black",
+    }),
+  })
+  .test("Black cannot press the clock while White's clock runs", {
+    given: clockStarted,
+    when: PressClock({
+      gameId: "otb-2024-ct-r5-b1",
+      whiteTimeMs: 5400000,
+      blackTimeMs: 5412000,
+      runningSide: "white",
+    }),
+    reject: "only the side that has just moved may press the clock",
+  })
+
+m.slice()
+  .projection(ClockState, ClockStarted)
+  .chapter(Play)
+  .event(ClockPressed)
+  .test("The clock starts with White's time running", {
+    given: clockStarted,
+    then: ClockState({
+      gameId: "otb-2024-ct-r5-b1",
+      whiteTimeMs: 5400000,
+      blackTimeMs: 5400000,
+      runningSide: "white",
+    }),
+  })
+  .test("The running side follows the press", {
+    given: [
+      clockStarted,
+      ClockPressed({
         gameId: "otb-2024-ct-r5-b1",
         whiteTimeMs: 5412000,
         blackTimeMs: 5400000,
         runningSide: "black",
       }),
-      then: ClockPressed({
-        gameId: "otb-2024-ct-r5-b1",
-        whiteTimeMs: 5412000,
-        blackTimeMs: 5400000,
-        runningSide: "black",
-      }),
-    })
-    .test("Black cannot press the clock while White's clock runs", {
-      given: clockStarted,
-      when: PressClock({
-        gameId: "otb-2024-ct-r5-b1",
-        whiteTimeMs: 5400000,
-        blackTimeMs: 5412000,
-        runningSide: "white",
-      }),
-      reject: "only the side that has just moved may press the clock",
+    ],
+    then: ClockState({
+      gameId: "otb-2024-ct-r5-b1",
+      whiteTimeMs: 5412000,
+      blackTimeMs: 5400000,
+      runningSide: "black",
     }),
+  })
 
-  m
-    .slice()
-    .projection(ClockState, ClockStarted)
-    .event(ClockPressed)
-    .test("The clock starts with White's time running", {
-      given: clockStarted,
-      then: ClockState({
-        gameId: "otb-2024-ct-r5-b1",
-        whiteTimeMs: 5400000,
-        blackTimeMs: 5400000,
-        runningSide: "white",
-      }),
-    })
-    .test("The running side follows the press", {
-      given: [
-        clockStarted,
-        ClockPressed({
-          gameId: "otb-2024-ct-r5-b1",
-          whiteTimeMs: 5412000,
-          blackTimeMs: 5400000,
-          runningSide: "black",
-        }),
-      ],
-      then: ClockState({
-        gameId: "otb-2024-ct-r5-b1",
-        whiteTimeMs: 5412000,
-        blackTimeMs: 5400000,
-        runningSide: "black",
-      }),
+m.slice()
+  .projection(
+    MoveList,
+    MovePlayed(() => ({ status: "recorded" })),
+  )
+  .chapter(Play)
+  .event(IllegalMoveRuled(() => ({ status: "struck" })))
+  .test("A move is recorded on the scoresheet", {
+    given: e4,
+    then: MoveList({
+      gameId: "otb-2024-ct-r5-b1",
+      ply: 1,
+      san: "e4",
+      sideToMove: "black",
+      isCheck: false,
+      isCapture: false,
+      status: "recorded",
     }),
-
-  m
-    .slice()
-    .projection(
-      MoveList,
-      MovePlayed(() => ({ status: "recorded" })),
-    )
-    .event(IllegalMoveRuled(() => ({ status: "struck" })))
-    .test("A move is recorded on the scoresheet", {
-      given: e4,
-      then: MoveList({
-        gameId: "otb-2024-ct-r5-b1",
-        ply: 1,
-        san: "e4",
-        sideToMove: "black",
-        isCheck: false,
-        isCapture: false,
-        status: "recorded",
-      }),
-    })
-    .test("An illegal move at ply 32 is struck, and stays on the sheet marked", {
-      given: [kf1, illegalMoveRuled],
-      then: MoveList({
-        gameId: "otb-2024-ct-r5-b1",
-        ply: 32,
-        san: "Kf1",
-        sideToMove: "white",
-        isCheck: false,
-        isCapture: false,
-        status: "struck",
-      }),
+  })
+  .test("An illegal move at ply 32 is struck, and stays on the sheet marked", {
+    given: [kf1, illegalMoveRuled],
+    then: MoveList({
+      gameId: "otb-2024-ct-r5-b1",
+      ply: 32,
+      san: "Kf1",
+      sideToMove: "white",
+      isCheck: false,
+      isCapture: false,
+      status: "struck",
     }),
-]
+  })

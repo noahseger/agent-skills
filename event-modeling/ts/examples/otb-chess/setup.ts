@@ -114,65 +114,65 @@ export const gameStarted = GameStarted({
   ply: 0,
 })
 
-export const GameSetup = [
-  m
-    .slice("ReceivePairing")
-    .trigger(
-      PairingPublished,
-      StartGame,
-      GameStarted(() => ({ fen: START_FEN, sideToMove: "white", ply: 0 })),
-    )
-    .note("The pairing is translated, never stored. The starting position is ours to supply.")
-    .test("Round 5 board 1 pairing starts a classical game", {
-      given: pairing,
-      when: StartGame({
-        gameId: "otb-2024-ct-r5-b1",
-        round: 5,
-        boardNumber: 1,
-        whitePlayerId: "gm-carlsen",
-        blackPlayerId: "gm-nepo",
-        timeControl: "classical",
-        baseMinutes: 90,
-        incrementSeconds: 30,
-      }),
-      then: gameStarted,
-    }),
+export const GameSetup = m.chapter()
 
-  m
-    .slice()
-    .projection(GamePairing, GameStarted)
-    .test("Pairing identity available after the game starts", {
-      given: gameStarted,
-      then: GamePairing({
-        gameId: "otb-2024-ct-r5-b1",
-        round: 5,
-        boardNumber: 1,
-        whitePlayerId: "gm-carlsen",
-        blackPlayerId: "gm-nepo",
-      }),
+m.slice("ReceivePairing")
+  .trigger(
+    PairingPublished,
+    StartGame,
+    GameStarted(() => ({ fen: START_FEN, sideToMove: "white", ply: 0 })),
+  )
+  .chapter(GameSetup)
+  .note("The pairing is translated, never stored. The starting position is ours to supply.")
+  .test("Round 5 board 1 pairing starts a classical game", {
+    given: pairing,
+    when: StartGame({
+      gameId: "otb-2024-ct-r5-b1",
+      round: 5,
+      boardNumber: 1,
+      whitePlayerId: "gm-carlsen",
+      blackPlayerId: "gm-nepo",
+      timeControl: "classical",
+      baseMinutes: 90,
+      incrementSeconds: 30,
     }),
+    then: gameStarted,
+  })
 
-  m
-    .slice("ClockStarter")
-    .trigger(
-      GameStarted,
-      StartClock,
-      ClockStarted((_, { generate }) => ({
-        whiteTimeMs: generate(),
-        blackTimeMs: generate(),
-        runningSide: "white",
-      })),
-    )
-    .test("White's clock starts at 90 minutes", {
-      given: gameStarted,
-      when: StartClock({ gameId: "otb-2024-ct-r5-b1", baseMinutes: 90, incrementSeconds: 30 }),
-      then: ClockStarted({
-        gameId: "otb-2024-ct-r5-b1",
-        baseMinutes: 90,
-        incrementSeconds: 30,
-        whiteTimeMs: 5400000,
-        blackTimeMs: 5400000,
-        runningSide: "white",
-      }),
+m.slice()
+  .projection(GamePairing, GameStarted)
+  .chapter(GameSetup)
+  .test("Pairing identity available after the game starts", {
+    given: gameStarted,
+    then: GamePairing({
+      gameId: "otb-2024-ct-r5-b1",
+      round: 5,
+      boardNumber: 1,
+      whitePlayerId: "gm-carlsen",
+      blackPlayerId: "gm-nepo",
     }),
-]
+  })
+
+m.slice("ClockStarter")
+  .trigger(
+    GameStarted,
+    StartClock,
+    ClockStarted((_, { generate }) => ({
+      whiteTimeMs: generate(),
+      blackTimeMs: generate(),
+      runningSide: "white",
+    })),
+  )
+  .chapter(GameSetup)
+  .test("White's clock starts at 90 minutes", {
+    given: gameStarted,
+    when: StartClock({ gameId: "otb-2024-ct-r5-b1", baseMinutes: 90, incrementSeconds: 30 }),
+    then: ClockStarted({
+      gameId: "otb-2024-ct-r5-b1",
+      baseMinutes: 90,
+      incrementSeconds: 30,
+      whiteTimeMs: 5400000,
+      blackTimeMs: 5400000,
+      runningSide: "white",
+    }),
+  })

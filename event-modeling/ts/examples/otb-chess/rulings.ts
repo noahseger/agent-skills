@@ -37,67 +37,67 @@ export const secondOffence = SecondIllegalMoveRuled({
   illegalMoveCount: 2,
 })
 
-export const ArbiterRulings = [
-  m
-    .slice()
-    .command(RuleIllegalMove, IllegalMoveRuled)
-    .readModel(MoveList)
-    .readModel(IllegalMoveTally)
-    .event(SecondIllegalMoveRuled)
-    .actor(Arbiter)
-    .service(ChessService)
-    .note(
-      "FIDE 7.5.1: the position before the illegal move is reinstated. 7.5.5: the first one adds two minutes to the opponent, the second one loses the game.",
-    )
-    .test("An illegal move is struck and two minutes are added to the opponent", {
-      given: illegalMoveRuled,
-      when: RuleIllegalMove({
-        gameId: "otb-2024-ct-r5-b1",
-        ply: 32,
-        offendingSide: "white",
-        illegalMoveCount: 1,
-        addedTimeMs: 120000,
-        penalty: "opponent_time_added",
-        fen: "r4rk1/pp3ppp/2p5/8/8/2P2N2/PP3PPP/R4RK1 w - - 4 17",
-        sideToMove: "white",
-      }),
-      then: illegalMoveRuled,
-    })
-    .test("A second illegal move by the same player carries the loss", {
-      given: illegalMoveRuled,
-      when: RuleIllegalMove({
-        gameId: "otb-2024-ct-r5-b1",
-        ply: 44,
-        offendingSide: "white",
-        illegalMoveCount: 2,
-        addedTimeMs: 0,
-        penalty: "loss",
-        fen: "r5k1/pp3ppp/2p5/8/8/2P2N2/PP3PPP/R5K1 w - - 6 22",
-        sideToMove: "white",
-      }),
-      then: [secondIllegalMoveRuled, secondOffence],
-    }),
+export const ArbiterRulings = m.chapter()
 
-  m
-    .slice()
-    .projection(
-      IllegalMoveTally,
-      IllegalMoveRuled((e, { count }) => ({ illegalMoveCount: count(e) })),
-    )
-    .test("One ruling puts the offender on one illegal move", {
-      given: illegalMoveRuled,
-      then: IllegalMoveTally({
-        gameId: "otb-2024-ct-r5-b1",
-        offendingSide: "white",
-        illegalMoveCount: 1,
-      }),
-    })
-    .test("A second ruling puts the offender on two", {
-      given: [illegalMoveRuled, secondIllegalMoveRuled],
-      then: IllegalMoveTally({
-        gameId: "otb-2024-ct-r5-b1",
-        offendingSide: "white",
-        illegalMoveCount: 2,
-      }),
+m.slice()
+  .command(RuleIllegalMove, IllegalMoveRuled)
+  .chapter(ArbiterRulings)
+  .readModel(MoveList)
+  .readModel(IllegalMoveTally)
+  .event(SecondIllegalMoveRuled)
+  .actor(Arbiter)
+  .service(ChessService)
+  .note(
+    "FIDE 7.5.1: the position before the illegal move is reinstated. 7.5.5: the first one adds two minutes to the opponent, the second one loses the game.",
+  )
+  .test("An illegal move is struck and two minutes are added to the opponent", {
+    given: illegalMoveRuled,
+    when: RuleIllegalMove({
+      gameId: "otb-2024-ct-r5-b1",
+      ply: 32,
+      offendingSide: "white",
+      illegalMoveCount: 1,
+      addedTimeMs: 120000,
+      penalty: "opponent_time_added",
+      fen: "r4rk1/pp3ppp/2p5/8/8/2P2N2/PP3PPP/R4RK1 w - - 4 17",
+      sideToMove: "white",
     }),
-]
+    then: illegalMoveRuled,
+  })
+  .test("A second illegal move by the same player carries the loss", {
+    given: illegalMoveRuled,
+    when: RuleIllegalMove({
+      gameId: "otb-2024-ct-r5-b1",
+      ply: 44,
+      offendingSide: "white",
+      illegalMoveCount: 2,
+      addedTimeMs: 0,
+      penalty: "loss",
+      fen: "r5k1/pp3ppp/2p5/8/8/2P2N2/PP3PPP/R5K1 w - - 6 22",
+      sideToMove: "white",
+    }),
+    then: [secondIllegalMoveRuled, secondOffence],
+  })
+
+m.slice()
+  .projection(
+    IllegalMoveTally,
+    IllegalMoveRuled((e, { count }) => ({ illegalMoveCount: count(e) })),
+  )
+  .chapter(ArbiterRulings)
+  .test("One ruling puts the offender on one illegal move", {
+    given: illegalMoveRuled,
+    then: IllegalMoveTally({
+      gameId: "otb-2024-ct-r5-b1",
+      offendingSide: "white",
+      illegalMoveCount: 1,
+    }),
+  })
+  .test("A second ruling puts the offender on two", {
+    given: [illegalMoveRuled, secondIllegalMoveRuled],
+    then: IllegalMoveTally({
+      gameId: "otb-2024-ct-r5-b1",
+      offendingSide: "white",
+      illegalMoveCount: 2,
+    }),
+  })

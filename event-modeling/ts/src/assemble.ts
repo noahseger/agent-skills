@@ -7,6 +7,7 @@ import { isDeepStrictEqual } from "node:util"
 import { type ModelJson, toJson } from "./json.ts"
 import {
   type Assembled,
+  type ChapterData,
   type Declaration,
   type DeclData,
   DRAFTS,
@@ -42,14 +43,15 @@ export function assembleModules(modules: readonly object[], options: Options = {
   return toJson(loadModules(modules, options))
 }
 
-/** A module runs once per process, so a second load of the same files finds no slice in no chapter. */
+/** A module runs once per process, so a second load of the same files finds no slices. */
 export async function load(path: string, options: Options = {}): Promise<Assembled> {
   const dir = statSync(path).isDirectory() ? path : dirname(path)
   const files = dir === path ? walk(path) : [path]
   DRAFTS.clear()
-  const modules: object[] = await Promise.all(
-    files.map((f) => import(pathToFileURL(resolve(f)).href) as Promise<object>),
-  )
+  // One at a time, so the modules run in one order every load: by path, each after what it
+  // imports. That order is the order slices and chapters are written in.
+  const modules: object[] = []
+  for (const f of files) modules.push((await import(pathToFileURL(resolve(f)).href)) as object)
   return loadModules(
     modules,
     options,
@@ -68,19 +70,26 @@ export function loadModules(
 ): Assembled {
   const drafts = [...DRAFTS]
   DRAFTS.clear()
-  const { model, streams, externals, declared, fileOf } = nameExports(modules, files)
+  const { model, streams, chapters, externals, declared, fileOf } = nameExports(modules, files)
   const warnings: Warning[] = []
   const fail: Fail = (warning) => {
     warnings.push(warning)
   }
-  const chaptered = new Set(model.chapters.flatMap((c) => c.slices))
-  const unchaptered = drafts.filter((s) => !chaptered.has(s))
-  check(model, unchaptered, declared, fileOf, fail, !options.partial)
+  const unchaptered: SliceData[] = []
+  for (const s of drafts) {
+    const name = chapterOf(s)
+    const chapter = chapters.find((c) => c.name === name)
+    if (chapter) chapter.slices.push(s)
+    else unchaptered.push(s)
+  }
+  check(chapters, unchaptered, declared, fileOf, fail, !options.partial)
   for (const s of unchaptered) {
     const name = s.name ?? "A slice"
     fail({ message: `${name} isn't in a chapter yet.`, element: "", slice: s.name ?? "" })
   }
-  const loose = looseOf([...chaptered, ...unchaptered], streams, declared)
+  for (const c of chapters)
+    if (c.slices.length === 0) fail({ message: `${c.name} has no slices yet.`, element: "" })
+  const loose = looseOf(drafts, streams, declared)
   for (const d of loose) fail({ message: `${d.name} isn't in a slice yet.`, element: d.name ?? "" })
   // Otherwise it is drawn in the first stream's lane, which says something nobody wrote.
   const members = new Set([...streams.values()].flat())
@@ -93,7 +102,7 @@ export function loadModules(
   // Every dead end at once, so one run shows all there is to fix.
   if (!options.partial && warnings.length > 0)
     throw new Error(warnings.map((w) => w.message).join("\n"))
-  return { model, streams, externals, loose, unchaptered, warnings }
+  return { model, streams, chapters, externals, loose, unchaptered, warnings }
 }
 
 /** The model's own modules under `dir`. */
@@ -123,8 +132,8 @@ function exported(value: unknown): Exported | undefined {
 }
 
 /**
- * Streams and external systems merge by name, so two modules can add to one lane. Streams keep the
- * order written. An event is in one lane, so not in both.
+ * Streams, chapters and external systems merge by name, so two modules can add to one. Streams and
+ * chapters keep the order written. An event is in one lane, so not in both.
  */
 function nameExports(
   modules: readonly object[],
@@ -132,12 +141,14 @@ function nameExports(
 ): {
   model: ModelData
   streams: Map<string, DeclData[]>
+  chapters: Assembled["chapters"]
   externals: string[]
   declared: Declaration[]
   fileOf: Map<object, string>
 } {
   let model: ModelData | undefined
   const lanes: [string, StreamData][] = []
+  const headings: ChapterData[] = []
   const externals: string[] = []
   const declared: Declaration[] = []
   const fileOf = new Map<object, string>()
@@ -156,6 +167,9 @@ function nameExports(
         if (!externals.includes(key)) externals.push(key)
       } else if (data.name !== undefined && data.name !== key) {
         throw new Error(`${data.name} is exported twice, also as ${key}. Keep one.`)
+      } else if (data.kind === "chapter") {
+        data.name = key
+        if (!headings.includes(data)) headings.push(data)
       } else {
         data.name = key
         if (!declared.includes(data)) declared.push(data)
@@ -174,7 +188,26 @@ function nameExports(
         throw new Error(
           `${e.name} is in the ${key} stream and the ${e.external.name} system. Keep one: .stream() for ours, .external() for theirs.`,
         )
-  return { model, streams, externals, declared, fileOf }
+  const chapters: Assembled["chapters"] = []
+  for (const { name = "", note } of headings.sort((a, b) => a.order - b.order)) {
+    const merged = chapters.find((c) => c.name === name)
+    if (!merged) chapters.push({ name, ...(note !== undefined && { note }), slices: [] })
+    else if (merged.note === undefined && note !== undefined) merged.note = note
+  }
+  return { model, streams, chapters, externals, declared, fileOf }
+}
+
+/** The name of the chapter a slice joined, if it joined one. */
+function chapterOf(slice: SliceData): string | undefined {
+  const names = [...new Set(slice.chapters.map((c) => c.name))]
+  const where = heading(slice) ?? "A slice"
+  if (names.includes(undefined))
+    throw new Error(
+      `${where}: this slice joins a chapter that isn't exported. Export it to give it a name.`,
+    )
+  if (names.length > 1)
+    throw new Error(`${where}: this slice joins ${names.join(" and ")}. Keep one .chapter().`)
+  return names[0]
 }
 
 /** Declarations in no slice yet, stream members first. */
@@ -210,7 +243,7 @@ interface Located {
 }
 
 function check(
-  model: ModelData,
+  chapters: Assembled["chapters"],
   unchaptered: SliceData[],
   declared: Declaration[],
   fileOf: Map<object, string>,
@@ -218,7 +251,7 @@ function check(
   strict: boolean,
 ): void {
   const located = [
-    ...model.chapters.flatMap((chapter) => locate(chapter.name, chapter.slices)),
+    ...chapters.flatMap((chapter) => locate(chapter.name, chapter.slices)),
     ...locate(undefined, unchaptered),
   ]
   // The compiler reports it where the slice is written, so a partial model only draws it.
@@ -265,15 +298,22 @@ function locate(chapter: string | undefined, slices: SliceData[]): Located[] {
           `${where}: this slice uses ${KIND_LABEL[kind]} that isn't exported. Export it to give it a name.`,
         )
     }
-    const heading =
-      slice.command?.decl.name ??
-      slice.projection?.name ??
-      slice.todoList?.name ??
-      slice.service?.method ??
-      slice.shows[0]?.name
-    if (slice.name === undefined && heading !== undefined) slice.name = heading
+    const named = heading(slice)
+    if (named !== undefined) slice.name = named
     return { slice, where: slice.name === undefined ? where : at(slice.name) }
   })
+}
+
+/** What heads a slice's column: its name, or else what it is named after. */
+function heading(slice: SliceData): string | undefined {
+  return (
+    slice.name ??
+    slice.command?.decl.name ??
+    slice.projection?.name ??
+    slice.todoList?.name ??
+    slice.service?.method ??
+    slice.shows[0]?.name
+  )
 }
 
 /** Two modules can export one name, except for a lane, which they share. */

@@ -120,97 +120,97 @@ export const gameResigned = GameResigned({
   termination: "resignation",
 })
 
-export const DrawsAndResignation = [
-  m
-    .slice()
-    .command(OfferDraw, DrawOffered)
-    .readModel(GameState)
-    .actor(Player)
-    .service(ChessService)
-    .test("White offers a draw on move 21", {
-      given: rd1,
-      when: OfferDraw({ gameId: "otb-2024-ct-r5-b1", offeringSide: "white", ply: 41 }),
-      then: drawOffered,
-    }),
+export const DrawsAndResignation = m.chapter()
 
-  m
-    .slice()
-    .projection(
-      PendingDrawOffer,
-      DrawOffered(() => ({ status: "pending" })),
-    )
-    .event(MovePlayed(() => ({ status: "declined" })))
-    .event(DrawAgreed(() => ({ status: "accepted" })))
-    .note("A move by the opponent declines the offer. FIDE 9.1.2.3.")
-    .test("The offer is pending on the opponent", {
-      given: drawOffered,
-      then: PendingDrawOffer({
-        gameId: "otb-2024-ct-r5-b1",
-        offeringSide: "white",
-        ply: 41,
-        status: "pending",
-      }),
-    })
-    .test("The offer is declined when the opponent replies with a move", {
-      given: [drawOffered, e4],
-      then: PendingDrawOffer({
-        gameId: "otb-2024-ct-r5-b1",
-        offeringSide: "white",
-        ply: 1,
-        status: "declined",
-      }),
-    })
-    .test("The offer is closed once the draw is agreed", {
-      given: [drawOffered, drawAgreed],
-      then: PendingDrawOffer({
-        gameId: "otb-2024-ct-r5-b1",
-        offeringSide: "white",
-        ply: 41,
-        status: "accepted",
-      }),
-    }),
+m.slice()
+  .command(OfferDraw, DrawOffered)
+  .chapter(DrawsAndResignation)
+  .readModel(GameState)
+  .actor(Player)
+  .service(ChessService)
+  .test("White offers a draw on move 21", {
+    given: rd1,
+    when: OfferDraw({ gameId: "otb-2024-ct-r5-b1", offeringSide: "white", ply: 41 }),
+    then: drawOffered,
+  })
 
-  m
-    .slice()
-    .command(AcceptDraw, DrawAgreed)
-    .readModel(PendingDrawOffer)
-    .actor(Player)
-    .service(ChessService)
-    .test("Black accepts the pending draw offer", {
-      given: drawOffered,
-      when: AcceptDraw({
-        gameId: "otb-2024-ct-r5-b1",
-        offeringSide: "white",
-        result: "draw",
-        termination: "agreement",
-      }),
-      then: drawAgreed,
-    })
-    .test("Accepting with no offer pending is rejected", {
-      given: e4,
-      when: AcceptDraw({
-        gameId: "otb-2024-ct-r5-b1",
-        offeringSide: "white",
-        result: "draw",
-        termination: "agreement",
-      }),
-      reject: "no draw offer is pending",
+m.slice()
+  .projection(
+    PendingDrawOffer,
+    DrawOffered(() => ({ status: "pending" })),
+  )
+  .chapter(DrawsAndResignation)
+  .event(MovePlayed(() => ({ status: "declined" })))
+  .event(DrawAgreed(() => ({ status: "accepted" })))
+  .note("A move by the opponent declines the offer. FIDE 9.1.2.3.")
+  .test("The offer is pending on the opponent", {
+    given: drawOffered,
+    then: PendingDrawOffer({
+      gameId: "otb-2024-ct-r5-b1",
+      offeringSide: "white",
+      ply: 41,
+      status: "pending",
     }),
+  })
+  .test("The offer is declined when the opponent replies with a move", {
+    given: [drawOffered, e4],
+    then: PendingDrawOffer({
+      gameId: "otb-2024-ct-r5-b1",
+      offeringSide: "white",
+      ply: 1,
+      status: "declined",
+    }),
+  })
+  .test("The offer is closed once the draw is agreed", {
+    given: [drawOffered, drawAgreed],
+    then: PendingDrawOffer({
+      gameId: "otb-2024-ct-r5-b1",
+      offeringSide: "white",
+      ply: 41,
+      status: "accepted",
+    }),
+  })
 
-  m
-    .slice()
-    .command(Resign, GameResigned)
-    .readModel(GameState)
-    .actor(Player)
-    .service(ChessService)
-    .test("Black resigns a lost endgame", {
-      given: kf6,
-      when: Resign({
-        gameId: "otb-2024-ct-r5-b1",
-        resigningSide: "black",
-        result: "white_won",
-        termination: "resignation",
-      }),
-      then: gameResigned,
+m.slice()
+  .command(AcceptDraw, DrawAgreed)
+  .chapter(DrawsAndResignation)
+  .readModel(PendingDrawOffer)
+  .actor(Player)
+  .service(ChessService)
+  .test("Black accepts the pending draw offer", {
+    given: drawOffered,
+    when: AcceptDraw({
+      gameId: "otb-2024-ct-r5-b1",
+      offeringSide: "white",
+      result: "draw",
+      termination: "agreement",
     }),
-]
+    then: drawAgreed,
+  })
+  .test("Accepting with no offer pending is rejected", {
+    given: e4,
+    when: AcceptDraw({
+      gameId: "otb-2024-ct-r5-b1",
+      offeringSide: "white",
+      result: "draw",
+      termination: "agreement",
+    }),
+    reject: "no draw offer is pending",
+  })
+
+m.slice()
+  .command(Resign, GameResigned)
+  .chapter(DrawsAndResignation)
+  .readModel(GameState)
+  .actor(Player)
+  .service(ChessService)
+  .test("Black resigns a lost endgame", {
+    given: kf6,
+    when: Resign({
+      gameId: "otb-2024-ct-r5-b1",
+      resigningSide: "black",
+      result: "white_won",
+      termination: "resignation",
+    }),
+    then: gameResigned,
+  })

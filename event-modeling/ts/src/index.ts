@@ -253,6 +253,28 @@ function external(): External {
   return { [META]: { kind: "external" } }
 }
 
+export interface Chapter {
+  readonly [META]: ChapterData
+  note(text: string): Chapter
+}
+
+let chapters = 0
+
+/**
+ * A run of slices under one heading, named by its export, drawn in the order written. A slice
+ * joins it with `.chapter()`.
+ */
+function chapter(): Chapter {
+  const data: ChapterData = { kind: "chapter", order: chapters++ }
+  return {
+    [META]: data,
+    note(text) {
+      data.note = text
+      return this
+    },
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Mapping functions
 // ---------------------------------------------------------------------------
@@ -302,9 +324,11 @@ function flow(use: Used, source?: Fields): Flow {
 // The slice chain
 // ---------------------------------------------------------------------------
 
-/** A slice: the only thing a chapter accepts. */
+/** A started slice, of any pattern. */
 export interface Slice {
   readonly [META]: SliceData
+  /** The chapter it is drawn in; without one, it is drawn under "Not in a chapter yet". */
+  chapter(chapter: Chapter): this
 }
 
 /** Exactly one of `then`, the events recorded, or `reject`, why the command is refused. */
@@ -427,7 +451,7 @@ function testData(name: string, spec: AnySpec): TestData {
 }
 
 // Each step copies, so a shared chain prefix can start several slices. The
-// steps nothing extends are the slices, so assembly finds one in no chapter.
+// steps nothing extends are the slices, in the order written, so assembly finds every one.
 function chain(data: SliceData) {
   DRAFTS.add(data)
   const next = (patch: Partial<SliceData>) => {
@@ -457,12 +481,20 @@ function chain(data: SliceData) {
       }),
     test: (name: string, spec: AnySpec) => next({ tests: [...data.tests, testData(name, spec)] }),
     note: (text: string) => next({ note: text }),
+    chapter: (chapter: Chapter) => next({ chapters: [...data.chapters, chapter[META]] }),
   }
 }
 
 /** A column of the diagram. Pass a name only when the one it would take misleads. */
 function slice(name?: string): SliceStart {
-  const empty: SliceData = { actors: [], shows: [], readModels: [], events: [], tests: [] }
+  const empty: SliceData = {
+    actors: [],
+    shows: [],
+    readModels: [],
+    events: [],
+    tests: [],
+    chapters: [],
+  }
   if (name !== undefined) empty.name = name
   // A command's events read the command; an automation's command reads what starts it. A missing
   // argument is the compiler's error to report; the slice keeps what it has, so it is still drawn.
@@ -502,15 +534,8 @@ export interface Model {
   readonly [META]: ModelData
 }
 
-/** Each chapter is named by its key, in timeline order; none while storming. */
-function model(
-  name: string,
-  spec: { description?: string; chapters?: Record<string, readonly Slice[]> } = {},
-): Model {
-  const chapters = Object.entries(spec.chapters ?? {}).map(
-    ([name, slices]): ChapterData => ({ name, slices: slices.map((s) => s[META]) }),
-  )
-  return { [META]: { kind: "model", name, description: spec.description ?? "", chapters } }
+function model(name: string, spec: { description?: string } = {}): Model {
+  return { [META]: { kind: "model", name, description: spec.description ?? "" } }
 }
 
 export const m = {
@@ -523,6 +548,7 @@ export const m = {
   key,
   external,
   stream,
+  chapter,
   slice,
   model,
 }

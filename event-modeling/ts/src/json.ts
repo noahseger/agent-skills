@@ -69,7 +69,10 @@ export interface ModelJson {
   description: string
   actors: ActorJson[]
   aggregates: { id: string; name: string }[]
-  /** A partial assembly ends with a nameless one: the slices in no chapter yet. */
+  /**
+   * In the order declared. A partial assembly keeps a chapter no slice has joined yet, and ends
+   * with a nameless one: the slices in no chapter yet.
+   */
   chapters: { name: string; slices: SliceJson[] }[]
   notes: Record<string, string>
   /** Only a partial assembly has these: the model is still being written. */
@@ -123,6 +126,7 @@ function test(t: TestData): TestJson {
 export function toJson({
   model,
   streams,
+  chapters: written,
   externals,
   loose,
   unchaptered,
@@ -225,8 +229,9 @@ export function toJson({
     }
     return json
   }
+  for (const c of written) noted(c)
   const stories = [
-    ...model.chapters,
+    ...written,
     ...(unchaptered.length > 0 ? [{ name: "", slices: unchaptered }] : []),
   ]
   const chapters = stories.map(({ name, slices }) => ({ name, slices: slices.map(sliceJson) }))

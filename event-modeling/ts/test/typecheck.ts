@@ -15,6 +15,7 @@ const ItemAdded = m.event({ listId: z.string(), title: z.string() })
 const TodoList = m.readModel({ listId: m.key(z.string()), name: z.string(), itemCount: z.number().int() })
 const NameList = m.command({ listId: z.string(), name: z.string() })
 const Lock = m.screen()
+const Ch = m.chapter().note("A run of slices.")
 
 // --- any reference: a reference is a value, so a string is not one -----------
 
@@ -28,6 +29,12 @@ m.slice().command(CreateList, ListCreated).actor(User).screen("Lock")
 
 // @ts-expect-error "Notes" is a string, not a stream, so a typo cannot make a lane
 m.event({ noteId: z.string() }).stream("Notes")
+
+// @ts-expect-error "Ch" is a string, not a chapter, so a typo cannot make a heading
+m.slice().command(CreateList, ListCreated).chapter("Ch")
+
+// @ts-expect-error a model lists no chapters: a slice joins one where it is written
+m.model("x", { chapters: { Ch: [m.slice().command(CreateList, ListCreated)] } })
 
 // @ts-expect-error a command is drawn in the lane of the event it records
 CreateList.stream(Notes)
@@ -89,8 +96,8 @@ m.slice().projection(TodoList)
 // @ts-expect-error a view shows a read model
 m.slice().view()
 
-// @ts-expect-error a slice not yet started is not a slice
-m.model("x", { chapters: { Ch: [m.slice()] } })
+// @ts-expect-error a slice not yet started joins no chapter
+m.slice().chapter(Ch)
 
 // Each start offers only its own next steps.
 
@@ -121,18 +128,17 @@ m.slice().command(CreateList, ListCreated).query({ listId: z.string() })
 // @ts-expect-error a state change is not started twice
 m.slice().command(CreateList, ListCreated).command(AddItem, ItemAdded)
 
-// Complete, with no actor or service: actors and services are never required.
-m.model("x", { chapters: { Ch: [
-  m.slice().command(CreateList, ListCreated),
-  m.slice().command(CreateList, ListCreated).readModel(TodoList).actor(User, Admin).service(TodoService),
-  m.slice().command(CreateList, ListCreated).actor(User).screen(Lock).service(TodoService, "StartList"),
-  m.slice().view(TodoList),
-  m.slice().view(TodoList, TodoList).query({ listId: z.string() }).actor(User),
-  m.slice().view(TodoList).actor(User).screen(Lock).service(TodoService, "GetList"),
-  m.slice().trigger(ListCreated, NameList, ListCreated),
-  m.slice().todoList(TodoList, NameList, ListCreated).readModel(TodoList),
-  m.slice().projection(TodoList, ListCreated),
-] } })
+// Complete, with no actor, service or chapter: none is required. A chapter joins anywhere after the start.
+m.slice().command(CreateList, ListCreated)
+m.slice().command(CreateList, ListCreated).chapter(Ch).readModel(TodoList).actor(User, Admin).service(TodoService)
+m.slice().command(CreateList, ListCreated).actor(User).screen(Lock).service(TodoService, "StartList").chapter(Ch)
+m.slice().view(TodoList).chapter(Ch)
+m.slice().view(TodoList, TodoList).chapter(Ch).query({ listId: z.string() }).actor(User)
+m.slice().view(TodoList).actor(User).screen(Lock).service(TodoService, "GetList")
+m.slice().trigger(ListCreated, NameList, ListCreated).chapter(Ch).readModel(TodoList)
+m.slice().todoList(TodoList, NameList, ListCreated).readModel(TodoList).chapter(Ch)
+m.slice().projection(TodoList, ListCreated).chapter(Ch).event(ItemAdded)
+m.model("x", { description: "A model lists no chapters." })
 
 // @ts-expect-error a view names its method: it has no command to take one from
 m.slice().view(TodoList).service(TodoService)

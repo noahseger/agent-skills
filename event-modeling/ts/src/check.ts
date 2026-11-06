@@ -73,9 +73,14 @@ export function checker(path: string): Checker {
           ...(await program.getSemanticDiagnostics(file)),
         ]
         const text = readFileSync(file, "utf8")
-        for (const d of found)
-          if (d.category === DiagnosticCategory.Error)
-            lines.push(describe(d, text, relative(root, file)))
+        const errors = found.filter((d) => d.category === DiagnosticCategory.Error)
+        const early = [...new Set(errors.flatMap(usedEarly))]
+        if (early.length > 0)
+          lines.push(
+            `${relative(root, file)}: declare ${early.join(", ")} above where ${early.length > 1 ? "they are" : "it is"} used.`,
+          )
+        for (const d of errors)
+          if (usedEarly(d).length === 0) lines.push(describe(d, text, relative(root, file)))
       }
       return lines
     },
@@ -92,6 +97,15 @@ function modelFiles(dir: string): string[] {
         return entry.name === "node_modules" || entry.name.startsWith(".") ? [] : modelFiles(path)
       return entry.name.endsWith(".ts") && !entry.name.endsWith(".d.ts") ? [path] : []
     })
+}
+
+/** "Block-scoped variable 'X' used before its declaration." and "Variable 'X' is used before being assigned." */
+const USED_EARLY = [2448, 2454]
+
+/** The name a diagnostic says is used above its declaration, if it says one. */
+function usedEarly(d: Diagnostic): string[] {
+  const name = USED_EARLY.includes(d.code) ? d.text.match(/'(\w+)'/)?.[1] : undefined
+  return name === undefined ? [] : [name]
 }
 
 const MISSING = /"add to the ([\w -]+) or set in the mapping": ("\w+"(?: \| "\w+")*)/
