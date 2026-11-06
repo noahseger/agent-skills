@@ -236,7 +236,10 @@ m.slice()
   )
   .chapter(Integrations)
   .test("A scheduled task becomes an item", {
-    given: groceries,
+    given: [
+      groceries,
+      TaskScheduled({ userId: "u-1", listId: "list-1", itemId: "item-4", text: "Flour" }),
+    ],
     when: AddItem({ userId: "u-1", listId: "list-1", itemId: "item-4", text: "Flour" }),
     then: ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-4", title: "Flour" }),
   })

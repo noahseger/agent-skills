@@ -2362,6 +2362,19 @@
                   "name": "Groceries"
                 }
               ]
+            },
+            {
+              "id": "add-item:spec:0:given:1",
+              "title": "TaskScheduled",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-4",
+                  "text": "Flour"
+                }
+              ]
             }
           ],
           "when": [

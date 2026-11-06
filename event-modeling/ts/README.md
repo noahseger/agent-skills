@@ -337,7 +337,8 @@ m.slice()
 ```
 
 Every event a slice handles or produces is in one of its specifications: each event a command lists
-in some `then`, external events included, and each event a projection names in some `given`. Every
+in some `then`, external events included, and each event a projection names, or an automation's
+trigger, in some `given`. A `.todoList()` automation has no trigger event, so it needs none. Every
 view has a specification. Until then the model is unfinished. A `given` may also hold other events,
 the history that shaped the state.
 
@@ -512,7 +513,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | A declaration in no slice, a slice in no chapter, or a chapter no slice joins | Whether a value is used is not a type. |
 | A slice joining two chapters | `.chapter()` can be called again further down the chain. |
 | An event in both a stream and an external system | `.stream()` and `.external()` can be called on it in separate statements. |
-| An event a command lists that no specification's `then` shows, an event a projection names that no specification's `given` has, or a view with no specification | Each `.test()` is checked on its own, not against the slice's other specifications. |
+| An event a command lists that no specification's `then` shows, an event a projection names or an automation's trigger that no specification's `given` has, or a view with no specification | Each `.test()` is checked on its own, not against the slice's other specifications. |
 | A specification value that is not what flows in: from `when`, the trigger in `given`, or the events that build the row | Example values are data, not types. |
 | A view's row that `given` does not build, or a built row `then` leaves out and the query does not exclude | Same. |
 | A source field put into a string or arithmetic in a mapping | A string built from a string is a string, and a number from a number a number. |
