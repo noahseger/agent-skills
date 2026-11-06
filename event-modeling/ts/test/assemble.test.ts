@@ -431,7 +431,11 @@ test("a call ends in the external event, whose fields come from outside", () => 
   const keep = m
     .slice()
     .trigger(Answered, f.Create, f.Created)
-    .test("The answer is kept", { when: f.Create(list), then: f.Created(list) })
+    .test("The answer is kept", {
+      given: Answered({ ...list, detail: "Two aisles over" }),
+      when: f.Create(list),
+      then: f.Created(list),
+    })
   const json = assembled({ ...f, Remote, Answered, Ask }, [specified, keep, project(f), view(f)])
   const [asked] = json.chapters[0]?.slices ?? []
   assert.deepEqual(asked?.calls, [{ actor: "remote", event: "Answered(id, name, detail)" }])
@@ -692,6 +696,28 @@ const processedProjection = (f: Fixture, Processed: EventDecl<{ id: z.ZodString 
       then: f.Table(list),
     })
 
+test("an automation's trigger no specification's given has is left to do, and an error when strict; a to-do list has none", () => {
+  const f = fixture()
+  const Process = m.command({ id: z.string() })
+  const Processed = m.event({ id: z.string() })
+  const model = () => {
+    const triggered = m
+      .slice("Processor")
+      .trigger(f.Created, Process, Processed)
+      .test("A list is processed", {
+        when: Process({ id: "list-1" }),
+        then: Processed({ id: "list-1" }),
+      })
+    const Ch = [create(f), triggered, processedProjection(f, Processed), view(f)]
+    return { ...f, Process, Processed, ...chapters({ Ch }), default: m.model("x") }
+  }
+  const message =
+    "Ch › Processor: no specification shows Created yet. Add a .test whose given has Created(...)."
+  const json = assembleModules([model()], { partial: true })
+  assert.deepEqual(json.warnings, [{ message, element: "Created", slice: "Processor" }])
+  assert.throws(() => assembleModules([model()]), { message })
+})
+
 test("an automation's mapping fills its command from the trigger", () => {
   const f = fixture()
   const Process = m.command({ id: z.string(), label: z.string() })
@@ -704,6 +730,7 @@ test("an automation's mapping fills its command from the trigger", () => {
       Processed,
     )
     .test("A created list is processed", {
+      given: f.Created(list),
       when: Process({ id: "list-1", label: "Groceries" }),
       then: Processed({ id: "list-1" }),
     })

@@ -525,8 +525,9 @@ function checkKeys({ slice, where }: Located, fail: Fail): void {
 
 /**
  * Every event a slice handles or produces is in one of its specifications: a command's events are
- * alternatives, and only a specification says when each happens; a projection's say what each
- * does to the row. A view's say what the screen shows.
+ * alternatives, and only a specification says when each happens; an automation's trigger, and a
+ * projection's events, are in a given. A to-do list automation has no trigger event. A view's
+ * specifications say what the screen shows.
  */
 function checkCovered({ slice, where }: Located, fail: Fail): void {
   if (slice.shows.length > 0 && slice.tests.length === 0) {
@@ -537,19 +538,20 @@ function checkCovered({ slice, where }: Located, fail: Fail): void {
       message: `${where}: no specification shows this view yet. Add a .test whose then has the ${rows} rows it shows.`,
     })
   }
-  if (!slice.command && !slice.projection) return
-  const clause = slice.projection ? "given" : "then"
-  const shown = new Set(
-    slice.tests.flatMap((t) => t[clause].flatMap((c) => ("decl" in c ? [c.decl] : []))),
-  )
-  for (const { decl } of slice.events) {
-    if (!shown.has(decl))
-      fail({
-        message: `${where}: no specification shows ${decl.name} yet. Add a .test whose ${clause} has ${decl.name}(...).`,
-        element: decl.name ?? "",
-        slice: slice.name ?? "",
-      })
-  }
+  const inClause = (clause: "given" | "then") =>
+    new Set(slice.tests.flatMap((t) => t[clause].flatMap((c) => ("decl" in c ? [c.decl] : []))))
+  const given = inClause("given")
+  const then = inClause("then")
+  const missing: [DeclData, "given" | "then"][] = [
+    ...heard(slice).flatMap((d): [DeclData, "given"][] => (given.has(d) ? [] : [[d, "given"]])),
+    ...recorded(slice).flatMap((d): [DeclData, "then"][] => (then.has(d) ? [] : [[d, "then"]])),
+  ]
+  for (const [decl, clause] of missing)
+    fail({
+      message: `${where}: no specification shows ${decl.name} yet. Add a .test whose ${clause} has ${decl.name}(...).`,
+      element: decl.name ?? "",
+      slice: slice.name ?? "",
+    })
 }
 
 /** What the wiring puts in a field, and where it says so; undefined `value` is anything. */
