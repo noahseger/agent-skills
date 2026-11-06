@@ -892,3 +892,177 @@ test("an example's nested values are printed", () => {
     ["Order(id=1, items=[{name=a}, {name=b}])", ["Ordered(id=1, items=[{name=a}])"]],
   )
 })
+
+// --- A specification agrees with what flows into it. ---------------------------
+
+/** What a partial assembly says about the specifications of `slices`. */
+function disagreements(exports: Record<string, unknown>, slices: readonly Slice[]): string[] {
+  const json = assembleModules(
+    [{ ...exports, default: m.model("x", { chapters: { Ch: slices } }) }],
+    {
+      partial: true,
+    },
+  )
+  return (json.warnings ?? []).map((w) => w.message).filter((w) => w.includes('› "'))
+}
+
+test("a state change's then has what its command sends and its mapping sets", () => {
+  const f = fixture()
+  const tags = z.array(z.object({ name: z.string() }))
+  const Add = m.command({ id: z.string(), text: z.string(), tags })
+  const Added = m.event({
+    id: z.string(),
+    title: z.string(),
+    status: z.string(),
+    at: z.string(),
+    tags,
+  })
+  const slice = m
+    .slice()
+    .command(
+      Add,
+      Added((c, { generate }) => ({ title: c.text, status: "open", at: generate() })),
+    )
+    .test("agrees", {
+      when: Add({ id: "a-1", text: "buy milk", tags: [{ name: "food" }] }),
+      then: Added({
+        id: "a-1",
+        title: "buy milk",
+        status: "open",
+        at: "any",
+        tags: [{ name: "food" }],
+      }),
+    })
+  const exports = { ...f, Add, Added }
+  assert.deepEqual(disagreements(exports, [slice]), [])
+  const wrong = slice.test("disagrees", {
+    when: Add({ id: "a-1", text: "buy milk", tags: [{ name: "food" }] }),
+    then: Added({
+      id: "a-2",
+      title: "buy bread",
+      status: "done",
+      at: "any",
+      tags: [{ name: "drink" }],
+    }),
+  })
+  assert.deepEqual(disagreements(exports, [wrong]), [
+    'Ch › Add › "disagrees": then has id "a-2", but when sends "a-1".',
+    'Ch › Add › "disagrees": then has title "buy bread", but when sends text "buy milk".',
+    `Ch › Add › "disagrees": then has status "done", but Added's mapping sets "open".`,
+    'Ch › Add › "disagrees": then has tags [{"name":"drink"}], but when sends [{"name":"food"}].',
+  ])
+  const json = assembleModules(
+    [{ ...exports, default: m.model("x", { chapters: { Ch: [wrong] } }) }],
+    {
+      partial: true,
+    },
+  )
+  assert.ok(json.warnings?.some((w) => w.element === "Added" && w.slice === "Add"))
+  assert.throws(
+    () => assembleModules([{ ...exports, default: m.model("x", { chapters: { Ch: [wrong] } }) }]),
+    { message: 'Ch › Add › "disagrees": then has id "a-2", but when sends "a-1".' },
+  )
+})
+
+test("an external event's fields come from outside, so its then may have anything", () => {
+  const f = fixture()
+  const Remote = m.external()
+  const Answered = m.event({ id: z.string(), name: z.string() }).external(Remote)
+  const ask = m
+    .slice()
+    .command(f.Create, Answered)
+    .test("answered", {
+      when: f.Create(list),
+      then: Answered({ id: "other", name: "other" }),
+    })
+  assert.deepEqual(disagreements({ ...f, Remote, Answered }, [ask]), [])
+})
+
+test("an automation's when has what its trigger in given carries and its mapping sets", () => {
+  const f = fixture()
+  const Process = m.command({ id: z.string(), label: z.string(), by: z.string() })
+  const Processed = m.event({ id: z.string() })
+  const processor = m
+    .slice("Processor")
+    .trigger(
+      f.Created,
+      Process((e) => ({ label: e.name, by: "processor" })),
+      Processed,
+    )
+    .test("agrees", {
+      given: f.Created(list),
+      when: Process({ id: "list-1", label: "Groceries", by: "processor" }),
+      then: Processed({ id: "list-1" }),
+    })
+    .test("no trigger given", {
+      when: Process({ id: "list-9", label: "Anything", by: "processor" }),
+      then: Processed({ id: "list-9" }),
+    })
+  const exports = { ...f, Process, Processed }
+  assert.deepEqual(disagreements(exports, [processor]), [])
+  const wrong = processor.test("disagrees", {
+    given: f.Created(list),
+    when: Process({ id: "list-2", label: "Chores", by: "someone" }),
+    then: Processed({ id: "list-3" }),
+  })
+  assert.deepEqual(disagreements(exports, [wrong]), [
+    'Ch › Processor › "disagrees": when has id "list-2", but Created in given has "list-1".',
+    'Ch › Processor › "disagrees": when has label "Chores", but Created in given has name "Groceries".',
+    `Ch › Processor › "disagrees": when has by "someone", but Process's mapping sets "processor".`,
+    'Ch › Processor › "disagrees": then has id "list-3", but when sends "list-2".',
+  ])
+})
+
+test("a projection's rows have what given builds, matched by key", () => {
+  const ids = { userId: m.key(z.string()), listId: m.key(z.string()) }
+  const Lists = m.readModel({
+    ...ids,
+    name: z.string(),
+    title: z.string(),
+    items: z.number().int(),
+    status: z.string(),
+  })
+  const ListCreated = m.event({ userId: z.string(), listId: z.string(), name: z.string() })
+  const ItemAdded = m.event({ userId: z.string(), listId: z.string() })
+  const ListClosed = m.event({ userId: z.string(), listId: z.string() })
+  const groceries = { userId: "u-1", listId: "l-1" }
+  const chores = { userId: "u-1", listId: "l-2" }
+  const projection = m
+    .slice()
+    .projection(
+      Lists,
+      ListCreated((e) => ({ title: e.name, items: 0, status: "open" })),
+    )
+    .event(ItemAdded((e, { count }) => ({ items: count(e) })))
+    .event(ListClosed(() => ({ status: "closed" })))
+  const given = [
+    ListCreated({ ...groceries, name: "Groceries" }),
+    ListCreated({ ...chores, name: "Chores" }),
+    ItemAdded(groceries),
+    ItemAdded(groceries),
+    ListClosed(chores),
+  ]
+  const exports = { Lists, ListCreated, ItemAdded, ListClosed }
+  const agrees = projection.test("agrees", {
+    given,
+    then: [
+      Lists({ ...groceries, name: "Groceries", title: "Groceries", items: 2, status: "open" }),
+      Lists({ ...chores, name: "Chores", title: "Chores", items: 0, status: "closed" }),
+    ],
+  })
+  assert.deepEqual(disagreements(exports, [agrees]), [])
+  const wrong = projection.test("disagrees", {
+    given,
+    then: [
+      Lists({ ...groceries, name: "Chores", title: "Chores", items: 1, status: "closed" }),
+      Lists({ ...chores, status: "open" }),
+    ],
+  })
+  assert.deepEqual(disagreements(exports, [wrong]), [
+    'Ch › Lists › "disagrees": then has name "Chores", but ListCreated in given has "Groceries".',
+    'Ch › Lists › "disagrees": then has title "Chores", but ListCreated in given has name "Groceries".',
+    'Ch › Lists › "disagrees": then has items 1, but given has 2 ItemAdded.',
+    `Ch › Lists › "disagrees": then has status "closed", but ListCreated's mapping sets "open".`,
+    `Ch › Lists › "disagrees": then has status "open", but ListClosed's mapping sets "closed".`,
+  ])
+})

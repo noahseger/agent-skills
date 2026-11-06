@@ -2,6 +2,7 @@
 import { readdirSync, statSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
+import { isDeepStrictEqual } from "node:util"
 
 import { type ModelJson, toJson } from "./json.ts"
 import {
@@ -9,6 +10,7 @@ import {
   type Declaration,
   type DeclData,
   DRAFTS,
+  type ExampleData,
   type Exported,
   type Flow,
   heard,
@@ -225,6 +227,7 @@ function check(
     checkKeys(at, fail)
     checkOutcomes(at, fail)
     checkSeen(at, fail)
+    checkSpecs(at, columns, fail)
   }
   checkConnected(located, columns, fail)
   checkMethods(located)
@@ -319,16 +322,16 @@ function filled(flow: Flow, source: DeclData): string[] {
   return [...Object.keys(source.fields), ...Object.keys(flow.mapping)]
 }
 
-/** Each read model's projection slices, the first of them, and the columns they fill together. */
-type Columns = Map<DeclData, { first: Located; filled: string[] }>
+/** Each read model's projection slices, the first of them, and the events they build it from together. */
+type Columns = Map<DeclData, { first: Located; flows: Flow[] }>
 
 function columnsOf(located: Located[]): Columns {
   const columns: Columns = new Map()
   for (const at of located) {
     const { projection, events } = at.slice
     if (!projection) continue
-    const sofar = columns.get(projection) ?? { first: at, filled: [] }
-    sofar.filled.push(...events.flatMap((flow) => filled(flow, flow.decl)))
+    const sofar = columns.get(projection) ?? { first: at, flows: [] }
+    sofar.flows.push(...events)
     columns.set(projection, sofar)
   }
   return columns
@@ -370,7 +373,7 @@ function checkFilled(at: Located, columns: Columns, fail: Fail): void {
   if (projection && together?.first === at)
     check(
       projection,
-      together.filled,
+      together.flows.flatMap((flow) => filled(flow, flow.decl)),
       (f) => `Add .event() for an event that carries ${f}, or set it in a mapping.`,
     )
 }
@@ -406,6 +409,117 @@ function checkOutcomes({ slice, where }: Located, fail: Fail): void {
         slice: slice.name ?? "",
       })
   }
+}
+
+/** What the wiring puts in a field, and where it says so; undefined `value` is anything. */
+interface Expected {
+  value: unknown
+  says: string
+}
+
+/**
+ * A specification agrees with its slice's wiring: each value it shows is the one that flows in. A
+ * generated field, or an external event's, may be anything.
+ */
+function checkSpecs({ slice, where }: Located, columns: Columns, fail: Fail): void {
+  const { command, projection } = slice
+  for (const t of slice.tests) {
+    const compare = (
+      example: ExampleData,
+      clause: "when" | "then",
+      expected: (field: string) => Expected | undefined,
+    ) => {
+      for (const [field, shown] of Object.entries(example.data)) {
+        const e = expected(field)
+        if (e?.value === undefined || shown === undefined || isDeepStrictEqual(shown, e.value))
+          continue
+        fail({
+          message: `${where} › "${t.name}": ${clause} has ${field} ${show(shown)}, but ${e.says}.`,
+          element: example.decl.name ?? "",
+          slice: slice.name ?? "",
+        })
+      }
+    }
+    if (projection) {
+      const rows = project(projection, columns.get(projection)?.flows ?? [], t.given)
+      for (const c of t.then) {
+        if (!("decl" in c) || c.decl !== projection) continue
+        const keys = projection.keys.filter((k) => c.data[k] !== undefined)
+        const matched = rows.filter((r) =>
+          keys.every((k) => isDeepStrictEqual(r.values[k]?.value, c.data[k])),
+        )
+        if (matched.length === 1) compare(c, "then", (f) => matched[0]?.values[f])
+      }
+    } else if (command) {
+      const trigger = t.given.find((g) => g.decl === slice.trigger)
+      if (t.when && trigger)
+        compare(t.when, "when", (f) =>
+          source(command, f, trigger, `${trigger.decl.name} in given has`),
+        )
+      const when = t.when
+      for (const c of t.then) {
+        if (!("decl" in c) || c.decl.external || !when) continue
+        const flow = slice.events.find((e) => e.decl === c.decl)
+        if (flow) compare(c, "then", (f) => source(flow, f, when, "when sends"))
+      }
+    }
+  }
+}
+
+/** What `flow` puts in `field` from `example`, which `has` introduces in a message. */
+function source(
+  flow: Flow,
+  field: string,
+  example: ExampleData,
+  has: string,
+): Expected | undefined {
+  const s = flow.mapping[field] ?? (field in example.decl.fields ? { from: field } : undefined)
+  if (s === undefined) return undefined
+  if ("value" in s)
+    return { value: s.value, says: `${flow.decl.name}'s mapping sets ${show(s.value)}` }
+  if (!("from" in s)) return undefined
+  const value = example.data[s.from]
+  const renamed = s.from === field ? "" : `${s.from} `
+  return { value, says: `${has} ${renamed}${show(value)}` }
+}
+
+/** The rows `given` builds, in order, so the last event to set a column wins; each column says where it came from. */
+function project(
+  readModel: DeclData,
+  flows: Flow[],
+  given: ExampleData[],
+): { values: Record<string, Expected>; counts: Map<DeclData, number> }[] {
+  const rows: ReturnType<typeof project> = []
+  for (const g of given) {
+    const flow = flows.find((f) => f.decl === g.decl)
+    if (!flow) continue
+    const has = `${g.decl.name} in given has`
+    const values: Record<string, Expected> = {}
+    for (const column of Object.keys(readModel.fields)) {
+      const e = source(flow, column, g, has)
+      if (e) values[column] = e
+    }
+    const keys = readModel.keys.filter((k) => values[k]?.value !== undefined)
+    let matched = rows.filter((r) =>
+      keys.every((k) => isDeepStrictEqual(r.values[k]?.value, values[k]?.value)),
+    )
+    if (matched.length === 0) {
+      matched = [{ values: {}, counts: new Map() }]
+      rows.push(...matched)
+    }
+    for (const row of matched) {
+      Object.assign(row.values, values)
+      const n = (row.counts.get(g.decl) ?? 0) + 1
+      row.counts.set(g.decl, n)
+      for (const [column, s] of Object.entries(flow.mapping))
+        if ("count" in s) row.values[column] = { value: n, says: `given has ${n} ${g.decl.name}` }
+    }
+  }
+  return rows
+}
+
+function show(value: unknown): string {
+  return JSON.stringify(value)
 }
 
 /** A screen is drawn in its actors' lanes. */
