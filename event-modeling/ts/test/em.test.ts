@@ -29,7 +29,7 @@ function em(...args: string[]) {
   })
 }
 
-test("json prints the assembled model", () => {
+test("json prints the model as spec JSON", () => {
   const run = em("json", EXAMPLE)
   assert.equal(run.status, 0, run.stderr)
   assert.deepEqual(
@@ -52,17 +52,6 @@ test("proto writes the generated files under -o", () => {
   }
 })
 
-test("render writes an SVG through event_model.py", () => {
-  const out = mkdtempSync(join(tmpdir(), "em-"))
-  try {
-    const run = em("render", EXAMPLE, "-o", join(out, "model.svg"))
-    assert.equal(run.status, 0, run.stderr)
-    assert.match(readFileSync(join(out, "model.svg"), "utf8"), /^<svg /)
-  } finally {
-    rmSync(out, { recursive: true, force: true })
-  }
-})
-
 test("init scaffolds a model that assembles, and refuses to overwrite it", () => {
   // Inside the package, so the scaffold's import of the package name resolves.
   const dir = mkdtempSync(here("../tmp-init-"))
@@ -76,7 +65,7 @@ test("init scaffolds a model that assembles, and refuses to overwrite it", () =>
     symlinkSync(here(".."), join(dir, "node_modules", "@noahseger", "event-modeling"))
     for (const f of ["index.ts", "tsconfig.json", "package.json"])
       assert.ok(existsSync(join(dir, f)), f)
-    assert.deepEqual(JSON.parse(em("json", dir).stdout).chapters, [])
+    assert.deepEqual(JSON.parse(em("json", dir).stdout), { slices: [] })
     const again = em("init", dir)
     assert.equal(again.status, 1)
     assert.match(again.stderr, /already exists, so init stopped\. Run it in an empty directory\./)
@@ -95,7 +84,7 @@ test("an assembly error is one line and exit 1", () => {
 })
 
 test("a missing argument prints usage and exits 2", () => {
-  const run = em("render", EXAMPLE)
+  const run = em("proto", EXAMPLE)
   assert.equal(run.status, 2)
   assert.match(run.stderr, /^usage:/)
 })
@@ -183,7 +172,9 @@ test("view serves the app, the model, and a change feed", async () => {
 
     const model = await fetch(`${url}/model.json`)
     assert.equal(model.status, 200)
-    assert.deepEqual(await model.json(), JSON.parse(readFileSync(here("./todo-app.json"), "utf8")))
+    const served = (await model.json()) as { name: string; model: unknown }
+    assert.equal(served.name, "Todo List Application")
+    assert.deepEqual(served.model, JSON.parse(readFileSync(here("./todo-app.json"), "utf8")))
 
     const feed = await fetch(`${url}/events`)
     assert.equal(feed.headers.get("content-type"), "text/event-stream")
@@ -309,12 +300,12 @@ test("json refuses a storm of events; --partial prints it with what is still to 
   const partial = em("json", "--partial", storm)
   assert.equal(partial.status, 0, partial.stderr)
   const json = JSON.parse(partial.stdout) as {
-    loose: { element: string }[]
+    loose: { title: string }[]
     warnings: { message: string }[]
   }
   assert.deepEqual(
-    json.loose.map((l) => l.element),
-    ["GameStarted(gameId)", "MoveMade(gameId, san)", "GameEnded(gameId, result)"],
+    json.loose.map((l) => l.title),
+    ["GameStarted", "MoveMade", "GameEnded"],
   )
   assert.deepEqual(
     json.warnings.map((w) => w.message),

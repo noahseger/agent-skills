@@ -1,48 +1,48 @@
 import assert from "node:assert/strict"
-import { spawnSync } from "node:child_process"
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { readFileSync } from "node:fs"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
 import { z } from "zod"
 import { type Chapter, m, type Slice } from "#em"
 
-import { assemble, assembleModules, load } from "../src/assemble.ts"
-import { toJson } from "../src/json.ts"
+import { type Feed, assemble as feedAt, assembleModules as feedOf, load } from "../src/assemble.ts"
+import { toFeed } from "../src/spec.ts"
+import { validate } from "../src/validate.ts"
 import { layout } from "../viewer/src/layout.ts"
+import { read } from "../viewer/src/read.ts"
 
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url))
 
-/** `event_model.py validate` over a render target; the failure message is its output. */
-function validate(json: unknown): void {
-  const file = join(mkdtempSync(join(tmpdir(), "em-")), "model.json")
-  writeFileSync(file, JSON.stringify(json))
-  const run = spawnSync("python3", [here("../../event_model.py"), "validate", file], {
-    encoding: "utf8",
-  })
-  assert.equal(run.status, 0, run.stdout + run.stderr)
+/** What the viewer draws, once the spec JSON under it validates. */
+function drawn(feed: Feed) {
+  assert.deepEqual(validate(feed.model), [])
+  return read(feed)
 }
+const assembleModules = (...args: Parameters<typeof feedOf>) => drawn(feedOf(...args))
+const assemble = async (...args: Parameters<typeof feedAt>) => drawn(await feedAt(...args))
 
-// A module runs once per process, so the example is loaded once.
-const todoApp = load(here("../examples/todo-app"))
+// A module runs once per process, so each example is loaded once, one after the other.
+const todoApp = await load(here("../examples/todo-app"))
+const otbChess = await load(here("../examples/otb-chess"))
 
-test("the todo example assembles to the checked-in render target", async () => {
-  const json = toJson(await todoApp)
-  assert.deepEqual(json, JSON.parse(readFileSync(here("./todo-app.json"), "utf8")))
+test("each example emits its checked-in spec JSON, and the JSON validates", async () => {
+  for (const [example, file] of [
+    [todoApp, "./todo-app.json"],
+    [otbChess, "./otb-chess.json"],
+  ] as const) {
+    const json = JSON.parse(readFileSync(here(file), "utf8"))
+    assert.deepEqual(toFeed(example).model, json)
+    assert.deepEqual(validate(json), [])
+  }
 })
 
 test("load returns the named model the generators read", async () => {
-  const { model, chapters } = await todoApp
+  const { model, chapters } = todoApp
   const first = chapters[0]?.slices[0]
   assert.deepEqual(
     [model.name, first?.name, first?.service?.service.name, first?.service?.service.pkg],
     ["Todo List Application", "CreateList", "TodoService", "todo.v1"],
   )
-})
-
-test("event_model.py accepts the render target", () => {
-  validate(JSON.parse(readFileSync(here("./todo-app.json"), "utf8")))
 })
 
 // --- Assembly errors. Each fixture is the smallest model that trips one. -----
@@ -90,7 +90,6 @@ test("a well-formed model assembles", () => {
     ["Create", "Table", "Get"],
   )
   assert.deepEqual(json.aggregates, [{ id: "events", name: "Events" }])
-  validate(json)
 })
 
 test("a declaration used in a slice that no module exports", () => {
@@ -157,7 +156,6 @@ test("a mapping function fills what the command does not carry", () => {
   const json = assembled({ ...f, Created }, [slice, project({ ...f, Created }), view(f)])
   assert.deepEqual(json.chapters[0]?.slices[0]?.mapping, { Created: { extra: { from: "name" } } })
   assert.equal(json.chapters[0]?.slices[0]?.command, "Create(id, name)")
-  validate(json)
 })
 
 test("generate() fills a field the handler assigns, and a specification gives it any value", () => {
@@ -177,7 +175,6 @@ test("generate() fills a field the handler assigns, and a specification gives it
     })
   const json = assembled({ ...f, Created }, [slice, project({ ...f, Created }), view(f)])
   assert.deepEqual(json.chapters[0]?.slices[0]?.mapping, { Created: { at: { generate: true } } })
-  validate(json)
 })
 
 test("a column no .event() writes", () => {
@@ -323,7 +320,6 @@ test("a call ends in the external event, whose fields come from outside", () => 
   const [asked] = json.chapters[0]?.slices ?? []
   assert.deepEqual(asked?.calls, [{ actor: "remote", event: "Answered(id, name, detail)" }])
   assert.equal(asked?.events, undefined)
-  validate(json)
 })
 
 test("an external event a call ends in that nothing triggers on", () => {
@@ -384,7 +380,7 @@ test("a specification whose then has the outcome finishes it", () => {
     when: f.Create(list),
     then: Refused({ id: "list-1" }),
   })
-  validate(assembleModules([model(refused)]))
+  assembleModules([model(refused)])
 })
 
 test("an external event a call ends in is an outcome", () => {
@@ -468,7 +464,6 @@ test("an automation's mapping fills its command from the trigger", () => {
   const projection = m.slice().projection(f.Table, f.Created).event(Processed)
   const json = assembled({ ...f, Process, Processed }, [create(f), processor, projection, view(f)])
   assert.deepEqual(json.chapters[0]?.slices[1]?.mapping, { Process: { label: { from: "name" } } })
-  validate(json)
 })
 
 test("a view without a service is named by its read model and has a screen", () => {
@@ -477,7 +472,6 @@ test("a view without a service is named by its read model and has a screen", () 
   const json = assembled(f, Ch)
   const slice = json.chapters[0]?.slices[2]
   assert.deepEqual([slice?.name, slice?.ui], ["Table", "Table"])
-  validate(json)
 })
 
 test("a slice with no actor has no screen", () => {
@@ -507,7 +501,6 @@ test("a slice with several actors draws a screen in each one's lane", () => {
   const json = assembled({ ...f, Admin }, [both, project(f), view(f)])
   const slice = json.chapters[0]?.slices[0]
   assert.deepEqual([slice?.actor, slice?.actors], ["user", ["user", "admin"]])
-  validate(json)
   const { boxes, rows } = layout(json)
   const lanes = boxes
     .filter((b) => b.kind === "ui" && b.column === 0)
@@ -534,7 +527,6 @@ test("a .todoList() automation polls the read model", () => {
   assert.equal(slice?.automation, "Processor")
   assert.equal(slice?.trigger, undefined)
   assert.equal(slice?.polls, "Table")
-  validate(json)
 })
 
 test("same-named streams from two modules are one lane", () => {
@@ -589,7 +581,6 @@ test("slices on one screen draw it, titled with its name, in the actor's lane", 
     screens.map((b) => b.name),
     ["Lock", "Lock"],
   )
-  validate(json)
 })
 
 test("a screen no one sees, and one no slice names, are left to do", () => {
@@ -692,7 +683,6 @@ test("a single file written top to bottom extends an earlier read model in a lat
     json.aggregates.map((a) => a.id),
     ["notes"],
   )
-  validate(json)
 })
 
 test("a view may show more than one read model", () => {

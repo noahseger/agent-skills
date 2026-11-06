@@ -6,7 +6,9 @@ and the `em` command that works on it. You get:
 - a typed way to write the model, so a wrong slice does not compile;
 - a live diagram in the browser that redraws on every save;
 - a check of the whole model, where each error names the slice it found the problem in;
-- one `.proto` file per service the model describes.
+- one `.proto` file per service the model describes;
+- the model as [event-modeling-spec](https://github.com/dilgerma/event-modeling-spec) JSON, which
+  the diagram also draws when the model was written by hand or extracted from a running system.
 
 It runs wherever node 22 or later runs.
 
@@ -421,7 +423,7 @@ npx em proto model -o proto
 ```
 
 `proto` writes one `.proto` file per service. `export` writes the viewer and the model into one HTML
-file to share. `render` writes a still SVG; it needs python 3 with `pydantic`.
+file to share. `json` prints the model as event-modeling-spec JSON.
 
 You do not have to finish first. `view` draws a model as far as it goes: an event in no slice yet
 stands on its own in its lane, a slice in no chapter yet is drawn after the story, and what is left
@@ -464,6 +466,46 @@ Assembly catches the rest, and each error names the slice it found the problem i
 
 `event_model.py` then checks the emitted JSON for what neither can: example values that are not
 placeholders. Naming is yours: the conventions above are not checked.
+
+## The JSON
+
+`em json` prints the model as JSON that validates against the
+[event-modeling-spec](https://github.com/dilgerma/event-modeling-spec) JSON Schema, vendored in
+`schema/eventmodeling.schema.json`. `test/todo-app.json` is the todo example's.
+
+| Ours | The spec's |
+|---|---|
+| a slice | a `Slice`, in story order, with `index`. A state change is `STATE_CHANGE`; a `.trigger()` or `.todoList()` is `AUTOMATION`, or `TRANSLATION` when its trigger is an external event; a projection and a view are both `STATE_VIEW`, the spec's pattern of events in, read model out: a projection is its events-in half, a view its screen-out half |
+| a chapter | the slice's `context`. A slice in no chapter has none |
+| a command, event, read model | an `Element` of type `COMMAND`, `EVENT`, `READMODEL`, in each slice that uses it, with `fields` and `dependencies` along the slice's arrows |
+| an automation's gear | an `AUTOMATION` element in `processors`, named after the slice: what starts it points at it, it points at the command |
+| a screen | one `SCREEN` per slice with an actor: the screen's name, or the method's. Its fields are the command's, or a view's `.query()` |
+| `.service()` | `service` and `apiEndpoint` on the command, or on each read model a view shows |
+| a stream | each event's `aggregate`, and the slice's `aggregates`: the streams it records into. A slice that records nothing names none |
+| an actor | the slice's `actors`. An admin is tagged `admin`, a machine of ours `system` |
+| `m.key` | `idAttribute: true` |
+| `.optional()`, `z.array()`, `z.object()` | `optional`, `cardinality: "List"`, `subfields` |
+| a note | an element's `description` |
+| a specification | a `Specification`: `given`, `when` and `then` steps, each an example in `examples`. A `reject` is a `SPEC_ERROR` step titled with the reason |
+
+The schema allows no property it does not name, at any level, so the JSON adds no keys. Where it
+needs to say what the spec has no field for, it uses a field the spec has, as follows. A model
+written by hand can do the same, and the viewer draws it.
+
+| What | Where |
+|---|---|
+| where a mapped field's value comes from | the field's `mapping`: the source field's name, `count()`, or `= ` and a JSON value. A field the handler assigns is `generated: true`. A read model built from several events maps a column once per event, one line each: `ItemAdded: count()` |
+| a system we do not own | its events have `context: "EXTERNAL"`, and `service` names the system. No `aggregate`: we never store them |
+| a call to one | the external event among the command's outbound events |
+| outcomes that are alternatives | no field: a command's outbound events are what it can record, and each specification's `then` says which it did |
+| what a handler reads | a read model pointing at the command; one pointing at the processor is the automation's to-do list |
+| a slice's note | a `storylines` entry titled with it, with no elements |
+
+The top level holds only `slices`, so the rest travels beside the JSON, only to the viewer: the
+model's name and description, the chapters, streams and actors in the order declared, with a
+chapter's note, and, while the model is unfinished, the declarations in no slice and what is left
+to do. That is what `em json --partial` prints. Notes on actors, services and external systems have
+no place in either.
 
 ## Protobuf
 
@@ -538,21 +580,20 @@ Any other Zod type is an error that names the declaration and the field. The exa
 npx em init   model/                 # scaffold a model directory
 npx em view   model/                 # live diagram; runs until Ctrl-C
 npx em export model/ -o model.html   # one self-contained page, for sharing
-npx em json   model/                 # the JSON the viewer and the renderer read
-npx em json   model/ --partial       # the same for an unfinished model, with what is left to do
-npx em render model/ -o out.svg      # still picture
+npx em json   model/                 # the model as event-modeling-spec JSON
+npx em json   model/ --partial       # what the viewer draws of an unfinished model
 npx em proto  model/ -o proto        # one .proto per service
 ```
 
 Every command also accepts a single self-contained file. `json` assembles the model and stops at
-the first error. With `--partial` it goes on past dead ends and lists them in the JSON as
-`warnings`, with the declarations in no slice as `loose`; `view` and `export` assemble that way.
+the first error. With `--partial` it goes on past dead ends and prints what the viewer reads: the
+spec JSON as `model`, beside it what the spec has no place for, and the dead ends as `warnings`;
+`view` and `export` assemble that way.
 `view` also type-checks the model on every save, with the `tsconfig.json` that `init` wrote, and
 logs each compiler error as `file:line` with what assembly left to do, in the terminal and above the
 picture. Names used above their declarations are one line per file, listing what to move up. Node runs the TypeScript directly with `--experimental-strip-types`. The package carries
 `zod` and exports it as `z`, so the model and the package read schemas with one copy. It carries
-`typescript` too, so the model needs no other dependency; `render` also needs python 3 with
-`pydantic`.
+`typescript` too, so the model needs no other dependency.
 
 ## Developing
 

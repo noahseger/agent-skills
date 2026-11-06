@@ -41,11 +41,11 @@ test("the packed tarball installs into a project and em runs there", () => {
     )
     const json = spawnSync(em, ["json", "--partial", "model"], { cwd: dir, encoding: "utf8" })
     assert.equal(json.status, 0, json.stderr)
-    const out = JSON.parse(json.stdout) as { chapters: unknown[]; loose: { element: string }[] }
+    const out = JSON.parse(json.stdout) as { chapters: unknown[]; loose: { title: string }[] }
     assert.deepEqual(out.chapters, [])
     assert.deepEqual(
-      out.loose.map((l) => l.element),
-      ["Started(id)"],
+      out.loose.map((l) => l.title),
+      ["Started"],
     )
     // stderr carries what is left to do, and nothing else: no node warning.
     assert.equal(json.stderr.trim(), "Started isn't in a slice yet.")

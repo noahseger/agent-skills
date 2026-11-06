@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import type { ModelJson } from "../../src/json.ts"
+import type { Board } from "./board.ts"
 import Card from "./Card.vue"
 import {
   type Box,
@@ -19,7 +19,7 @@ import {
 // One slice at full width, with room to read its specifications.
 const props = defineProps<{
   layout: Layout
-  model: ModelJson
+  model: Board
   column: Column
   selectedBox: string | null
   hovered: string | null

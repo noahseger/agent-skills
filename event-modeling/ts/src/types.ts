@@ -184,3 +184,12 @@ export function heard(slice: SliceData): DeclData[] {
   if (slice.projection) return slice.events.map((f) => f.decl)
   return slice.trigger ? [slice.trigger] : []
 }
+
+/** `ListCreated` -> `list-created`: an id. */
+export function slug(name: string): string {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+}

@@ -4,7 +4,7 @@ import { dirname, join, relative, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import { isDeepStrictEqual } from "node:util"
 
-import { type ModelJson, toJson } from "./json.ts"
+import { type Feed, toFeed } from "./spec.ts"
 import {
   type Assembled,
   type ChapterData,
@@ -23,7 +23,7 @@ import {
   type Warning,
 } from "./types.ts"
 
-export type { Assembled, ModelJson, Warning }
+export type { Assembled, Feed, Warning }
 
 export interface Options {
   /** Render an incomplete model with warnings instead of failing with errors. */
@@ -34,13 +34,13 @@ export interface Options {
 type Fail = (warning: Warning) => void
 
 /** `path` is a model directory or a single module. */
-export async function assemble(path: string, options: Options = {}): Promise<ModelJson> {
-  return toJson(await load(path, options))
+export async function assemble(path: string, options: Options = {}): Promise<Feed> {
+  return toFeed(await load(path, options))
 }
 
 /** `assemble` for modules already loaded. */
-export function assembleModules(modules: readonly object[], options: Options = {}): ModelJson {
-  return toJson(loadModules(modules, options))
+export function assembleModules(modules: readonly object[], options: Options = {}): Feed {
+  return toFeed(loadModules(modules, options))
 }
 
 /** A module runs once per process, so a second load of the same files finds no slices. */

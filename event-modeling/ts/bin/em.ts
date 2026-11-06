@@ -2,21 +2,20 @@
 // em <command> <path> [options]
 //
 //   init   <dir>                  scaffold a model directory
-//   json   <path> [--partial]     print the assembled JSON; --partial keeps going past dead ends
-//   render <path> -o out.svg      draw the diagram; --watch redraws on save
+//   json   <path> [--partial]     print the model as event-modeling-spec JSON; --partial keeps
+//                                 going past dead ends and prints what the viewer reads
 //   proto  <path> -o dir          write one .proto per service
 //   view   <path> [--port n]      serve the live diagram; --no-open keeps the browser closed
 //   export <path> -o out.html     one self-contained page of the model, for sharing
 //
 // <path> is a model directory or a single module. An assembly error stops every command.
 import { execFile, spawn, spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, watch, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
-import { dirname, join, resolve } from "node:path"
+import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs"
+import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { parseArgs } from "node:util"
 
-import { assemble, load, type ModelJson, type Warning } from "../src/assemble.ts"
+import { assemble, type Feed, load, type Warning } from "../src/assemble.ts"
 import { type Checker, COMPILER_OPTIONS, checker } from "../src/check.ts"
 import { exportHtml } from "../src/export.ts"
 import { generateProto } from "../src/proto.ts"
@@ -36,7 +35,6 @@ if (!process.features.typescript && !process.execArgv.includes(STRIP)) {
 const USAGE = `usage:
   em init   <dir>
   em json   <path> [--partial]
-  em render <path> -o <out.svg> [--watch]
   em proto  <path> -o <dir>
   em view   <path> [--port <n>] [--no-open]
   em export <path> -o <out.html>`
@@ -49,11 +47,6 @@ function packageRoot(): string {
 }
 const ROOT = packageRoot()
 const VIEWER_DIST = join(ROOT, "viewer", "dist")
-// The renderer lives beside this package in the repository; the build copies it in.
-const EVENT_MODEL_PY =
-  [join(ROOT, "event_model.py"), join(ROOT, "..", "event_model.py")].find((p) => existsSync(p)) ??
-  join(ROOT, "event_model.py")
-const PYTHON = process.platform === "win32" ? "python" : "python3"
 
 const INDEX_TS = `import { m } from "@noahseger/event-modeling"
 
@@ -68,7 +61,6 @@ const PACKAGE_JSON = `${JSON.stringify({ type: "module" }, null, 2)}\n`
 const { values, positionals } = parseArgs({
   options: {
     out: { type: "string", short: "o" },
-    watch: { type: "boolean" },
     port: { type: "string" },
     open: { type: "boolean", default: true },
     partial: { type: "boolean", default: false },
@@ -95,10 +87,10 @@ function init(dir: string): void {
 }
 
 async function json(path: string): Promise<void> {
-  const model = await assemble(path, { partial: values.partial })
+  const feed = await assemble(path, { partial: values.partial })
   // Warnings go to stderr so stdout stays valid JSON.
-  for (const w of model.warnings ?? []) console.error(w.message)
-  console.log(JSON.stringify(model, null, 2))
+  for (const w of feed.warnings ?? []) console.error(w.message)
+  console.log(JSON.stringify(values.partial ? feed : feed.model, null, 2))
 }
 
 async function proto(path: string, out: string): Promise<void> {
@@ -113,47 +105,6 @@ async function proto(path: string, out: string): Promise<void> {
     writeFileSync(target, file.source)
     console.log(`Wrote ${target}`)
   }
-}
-
-async function renderOnce(path: string, out: string): Promise<void> {
-  // event_model.py reads a file, so the JSON goes to a temp directory.
-  const scratch = mkdtempSync(join(tmpdir(), "em-"))
-  try {
-    const file = join(scratch, "model.json")
-    writeFileSync(file, JSON.stringify(await assemble(path)))
-    const run = spawnSync(PYTHON, [EVENT_MODEL_PY, "render", file, "-o", out], {
-      stdio: "inherit",
-    })
-    if (run.status !== 0) process.exitCode = run.status ?? 1
-  } finally {
-    rmSync(scratch, { recursive: true, force: true })
-  }
-}
-
-async function render(path: string, out: string): Promise<void> {
-  await renderOnce(path, out)
-  if (!values.watch) return
-  const root = statSync(path).isDirectory() ? path : dirname(path)
-  const target = resolve(out)
-  console.log(`Watching ${root} for changes.`)
-  let pending = false
-  watch(root, { recursive: true }, (_event, filename) => {
-    // A module, once imported, stays in this process's cache, so each redraw
-    // runs in a fresh process: this command again, without --watch.
-    if (!filename || filename.includes("node_modules") || resolve(root, filename) === target) return
-    if (pending) return
-    pending = true
-    setTimeout(() => {
-      pending = false
-      spawnSync(
-        process.execPath,
-        [...process.execArgv, process.argv[1] ?? "", "render", path, "-o", out],
-        {
-          stdio: "inherit",
-        },
-      )
-    }, 50)
-  })
 }
 
 /** A fresh process rereads saved modules; --partial draws unfinished models. */
@@ -178,8 +129,8 @@ async function reload(path: string, types: Checker, cause = "Started"): Promise<
   const stamp = new Date().toTimeString().slice(0, 8)
   const took = `${Date.now() - started}ms`
   if (run.ok) {
-    const model = JSON.parse(run.stdout) as ModelJson
-    const warnings = mergeFindings(errors, model.warnings ?? [])
+    const feed = JSON.parse(run.stdout) as Feed
+    const warnings = mergeFindings(errors, feed.warnings ?? [])
     const count = warnings.length
     const summary =
       count === 0
@@ -189,7 +140,7 @@ async function reload(path: string, types: Checker, cause = "Started"): Promise<
           : `${count} things left to do:`
     console.log(`${stamp} ${cause} (${took}). ${summary}`)
     for (const w of warnings) console.log(`  ${w.message}`)
-    return { json: JSON.stringify(count === 0 ? model : { ...model, warnings }) }
+    return { json: JSON.stringify({ ...feed, warnings }) }
   }
   // A compiler error says where and why; the JavaScript error it caused only says what broke.
   const error = errors.length > 0 ? errors.join("\n") : (run.stderr || run.stdout).trimEnd()
@@ -260,7 +211,6 @@ async function main(): Promise<void> {
   else if (!command || !path) usage()
   else if (command === "init") init(path)
   else if (command === "json") await json(path)
-  else if (command === "render" && values.out) await render(path, values.out)
   else if (command === "proto" && values.out) await proto(path, values.out)
   else if (command === "view") await view(path)
   else if (command === "export" && values.out) await exportPage(path, values.out)

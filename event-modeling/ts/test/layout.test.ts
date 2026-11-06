@@ -5,8 +5,8 @@ import { readFileSync } from "node:fs"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
 
-import type { ModelJson } from "../src/json.ts"
 import type { Source } from "../src/types.ts"
+import type { Board } from "../viewer/src/board.ts"
 import {
   type Box,
   fitColumns,
@@ -19,10 +19,15 @@ import {
   words,
   wrap,
 } from "../viewer/src/layout.ts"
+import { read } from "../viewer/src/read.ts"
 
-const model: ModelJson = JSON.parse(
-  readFileSync(fileURLToPath(new URL("./todo-app.json", import.meta.url)), "utf8"),
-)
+// A model read from its spec JSON alone, as a hand-written one is.
+const model = read({
+  name: "Todo List Application",
+  model: JSON.parse(
+    readFileSync(fileURLToPath(new URL("./todo-app.json", import.meta.url)), "utf8"),
+  ),
+})
 const out = layout(model)
 const byId = new Map(out.boxes.map((b) => [b.id, b]))
 const rowOf = (b: { y: number; h: number }) =>
@@ -178,7 +183,7 @@ test("an automation is in its actor's lane, and reads are drawn back from the re
 })
 
 test("a read model nothing draws in full still gets a reference card", () => {
-  const copy: ModelJson = JSON.parse(JSON.stringify(model))
+  const copy: Board = JSON.parse(JSON.stringify(model))
   for (const c of copy.chapters)
     c.slices = c.slices.filter((s) => !s.read_models?.some((r) => r.startsWith("ItemSearch")))
   const ref = layout(copy).boxes.find((b) => b.name === "ItemSearch")
@@ -191,8 +196,9 @@ test("lanes say what they are, and the system lane is the automations", () => {
     "User (Actor)",
     "Automations (System)",
     "Calendar (System)",
-    "Items (Stream)",
+    // From the JSON alone, lanes come in the order the slices first name them.
     "Lists (Stream)",
+    "Items (Stream)",
   ])
 })
 
@@ -405,7 +411,7 @@ test("a command's outcomes stand side by side in their lane, each joined to the 
 
 test("a long value wraps inside its specification card", () => {
   const fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-  const copy: ModelJson = JSON.parse(JSON.stringify(model))
+  const copy: Board = JSON.parse(JSON.stringify(model))
   const slice = copy.chapters[0]?.slices[0]
   assert.ok(slice?.tests[0])
   slice.tests[0].then = [`ListCreated(listId=list-1, fen=${fen})`]

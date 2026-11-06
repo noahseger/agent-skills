@@ -30,6 +30,7 @@
   "files": [
     "dist",
     "viewer/dist",
+    "schema",
     "event_model.py"
   ],
   "scripts": {
@@ -46,6 +47,7 @@
     "test": "npm run typecheck && npm run lint && npm run build && node --test --experimental-strip-types 'test/*.test.ts' && npm run lint:proto"
   },
   "dependencies": {
+    "ajv": "^8.20.0",
     "typescript": "^7.0.2",
     "zod": "^4.5.4"
   },
