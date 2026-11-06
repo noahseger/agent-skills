@@ -138,6 +138,43 @@ test("a model still being written draws with a field that has no value", () => {
   assert.ok(json.warnings?.some((w) => w.message.includes("Created.extra has no value")))
 })
 
+test("an optional field one slice leaves unfilled, another fills", () => {
+  const f = fixture()
+  const Created = m.event({ id: z.string(), name: z.string(), extra: z.string().optional() })
+  const CreateWith = m.command({ id: z.string(), name: z.string(), extra: z.string() })
+  const withExtra = { ...list, extra: "x" }
+  const json = assembled({ ...f, Created, CreateWith }, [
+    create({ ...f, Created }),
+    m
+      .slice()
+      .command(CreateWith, Created)
+      .test("A list is created with extra", {
+        when: CreateWith(withExtra),
+        then: Created(withExtra),
+      }),
+    project({ ...f, Created }),
+    view(f),
+  ])
+  assert.equal(json.warnings, undefined)
+})
+
+test("an optional field no slice fills", () => {
+  const f = fixture()
+  const Created = m.event({ id: z.string(), name: z.string(), extra: z.string().optional() })
+  const exports = { ...f, Created }
+  const slices = () => [create(exports), project(exports), view(f)]
+  const message =
+    "Created.extra is never filled by any slice. Add extra to a command that records Created, or set it in a mapping."
+  assert.throws(() => assembled(exports, slices()), { message })
+  const json = assembleModules(
+    [{ ...exports, ...chapters({ Ch: slices() }), default: m.model("x") }],
+    {
+      partial: true,
+    },
+  )
+  assert.deepEqual(json.warnings, [{ message, element: "Created" }])
+})
+
 test("a mapping function fills what the command does not carry", () => {
   const f = fixture()
   const Created = m.event({ id: z.string(), name: z.string(), extra: z.string() })

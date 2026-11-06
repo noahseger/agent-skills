@@ -158,6 +158,9 @@ m.slice().command(AddItem, ItemAdded((c) => ({ title: c.text }))).event(ItemAdde
 m.slice().command(AddItem, ItemAdded((c) => ({ listId: c.listId })))
 
 m.slice().command(AddItem, ItemAdded((c) => ({ title: c.text })))
+// An optional field may go unfilled in one slice; assembly checks that another fills it.
+const ItemShared = m.event({ listId: z.string(), title: z.string().optional() })
+m.slice().command(CreateList, ItemShared)
 // generate() fills the field the command lacks.
 m.slice().command(AddItem, ItemAdded((c, { generate }) => ({ title: generate() })))
 // generate() says what the value is made from: the command's fields, and the read models the slice reads.
@@ -206,6 +209,8 @@ m.slice().trigger(ListCreated, AddItem((e, { generate }) => ({ text: generate() 
 m.slice().trigger(ListCreated, AddItem((e) => ({ text: e.name })), ItemAdded)
 
 m.slice().trigger(ListCreated, AddItem((e) => ({ text: e.name })), ItemAdded((c) => ({ title: c.text })))
+// An automation's optional command field may go unfilled too.
+m.slice().trigger(ListCreated, m.command({ listId: z.string(), text: z.string().optional() }), ItemShared)
 m.slice().todoList(TodoList, AddItem((row) => ({ text: row.name })), ListCreated((c) => ({ name: c.text })))
 
 // --- a call ends in the external event that brings the data back -------------
