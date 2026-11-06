@@ -125,12 +125,13 @@ python event_model.py schema                   # Print JSON schema
 python event_model.py init <model.json>        # Create template
 ```
 
+### Naming
+
+Name events as facts, usually in the past tense (`OrderPlaced`), and commands as intents (`PlaceOrder`), in the domain's own words. A name the domain already uses, like `MenuReady`, beats a grammatical one. The tool does not check names.
+
 ### Schema Enforcement
 
 The tool validates these invariants automatically:
-- **Events must be past tense** (e.g. OrderPlaced, UserRegistered — not PlaceOrder)
-- **External events must be past tense** (e.g. ExternalPaymentReceived — not ExternalReceivePayment)
-- **Commands must be imperative** (e.g. PlaceOrder, RegisterUser — not OrderPlaced)
 - **Automations must have a trigger** — every gear is driven by an event (`trigger`) or a TODO-list read model (`polls`)
 - **GWT tests must include concrete example data** — real values like `userId=42, amount=59.98`
 - **Actor and aggregate references must exist** in the model's actor/aggregate lists

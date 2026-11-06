@@ -446,8 +446,8 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | An event a command lists that no specification's `then` shows | Each `.test()` is checked on its own, not against the slice's other specifications. |
 | A specification value that is not what flows in: from `when`, the trigger in `given`, or the events that build the row | Example values are data, not types. |
 
-`event_model.py` then checks the emitted JSON for what neither can: event names in the past tense,
-command names in the imperative, and example values that are not placeholders.
+`event_model.py` then checks the emitted JSON for what neither can: example values that are not
+placeholders. Naming is yours: the conventions above are not checked.
 
 ## Protobuf
 
