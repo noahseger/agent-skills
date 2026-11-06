@@ -381,7 +381,9 @@ const flows = (slice: SliceData): Flow[] => [
 /** The read models a flow's generated values are made from. */
 const generatedFrom = (flow: Flow): DeclData[] =>
   Object.values(flow.mapping).flatMap((s) =>
-    "generate" in s ? s.generate.filter((i) => typeof i !== "string") : [],
+    "generate" in s
+      ? s.generate.filter((i): i is DeclData => typeof i !== "string" && i.kind === "readModel")
+      : [],
   )
 
 /**
@@ -403,7 +405,11 @@ function checkGenerated({ slice, where }: Located, fail: Fail): void {
         })
       }
       for (const input of "generate" in s ? s.generate : [])
-        if (typeof input !== "string" && !slice.readModels.includes(input))
+        if (
+          typeof input !== "string" &&
+          input.kind === "readModel" &&
+          !slice.readModels.includes(input)
+        )
           fail({
             message: `${where}: ${target} is generated from ${input.name}, which this slice doesn't read yet. Add .readModel(${input.name}).`,
             element: input.name ?? "",
@@ -672,7 +678,7 @@ function source(
   if (s === undefined) return undefined
   if ("value" in s)
     return { value: s.value, says: `${flow.decl.name}'s mapping sets ${show(s.value)}` }
-  if (!("from" in s)) return undefined
+  if ("generate" in s) return { value: undefined, says: `${flow.decl.name} generates ${field}` }
   const value = example.data[s.from]
   const renamed = s.from === field ? "" : `${s.from} `
   return { value, says: `${has} ${renamed}${show(value)}` }
@@ -683,7 +689,7 @@ function project(
   readModel: DeclData,
   flows: Flow[],
   given: ExampleData[],
-): { values: Record<string, Expected>; counts: Map<DeclData, number> }[] {
+): { values: Record<string, Expected> }[] {
   const rows: ReturnType<typeof project> = []
   for (const g of given) {
     const flow = flows.find((f) => f.decl === g.decl)
@@ -699,16 +705,10 @@ function project(
       keys.every((k) => isDeepStrictEqual(r.values[k]?.value, values[k]?.value)),
     )
     if (matched.length === 0) {
-      matched = [{ values: {}, counts: new Map() }]
+      matched = [{ values: {} }]
       rows.push(...matched)
     }
-    for (const row of matched) {
-      Object.assign(row.values, values)
-      const n = (row.counts.get(g.decl) ?? 0) + 1
-      row.counts.set(g.decl, n)
-      for (const [column, s] of Object.entries(flow.mapping))
-        if ("count" in s) row.values[column] = { value: n, says: `given has ${n} ${g.decl.name}` }
-    }
+    for (const row of matched) Object.assign(row.values, values)
   }
   return rows
 }

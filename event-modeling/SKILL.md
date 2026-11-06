@@ -128,7 +128,7 @@ The file is `{ "slices": [...] }`, validated by `ts/schema/eventmodeling.schema.
 - **External events**: `"context": "EXTERNAL"`, with `service` naming the system they come from. They have no `aggregate`; we never store them. A command's outbound event that is external is a call to that system.
 - **What a handler reads**: a read model with an `OUTBOUND` dependency on the command. One pointing at the processor is the automation's to-do list.
 - **Key columns**: `"idAttribute": true`. A list: `"cardinality": "List"`.
-- **Mapping**: a field filled by a renamed source gives the source field's name in `mapping`; `count()` is a tally of the event, `= 0` a constant, and `"generated": true` a value the handler assigns, such as an id or a clock.
+- **Mapping**: a field filled by a renamed source gives the source field's name in `mapping`; `= 0` is a constant, and `"generated": true` a value the handler assigns, such as an id or a clock.
 - **Specifications**: `given`, `when` and `then` steps, each with one example in `examples`. A refusal is a `SPEC_ERROR` step titled with the reason. A view's `when` is a `SPEC_COMMAND` step titled with its screen, holding the query's values; its `then`, `SPEC_READMODEL` rows.
 - **Notes**: an element's `description`.
 

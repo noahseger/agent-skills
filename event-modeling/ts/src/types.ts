@@ -111,12 +111,11 @@ export interface Warning {
 
 /**
  * Where a mapping function got one target field from. A generated value lists what it is made
- * from: source fields by name, read models by declaration, or, from JSON, by name. `built` marks one
- * the mapping computed instead of saying so, which is left to do.
+ * from: source fields by name, the source and read models by declaration, or, from JSON, by name.
+ * `built` marks one the mapping computed instead of saying so, which is left to do.
  */
 export type Source =
   | { from: string }
-  | { count: true }
   | { generate: (string | DeclData)[]; built?: "string" | "number" }
   | { value: unknown }
 

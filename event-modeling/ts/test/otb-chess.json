@@ -3934,7 +3934,7 @@
             {
               "name": "illegalMoveCount",
               "type": "Int",
-              "mapping": "IllegalMoveRuled: count()"
+              "mapping": "IllegalMoveRuled: generate(IllegalMoveRuled)"
             }
           ],
           "dependencies": [

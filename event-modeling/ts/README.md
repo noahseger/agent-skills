@@ -34,8 +34,8 @@ import { m, z } from "@noahseger/event-modeling"
 
 A slice starts with what starts it. `m.` names what you declare, and every call of a slice's chain
 names the elements it takes, so both are nouns: `m.command`, `.command()`, `.event()`,
-`.readModel()`, `.actor()`. Only a mapping's helpers are verbs, because they do something:
-`count`, `generate`.
+`.readModel()`, `.actor()`. Only a mapping's helper is a verb, because it does something:
+`generate`.
 
 Your own names follow the practice: events in the past tense (`NoteCreated`), commands in the
 imperative (`CreateNote`), read models as nouns (`Inbox`). Everything you declare, chapters
@@ -221,7 +221,7 @@ export const Views = m.chapter()
 m.slice()
   .projection(TodoList, ListCreated(() => ({ itemCount: 0, status: "open" })))
   .chapter(Views)
-  .event(ItemAdded((e, { count }) => ({ itemCount: count(e) })))
+  .event(ItemAdded((e, { generate }) => ({ itemCount: generate(e) })))
   .event(ListCompleted(() => ({ status: "completed" })))
   .event(ListDeleted(() => ({ status: "deleted" })))
 
@@ -234,8 +234,8 @@ m.slice()
 ```
 
 `ListCreated` carries `userId`, `listId` and `name`, so those columns fill themselves. The function
-sets the two it does not carry; in a projection its argument is the event. `count(e)`, from the
-function's second argument, is the number of `ItemAdded` events seen for the row.
+sets the two it does not carry; in a projection its argument is the event. `generate(e)`, from the
+function's second argument, says the count is made from the `ItemAdded` events seen for the row.
 
 An event finds its row by the key columns it carries. `ItemAdded` carries `listId` and not `userId`,
 so this projection fails at assembly. Add `userId` to the event, or make `listId` the only key.
@@ -343,9 +343,8 @@ view has a specification. Until then the model is unfinished. A `given` may also
 the history that shaped the state.
 
 A specification must agree with its slice's wiring. A value copied or mapped from the command, the
-trigger or a given event must equal the value there; a constant the mapping sets, the constant; a
-`count()`, the number of those events in `given`. A `generate()` field, and any field of an
-external event, may be anything. A disagreement names the spec, the field and both values.
+trigger or a given event must equal the value there; a constant the mapping sets, the constant. A
+`generate()` field, and any field of an external event, may be anything. A disagreement names the spec, the field and both values.
 
 A view's `given` builds the rows through every projection of the read models it shows. Each row in
 `then` must be one of them, matched by its key columns, with the values they have. A row built and
@@ -490,7 +489,7 @@ The compiler catches:
 |---|---|
 | any reference | An unknown actor, event, command, read model, screen or service cannot be written, because references are values, not strings. |
 | the chain | Only a legal chain compiles; each start offers only its own steps. A slice missing part of its pattern is an error where it is written: `Expected 2 arguments, but got 1`, beside which the editor names the missing argument, such as `event`. |
-| a function | Its argument is the slice's source: the command for a handler's event, the trigger event or the to-do row for an automation's command, the event in a projection. Its result must be fields of the target, with matching types. Its second argument holds only the helpers that apply: `generate` where a handler records an event, `count` in a projection. |
+| a function | Its argument is the slice's source: the command for a handler's event, the trigger event or the to-do row for an automation's command, the event in a projection. Its result must be fields of the target, with matching types. Its second argument holds `generate`, except for an automation's command. |
 | a command's event | Every event field the command lacks must be set by the function, or marked `generate()`, unless it is optional. The error names the fields. |
 | a function outside a slice | A mapper only works inside a slice: `.event(...)`, `.command(...)` or a projection. The error says so. |
 | an automation's command | Every command field the trigger, or the to-do row, lacks must be set by the function, unless it is optional. The error names the fields. |
@@ -548,7 +547,7 @@ written by hand can do the same, and the viewer draws it.
 
 | What | Where |
 |---|---|
-| where a mapped field's value comes from | the field's `mapping`: the source field's name, `count()`, or `= ` and a JSON value. A value the handler makes is `generated: true`, and its `mapping` lists what it is made from, comma-separated: source fields and read models, as `pageId, Pages`; made from nothing, it has no `mapping`. A read model built from several events maps a column once per event, one line each: `ItemAdded: count()` |
+| where a mapped field's value comes from | the field's `mapping`: the source field's name, or `= ` and a JSON value. A value the handler makes is `generated: true`, and its `mapping` lists what it is made from, comma-separated: source fields and read models, as `pageId, Pages`; made from nothing, it has no `mapping`. A read model built from several events maps a column once per event, one line each, a generated one as `ItemAdded: generate(ItemAdded)` |
 | a system we do not own | its events have `context: "EXTERNAL"`, and `service` names the system. No `aggregate`: we never store them |
 | a call to one | the external event among the command's outbound events |
 | outcomes that are alternatives | no field: a command's outbound events are what it can record, and each specification's `then` says which it did |

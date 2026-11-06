@@ -65,7 +65,13 @@ const slices = [
       OrderPlaced(() => ({ lines: [], payments: 0, status: "open" })),
     )
     .chapter(Sales)
-    .event(PaymentRecorded((e, { count }) => ({ product: "", payments: count(e), status: "paid" })))
+    .event(
+      PaymentRecorded((e, { generate }) => ({
+        product: "",
+        payments: generate(e),
+        status: "paid",
+      })),
+    )
     .event(OrderRefused(() => ({ product: "", lines: [], payments: 0, status: "refused" }))),
   m
     .slice()
@@ -155,7 +161,7 @@ test("a state change: a screen per slice, the endpoint on the command, events in
   assert.deepEqual(place.storylines?.[0]?.title, "The till takes the order.")
 })
 
-test("a mapping says where each field comes from: a field, generated, count(), or = a value", () => {
+test("a mapping says where each field comes from: a field, generated, or = a value", () => {
   const placed = place?.events[0]?.fields
   assert.deepEqual(placed, [
     { name: "orderId", type: "String" },
@@ -179,7 +185,7 @@ test("a mapping says where each field comes from: a field, generated, count(), o
   })
   assert.equal(
     columns.payments?.mapping,
-    "OrderPlaced: = 0\nPaymentRecorded: count()\nOrderRefused: = 0",
+    "OrderPlaced: = 0\nPaymentRecorded: generate(PaymentRecorded)\nOrderRefused: = 0",
   )
   const board = read(feed)
   const slice = (i: number) => board.chapters.flatMap((c) => c.slices)[i]
@@ -188,7 +194,7 @@ test("a mapping says where each field comes from: a field, generated, count(), o
   })
   assert.deepEqual(slice(1)?.mapping?.PaymentRecorded, {
     product: { value: "" },
-    payments: { count: true },
+    payments: { generate: ["PaymentRecorded"] },
     status: { value: "paid" },
   })
 })
