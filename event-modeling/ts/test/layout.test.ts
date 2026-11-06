@@ -368,6 +368,41 @@ test("a call's external event is drawn in the system's lane, and a later trigger
   assert.equal(later.canonical, first.id)
 })
 
+test("a command's outcomes stand side by side in their lane, each joined to the command", () => {
+  const both = layout({
+    name: "x",
+    description: "",
+    actors: [{ id: "user", name: "User", type: "user" }],
+    aggregates: [{ id: "notes", name: "Notes" }],
+    chapters: [
+      {
+        name: "Ch",
+        slices: [
+          {
+            name: "SyncNote",
+            actor: "user",
+            aggregate: "notes",
+            command: "SyncNote(noteId)",
+            events: ["NoteSynced(noteId)", "SyncFailed(noteId, reason)"],
+            tests: [],
+          },
+        ],
+      },
+    ],
+    notes: {},
+  })
+  const [synced, failed] = both.boxes.filter((b) => b.kind === "event")
+  const command = both.boxes.find((b) => b.kind === "command")
+  const column = both.columns[0]
+  assert.ok(synced && failed && command && column)
+  assert.equal(synced.y, failed.y)
+  assert.ok(synced.x + synced.w < failed.x, "apart, left to right")
+  assert.ok(synced.x >= column.x && failed.x + failed.w <= column.x + column.w)
+  assert.equal(command.x + command.w / 2, column.x + column.w / 2, "the command is centred above")
+  for (const outcome of [synced, failed])
+    assert.ok(both.edges.some((e) => e.from === command.id && e.to === outcome.id))
+})
+
 test("a long value wraps inside its specification card", () => {
   const fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
   const copy: ModelJson = JSON.parse(JSON.stringify(model))

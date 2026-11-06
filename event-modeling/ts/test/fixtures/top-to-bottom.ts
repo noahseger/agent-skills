@@ -18,7 +18,16 @@ export const Inbox = m.readModel({
 })
 
 const Capture = [
-  m.slice().command(CreateNote).event(NoteCreated).actor(Writer).service(NoteService),
+  m
+    .slice()
+    .command(CreateNote)
+    .event(NoteCreated)
+    .actor(Writer)
+    .service(NoteService)
+    .test("A note lands in the inbox", {
+      when: CreateNote({ noteId: "note-1", text: "Call the plumber" }),
+      then: NoteCreated({ noteId: "note-1", text: "Call the plumber" }),
+    }),
   m
     .slice()
     .projection(Inbox)
@@ -30,7 +39,16 @@ export const FileNote = m.command({ noteId: z.string() })
 export const NoteFiled = m.event({ noteId: z.string() }).stream(Notes)
 
 const Filing = [
-  m.slice().command(FileNote).event(NoteFiled).actor(Writer).service(NoteService),
+  m
+    .slice()
+    .command(FileNote)
+    .event(NoteFiled)
+    .actor(Writer)
+    .service(NoteService)
+    .test("The writer files a note", {
+      when: FileNote({ noteId: "note-1" }),
+      then: NoteFiled({ noteId: "note-1" }),
+    }),
   m
     .slice()
     .projection(Inbox)

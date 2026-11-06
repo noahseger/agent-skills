@@ -205,6 +205,7 @@ function check(
   for (const at of located) {
     checkFilled(at, columns, fail)
     checkKeys(at, fail)
+    checkOutcomes(at, fail)
   }
   checkConnected(located, columns, fail)
   checkMethods(located)
@@ -351,6 +352,22 @@ function checkKeys({ slice, where }: Located, fail: Fail): void {
         slice: slice.name ?? "",
       })
     }
+  }
+}
+
+/** A command's events are alternatives, and only a specification says when each happens. */
+function checkOutcomes({ slice, where }: Located, fail: Fail): void {
+  if (!slice.command || slice.projection) return
+  const shown = new Set(
+    slice.tests.flatMap((t) => t.then.flatMap((c) => ("decl" in c ? [c.decl] : []))),
+  )
+  for (const { decl } of slice.events) {
+    if (!shown.has(decl))
+      fail({
+        message: `${where}: no specification shows ${decl.name} yet. Add a .test whose then has ${decl.name}(...).`,
+        element: decl.name ?? "",
+        slice: slice.name ?? "",
+      })
   }
 }
 

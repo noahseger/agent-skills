@@ -353,6 +353,14 @@ function labelOf(s: SliceJson): string {
   return "slice"
 }
 
+/** A command's events are alternatives, so they stand side by side in their lane, and widen it. */
+function columnWidth(s: SliceJson): number {
+  const perSystem = new Map<string, number>()
+  for (const c of s.calls ?? []) perSystem.set(c.actor, (perSystem.get(c.actor) ?? 0) + 1)
+  const beside = Math.max(1, s.events?.length ?? 0, ...perSystem.values())
+  return COL_W + (beside - 1) * (CARD_W + STACK_GAP)
+}
+
 export function layout(model: ModelJson): Layout {
   // A `reads` entry is a name. Its fields come from where the read model is drawn in full.
   const registry = new Map<string, Element>()
@@ -381,6 +389,7 @@ export function layout(model: ModelJson): Layout {
     if (ci > 0) x += CHAPTER_GAP
     const start = x
     for (const slice of chapter.slices) {
+      const w = columnWidth(slice)
       columns.push({
         index: columns.length,
         chapter: ci,
@@ -390,9 +399,9 @@ export function layout(model: ModelJson): Layout {
         noted: slice.note !== undefined,
         warned: warnedSlices.has(slice.name),
         x,
-        w: COL_W,
+        w,
       })
-      x += COL_W
+      x += w
     }
     if (chapter.slices.length === 0) x += COL_W
     // Assembly leaves the slices in no chapter yet in a nameless one, last.
@@ -454,6 +463,7 @@ export function layout(model: ModelJson): Layout {
     } = {},
   ): Placed => {
     const key = `${kind === "external" ? "event" : kind}:${el.name}`
+    const colW = columns[column]?.w ?? COL_W
     const earlier = extra.reference ? undefined : first.get(key)
     const box: Placed = {
       id: `b${next++}`,
@@ -476,7 +486,7 @@ export function layout(model: ModelJson): Layout {
       ...(model.notes[el.name] === undefined ? {} : { noted: true }),
       ...(warnedElements.has(el.name) ? { warned: true } : {}),
       column,
-      dx: extra.reference ? COL_W - 10 - REF_W : PAD_X,
+      dx: extra.reference ? colW - 10 - REF_W : (colW - CARD_W) / 2,
       w: extra.reference ? REF_W : CARD_W,
       h: 0,
     }
@@ -485,12 +495,20 @@ export function layout(model: ModelJson): Layout {
     return box
   }
 
-  // Each row is as tall as its tallest stack of cards.
-  const slots = new Map<string, Placed[][]>()
-  const into = (slot: string, column: number, box: Placed) => {
-    const stacks = slots.get(slot) ?? columns.map((): Placed[] => [])
+  // Each row is as tall as its tallest stack of cards. A stack is tiers, each of cards side by side.
+  const slots = new Map<string, Placed[][][]>()
+  const into = (slot: string, column: number, ...tier: Placed[]) => {
+    if (tier.length === 0) return
+    const stacks = slots.get(slot) ?? columns.map((): Placed[][] => [])
     slots.set(slot, stacks)
-    stacks[column]?.push(box)
+    if (tier.length > 1) {
+      const room = columns[column]?.w ?? COL_W
+      const start = (room - tier.length * CARD_W - (tier.length - 1) * STACK_GAP) / 2
+      tier.forEach((b, j) => {
+        b.dx = start + j * (CARD_W + STACK_GAP)
+      })
+    }
+    stacks[column]?.push(tier)
   }
   const edges: Edge[] = []
   const edge = (from: Placed, to: Placed, dashed = false) =>
@@ -569,17 +587,19 @@ export function layout(model: ModelJson): Layout {
     for (const ev of s.events ?? []) {
       const box = make(i, "event", parse(ev))
       events.push(box)
-      into(`stream:${s.aggregate}`, i, box)
       const seen = eventBoxes.get(box.name) ?? []
       seen.push(box)
       eventBoxes.set(box.name, seen)
     }
+    into(`stream:${s.aggregate}`, i, ...events)
     // The external event a call ends in, in its system's lane.
-    for (const call of s.calls ?? []) {
-      const box = make(i, "external", parse(call.event))
-      calls.push(box)
-      into(`actor:${call.actor}`, i, box)
-      useActor(call.actor)
+    for (const actor of new Set((s.calls ?? []).map((c) => c.actor))) {
+      const ended = (s.calls ?? [])
+        .filter((c) => c.actor === actor)
+        .map((c) => make(i, "external", parse(c.event)))
+      calls.push(...ended)
+      into(`actor:${actor}`, i, ...ended)
+      useActor(actor)
     }
 
     if (command) for (const ui of uis) edge(ui, command)
@@ -634,19 +654,22 @@ export function layout(model: ModelJson): Layout {
   }
   edges.push(...crossing)
 
-  const stackHeight = (stack: Placed[]) =>
-    stack.reduce((sum, b) => sum + b.h, 0) + Math.max(0, stack.length - 1) * STACK_GAP
+  const tierHeight = (tier: Placed[]) => Math.max(0, ...tier.map((b) => b.h))
+  const stackHeight = (stack: Placed[][]) =>
+    stack.reduce((sum, tier) => sum + tierHeight(tier), 0) +
+    Math.max(0, stack.length - 1) * STACK_GAP
   const slotHeight = (slot: string) =>
     Math.max(0, ...(slots.get(slot) ?? []).map((stack) => stackHeight(stack)))
 
   const rows: Row[] = []
   const boxes: Box[] = []
-  const place = (slot: string, top: (stack: Placed[]) => number) => {
+  const place = (slot: string, top: number) => {
     for (const stack of slots.get(slot) ?? []) {
-      let y = top(stack)
-      for (const { dx, ...b } of stack) {
-        boxes.push({ ...b, x: (columns[b.column]?.x ?? 0) + dx, y })
-        y += b.h + STACK_GAP
+      let y = top
+      for (const tier of stack) {
+        for (const { dx, ...b } of tier)
+          boxes.push({ ...b, x: (columns[b.column]?.x ?? 0) + dx, y })
+        y += tierHeight(tier) + STACK_GAP
       }
     }
   }
@@ -673,7 +696,7 @@ export function layout(model: ModelJson): Layout {
           : "Actor"
     rows.push({ id: slot, label, sub, kind: "actor", y, h })
     const top = y + LANE_PAD
-    place(slot, () => top)
+    place(slot, top)
     y += h
   }
 
@@ -682,9 +705,9 @@ export function layout(model: ModelJson): Layout {
   const middleH = LANE_PAD + topH + (topH > 0 && bottomH > 0 ? SLOT_GAP : 0) + bottomH + LANE_PAD
   rows.push({ id: "middle", label: "", kind: "middle", y, h: middleH })
   const topEnd = y + LANE_PAD + topH
-  place("middle:top", () => y + LANE_PAD)
+  place("middle:top", y + LANE_PAD)
   const bottomTop = topEnd + (topH > 0 && bottomH > 0 ? SLOT_GAP : 0)
-  place("middle:bottom", () => bottomTop)
+  place("middle:bottom", bottomTop)
   y += middleH
 
   const channelTop = y
@@ -695,7 +718,7 @@ export function layout(model: ModelJson): Layout {
     const h = Math.max(slotHeight(slot), COMPACT_H) + 2 * LANE_PAD
     rows.push({ id: slot, label: words(agg.name), sub: "Stream", kind: "stream", y, h })
     const top = y + LANE_PAD
-    place(slot, () => top)
+    place(slot, top)
     y += h
   }
 
@@ -749,7 +772,7 @@ export function layout(model: ModelJson): Layout {
       const spec: Spec = {
         column: col.index,
         title,
-        x: col.x + PAD_X,
+        x: col.x + (col.w - CARD_W) / 2,
         y: sy,
         w: CARD_W,
         h: 0,
