@@ -109,6 +109,7 @@ function usedEarly(d: Diagnostic): string[] {
 }
 
 const MISSING = /"add to the ([\w -]+) or set in the mapping": ("\w+"(?: \| "\w+")*)/
+const OUTSIDE = /"(a mapper only works inside a slice[^"]*)"/
 const UNSET = /Property '(\w+)' is missing in type '.*' but required in type 'Pick</
 const LAST_OVERLOAD = "The last overload gave the following error."
 
@@ -122,6 +123,8 @@ function describe(d: Diagnostic, text: string, file: string): string {
     const fields = [...missing[2].matchAll(/"(\w+)"/g)].map((f) => f[1])
     return `${at(d.pos)}${text.slice(d.pos, d.end)}: add ${fields.join(", ")} to the ${missing[1]} or set it in the mapping`
   }
+  const outside = lines.map((l) => l.match(OUTSIDE)?.[1]).find((m) => m !== undefined)
+  if (outside) return `${at(d.pos)}${outside}`
   const unset = lines.map((l) => l.match(UNSET)?.[1]).find((f) => f !== undefined)
   if (unset) return `${at(d.pos)}the mapping must set ${unset}`
   // Two events in one call: `.event(A, B)`.

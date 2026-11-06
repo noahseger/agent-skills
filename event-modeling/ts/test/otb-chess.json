@@ -559,12 +559,14 @@
             {
               "name": "whiteTimeMs",
               "type": "Int",
-              "generated": true
+              "generated": true,
+              "mapping": "baseMinutes"
             },
             {
               "name": "blackTimeMs",
               "type": "Int",
-              "generated": true
+              "generated": true,
+              "mapping": "baseMinutes"
             },
             {
               "name": "runningSide",
@@ -4415,7 +4417,8 @@
             {
               "name": "result",
               "type": "String",
-              "generated": true
+              "generated": true,
+              "mapping": "termination, GameState"
             },
             {
               "name": "termination",
@@ -4756,7 +4759,8 @@
             {
               "name": "result",
               "type": "String",
-              "generated": true
+              "generated": true,
+              "mapping": "offendingSide"
             },
             {
               "name": "termination",

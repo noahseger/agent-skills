@@ -10,6 +10,7 @@ import {
   type DeclData,
   type Fields,
   type Flow,
+  inputNames,
   recorded,
   type SliceData,
   type Source,
@@ -178,7 +179,7 @@ function fieldsOf(fields: Fields, keys: string[] = []): SpecField[] {
   })
 }
 
-/** `count()`, `= <JSON>`, or the source field's name; a generated field has none. */
+/** `count()`, `= <JSON>`, or the source field's name; a generated field lists its inputs instead. */
 function mappingOf(source: Source): string | undefined {
   if ("from" in source) return source.from
   if ("count" in source) return "count()"
@@ -191,7 +192,10 @@ function mappedFields(decl: DeclData, mapping: Record<string, Source> = {}): Spe
   return fieldsOf(decl.fields, decl.keys).map((f) => {
     const source = mapping[f.name]
     if (!source) return f
-    if ("generate" in source) return { ...f, generated: true }
+    if ("generate" in source) {
+      const inputs = inputNames(source)
+      return { ...f, generated: true, ...(inputs.length > 0 && { mapping: inputs.join(", ") }) }
+    }
     return { ...f, mapping: mappingOf(source) ?? "" }
   })
 }

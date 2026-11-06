@@ -252,6 +252,7 @@ m.slice().command(Sync)
 export const Retry = m.command({ id: z.string() })
 export const Retried = m.event({ id: z.string() })
 export const Later = m.chapter()
+Synced((e, { generate }) => ({ id: generate(e.id) }))
 export default m.model("x")
 `,
   )
@@ -266,6 +267,7 @@ export default m.model("x")
         "  index.ts:6  Argument of type 'string' is not assignable to parameter of type 'Stream'.",
         "  index.ts:11  .event() takes one event. To record Failed too, chain .event(Failed).",
         "  index.ts:12  Expected 2 arguments, but got 1. An argument for 'event' was not provided.",
+        "  index.ts:16  a mapper only works inside a slice: .event(...), .command(...) or a projection",
         "",
       ].join("\n"),
     )
