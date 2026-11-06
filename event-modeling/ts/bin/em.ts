@@ -9,9 +9,10 @@
 //   export <path> -o out.html     one self-contained page of the model, for sharing
 //
 // <path> is a model directory or a single module. An assembly error stops every command.
+// `view` and `export` also take a spec JSON file, and list where it breaks the schema.
 import { execFile, spawn, spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, statSync, writeFileSync } from "node:fs"
-import { dirname, join } from "node:path"
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
+import { basename, dirname, extname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { parseArgs } from "node:util"
 
@@ -20,6 +21,8 @@ import { type Checker, COMPILER_OPTIONS, checker } from "../src/check.ts"
 import { exportHtml } from "../src/export.ts"
 import { generateProto } from "../src/proto.ts"
 import { type Snapshot, serve } from "../src/serve.ts"
+import type { SpecModel } from "../src/spec.ts"
+import { validate } from "../src/validate.ts"
 
 // Node 22 needs a flag to run TypeScript, so rerun with it. Node 23.6 does not.
 const STRIP = "--experimental-strip-types"
@@ -126,27 +129,51 @@ async function reload(path: string, types: Checker, cause = "Started"): Promise<
     assembleFresh(path),
     types.check().catch((e: unknown) => [`The type check stopped: ${String(e)}`]),
   ])
-  const stamp = new Date().toTimeString().slice(0, 8)
-  const took = `${Date.now() - started}ms`
   if (run.ok) {
     const feed = JSON.parse(run.stdout) as Feed
-    const warnings = mergeFindings(errors, feed.warnings ?? [])
-    const count = warnings.length
-    const summary =
-      count === 0
-        ? "Nothing left to do."
-        : count === 1
-          ? "1 thing left to do:"
-          : `${count} things left to do:`
-    console.log(`${stamp} ${cause} (${took}). ${summary}`)
-    for (const w of warnings) console.log(`  ${w.message}`)
-    return { json: JSON.stringify({ ...feed, warnings }) }
+    return report(cause, started, { ...feed, warnings: mergeFindings(errors, feed.warnings ?? []) })
   }
   // A compiler error says where and why; the JavaScript error it caused only says what broke.
-  const error = errors.length > 0 ? errors.join("\n") : (run.stderr || run.stdout).trimEnd()
-  console.log(`${stamp} ${cause} (${took}). The model didn't load:`)
-  console.log(error.replace(/^/gm, "  "))
-  return { error }
+  return failed(cause, started, errors.length > 0 ? errors.join("\n") : run.stderr || run.stdout)
+}
+
+/** A spec JSON file is drawn as it is; where it breaks the schema is left to do. */
+function readSpec(path: string): Feed {
+  const model: unknown = JSON.parse(readFileSync(path, "utf8"))
+  const warnings = validate(model).map((m) => ({ message: `${basename(path)}${m}`, element: "" }))
+  return { name: basename(path, ".json"), model: model as SpecModel, warnings }
+}
+
+async function reloadSpec(path: string, cause = "Started"): Promise<Snapshot> {
+  const started = Date.now()
+  try {
+    return report(cause, started, readSpec(path))
+  } catch (error) {
+    return failed(cause, started, error instanceof Error ? error.message : String(error))
+  }
+}
+
+const stamp = (cause: string, started: number) =>
+  `${new Date().toTimeString().slice(0, 8)} ${cause} (${Date.now() - started}ms).`
+
+/** Logs everything left to fix in one block. */
+function report(cause: string, started: number, feed: Feed): Snapshot {
+  const count = feed.warnings?.length ?? 0
+  const summary =
+    count === 0
+      ? "Nothing left to do."
+      : count === 1
+        ? "1 thing left to do:"
+        : `${count} things left to do:`
+  console.log(`${stamp(cause, started)} ${summary}`)
+  for (const w of feed.warnings ?? []) console.log(`  ${w.message}`)
+  return { json: JSON.stringify(feed) }
+}
+
+function failed(cause: string, started: number, error: string): Snapshot {
+  console.log(`${stamp(cause, started)} The model didn't load:`)
+  console.log(error.trimEnd().replace(/^/gm, "  "))
+  return { error: error.trimEnd() }
 }
 
 /**
@@ -168,6 +195,8 @@ function mergeFindings(errors: readonly string[], found: readonly Warning[]): Wa
   return [...compiled, ...rest]
 }
 
+const isSpec = (path: string) => extname(path) === ".json"
+
 function builtViewer(): void {
   if (!existsSync(join(VIEWER_DIST, "index.html")))
     throw new Error(`The viewer isn't built yet. Run \`npm run build\` in ${ROOT}.`)
@@ -175,18 +204,19 @@ function builtViewer(): void {
 
 async function exportPage(path: string, out: string): Promise<void> {
   builtViewer()
-  const json = JSON.stringify(await assemble(path, { partial: true }))
+  const feed = isSpec(path) ? readSpec(path) : await assemble(path, { partial: true })
+  const json = JSON.stringify(feed)
   writeFileSync(out, exportHtml(VIEWER_DIST, json))
   console.log(`Wrote ${out}`)
 }
 
 async function view(path: string): Promise<void> {
   builtViewer()
-  const types = checker(path)
+  const types = isSpec(path) ? undefined : checker(path)
   const server = await serve({
     dist: VIEWER_DIST,
     root: statSync(path).isDirectory() ? path : dirname(path),
-    load: (cause) => reload(path, types, cause),
+    load: (cause) => (types ? reload(path, types, cause) : reloadSpec(path, cause)),
     port: Number(values.port ?? 5311),
   })
   console.log(`Showing ${path} at ${server.url}. Press Ctrl-C to stop.`)

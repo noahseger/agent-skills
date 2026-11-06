@@ -332,3 +332,44 @@ test("a directory's dependencies, hidden files and .d.ts files are not the model
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+test("view and export draw a spec JSON file, and list where it breaks the schema", async () => {
+  const dir = mkdtempSync(here("../tmp-spec-"))
+  const file = join(dir, "shop.json")
+  try {
+    const json = JSON.parse(readFileSync(here("./todo-app.json"), "utf8"))
+    writeFileSync(file, JSON.stringify(json))
+    const server = await view(file)
+    try {
+      const fetched = async () =>
+        (await (await fetch(`${server.url}/model.json`)).json()) as {
+          name: string
+          model: unknown
+          warnings: { message: string }[]
+        }
+      const valid = await fetched()
+      assert.deepEqual([valid.name, valid.model, valid.warnings], ["shop", json, []])
+      await reloaded(server.url, () => {
+        json.slices[0].sliceType = "VIEW"
+        writeFileSync(file, JSON.stringify(json))
+      })
+      const broken = await fetched()
+      assert.deepEqual(
+        broken.warnings.map((w) => w.message),
+        [
+          "shop.json/slices/0/sliceType must be equal to one of the allowed values STATE_CHANGE, STATE_VIEW, AUTOMATION, TRANSLATION",
+        ],
+      )
+      assert.match(server.log(), /1 thing left to do:\n {2}shop\.json\/slices\/0\/sliceType/)
+    } finally {
+      server.close()
+    }
+    const run = em("export", file, "-o", join(dir, "shop.html"))
+    assert.equal(run.status, 0, run.stderr)
+    const html = readFileSync(join(dir, "shop.html"), "utf8")
+    assert.match(html, /<title>shop<\/title>/)
+    assert.match(html, /shop\.json\/slices\/0\/sliceType must be equal/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
