@@ -700,6 +700,30 @@ test("a slice in no chapter is drawn after the story", () => {
   )
 })
 
+test("a slice missing part of its core is drawn with the rest; strict assembly refuses it", () => {
+  const f = fixture()
+  // @ts-expect-error the compiler reports the missing event where the slice is written
+  const incomplete = m.slice().command(f.Create).actor(f.User)
+  const slices = [create(f), incomplete, project(f), view(f)]
+  const json = assembleModules([{ ...f, default: m.model("x", { chapters: { Ch: slices } }) }], {
+    partial: true,
+  })
+  assert.deepEqual(
+    json.chapters[0]?.slices.map((s) => [s.name, s.command, s.events]),
+    [
+      ["Create", "Create(id, name)", ["Created(id, name)"]],
+      ["Create", "Create(id, name)", undefined],
+      ["Table", undefined, undefined],
+      ["Get", undefined, undefined],
+    ],
+  )
+  assert.ok(layout(json).boxes.length > 0)
+  assert.throws(
+    () => assembled(f, slices),
+    /^Error: Ch › Create: this slice has no event yet\. Add it to the slice's first call\.$/,
+  )
+})
+
 test("a slice in no chapter is an error", () => {
   const f = fixture()
   view(f)

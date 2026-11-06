@@ -440,21 +440,32 @@ function chain(data: SliceData) {
 function slice(name?: string): SliceStart {
   const empty: SliceData = { actors: [], shows: [], readModels: [], events: [], tests: [] }
   if (name !== undefined) empty.name = name
-  // A command's events read the command; an automation's command reads what starts it.
-  const handled = (from: Partial<SliceData>, command: Used, event: Used, source?: Fields) => {
-    const issued = flow(command, source)
-    return chain({ ...empty, ...from, command: issued, events: [flow(event, issued.decl.fields)] })
+  // A command's events read the command; an automation's command reads what starts it. A missing
+  // argument is the compiler's error to report; the slice keeps what it has, so it is still drawn.
+  const handled = (from: Partial<SliceData>, command?: Used, event?: Used, source?: Fields) => {
+    const issued = command && flow(command, source)
+    const events = event ? [flow(event, issued?.decl.fields)] : []
+    return chain({ ...empty, ...from, ...(issued && { command: issued }), events })
   }
   const start = {
-    command: (command: Used, event: Used) => handled({}, command, event),
+    command: (command?: Used, event?: Used) => handled({}, command, event),
     view: (...readModels: ReadModelDecl[]) =>
       chain({ ...empty, shows: readModels.map((r) => r[META]) }),
-    trigger: (trigger: EventDecl, command: Used, event: Used) =>
-      handled({ trigger: trigger[META] }, command, event, trigger[META].fields),
-    todoList: (todoList: ReadModelDecl, command: Used, event: Used) =>
-      handled({ todoList: todoList[META] }, command, event, todoList[META].fields),
-    projection: (readModel: ReadModelDecl, event: Used) =>
-      chain({ ...empty, projection: readModel[META], events: [flow(event)] }),
+    trigger: (trigger?: EventDecl, command?: Used, event?: Used) =>
+      handled(trigger ? { trigger: trigger[META] } : {}, command, event, trigger?.[META].fields),
+    todoList: (todoList?: ReadModelDecl, command?: Used, event?: Used) =>
+      handled(
+        todoList ? { todoList: todoList[META] } : {},
+        command,
+        event,
+        todoList?.[META].fields,
+      ),
+    projection: (readModel?: ReadModelDecl, event?: Used) =>
+      chain({
+        ...empty,
+        ...(readModel && { projection: readModel[META] }),
+        events: event ? [flow(event)] : [],
+      }),
   }
   return start as unknown as SliceStart
 }
