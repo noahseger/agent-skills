@@ -14,6 +14,7 @@ const AddItem = m.command({ listId: z.string(), text: z.string() })
 const ItemAdded = m.event({ listId: z.string(), title: z.string() })
 const TodoList = m.readModel({ listId: m.key(z.string()), name: z.string(), itemCount: z.number().int() })
 const NameList = m.command({ listId: z.string(), name: z.string() })
+const Lock = m.screen()
 
 // --- any reference: a reference is a value, so a string is not one -----------
 
@@ -21,6 +22,9 @@ const NameList = m.command({ listId: z.string(), name: z.string() })
 m.slice().command(CreateList, ListCreated).actor("User")
 
 const Notes = m.stream()
+
+// @ts-expect-error "Lock" is a string, not a screen
+m.slice().command(CreateList, ListCreated).actor(User).screen("Lock")
 
 // @ts-expect-error "Notes" is a string, not a stream, so a typo cannot make a lane
 m.event({ noteId: z.string() }).stream("Notes")
@@ -102,6 +106,9 @@ m.slice().view(TodoList).event(ListCreated)
 // @ts-expect-error a view issues no command
 m.slice().view(TodoList).command(CreateList, ListCreated)
 
+// @ts-expect-error an automation has no screen: no one sees it
+m.slice().trigger(ListCreated, NameList, ListCreated).screen(Lock)
+
 // @ts-expect-error a projection has no actor
 m.slice().projection(TodoList, ListCreated).actor(User)
 
@@ -118,10 +125,10 @@ m.slice().command(CreateList, ListCreated).command(AddItem, ItemAdded)
 m.model("x", { chapters: { Ch: [
   m.slice().command(CreateList, ListCreated),
   m.slice().command(CreateList, ListCreated).readModel(TodoList).actor(User, Admin).service(TodoService),
-  m.slice().command(CreateList, ListCreated).actor(User).service(TodoService, "StartList"),
+  m.slice().command(CreateList, ListCreated).actor(User).screen(Lock).service(TodoService, "StartList"),
   m.slice().view(TodoList),
   m.slice().view(TodoList, TodoList).query({ listId: z.string() }).actor(User),
-  m.slice().view(TodoList).actor(User).service(TodoService, "GetList"),
+  m.slice().view(TodoList).actor(User).screen(Lock).service(TodoService, "GetList"),
   m.slice().trigger(ListCreated, NameList, ListCreated),
   m.slice().todoList(TodoList, NameList, ListCreated).readModel(TodoList),
   m.slice().projection(TodoList, ListCreated),

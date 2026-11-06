@@ -514,6 +514,51 @@ test("a stream no event joins is an empty lane", () => {
   )
 })
 
+test("slices on one screen draw it, titled with its name, in the actor's lane", () => {
+  const f = fixture()
+  const Lock = m.screen()
+  const json = assembled({ ...f, Lock }, [create(f).screen(Lock), project(f), view(f).screen(Lock)])
+  assert.deepEqual(
+    json.chapters[0]?.slices.map((s) => s.screen),
+    ["Lock", undefined, "Lock"],
+  )
+  const screens = layout(json).boxes.filter((b) => b.kind === "ui")
+  assert.deepEqual(
+    screens.map((b) => b.name),
+    ["Lock", "Lock"],
+  )
+  validate(json)
+})
+
+test("a screen no one sees, and one no slice names, are left to do", () => {
+  const f = fixture()
+  const [Lock, Home] = [m.screen(), m.screen()]
+  const unseen = m
+    .slice()
+    .command(f.Create, f.Created)
+    .screen(Lock)
+    .test("A list is created", { when: f.Create(list), then: f.Created(list) })
+  const json = assembleModules(
+    [
+      {
+        ...f,
+        Lock,
+        Home,
+        default: m.model("x", { chapters: { Ch: [unseen, project(f), view(f)] } }),
+      },
+    ],
+    { partial: true },
+  )
+  assert.deepEqual(json.warnings, [
+    {
+      message: "Ch › Create: no one sees Lock yet. Add .actor() for who does.",
+      element: "Lock",
+      slice: "Create",
+    },
+    { message: "Home isn't in a slice yet.", element: "Home" },
+  ])
+})
+
 test("two projection slices of one read model fill each other's columns", () => {
   const f = fixture()
   const Table = m.readModel({ id: m.key(z.string()), name: z.string(), status: z.string() })

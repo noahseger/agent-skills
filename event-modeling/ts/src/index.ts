@@ -19,6 +19,7 @@ import {
   type MappedData,
   META,
   type ModelData,
+  type ScreenData,
   type ServiceData,
   type SliceData,
   type Source,
@@ -210,6 +211,23 @@ function service(pkg: string): Service {
   }
 }
 
+export interface Screen {
+  readonly [META]: ScreenData
+  note(text: string): Screen
+}
+
+/** What an actor sees a slice on, named by its export. Several slices can share one. */
+function screen(): Screen {
+  const data: ScreenData = { kind: "screen" }
+  return {
+    [META]: data,
+    note(text) {
+      data.note = text
+      return this
+    },
+  }
+}
+
 export interface Stream {
   readonly [META]: StreamData
 }
@@ -343,6 +361,8 @@ export interface View extends Slice {
   /** The request fields; without them the request is empty. */
   query(fields: Fields): View
   actor(...actors: Actors): View
+  /** Where the actors see it; without one, the read model's table is drawn as their screen. */
+  screen(screen: Screen): View
   /** A view has no command to name its method after. */
   service(service: Service, method: string): View
   note(text: string): View
@@ -354,6 +374,8 @@ export interface StateChange<C extends Fields, Em extends Fields> extends Slice 
   /** Another event the command can record instead. */
   event<E extends Fields>(event: Outcome<C, E>): StateChange<C, Em | E>
   actor(...actors: Actors): StateChange<C, Em>
+  /** Where the actors see it; without one, the command's form is drawn as their screen. */
+  screen(screen: Screen): StateChange<C, Em>
   /** The method is named after the command unless given. */
   service(service: Service, method?: string): StateChange<C, Em>
   test(name: string, spec: Spec<C, Em>): StateChange<C, Em>
@@ -422,6 +444,7 @@ function chain(data: SliceData) {
     query: (fields: Fields) => next({ query: fields }),
     actor: (...actors: Actor[]) =>
       next({ actors: [...data.actors, ...actors.map((a) => a[META])] }),
+    screen: (screen: Screen) => next({ screen: screen[META] }),
     service: (service: Service, method?: string) =>
       next({
         service:
@@ -487,6 +510,7 @@ function model(
 
 export const m = {
   actor,
+  screen,
   service,
   event,
   command,

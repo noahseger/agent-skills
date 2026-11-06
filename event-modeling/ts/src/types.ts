@@ -43,6 +43,11 @@ export interface ServiceData extends Named {
   note?: string
 }
 
+export interface ScreenData extends Named {
+  kind: "screen"
+  note?: string
+}
+
 export interface StreamData extends Named {
   kind: "stream"
   /** How many streams were declared before it. */
@@ -67,10 +72,17 @@ export interface ModelData {
   chapters: ChapterData[]
 }
 
-export type Exported = DeclData | ActorData | ServiceData | StreamData | ExternalData | ModelData
+export type Exported =
+  | DeclData
+  | ActorData
+  | ServiceData
+  | ScreenData
+  | StreamData
+  | ExternalData
+  | ModelData
 
 /** A named thing a module exports, other than the model or a stream. */
-export type Declaration = DeclData | ActorData | ServiceData | ExternalData
+export type Declaration = DeclData | ActorData | ServiceData | ScreenData | ExternalData
 
 /** The named, checked model. The render target and the generators read this. */
 export interface Assembled {
@@ -135,6 +147,8 @@ export interface SliceData {
   note?: string
   /** Who issues the command or reads the view; each has a screen. */
   actors: ActorData[]
+  /** Where the actors see it. */
+  screen?: ScreenData
   service?: { service: ServiceData; method?: string }
   /** A view's request fields. */
   query?: Fields
