@@ -82,7 +82,7 @@ m.slice()
 m.slice()
   .projection(
     IllegalMoveTally,
-    IllegalMoveRuled((e, { count }) => ({ illegalMoveCount: count(e) })),
+    IllegalMoveRuled((e, { generate }) => ({ illegalMoveCount: generate(e) })),
   )
   .chapter(ArbiterRulings)
   .test("One ruling puts the offender on one illegal move", {

@@ -173,11 +173,11 @@ ItemAdded((c, { generate }) => ({ title: generate(c.text) }))
 ItemAdded(() => ({ itemCount: 0 }))
 m.slice().command(CreateList, ListCreated).event(ItemAdded((c) => ({ title: c.name })))
 
-// @ts-expect-error count applies to a projection, not where a handler records an event
-m.slice().command(AddItem, ItemAdded((c, { count }) => ({ title: "" })))
+// @ts-expect-error count is gone: a count is generate(e)
+m.slice().projection(TodoList, ListCreated((e, { count }) => ({ itemCount: count(e) })))
 
 // @ts-expect-error a mapping's helpers are its second argument, not on m
-m.count
+m.generate
 
 // @ts-expect-error title is a string
 m.slice().command(AddItem, ItemAdded((c) => ({ title: 42 })))
@@ -249,9 +249,6 @@ m.slice().trigger(ListCreated, "Archive", { listId: z.string() })
 
 // @ts-expect-error TodoList has no column done
 m.slice().projection(TodoList, ListCreated(() => ({ done: true })))
-
-// @ts-expect-error generate applies where a handler records an event, not to a projection
-m.slice().projection(TodoList, ListCreated((e, { generate }) => ({ itemCount: generate() })))
 
 // @ts-expect-error itemCount is a number
 m.slice().projection(TodoList, ListCreated(() => ({ itemCount: "0" })))
@@ -330,7 +327,7 @@ CreateList.with({ listId: "l-1" })
 create.test("x", { given: ListCreated({ listId: "l-1" }), when: CreateList({ listId: "l-2" }), then: [ListCreated({ listId: "l-2" })] })
 create.test("x", { given: [ListCreated({ listId: "l-1" })], when: CreateList({ listId: "l-1" }), reject: "nope" })
 m.slice().trigger(ListCreated, NameList, ListCreated).test("x", { given: ListCreated({ listId: "l-1" }), when: NameList({ listId: "l-1" }), then: ListCreated({ listId: "l-1" }) })
-m.slice().projection(TodoList, ListCreated(() => ({ itemCount: 0 }))).event(ItemAdded((e, { count }) => ({ itemCount: count(e), name: e.title })))
+m.slice().projection(TodoList, ListCreated(() => ({ itemCount: 0 }))).event(ItemAdded((e, { generate }) => ({ itemCount: generate(e), name: e.title })))
 inbox.test("x", { given: [ListCreated({ listId: "l-1", name: "a" }), ItemAdded({ listId: "l-1" })], when: { name: "a" }, then: [TodoList({ listId: "l-1" })] })
 m.slice().view(TodoList, Shelf).test("x", { then: [TodoList({ listId: "l-1" }), Shelf({ shelfId: "s-1" })] })
 m.event({ noteId: z.string() }).stream(Notes)

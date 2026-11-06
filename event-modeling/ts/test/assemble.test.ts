@@ -289,7 +289,7 @@ test("a mapper that builds a value is drawn, and is left to do until generate() 
         f.Create,
         Created((_, { generate }) => ({ label: generate("x"), size: 0 })),
       ),
-    /generate\(\) takes the source's fields and read models, such as generate\(e\.pageId, Pages\), not x\./,
+    /generate\(\) takes the source, its fields and read models, such as generate\(e\.pageId, Pages\), not x\./,
   )
 })
 
@@ -1462,7 +1462,7 @@ test("a projection's rows have what given builds, matched by key", () => {
       Lists,
       ListCreated((e) => ({ title: e.name, items: 0, status: "open" })),
     )
-    .event(ItemAdded((e, { count }) => ({ items: count(e) })))
+    .event(ItemAdded((e, { generate }) => ({ items: generate(e) })))
     .event(ListClosed(() => ({ status: "closed" })))
   const given = [
     ListCreated({ ...groceries, name: "Groceries" }),
@@ -1490,7 +1490,6 @@ test("a projection's rows have what given builds, matched by key", () => {
   assert.deepEqual(disagreements(exports, [wrong]), [
     'Ch › Lists › "disagrees": then has name "Chores", but ListCreated in given has "Groceries".',
     'Ch › Lists › "disagrees": then has title "Chores", but ListCreated in given has name "Groceries".',
-    'Ch › Lists › "disagrees": then has items 1, but given has 2 ItemAdded.',
     `Ch › Lists › "disagrees": then has status "closed", but ListCreated's mapping sets "open".`,
     `Ch › Lists › "disagrees": then has status "open", but ListClosed's mapping sets "closed".`,
   ])

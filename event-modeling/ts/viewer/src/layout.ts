@@ -7,7 +7,6 @@ import type { Board, BoardSlice } from "./board.ts"
 /** Where a mapped field got its value, as the detail panes show it. */
 export function source(s: Source): string {
   if ("from" in s) return `← ${s.from}`
-  if ("count" in s) return "count"
   if ("generate" in s) {
     const inputs = inputNames(s)
     return inputs.length > 0 ? `generated from ${inputs.join(", ")}` : "generated"

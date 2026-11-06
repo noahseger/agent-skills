@@ -46,13 +46,14 @@ function test(spec: SpecSlice["specifications"][number]): BoardTest {
 }
 
 /**
- * The grammar `spec.ts` writes: `count()`, `= <JSON>`, or a source field's name; a generated
- * field's, what it is made from, comma-separated.
+ * The grammar `spec.ts` writes: a source field's name, `= <JSON>`, or, per event in a projection,
+ * `generate(<inputs>)`; a generated field's, what it is made from, comma-separated.
  */
 function source(field: SpecField, text: string | undefined): Source | undefined {
   if (field.generated) return { generate: text ? text.split(", ") : [] }
   if (text === undefined) return undefined
-  if (text === "count()") return { count: true }
+  const generated = /^generate\((.*)\)$/.exec(text)
+  if (generated) return { generate: generated[1] ? generated[1].split(", ") : [] }
   if (text.startsWith("=")) {
     try {
       return { value: JSON.parse(text.slice(1)) }

@@ -179,12 +179,11 @@ function fieldsOf(fields: Fields, keys: string[] = []): SpecField[] {
   })
 }
 
-/** `count()`, `= <JSON>`, or the source field's name; a generated field lists its inputs instead. */
-function mappingOf(source: Source): string | undefined {
+/** The source field's name, `= <JSON>`, or `generate(<inputs>)`. */
+function mappingOf(source: Source): string {
   if ("from" in source) return source.from
-  if ("count" in source) return "count()"
   if ("value" in source) return `= ${JSON.stringify(source.value)}`
-  return undefined
+  return `generate(${inputNames(source).join(", ")})`
 }
 
 /** A declaration's fields, each with where the slice gets its value. */
@@ -196,7 +195,7 @@ function mappedFields(decl: DeclData, mapping: Record<string, Source> = {}): Spe
       const inputs = inputNames(source)
       return { ...f, generated: true, ...(inputs.length > 0 && { mapping: inputs.join(", ") }) }
     }
-    return { ...f, mapping: mappingOf(source) ?? "" }
+    return { ...f, mapping: mappingOf(source) }
   })
 }
 
@@ -205,8 +204,7 @@ function projectedFields(decl: DeclData, flows: Flow[]): SpecField[] {
   return fieldsOf(decl.fields, decl.keys).map((f) => {
     const lines = flows.flatMap(({ decl: event, mapping }) => {
       const source = mapping[f.name]
-      const text = source && mappingOf(source)
-      return text === undefined ? [] : [`${event.name}: ${text}`]
+      return source ? [`${event.name}: ${mappingOf(source)}`] : []
     })
     return lines.length > 0 ? { ...f, mapping: lines.join("\n") } : f
   })

@@ -1017,7 +1017,7 @@
             {
               "name": "itemCount",
               "type": "Int",
-              "mapping": "ListCreated: = 0\nItemAdded: count()"
+              "mapping": "ListCreated: = 0\nItemAdded: generate(ItemAdded)"
             },
             {
               "name": "status",

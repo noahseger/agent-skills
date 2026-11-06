@@ -50,7 +50,7 @@ m.slice()
     ListCreated(() => ({ itemCount: 0, status: "open" })),
   )
   .chapter(Views)
-  .event(ItemAdded((e, { count }) => ({ itemCount: count(e) })))
+  .event(ItemAdded((e, { generate }) => ({ itemCount: generate(e) })))
   .event(ListCompleted(() => ({ status: "completed" })))
   .event(ListDeleted(() => ({ status: "deleted" })))
   .test("A new list shows with no items", {

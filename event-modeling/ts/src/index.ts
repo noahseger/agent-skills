@@ -30,20 +30,14 @@ import {
 type Infer<F extends Fields> = { [P in keyof F]: z.infer<F[P]> }
 type OneOrMany<T> = T | readonly T[]
 
-/** What a function gets as its second argument where a command's handler fills an event. */
-export interface EmitHelpers {
+/** What a function gets as its second argument where a handler fills an event or a projection a row. */
+export interface Helpers {
   /**
-   * A value the handler makes: from the source's fields, such as `generate(c.title)`, and the read
-   * models the slice names with `.readModel()`, such as `generate(e.pageId, Pages)`; from nothing,
-   * `generate()`, it is an id or a clock.
+   * A value the handler makes: from the source, such as `generate(e)` for a count, its fields, such
+   * as `generate(c.title)`, and the read models the slice names with `.readModel()`, such as
+   * `generate(e.pageId, Pages)`; from nothing, `generate()`, it is an id or a clock.
    */
   generate<T>(...inputs: unknown[]): T
-}
-
-/** What a function gets as its second argument in a projection. */
-export interface ProjectionHelpers {
-  /** The number of the source's events seen for the row. */
-  count(source: object): number
 }
 
 /** An automation's command is filled from its trigger with no helpers. */
@@ -88,7 +82,7 @@ export type Place = Into<Fields, unknown> | Onto<Fields>
  */
 export type Mapper<F extends Fields, P> =
   P extends Onto<infer R>
-    ? (event: Infer<F>, helpers: ProjectionHelpers) => Partial<Infer<R>>
+    ? (event: Infer<F>, helpers: Helpers) => Partial<Infer<R>>
     : P extends Into<infer S, infer H>
       ? (source: Infer<S>, helpers: H) => Pick<Infer<F>, Unfilled<S, F>> & Partial<Infer<F>>
       : never
@@ -99,7 +93,7 @@ export type Mapper<F extends Fields, P> =
  */
 type SliceMapper = (
   source: Record<string, unknown>,
-  helpers: EmitHelpers & ProjectionHelpers,
+  helpers: Helpers,
 ) => {
   readonly "a mapper only works inside a slice: .event(...), .command(...) or a projection": never
 }
@@ -302,7 +296,7 @@ function chapter(): Chapter {
 
 // A mapping runs once, on probe values, to learn which source fills each field.
 const FIELD = Symbol("field")
-const COUNT = Symbol("count")
+const SOURCE = Symbol("source")
 const GENERATE = Symbol("generate")
 
 interface Probe {
@@ -321,19 +315,20 @@ function isGenerated(value: unknown): value is Generated {
   return typeof value === "object" && value !== null && GENERATE in value
 }
 
-/** A source field by its name, a read model by its declaration. */
+/** A source field by its name; the source, or a read model, by its declaration. */
 function input(value: unknown): string | DeclData {
   if (isProbe(value)) return value[FIELD]
+  const source = (value as { [SOURCE]?: DeclData } | undefined)?.[SOURCE]
+  if (source) return source
   const decl = (value as Partial<ReadModelDecl> | undefined)?.[META]
   if (decl?.kind === "readModel") return decl
   throw new Error(
-    `generate() takes the source's fields and read models, such as generate(e.pageId, Pages), not ${String(value)}.`,
+    `generate() takes the source, its fields and read models, such as generate(e.pageId, Pages), not ${String(value)}.`,
   )
 }
 
 // Each helper returns its marker, so the probe can tell it from a source field or a constant.
 const helpers = {
-  count: () => COUNT,
   generate: (...inputs: unknown[]): Generated => ({ [GENERATE]: inputs.map(input) }),
 }
 
@@ -347,11 +342,11 @@ const SPLICED = new RegExp(`${SPLICE}(\\w+)${SPLICE}`, "gu")
  * arithmetic it is NaN, which carries no name, so every field used as a number in this mapping is
  * named: the probe cannot tell which target each went into.
  */
-function probe(fields: Fields, map: MapFn): Record<string, Source> {
+function probe(from: DeclData, map: MapFn): Record<string, Source> {
   const counted: string[] = []
-  const numeric = (f: string) => fields[f]?.safeParse(0).success === true
-  const source = Object.fromEntries(
-    Object.keys(fields).map((f) => [
+  const numeric = (f: string) => from.fields[f]?.safeParse(0).success === true
+  const fields = Object.fromEntries(
+    Object.keys(from.fields).map((f) => [
       f,
       {
         [FIELD]: f,
@@ -364,22 +359,20 @@ function probe(fields: Fields, map: MapFn): Record<string, Source> {
       },
     ]),
   )
+  const source = { ...fields, [SOURCE]: from }
   const mapping: Record<string, Source> = {}
   for (const [field, value] of Object.entries(map(source as never, helpers as never))) {
     const spliced =
       typeof value === "string" ? [...value.matchAll(SPLICED)].map((m) => m[1] ?? "") : []
-    mapping[field] =
-      value === COUNT
-        ? { count: true }
-        : isGenerated(value)
-          ? { generate: value[GENERATE] }
-          : isProbe(value)
-            ? { from: value[FIELD] }
-            : spliced.length > 0
-              ? { generate: [...new Set(spliced)], built: "string" }
-              : Number.isNaN(value) && counted.length > 0
-                ? { generate: [...new Set(counted)], built: "number" }
-                : { value }
+    mapping[field] = isGenerated(value)
+      ? { generate: value[GENERATE] }
+      : isProbe(value)
+        ? { from: value[FIELD] }
+        : spliced.length > 0
+          ? { generate: [...new Set(spliced)], built: "string" }
+          : Number.isNaN(value) && counted.length > 0
+            ? { generate: [...new Set(counted)], built: "number" }
+            : { value }
   }
   return mapping
 }
@@ -387,10 +380,10 @@ function probe(fields: Fields, map: MapFn): Record<string, Source> {
 type Used = { readonly [META]: DeclData | MappedData }
 
 /** A declaration as a slice uses it: as it is, or called with a function that reads `source`. */
-function flow(use: Used, source?: Fields): Flow {
+function flow(use: Used, source?: DeclData): Flow {
   const data = use[META]
   if (!("map" in data)) return { decl: data, mapping: {} }
-  return { decl: data.decl, mapping: probe(source ?? data.decl.fields, data.map) }
+  return { decl: data.decl, mapping: probe(source ?? data.decl, data.map) }
 }
 
 // ---------------------------------------------------------------------------
@@ -433,7 +426,7 @@ type Actors = [Actor, ...Actor[]]
 /** An event command `C` records: `Event`, or `Event(map)` to fill what `C` does not carry. */
 type Outcome<C extends Fields, E extends Fields> =
   | (EventDecl<E> & FilledBy<C, E, "command">)
-  | Mapped<"event", E, Into<C, EmitHelpers>>
+  | Mapped<"event", E, Into<C, Helpers>>
 
 /** An automation's command, filled from `S`: `Command`, or `Command(map)`. `From` names `S` in the editor's error. */
 type Issue<S extends Fields, C extends Fields, From extends string> =
@@ -559,10 +552,7 @@ function chain(data: SliceData) {
     // A projection's event is its own source; a handler's source is the command.
     event: (event: Used) =>
       next({
-        events: [
-          ...data.events,
-          flow(event, data.projection ? undefined : data.command?.decl.fields),
-        ],
+        events: [...data.events, flow(event, data.projection ? undefined : data.command?.decl)],
       }),
     query: (fields: Fields) => next({ query: fields }),
     actor: (...actors: Actor[]) =>
@@ -595,9 +585,9 @@ function slice(name?: string): SliceStart {
   if (name !== undefined) empty.name = name
   // A command's events read the command; an automation's command reads what starts it. A missing
   // argument is the compiler's error to report; the slice keeps what it has, so it is still drawn.
-  const handled = (from: Partial<SliceData>, command?: Used, event?: Used, source?: Fields) => {
+  const handled = (from: Partial<SliceData>, command?: Used, event?: Used, source?: DeclData) => {
     const issued = command && flow(command, source)
-    const events = event ? [flow(event, issued?.decl.fields)] : []
+    const events = event ? [flow(event, issued?.decl)] : []
     return chain({ ...empty, ...from, ...(issued && { command: issued }), events })
   }
   const start = {
@@ -605,14 +595,9 @@ function slice(name?: string): SliceStart {
     view: (...readModels: ReadModelDecl[]) =>
       chain({ ...empty, shows: readModels.map((r) => r[META]) }),
     trigger: (trigger?: EventDecl, command?: Used, event?: Used) =>
-      handled(trigger ? { trigger: trigger[META] } : {}, command, event, trigger?.[META].fields),
+      handled(trigger ? { trigger: trigger[META] } : {}, command, event, trigger?.[META]),
     todoList: (todoList?: ReadModelDecl, command?: Used, event?: Used) =>
-      handled(
-        todoList ? { todoList: todoList[META] } : {},
-        command,
-        event,
-        todoList?.[META].fields,
-      ),
+      handled(todoList ? { todoList: todoList[META] } : {}, command, event, todoList?.[META]),
     projection: (readModel?: ReadModelDecl, event?: Used) =>
       chain({
         ...empty,
