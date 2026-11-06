@@ -1325,7 +1325,68 @@
       ],
       "processors": [],
       "tables": [],
-      "specifications": [],
+      "specifications": [
+        {
+          "id": "list-todo-lists:spec:0",
+          "title": "A user sees only their own lists",
+          "sliceName": "ListTodoLists",
+          "given": [
+            {
+              "id": "list-todo-lists:spec:0:given:0",
+              "title": "ListCreated",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "userId": "u-1",
+                  "name": "Groceries"
+                }
+              ]
+            },
+            {
+              "id": "list-todo-lists:spec:0:given:1",
+              "title": "ListCreated",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-2",
+                  "userId": "u-2",
+                  "name": "Hardware"
+                }
+              ]
+            }
+          ],
+          "when": [
+            {
+              "id": "list-todo-lists:spec:0:when:0",
+              "title": "ListTodoLists",
+              "type": "SPEC_COMMAND",
+              "examples": [
+                {
+                  "userId": "u-1"
+                }
+              ]
+            }
+          ],
+          "then": [
+            {
+              "id": "list-todo-lists:spec:0:then:0",
+              "title": "TodoList",
+              "type": "SPEC_READMODEL",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "name": "Groceries",
+                  "itemCount": 0,
+                  "status": "open"
+                }
+              ]
+            }
+          ],
+          "linkedId": "list-todo-lists"
+        }
+      ],
       "actors": [
         {
           "name": "User",
@@ -1687,7 +1748,109 @@
       ],
       "processors": [],
       "tables": [],
-      "specifications": [],
+      "specifications": [
+        {
+          "id": "get-list:spec:0",
+          "title": "A list shows its own items",
+          "sliceName": "GetList",
+          "given": [
+            {
+              "id": "get-list:spec:0:given:0",
+              "title": "ListCreated",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "userId": "u-1",
+                  "name": "Groceries"
+                }
+              ]
+            },
+            {
+              "id": "get-list:spec:0:given:1",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-1",
+                  "title": "Milk"
+                }
+              ]
+            },
+            {
+              "id": "get-list:spec:0:given:2",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-2",
+                  "title": "Eggs"
+                }
+              ]
+            },
+            {
+              "id": "get-list:spec:0:given:3",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-2",
+                  "itemId": "item-3",
+                  "title": "Nails"
+                }
+              ]
+            }
+          ],
+          "when": [
+            {
+              "id": "get-list:spec:0:when:0",
+              "title": "ListScreen",
+              "type": "SPEC_COMMAND",
+              "examples": [
+                {
+                  "listId": "list-1"
+                }
+              ]
+            }
+          ],
+          "then": [
+            {
+              "id": "get-list:spec:0:then:0",
+              "title": "ItemSearch",
+              "type": "SPEC_READMODEL",
+              "examples": [
+                {
+                  "itemId": "item-1",
+                  "listId": "list-1",
+                  "title": "Milk",
+                  "done": false,
+                  "deleted": false
+                }
+              ]
+            },
+            {
+              "id": "get-list:spec:0:then:1",
+              "title": "ItemSearch",
+              "type": "SPEC_READMODEL",
+              "examples": [
+                {
+                  "itemId": "item-2",
+                  "listId": "list-1",
+                  "title": "Eggs",
+                  "done": false,
+                  "deleted": false
+                }
+              ]
+            }
+          ],
+          "linkedId": "get-list"
+        }
+      ],
       "actors": [
         {
           "name": "User",
@@ -1766,7 +1929,68 @@
       ],
       "processors": [],
       "tables": [],
-      "specifications": [],
+      "specifications": [
+        {
+          "id": "search-items:spec:0",
+          "title": "A search finds a done item by its title",
+          "sliceName": "SearchItems",
+          "given": [
+            {
+              "id": "search-items:spec:0:given:0",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-1",
+                  "title": "Milk"
+                }
+              ]
+            },
+            {
+              "id": "search-items:spec:0:given:1",
+              "title": "ItemCompleted",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "itemId": "item-1"
+                }
+              ]
+            }
+          ],
+          "when": [
+            {
+              "id": "search-items:spec:0:when:0",
+              "title": "SearchItems",
+              "type": "SPEC_COMMAND",
+              "examples": [
+                {
+                  "text": "Milk"
+                }
+              ]
+            }
+          ],
+          "then": [
+            {
+              "id": "search-items:spec:0:then:0",
+              "title": "ItemSearch",
+              "type": "SPEC_READMODEL",
+              "examples": [
+                {
+                  "itemId": "item-1",
+                  "listId": "list-1",
+                  "title": "Milk",
+                  "done": true,
+                  "deleted": false
+                }
+              ]
+            }
+          ],
+          "linkedId": "search-items"
+        }
+      ],
       "actors": [
         {
           "name": "User",

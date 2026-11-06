@@ -34,6 +34,10 @@ m.slice()
     NoteCreated(() => ({ status: "inbox" })),
   )
   .chapter(Capture)
+  .test("A new note is in the inbox", {
+    given: NoteCreated({ noteId: "note-1", text: "Call the plumber" }),
+    then: Inbox({ noteId: "note-1", text: "Call the plumber", status: "inbox" }),
+  })
 
 // Filing: the writer files a note, and the inbox shows it filed.
 export const Filing = m.chapter()
@@ -56,7 +60,28 @@ m.slice()
     NoteFiled(() => ({ status: "filed" })),
   )
   .chapter(Filing)
+  .test("A filed note leaves the inbox", {
+    given: [
+      NoteCreated({ noteId: "note-1", text: "Call the plumber" }),
+      NoteFiled({ noteId: "note-1" }),
+    ],
+    then: Inbox({ noteId: "note-1", text: "Call the plumber", status: "filed" }),
+  })
 
-m.slice().view(Inbox).chapter(Filing).actor(Writer).service(NoteService, "ListInbox")
+m.slice()
+  .view(Inbox)
+  .chapter(Filing)
+  .query({ status: z.string() })
+  .actor(Writer)
+  .service(NoteService, "ListInbox")
+  .test("Only open notes show", {
+    given: [
+      NoteCreated({ noteId: "note-1", text: "Call the plumber" }),
+      NoteCreated({ noteId: "note-2", text: "Buy milk" }),
+      NoteFiled({ noteId: "note-2" }),
+    ],
+    when: { status: "inbox" },
+    then: Inbox({ noteId: "note-1", text: "Call the plumber", status: "inbox" }),
+  })
 
 export default m.model("Notes")

@@ -316,6 +316,18 @@ test("specifications sit under their slice, one card per clause with a line per 
   assert.equal(given?.cards[0]?.lines.length, 4)
 })
 
+test("a view's specification asks its screen in when, and shows rows in then", () => {
+  const column = out.columns.find((c) => c.label === "ListTodoLists")
+  const spec = out.specs.find((s) => s.column === column?.index)
+  const kinds = spec?.steps.map((st) => [st.word, st.cards.map((c) => c.kind)])
+  assert.deepEqual(kinds, [
+    ["given", ["event", "event"]],
+    ["when", ["ui"]],
+    ["then", ["readModel"]],
+  ])
+  assert.deepEqual(spec?.steps[1]?.cards[0]?.lines, ["userId = u-1"])
+})
+
 test("the picture shows names as words", () => {
   assert.equal(words("DrawsAndResignation"), "Draws and Resignation")
   assert.equal(words("ItemAdded"), "Item Added")

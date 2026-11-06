@@ -416,6 +416,18 @@ export interface ProjectionSpec<R extends Fields> {
   then: OneOrMany<Example<"readModel", R>>
 }
 
+/** A row of a read model `D`. */
+type Row<D> = D extends ReadModelDecl<infer R> ? Example<"readModel", R> : never
+
+/**
+ * A view's example: `when` holds the query's values, and `then` the rows the screen shows. A view
+ * with no query has no `when`.
+ */
+export type ViewSpec<Q extends Fields, Rows> = {
+  given?: OneOrMany<Example<"event">>
+  then: OneOrMany<Rows>
+} & ([keyof Q] extends [never] ? { when?: never } : { when: z.input<z.ZodObject<Q>> })
+
 type Actors = [Actor, ...Actor[]]
 
 /** An event command `C` records: `Event`, or `Event(map)` to fill what `C` does not carry. */
@@ -439,7 +451,9 @@ export interface SliceStart {
     event: Outcome<C, E>,
   ): StateChange<C, E>
   /** View: the read models it shows. */
-  view(...readModels: [ReadModelDecl, ...ReadModelDecl[]]): View
+  view<Shown extends [ReadModelDecl, ...ReadModelDecl[]]>(
+    ...readModels: Shown
+  ): View<Record<never, never>, Row<Shown[number]>>
   /** Automation: the event that starts it, the command it issues, and an event that records. */
   trigger<T extends Fields, C extends Fields, E extends Fields>(
     trigger: EventDecl<T>,
@@ -459,15 +473,16 @@ export interface SliceStart {
   ): Projection<R>
 }
 
-export interface View extends Slice {
+export interface View<Q extends Fields, Rows> extends Slice {
   /** The request fields; without them the request is empty. */
-  query(fields: Fields): View
-  actor(...actors: Actors): View
+  query<F extends Fields>(fields: F): View<F, Rows>
+  actor(...actors: Actors): View<Q, Rows>
   /** Where the actors see it; without one, the read model's table is drawn as their screen. */
-  screen(screen: Screen): View
+  screen(screen: Screen): View<Q, Rows>
   /** A view has no command to name its method after. */
-  service(service: Service, method: string): View
-  note(text: string): View
+  service(service: Service, method: string): View<Q, Rows>
+  test(name: string, spec: ViewSpec<Q, Rows>): View<Q, Rows>
+  note(text: string): View<Q, Rows>
 }
 
 export interface StateChange<C extends Fields, Em extends Fields> extends Slice {
@@ -507,19 +522,25 @@ function many<T>(clauses: OneOrMany<T> | undefined): T[] {
 
 interface AnySpec {
   given?: OneOrMany<Example>
-  when?: Example
+  when?: Example | Record<string, unknown>
   then?: OneOrMany<Example>
   reject?: string
 }
 
-function testData(name: string, spec: AnySpec): TestData {
+/** A view's `when` is its query's values, which Zod checks as it checks an example's. */
+function testData(name: string, spec: AnySpec, view?: SliceData): TestData {
   const test: TestData = {
     name,
     given: many(spec.given).map((c) => c[META]),
     then:
       spec.reject === undefined ? many(spec.then).map((c) => c[META]) : [{ message: spec.reject }],
   }
-  if (spec.when) test.when = spec.when[META]
+  if (view && spec.when)
+    test.query = z
+      .object(view.query ?? {})
+      .partial()
+      .parse(spec.when)
+  else if (spec.when) test.when = (spec.when as Example)[META]
   return test
 }
 
@@ -552,7 +573,10 @@ function chain(data: SliceData) {
         service:
           method === undefined ? { service: service[META] } : { service: service[META], method },
       }),
-    test: (name: string, spec: AnySpec) => next({ tests: [...data.tests, testData(name, spec)] }),
+    test: (name: string, spec: AnySpec) =>
+      next({
+        tests: [...data.tests, testData(name, spec, data.shows.length > 0 ? data : undefined)],
+      }),
     note: (text: string) => next({ note: text }),
     chapter: (chapter: Chapter) => next({ chapters: [...data.chapters, chapter[META]] }),
   }

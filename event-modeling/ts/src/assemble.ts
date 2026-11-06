@@ -265,7 +265,7 @@ function check(
   for (const at of located) {
     checkFilled(at, columns, fail)
     checkKeys(at, fail)
-    checkOutcomes(at, fail)
+    checkCovered(at, fail)
     checkSeen(at, fail)
     checkSpecs(at, columns, fail)
     checkGenerated(at, fail)
@@ -523,16 +523,29 @@ function checkKeys({ slice, where }: Located, fail: Fail): void {
   }
 }
 
-/** A command's events are alternatives, and only a specification says when each happens. */
-function checkOutcomes({ slice, where }: Located, fail: Fail): void {
-  if (!slice.command || slice.projection) return
+/**
+ * Every event a slice handles or produces is in one of its specifications: a command's events are
+ * alternatives, and only a specification says when each happens; a projection's say what each
+ * does to the row. A view's say what the screen shows.
+ */
+function checkCovered({ slice, where }: Located, fail: Fail): void {
+  if (slice.shows.length > 0 && slice.tests.length === 0) {
+    const rows = slice.shows.map((r) => r.name).join(" or ")
+    fail({
+      slice: slice.name ?? "",
+      element: slice.shows[0]?.name ?? "",
+      message: `${where}: no specification shows this view yet. Add a .test whose then has the ${rows} rows it shows.`,
+    })
+  }
+  if (!slice.command && !slice.projection) return
+  const clause = slice.projection ? "given" : "then"
   const shown = new Set(
-    slice.tests.flatMap((t) => t.then.flatMap((c) => ("decl" in c ? [c.decl] : []))),
+    slice.tests.flatMap((t) => t[clause].flatMap((c) => ("decl" in c ? [c.decl] : []))),
   )
   for (const { decl } of slice.events) {
     if (!shown.has(decl))
       fail({
-        message: `${where}: no specification shows ${decl.name} yet. Add a .test whose then has ${decl.name}(...).`,
+        message: `${where}: no specification shows ${decl.name} yet. Add a .test whose ${clause} has ${decl.name}(...).`,
         element: decl.name ?? "",
         slice: slice.name ?? "",
       })
@@ -572,11 +585,34 @@ function checkSpecs({ slice, where }: Located, columns: Columns, fail: Fail): vo
       const rows = project(projection, columns.get(projection)?.flows ?? [], t.given)
       for (const c of t.then) {
         if (!("decl" in c) || c.decl !== projection) continue
-        const keys = projection.keys.filter((k) => c.data[k] !== undefined)
-        const matched = rows.filter((r) =>
-          keys.every((k) => isDeepStrictEqual(r.values[k]?.value, c.data[k])),
-        )
+        const matched = rowsLike(rows, projection, c.data)
         if (matched.length === 1) compare(c, "then", (f) => matched[0]?.values[f])
+      }
+    } else if (slice.shows.length > 0) {
+      const said = (message: string, element: string) =>
+        fail({ message: `${where} › "${t.name}": ${message}`, element, slice: slice.name ?? "" })
+      for (const shown of slice.shows) {
+        const rows = project(shown, columns.get(shown)?.flows ?? [], t.given)
+        const then = t.then.flatMap((c) => ("decl" in c && c.decl === shown ? [c] : []))
+        for (const c of then) {
+          const matched = rowsLike(rows, shown, c.data)
+          if (matched.length === 1) compare(c, "then", (f) => matched[0]?.values[f])
+          else if (matched.length === 0)
+            said(
+              `then has ${shown.name} ${rowName(shown, c.data)}, but given builds no such row.`,
+              shown.name ?? "",
+            )
+        }
+        for (const row of rows) {
+          const data = Object.fromEntries(Object.entries(row.values).map(([k, e]) => [k, e.value]))
+          if (then.some((c) => rowsLike([row], shown, c.data).length > 0)) continue
+          if (excluded(data, t.query ?? {})) continue
+          const unless = t.query ? " and when does not exclude it" : ""
+          said(
+            `given builds ${shown.name} ${rowName(shown, data)}, but then leaves it out${unless}. Add it to then.`,
+            shown.name ?? "",
+          )
+        }
       }
     } else if (command) {
       const trigger = t.given.find((g) => g.decl === slice.trigger)
@@ -592,6 +628,35 @@ function checkSpecs({ slice, where }: Located, columns: Columns, fail: Fail): vo
       }
     }
   }
+}
+
+/** The rows with the key values `data` has. */
+function rowsLike<R extends { values: Record<string, Expected> }>(
+  rows: R[],
+  readModel: DeclData,
+  data: Record<string, unknown>,
+): R[] {
+  const keys = readModel.keys.filter((k) => data[k] !== undefined)
+  return rows.filter((r) => keys.every((k) => isDeepStrictEqual(r.values[k]?.value, data[k])))
+}
+
+/** A row by its keys, or by every value when the read model has none. */
+function rowName(readModel: DeclData, data: Record<string, unknown>): string {
+  const keys = readModel.keys.length > 0 ? readModel.keys : Object.keys(data)
+  return show(
+    Object.fromEntries(keys.flatMap((k) => (data[k] === undefined ? [] : [[k, data[k]]]))),
+  )
+}
+
+/**
+ * A query field filters the rows by equality with the column of the same name. One with no such
+ * column, or a column whose value the given cannot tell, excludes nothing.
+ */
+function excluded(row: Record<string, unknown>, query: Record<string, unknown>): boolean {
+  return Object.entries(query).some(
+    ([field, asked]) =>
+      asked !== undefined && row[field] !== undefined && !isDeepStrictEqual(row[field], asked),
+  )
 }
 
 /** What `flow` puts in `field` from `example`, which `has` introduces in a message. */
@@ -697,6 +762,14 @@ function checkConnected(located: Located[], columns: Columns, fail: Fail): void 
         throw new Error(
           `${where}: ${t.when.decl.name} in when is ${KIND_LABEL[t.when.decl.kind]}. when is this slice's command.`,
         )
+      if (slice.shows.length > 0) {
+        for (const c of t.then) {
+          if ("decl" in c && !slice.shows.includes(c.decl))
+            throw new Error(
+              `${where}: ${c.decl.name} in then is not what this view shows. then lists rows of ${slice.shows.map((r) => r.name).join(" or ")}.`,
+            )
+        }
+      }
       if (slice.command) {
         for (const c of t.then) {
           if ("decl" in c && c.decl.kind !== "event")

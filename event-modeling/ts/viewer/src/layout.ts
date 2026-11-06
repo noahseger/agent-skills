@@ -799,8 +799,10 @@ export function layout(model: Board): Layout {
           const lines = parsed.lines.flatMap((l) => wrap(l, SPEC_LINE_CHARS, SPEC_INDENT))
           const { name, error } = parsed
           const h = lines.length > 0 ? SPEC_CARD_TITLE + lines.length * SPEC_LINE_H + 6 : 26
+          // A view's when is the query its screen asks.
+          const asked = word === "when" && !col.slice.command
           step.cards.push({
-            kind: error ? "error" : (kinds.get(name) ?? "command"),
+            kind: error ? "error" : asked ? "ui" : (kinds.get(name) ?? "command"),
             name,
             lines,
             x: spec.x,
