@@ -182,9 +182,8 @@ const clockStarted = ClockStarted({
 export const Play = [
   m
     .slice()
-    .command(PlayMove)
+    .command(PlayMove, MovePlayed)
     .readModel(GameState)
-    .event(MovePlayed)
     .event(GameEnded)
     .actor(Player)
     .service(ChessService)
@@ -281,8 +280,7 @@ export const Play = [
 
   m
     .slice()
-    .projection(GameState)
-    .event(GameStarted)
+    .projection(GameState, GameStarted)
     .event(MovePlayed)
     .event(IllegalMoveRuled)
     .test("The board advances after the opening move", {
@@ -306,9 +304,8 @@ export const Play = [
 
   m
     .slice()
-    .command(PressClock)
+    .command(PressClock, ClockPressed)
     .readModel(ClockState)
-    .event(ClockPressed)
     .actor(Player)
     .service(ChessService)
     .note("FIDE 6.2.1: pressing banks the increment and starts the opponent's clock.")
@@ -340,8 +337,7 @@ export const Play = [
 
   m
     .slice()
-    .projection(ClockState)
-    .event(ClockStarted)
+    .projection(ClockState, ClockStarted)
     .event(ClockPressed)
     .test("The clock starts with White's time running", {
       given: clockStarted,
@@ -372,8 +368,10 @@ export const Play = [
 
   m
     .slice()
-    .projection(MoveList)
-    .event(MovePlayed(() => ({ status: "recorded" })))
+    .projection(
+      MoveList,
+      MovePlayed(() => ({ status: "recorded" })),
+    )
     .event(IllegalMoveRuled(() => ({ status: "struck" })))
     .test("A move is recorded on the scoresheet", {
       given: e4,

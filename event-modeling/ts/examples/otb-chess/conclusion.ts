@@ -134,9 +134,8 @@ const resultRecorded = ResultRecorded({
 export const Conclusion = [
   m
     .slice()
-    .command(ClaimFlagFall)
+    .command(ClaimFlagFall, TimeForfeited)
     .readModel(ClockState)
-    .event(TimeForfeited)
     .actor(Player)
     .service(ChessService)
     .test("White claims Black's fallen flag", {
@@ -172,10 +171,12 @@ export const Conclusion = [
 
   m
     .slice("OutcomeAdjudicator")
-    .trigger(GameEnded)
-    .command(AdjudicateOutcome((e) => ({ termination: e.ending })))
+    .trigger(
+      GameEnded,
+      AdjudicateOutcome((e) => ({ termination: e.ending })),
+      BoardOutcomeAdjudicated((_, { generate }) => ({ result: generate() })),
+    )
     .readModel(GameState)
-    .event(BoardOutcomeAdjudicated((_, { generate }) => ({ result: generate() })))
     .note("The move that ended the game says how. This turns that into a result.")
     .test("Checkmate on the board ends the game", {
       given: mated,
@@ -232,15 +233,15 @@ export const Conclusion = [
 
   m
     .slice("IllegalMoveForfeiter")
-    .trigger(SecondIllegalMoveRuled)
-    .command(ForfeitGame)
-    .readModel(IllegalMoveTally)
-    .event(
+    .trigger(
+      SecondIllegalMoveRuled,
+      ForfeitGame,
       IllegalMoveForfeited((_, { generate }) => ({
         result: generate(),
         termination: "illegal_move_forfeit",
       })),
     )
+    .readModel(IllegalMoveTally)
     .test("The second illegal move forfeits the game", {
       given: secondOffence,
       when: ForfeitGame({
@@ -253,8 +254,7 @@ export const Conclusion = [
 
   m
     .slice()
-    .projection(GameResult)
-    .event(GameResigned)
+    .projection(GameResult, GameResigned)
     .event(DrawAgreed)
     .event(BoardOutcomeAdjudicated)
     .event(TimeForfeited)
@@ -303,10 +303,9 @@ export const Conclusion = [
 
   m
     .slice()
-    .command(RecordResult)
+    .command(RecordResult, ResultRecorded)
     .readModel(GameResult)
     .readModel(GamePairing)
-    .event(ResultRecorded)
     .actor(Arbiter)
     .service(ChessService)
     .test("The arbiter records the signed draw on the pairing sheet", {
@@ -325,8 +324,7 @@ export const Conclusion = [
 
   m
     .slice()
-    .projection(GameRecord)
-    .event(ResultRecorded)
+    .projection(GameRecord, ResultRecorded)
     .test("The recorded game enters the crosstable", {
       given: resultRecorded,
       then: GameRecord({

@@ -123,9 +123,8 @@ export const gameResigned = GameResigned({
 export const DrawsAndResignation = [
   m
     .slice()
-    .command(OfferDraw)
+    .command(OfferDraw, DrawOffered)
     .readModel(GameState)
-    .event(DrawOffered)
     .actor(Player)
     .service(ChessService)
     .test("White offers a draw on move 21", {
@@ -136,8 +135,10 @@ export const DrawsAndResignation = [
 
   m
     .slice()
-    .projection(PendingDrawOffer)
-    .event(DrawOffered(() => ({ status: "pending" })))
+    .projection(
+      PendingDrawOffer,
+      DrawOffered(() => ({ status: "pending" })),
+    )
     .event(MovePlayed(() => ({ status: "declined" })))
     .event(DrawAgreed(() => ({ status: "accepted" })))
     .note("A move by the opponent declines the offer. FIDE 9.1.2.3.")
@@ -171,9 +172,8 @@ export const DrawsAndResignation = [
 
   m
     .slice()
-    .command(AcceptDraw)
+    .command(AcceptDraw, DrawAgreed)
     .readModel(PendingDrawOffer)
-    .event(DrawAgreed)
     .actor(Player)
     .service(ChessService)
     .test("Black accepts the pending draw offer", {
@@ -199,9 +199,8 @@ export const DrawsAndResignation = [
 
   m
     .slice()
-    .command(Resign)
+    .command(Resign, GameResigned)
     .readModel(GameState)
-    .event(GameResigned)
     .actor(Player)
     .service(ChessService)
     .test("Black resigns a lost endgame", {
