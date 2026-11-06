@@ -152,11 +152,11 @@ test("view lists a compiler error with what assembly found, until a save fixes i
   const model = (emits: string) => `import { z } from "zod"
 import { m } from "#em"
 
+export const Games = m.stream()
 export const User = m.actor()
 export const Chess = m.service("chess.v1")
 export const StartGame = m.command({ gameId: z.string() })
-export const GameStarted = m.event({ gameId: z.string(), white: z.string() })
-export const Games = m.stream({ GameStarted })
+export const GameStarted = m.event({ gameId: z.string(), white: z.string() }).stream(Games)
 export default m.model("Chess", { chapters: { Play: [m.slice().command(StartGame)${emits}.actor(User).service(Chess)] } })
 `
   const error = "index.ts:9  .event(GameStarted): add white to the command or set it in the mapping"

@@ -228,6 +228,21 @@ class TestValidModel:
         }
         EventModel.model_validate(data)
 
+    def test_state_views_of_one_read_model_fill_it_together(self):
+        """Two State Views in different chapters project one read model."""
+        view = lambda trigger: {"actor": "s", "aggregate": "a", "trigger": trigger,
+                                "read_models": ["Inbox(*noteId, text, status)"]}
+        data = {
+            "name": "Notes",
+            "actors": [{"id": "s", "name": "System", "type": "system"}],
+            "aggregates": [{"id": "a", "name": "A"}],
+            "chapters": [
+                {"name": "Capture", "slices": [view(["NoteCreated(noteId, text, status)"])]},
+                {"name": "Filing", "slices": [view(["NoteFiled(noteId, status)"])]},
+            ],
+        }
+        EventModel.model_validate(data)
+
     def test_multi_trigger_state_view(self):
         """State View with multiple triggers: RM fields covered by union."""
         data = {

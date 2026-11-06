@@ -110,7 +110,10 @@ export interface Decl<K extends DeclKind, F extends Fields> {
   note(text: string): this
 }
 
-export type EventDecl<F extends Fields = Fields> = Decl<"event", F>
+export interface EventDecl<F extends Fields = Fields> extends Decl<"event", F> {
+  /** Draws the event in the stream's lane. */
+  stream(stream: Stream): this
+}
 export type CommandDecl<F extends Fields = Fields> = Decl<"command", F>
 export type ReadModelDecl<F extends Fields = Fields> = Decl<"readModel", F>
 
@@ -145,7 +148,13 @@ function decl<K extends DeclKind, F extends Fields>(kind: K, fields: F): Decl<K,
 }
 
 function event<F extends Fields>(fields: F): EventDecl<F> {
-  return decl("event", fields)
+  const declared = decl("event", fields)
+  return Object.assign(declared, {
+    stream(stream: Stream) {
+      stream[META].members.push(declared[META])
+      return declared
+    },
+  }) as EventDecl<F>
 }
 
 function command<F extends Fields>(fields: F): CommandDecl<F> {
@@ -199,9 +208,11 @@ export interface Stream {
   readonly [META]: StreamData
 }
 
-/** The events and commands drawn in one lane. */
-function stream(members: Record<string, EventDecl | CommandDecl>): Stream {
-  return { [META]: { kind: "stream", members: Object.values(members).map((d) => d[META]) } }
+let streams = 0
+
+/** A lane, named by its export, drawn in the order written. An event joins it with `.stream()`. */
+function stream(): Stream {
+  return { [META]: { kind: "stream", order: streams++, members: [] } }
 }
 
 export interface External {

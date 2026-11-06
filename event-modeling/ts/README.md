@@ -24,7 +24,7 @@ import { m, z } from "@noahseger/event-modeling"
 | **actor** | who acts: a person, a role, or a machine of ours | `User` |
 | **external** | a system we do not own, whose events we translate and never store | `Calendar` |
 | **service** | the API that exposes a slice's procedure | `TodoService` |
-| **stream** | the events and commands drawn in one lane | `Inventory` |
+| **stream** | a lane of events in the diagram | `Lists` |
 | **slice** | one column of the diagram | the "Create List" column |
 | **chapter** | a run of slices under one heading | `ListManagement` |
 
@@ -249,6 +249,17 @@ m.slice()
   .service(TodoService, "SearchItems"),
 ```
 
+Every `.projection()` of a read model adds to it, so a later chapter extends a table next to the
+event that changes it. Each is its own column, where it happens in the story; a column one of them
+fills is filled.
+
+```ts
+// chapter Capture
+m.slice().projection(Inbox).event(NoteCreated(() => ({ status: "inbox" }))),
+// chapter Filing, further down the file
+m.slice().projection(Inbox).event(NoteFiled(() => ({ status: "filed" }))),
+```
+
 ### 5. Specifications
 
 A specification is a Given, When, Then example attached to a slice with `.test()`.
@@ -354,21 +365,22 @@ m.slice().trigger(Shop.CartUpdated).command(RecordOrder).event(OrderUpdated)    
 
 ### 8. Streams
 
-A stream is a lane in the diagram. The todo app keeps lists and items apart:
+A stream is a lane in the diagram, named by its export. An event joins it where it is declared. The
+todo app keeps items and lists apart:
 
 ```ts
-// At the end of list-management.ts
-export const Lists = m.stream({ CreateList, ListCreated, DeleteList, ListDeleted })
-export const Items = m.stream({ AddItem, ItemAdded, CompleteItem, ItemCompleted, DeleteItem, ItemDeleted })
+export const Items = m.stream()
+export const Lists = m.stream()
 
-// At the end of views.ts
-export const Lists = m.stream({ CompleteList, ListCompleted })
+export const ItemCompleted = m.event({ listId: z.string(), itemId: z.string() }).stream(Items)
+export const ListDeleted = m.event({ listId: z.string() }).stream(Lists)
 ```
 
-Two modules may export a stream under the same name; the CLI merges them into one lane, so each
-chapter can group the events it declared. An event may belong to more than one stream and is drawn
-in each lane, which is what a [dynamic consistency boundary](https://dcb.events) needs from the
-picture. A model that declares no stream has one lane, called Events.
+`.stream()` takes the stream, not its name, so a typo does not compile. A slice is drawn in the lane
+of the events it records, and its command with them. Lanes come in the order the streams are
+declared; one no event has joined yet is drawn empty. Two modules may export a stream under the same
+name; the CLI merges them into one lane. A model that declares no stream has one lane, called
+Events.
 
 ### 9. Assembly
 
@@ -401,7 +413,7 @@ file to share. `render` writes a still SVG; it needs python 3 with `pydantic`.
 
 You do not have to finish first. `view` draws a model as far as it goes: an event in no slice yet
 stands on its own in its lane, a slice in no chapter yet is drawn after the story, and what is left
-to do is listed above the picture. So the first thing to write is the events, in a stream, and look.
+to do is listed above the picture. So the first thing to write is the events, each in its stream, and look.
 
 ## Validation
 
@@ -426,7 +438,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 |---|---|
 | A declaration used in a slice that no module exports, or one exported under two names | It has no name until it is exported. |
 | Two declarations with one name, such as `.event("ListCreated", ...)` and an exported `ListCreated` | A name written in place is a string. |
-| A column no `.event()` of the projection writes | The columns are filled across several `.event()` calls. |
+| A column no `.event()` of the read model's projections writes | The columns are filled across several `.event()` calls, in several slices. |
 | An event that carries none of the read model's key columns | Declarations are anonymous, so two events with the same fields are one type. |
 | An event nothing consumes: no `.trigger()`, no projection, no `given` | Same. |
 | An event no slice records; a read model nothing reads or projects | Same. |

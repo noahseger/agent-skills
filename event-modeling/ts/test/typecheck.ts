@@ -20,6 +20,14 @@ const NameList = m.command({ listId: z.string(), name: z.string() })
 // @ts-expect-error "User" is a string, not an actor
 m.slice().command(CreateList).actor("User")
 
+const Notes = m.stream()
+
+// @ts-expect-error "Notes" is a string, not a stream, so a typo cannot make a lane
+m.event({ noteId: z.string() }).stream("Notes")
+
+// @ts-expect-error a command is drawn in the lane of the event it records
+CreateList.stream(Notes)
+
 // --- a slot takes one kind ---------------------------------------------------
 
 // @ts-expect-error an event is not a command
@@ -258,3 +266,4 @@ create.test("x", { given: ListCreated({ listId: "l-1" }), when: CreateList({ lis
 create.test("x", { given: [ListCreated({ listId: "l-1" })], when: CreateList({ listId: "l-1" }), reject: "nope" })
 m.slice().trigger(ListCreated).command(NameList).event(ListCreated).test("x", { given: ListCreated({ listId: "l-1" }), when: NameList({ listId: "l-1" }), then: ListCreated({ listId: "l-1" }) })
 m.slice().projection(TodoList).event(ListCreated(() => ({ itemCount: 0 }))).event(ItemAdded((e, { count }) => ({ itemCount: count(e), name: e.title })))
+m.event({ noteId: z.string() }).stream(Notes)

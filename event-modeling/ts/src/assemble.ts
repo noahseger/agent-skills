@@ -16,6 +16,7 @@ import {
   type ModelData,
   recorded,
   type SliceData,
+  type StreamData,
   type Warning,
 } from "./types.ts"
 
@@ -112,7 +113,7 @@ function exported(value: unknown): Exported | undefined {
     : undefined
 }
 
-/** Streams merge by name, so two modules can add to one lane. */
+/** Streams merge by name, so two modules can add to one lane. Lanes keep the order written. */
 function nameExports(
   modules: readonly object[],
   files: readonly string[],
@@ -123,7 +124,7 @@ function nameExports(
   fileOf: Map<object, string>
 } {
   let model: ModelData | undefined
-  const streams = new Map<string, DeclData[]>()
+  const lanes: [string, StreamData][] = []
   const declared: Declaration[] = []
   const fileOf = new Map<object, string>()
   for (const [i, module] of modules.entries()) {
@@ -135,7 +136,7 @@ function nameExports(
       if (data.kind === "model") {
         model = data
       } else if (data.kind === "stream") {
-        streams.set(key, [...(streams.get(key) ?? []), ...data.members])
+        lanes.push([key, data])
       } else if (data.kind === "external") {
         data.name = key
         // Its events may be declared inside it, so no export names them.
@@ -150,6 +151,10 @@ function nameExports(
   }
   if (!model)
     throw new Error('No model found. Add `export default m.model("Name")` to one of your files.')
+  // A module's exports come in alphabetical order, so the lanes are sorted back into the order written.
+  const streams = new Map<string, DeclData[]>()
+  for (const [key, data] of lanes.sort((a, b) => a[1].order - b[1].order))
+    streams.set(key, [...new Set([...(streams.get(key) ?? []), ...data.members])])
   return { model, streams, declared, fileOf }
 }
 
@@ -196,11 +201,12 @@ function check(
     ...locate(undefined, unchaptered),
   ]
   checkDeclaredOnce(located, declared, fileOf)
+  const columns = columnsOf(located)
   for (const at of located) {
-    checkFilled(at, fail)
+    checkFilled(at, columns, fail)
     checkKeys(at, fail)
   }
-  checkConnected(located, fail)
+  checkConnected(located, columns, fail)
   checkMethods(located)
 }
 
@@ -275,8 +281,27 @@ function filled(flow: Flow, source: DeclData): string[] {
   return [...Object.keys(source.fields), ...Object.keys(flow.mapping)]
 }
 
-/** Every field has a source. A model still being written may lack one, so this warns. */
-function checkFilled({ slice, where }: Located, fail: Fail): void {
+/** Each read model's projection slices, the first of them, and the columns they fill together. */
+type Columns = Map<DeclData, { first: Located; filled: string[] }>
+
+function columnsOf(located: Located[]): Columns {
+  const columns: Columns = new Map()
+  for (const at of located) {
+    const { projection, events } = at.slice
+    if (!projection) continue
+    const sofar = columns.get(projection) ?? { first: at, filled: [] }
+    sofar.filled.push(...events.flatMap((flow) => filled(flow, flow.decl)))
+    columns.set(projection, sofar)
+  }
+  return columns
+}
+
+/**
+ * Every field has a source. A model still being written may lack one, so this warns. A read model's
+ * columns are filled by all its projection slices, and reported at the first.
+ */
+function checkFilled(at: Located, columns: Columns, fail: Fail): void {
+  const { slice, where } = at
   const check = (target: DeclData, sources: string[], fix: (field: string) => string) => {
     for (const field of Object.keys(target.fields)) {
       if (!sources.includes(field))
@@ -303,10 +328,11 @@ function checkFilled({ slice, where }: Located, fail: Fail): void {
         filled(flow, command.decl),
         (f) => `Add ${f} to ${command.decl.name}, or set it in the mapping.`,
       )
-  if (projection)
+  const together = projection && columns.get(projection)
+  if (projection && together?.first === at)
     check(
       projection,
-      slice.events.flatMap((flow) => filled(flow, flow.decl)),
+      together.filled,
       (f) => `Add .event() for an event that carries ${f}, or set it in a mapping.`,
     )
 }
@@ -329,19 +355,18 @@ function checkKeys({ slice, where }: Located, fail: Fail): void {
 }
 
 /** Anything produced and never used, or used and never produced. */
-function checkConnected(located: Located[], fail: Fail): void {
+function checkConnected(located: Located[], columns: Columns, fail: Fail): void {
   const emitted = new Set<DeclData>()
   const consumed = new Set<DeclData>()
-  const projected = new Set<DeclData>()
   const read = new Set<DeclData>()
   for (const { slice } of located) {
     for (const e of recorded(slice)) emitted.add(e)
     for (const e of heard(slice)) consumed.add(e)
     for (const t of slice.tests) for (const g of t.given) consumed.add(g.decl)
-    if (slice.projection) projected.add(slice.projection)
     for (const r of [...slice.readModels, ...slice.shows, slice.todoList]) if (r) read.add(r)
   }
-  for (const { slice, where } of located) {
+  for (const at of located) {
+    const { slice, where } = at
     const about = (d: DeclData, message: string): Warning => ({
       message,
       element: d.name ?? "",
@@ -388,7 +413,12 @@ function checkConnected(located: Located[], fail: Fail): void {
           ),
         )
     }
-    if (slice.projection && !read.has(slice.projection))
+    // Once per read model, however many slices project it.
+    if (
+      slice.projection &&
+      !read.has(slice.projection) &&
+      columns.get(slice.projection)?.first === at
+    )
       fail(
         about(
           slice.projection,
@@ -396,7 +426,7 @@ function checkConnected(located: Located[], fail: Fail): void {
         ),
       )
     for (const r of [...slice.readModels, ...slice.shows, slice.todoList]) {
-      if (r && !projected.has(r))
+      if (r && !columns.has(r))
         fail(
           about(
             r,

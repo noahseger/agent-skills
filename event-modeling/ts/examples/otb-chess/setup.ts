@@ -14,6 +14,10 @@ export const Spectator = m.actor()
 // The API the board, the clock and the scoresheet all go through.
 export const ChessService = m.service("otb.v1")
 
+// Two lanes: what happens to the game, and what happens to the clock.
+export const Game = m.stream()
+export const Clock = m.stream()
+
 // The tournament pairing system publishes the round. We do not own it.
 export const PairingPublished = m.event({
   gameId: z.string(),
@@ -38,19 +42,21 @@ export const StartGame = m.command({
   baseMinutes: z.number().int(),
   incrementSeconds: z.number().int(),
 })
-export const GameStarted = m.event({
-  gameId: z.string(),
-  round: z.number().int(),
-  boardNumber: z.number().int(),
-  whitePlayerId: z.string(),
-  blackPlayerId: z.string(),
-  timeControl: z.string(),
-  baseMinutes: z.number().int(),
-  incrementSeconds: z.number().int(),
-  fen: z.string(),
-  sideToMove: z.enum(["white", "black"]),
-  ply: z.number().int(),
-})
+export const GameStarted = m
+  .event({
+    gameId: z.string(),
+    round: z.number().int(),
+    boardNumber: z.number().int(),
+    whitePlayerId: z.string(),
+    blackPlayerId: z.string(),
+    timeControl: z.string(),
+    baseMinutes: z.number().int(),
+    incrementSeconds: z.number().int(),
+    fen: z.string(),
+    sideToMove: z.enum(["white", "black"]),
+    ply: z.number().int(),
+  })
+  .stream(Game)
 
 // Who is playing whom, on which board, in which round.
 export const GamePairing = m.readModel({
@@ -67,14 +73,16 @@ export const StartClock = m.command({
   baseMinutes: z.number().int(),
   incrementSeconds: z.number().int(),
 })
-export const ClockStarted = m.event({
-  gameId: z.string(),
-  baseMinutes: z.number().int(),
-  incrementSeconds: z.number().int(),
-  whiteTimeMs: z.number().int(),
-  blackTimeMs: z.number().int(),
-  runningSide: z.enum(["white", "black"]),
-})
+export const ClockStarted = m
+  .event({
+    gameId: z.string(),
+    baseMinutes: z.number().int(),
+    incrementSeconds: z.number().int(),
+    whiteTimeMs: z.number().int(),
+    blackTimeMs: z.number().int(),
+    runningSide: z.enum(["white", "black"]),
+  })
+  .stream(Clock)
 
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
@@ -164,7 +172,3 @@ export const GameSetup = [
       }),
     }),
 ]
-
-// Two lanes: what happens to the game, and what happens to the clock.
-export const Game = m.stream({ StartGame, GameStarted })
-export const Clock = m.stream({ StartClock, ClockStarted })

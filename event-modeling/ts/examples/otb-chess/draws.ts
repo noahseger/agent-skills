@@ -2,7 +2,7 @@
 
 import { m, z } from "#em"
 import { e4, GameState, MovePlayed } from "./play.ts"
-import { ChessService, Player } from "./setup.ts"
+import { ChessService, Game, Player } from "./setup.ts"
 
 // The result of a game, and how it came about, as they go on the scoresheet.
 export const Result = z.enum(["white_won", "black_won", "draw"])
@@ -22,11 +22,13 @@ export const OfferDraw = m.command({
   offeringSide: z.enum(["white", "black"]),
   ply: z.number().int(),
 })
-export const DrawOffered = m.event({
-  gameId: z.string(),
-  offeringSide: z.enum(["white", "black"]),
-  ply: z.number().int(),
-})
+export const DrawOffered = m
+  .event({
+    gameId: z.string(),
+    offeringSide: z.enum(["white", "black"]),
+    ply: z.number().int(),
+  })
+  .stream(Game)
 
 // The offer standing on the opponent. One offer at a time, and only the latest counts.
 export const PendingDrawOffer = m.readModel({
@@ -43,12 +45,14 @@ export const AcceptDraw = m.command({
   result: Result,
   termination: Termination,
 })
-export const DrawAgreed = m.event({
-  gameId: z.string(),
-  offeringSide: z.enum(["white", "black"]),
-  result: Result,
-  termination: Termination,
-})
+export const DrawAgreed = m
+  .event({
+    gameId: z.string(),
+    offeringSide: z.enum(["white", "black"]),
+    result: Result,
+    termination: Termination,
+  })
+  .stream(Game)
 
 // FIDE 5.1.2: a player may resign at any time.
 export const Resign = m.command({
@@ -57,12 +61,14 @@ export const Resign = m.command({
   result: Result,
   termination: Termination,
 })
-export const GameResigned = m.event({
-  gameId: z.string(),
-  resigningSide: z.enum(["white", "black"]),
-  result: Result,
-  termination: Termination,
-})
+export const GameResigned = m
+  .event({
+    gameId: z.string(),
+    resigningSide: z.enum(["white", "black"]),
+    result: Result,
+    termination: Termination,
+  })
+  .stream(Game)
 
 const MIDDLEGAME_FEN = "r4rk1/pp3ppp/2p5/8/8/2P5/PP3PPP/R4RK1 b - - 0 21"
 const ENDGAME_FEN = "8/8/8/4k3/8/4K3/4P3/8 b - - 0 39"
@@ -209,12 +215,3 @@ export const DrawsAndResignation = [
       then: gameResigned,
     }),
 ]
-
-export const Game = m.stream({
-  OfferDraw,
-  DrawOffered,
-  AcceptDraw,
-  DrawAgreed,
-  Resign,
-  GameResigned,
-})
