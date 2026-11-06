@@ -60,16 +60,17 @@ export interface ExternalData extends Named {
   kind: "external"
 }
 
-export interface ChapterData {
-  name: string
-  slices: SliceData[]
+export interface ChapterData extends Named {
+  kind: "chapter"
+  /** How many chapters were declared before it. */
+  order: number
+  note?: string
 }
 
 export interface ModelData {
   kind: "model"
   name: string
   description: string
-  chapters: ChapterData[]
 }
 
 export type Exported =
@@ -79,15 +80,18 @@ export type Exported =
   | ScreenData
   | StreamData
   | ExternalData
+  | ChapterData
   | ModelData
 
-/** A named thing a module exports, other than the model or a stream. */
+/** A named thing a module exports, other than the model, a stream or a chapter. */
 export type Declaration = DeclData | ActorData | ServiceData | ScreenData | ExternalData
 
 /** The named, checked model. The render target and the generators read this. */
 export interface Assembled {
   model: ModelData
   streams: Map<string, DeclData[]>
+  /** In the order declared, each with its slices in the order written. */
+  chapters: { name: string; note?: string; slices: SliceData[] }[]
   /** The systems we do not own, by name. Each is a lane, with or without events. */
   externals: string[]
   /** Exported but in no slice. Only a partial assembly keeps them; otherwise one is an error. */
@@ -166,6 +170,8 @@ export interface SliceData {
   /** What the command records; in a projection, what builds the read model. */
   events: Flow[]
   tests: TestData[]
+  /** The chapters it joined; assembly allows one. */
+  chapters: ChapterData[]
 }
 
 /** The events a slice records. A projection records none. */

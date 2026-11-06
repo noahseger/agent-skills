@@ -36,8 +36,8 @@ names the elements it takes, so both are nouns: `m.command`, `.command()`, `.eve
 `count`, `generate`.
 
 Your own names follow the practice: events in the past tense (`NoteCreated`), commands in the
-imperative (`CreateNote`), read models as nouns (`Inbox`). A declaration is named by its export; a
-chapter, by its key in `m.model`.
+imperative (`CreateNote`), read models as nouns (`Inbox`). Everything you declare, chapters
+included, is named by its export.
 
 ## How it fits together
 
@@ -65,9 +65,9 @@ slice's source, so the editor knows its fields. The editor offers only the calls
 
 The first call is the whole pattern, and leaving out any of its arguments is an error where the slice
 is written. Every later step is optional: `.event()` adds another event, `.readModel()` names what
-the handler reads, once per read model, `.query()` gives a view its request fields, and `.test()`
-adds a specification. A state change or a view also takes `.actor()`, `.screen()` and `.service()`,
-and needs none of them.
+the handler reads, once per read model, `.query()` gives a view its request fields, `.test()`
+adds a specification, and `.chapter()` puts the slice in a chapter. A state change or a view also
+takes `.actor()`, `.screen()` and `.service()`, and needs none of them.
 
 ## Quickstart
 
@@ -119,29 +119,32 @@ protobuf package; the service itself is named after the export.
 ### 3. The first slices
 
 ```ts
+export const ListManagement = m.chapter()
+
 // A user creates a named list.
 export const CreateList  = m.command({ userId: z.string(), listId: z.string(), name: z.string() })
 export const ListCreated = m.event({ listId: z.string(), userId: z.string(), name: z.string() })
   .note("Names are unique per user.")
 
+m.slice()
+  .command(CreateList, ListCreated)
+  .chapter(ListManagement)
+  .actor(User)
+  .service(TodoService)
+
 // A user adds an item to a list.
 export const AddItem   = m.command({ listId: z.string(), itemId: z.string(), text: z.string() })
 export const ItemAdded = m.event({ listId: z.string(), itemId: z.string(), title: z.string() })
 
-export const ListManagement = [
-  m.slice()
-    .command(CreateList, ListCreated)
-    .actor(User)
-    .service(TodoService),
-
-  m.slice()
-    .command(AddItem, ItemAdded(c => ({ title: c.text })))
-    .actor(User)
-    .service(TodoService),
-]
+m.slice()
+  .command(AddItem, ItemAdded(c => ({ title: c.text })))
+  .chapter(ListManagement)
+  .actor(User)
+  .service(TodoService)
 ```
 
-A chapter is an array of slices. Step 9 names it and puts it in order.
+A chapter is declared once, `m.chapter()`, and each slice joins it where the slice is written.
+Step 9 says how chapters and their slices are ordered.
 
 In the first slice, every field of `ListCreated` has a namesake in `CreateList`, so nothing more is
 needed. In the second, the command says `text` and the event says `title`, so the event is called
@@ -165,8 +168,8 @@ it: `.screen(LockScreen)`. The card is then titled with the screen's name, and s
 share one. A screen is seen by the slice's actors, so a slice with a screen and no actor is left to
 do, and so is a screen no slice names; neither is drawn.
 
-A slice does not need a chapter to be drawn. Written on its own, `m.slice().command(...)` with no
-array around it, it is drawn after the story under "Not in a chapter yet" until a chapter lists it.
+A slice does not need a chapter to be drawn. Without `.chapter()` it is drawn after the story under
+"Not in a chapter yet", and is left to do until it joins one.
 
 A slice's column is headed by its command; by its read model when it projects one; by its service
 method when it is a view, or its read model when the view has no service. Pass a name,
@@ -189,19 +192,21 @@ export const TodoList = m.readModel({
   status:    z.enum(["open", "completed", "deleted"]),
 })
 
-export const Views = [
-  m.slice()
-    .projection(TodoList, ListCreated(() => ({ itemCount: 0, status: "open" })))
-    .event(ItemAdded((e, { count }) => ({ itemCount: count(e) })))
-    .event(ListCompleted(() => ({ status: "completed" })))
-    .event(ListDeleted(() => ({ status: "deleted" }))),
+export const Views = m.chapter()
 
-  m.slice()
-    .view(TodoList)
-    .query({ userId: z.string() })
-    .actor(User)
-    .service(TodoService, "ListTodoLists"),
-]
+m.slice()
+  .projection(TodoList, ListCreated(() => ({ itemCount: 0, status: "open" })))
+  .chapter(Views)
+  .event(ItemAdded((e, { count }) => ({ itemCount: count(e) })))
+  .event(ListCompleted(() => ({ status: "completed" })))
+  .event(ListDeleted(() => ({ status: "deleted" })))
+
+m.slice()
+  .view(TodoList)
+  .chapter(Views)
+  .query({ userId: z.string() })
+  .actor(User)
+  .service(TodoService, "ListTodoLists")
 ```
 
 `ListCreated` carries `userId`, `listId` and `name`, so those columns fill themselves. The function
@@ -228,13 +233,15 @@ export const ItemSearch = m.readModel({
 
 m.slice()
   .projection(ItemSearch, ItemAdded(() => ({ done: false })))
-  .event(ItemCompleted(() => ({ done: true }))),
+  .chapter(Views)
+  .event(ItemCompleted(() => ({ done: true })))
 
 m.slice()
   .view(ItemSearch)
+  .chapter(Views)
   .query({ text: z.string() })
   .actor(User)
-  .service(TodoService, "SearchItems"),
+  .service(TodoService, "SearchItems")
 ```
 
 Every `.projection()` of a read model adds to it, so a later chapter extends a table next to the
@@ -242,10 +249,9 @@ event that changes it. Each is its own column, where it happens in the story; a 
 fills is filled.
 
 ```ts
-// chapter Capture
-m.slice().projection(Inbox, NoteCreated(() => ({ status: "inbox" }))),
-// chapter Filing, further down the file
-m.slice().projection(Inbox, NoteFiled(() => ({ status: "filed" }))),
+m.slice().projection(Inbox, NoteCreated(() => ({ status: "inbox" }))).chapter(Capture)
+// further down the file
+m.slice().projection(Inbox, NoteFiled(() => ({ status: "filed" }))).chapter(Filing)
 ```
 
 ### 5. Specifications
@@ -254,7 +260,7 @@ A specification is a Given, When, Then example attached to a slice with `.test()
 
 ```ts
 m.slice()
-  .command(CreateList, ListCreated).actor(User).service(TodoService)
+  .command(CreateList, ListCreated).chapter(ListManagement).actor(User).service(TodoService)
   .test("User creates a new list", {
     when: CreateList({ userId: "u-1", listId: "list-1", name: "Groceries" }),
     then: ListCreated({ listId: "list-1", userId: "u-1", name: "Groceries" }),
@@ -263,7 +269,7 @@ m.slice()
     given:  ListCreated({ listId: "list-1", userId: "u-1", name: "Groceries" }),
     when:   CreateList({ userId: "u-1", listId: "list-2", name: "Groceries" }),
     reject: "list name already exists",
-  }),
+  })
 ```
 
 Calling a declaration builds an example of it from its fields, and Zod checks the values. `given`
@@ -283,10 +289,11 @@ reject an event:
 ```ts
 m.slice()
   .projection(TodoList, ListCreated(() => ({ itemCount: 0, status: "open" })))
+  .chapter(Views)
   .test("A new list shows with no items", {
     given: ListCreated({ listId: "list-1", userId: "u-1", name: "Groceries" }),
     then:  TodoList({ userId: "u-1", listId: "list-1", name: "Groceries", itemCount: 0, status: "open" }),
-  }),
+  })
 ```
 
 A specification must agree with its slice's wiring. A value copied or mapped from the command, the
@@ -303,11 +310,12 @@ An automation issues a command with no actor. It has two forms.
 export const CompleteList  = m.command({ listId: z.string() })
 export const ListCompleted = m.event({ listId: z.string() })
 
-export const Automations = [
-  m.slice("ListCompleter")
-    .trigger(ItemCompleted, CompleteList, ListCompleted)
-    .readModel(ItemSearch),
-]
+export const Automations = m.chapter()
+
+m.slice("ListCompleter")
+  .trigger(ItemCompleted, CompleteList, ListCompleted)
+  .chapter(Automations)
+  .readModel(ItemSearch)
 ```
 
 `.trigger()` starts the slice when the event occurs, and `listId` flows from the event into the
@@ -321,7 +329,7 @@ The second form works through a list. From a hotel model:
 
 ```ts
 m.slice("PaymentProcessor")
-  .todoList(PaymentsToProcess, ProcessPayment, PaymentSucceeded),
+  .todoList(PaymentsToProcess, ProcessPayment, PaymentSucceeded)
 ```
 
 `.todoList()` runs on the processor's own schedule, and the command's fields come from the row. No event and no service method starts it. The
@@ -337,10 +345,11 @@ export const TaskScheduled = m
   .event({ listId: z.string(), itemId: z.string(), text: z.string() })
   .external(Calendar)
 
-export const Integrations = [
-  m.slice()
-    .trigger(TaskScheduled, AddItem, ItemAdded(c => ({ title: c.text }))),
-]
+export const Integrations = m.chapter()
+
+m.slice()
+  .trigger(TaskScheduled, AddItem, ItemAdded(c => ({ title: c.text })))
+  .chapter(Integrations)
 ```
 
 A system you do not own is a lane, declared once with `m.external()` and named by its export, like
@@ -379,22 +388,28 @@ declared; one no event has joined yet is drawn empty. Two modules may export a s
 name; the CLI merges them into one lane. A model that declares no stream has one lane, called
 Events.
 
-### 9. Assembly
+### 9. Chapters and the model
 
 ```ts
 // index.ts
-import { ListManagement } from "./list-management.ts"
-import { Views, Automations, Integrations } from "./views.ts"
-
 export default m.model("Todo List Application", {
   description: "Users manage personal todo lists.",
-  chapters: { ListManagement, Views, Automations, Integrations },
 })
 ```
 
-Each key names a chapter, and key order is the timeline. A chapter can also be written in place:
-`chapters: { Onboarding: [m.slice()...] }`. Nothing else is listed. The CLI finds every other
-declaration, and every slice, by walking the directory. The worked example is `examples/todo-app/`.
+The model lists nothing. The CLI finds every declaration, and every slice, by walking the
+directory. The worked example is `examples/todo-app/`.
+
+A chapter is a heading on the timeline, declared once with `m.chapter()` and named by its export,
+like a stream. A slice joins it with `.chapter()`, anywhere after its first call, and joins at most
+one. `.chapter()` takes the chapter, not its name, so a typo does not compile. A chapter no slice
+has joined yet is drawn as a title with no columns, and is left to do. Two modules may export a
+chapter under the same name; the CLI merges them into one.
+
+Chapters come in the order they are declared, and a chapter's slices in the order they are written.
+In one file that is top to bottom. Across files it is the order node runs them: the CLI imports the
+model's files one at a time, by path, and a module runs after the modules it imports. So a file that
+imports an earlier chapter's file comes after it.
 
 ### 10. Look at it
 
@@ -441,7 +456,8 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | An event no slice records; a read model nothing reads or projects | Same. |
 | A field with no value, in a model the compiler did not check | `em json` runs the model without `tsc`. |
 | Two slices claiming one service method; a slice without a service claims none | A union of literal types dedupes rather than counts. |
-| A declaration in no slice, or a slice in no chapter | Whether a value is used is not a type. |
+| A declaration in no slice, a slice in no chapter, or a chapter no slice joins | Whether a value is used is not a type. |
+| A slice joining two chapters | `.chapter()` can be called again further down the chain. |
 | An event in both a stream and an external system | `.stream()` and `.external()` can be called on it in separate statements. |
 | An event a command lists that no specification's `then` shows | Each `.test()` is checked on its own, not against the slice's other specifications. |
 | A specification value that is not what flows in: from `when`, the trigger in `given`, or the events that build the row | Example values are data, not types. |
@@ -533,7 +549,7 @@ the first error. With `--partial` it goes on past dead ends and lists them in th
 `warnings`, with the declarations in no slice as `loose`; `view` and `export` assemble that way.
 `view` also type-checks the model on every save, with the `tsconfig.json` that `init` wrote, and
 logs each compiler error as `file:line` with what assembly left to do, in the terminal and above the
-picture. Node runs the TypeScript directly with `--experimental-strip-types`. The package carries
+picture. Names used above their declarations are one line per file, listing what to move up. Node runs the TypeScript directly with `--experimental-strip-types`. The package carries
 `zod` and exports it as `z`, so the model and the package read schemas with one copy. It carries
 `typescript` too, so the model needs no other dependency; `render` also needs python 3 with
 `pydantic`.

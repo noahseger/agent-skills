@@ -259,6 +259,7 @@ const transform = computed(
           class="chapter"
           @click.stop="firstSlice(i)"
         >
+          <title v-if="chapter.note">{{ chapter.note }}</title>
           <path :d="arrow(chapter.x, chapter.w, i === 0)" />
           <text :x="chapter.x + (i === 0 ? 16 : 24)" :y="HEADER_H - 12 - ARROW_H / 2 + 5">{{ chapter.title }}</text>
         </g>

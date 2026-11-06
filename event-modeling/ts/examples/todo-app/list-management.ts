@@ -53,78 +53,78 @@ export const ListDeleted = m.event({ listId: z.string() }).stream(Lists)
 const groceries = ListCreated({ listId: "list-1", userId: "u-1", name: "Groceries" })
 const milk = ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-1", title: "Milk" })
 
-export const ListManagement = [
-  m
-    .slice()
-    .command(CreateList, ListCreated)
-    .actor(User)
-    .service(TodoService)
-    .test("User creates a new list", {
-      when: CreateList({ userId: "u-1", listId: "list-1", name: "Groceries" }),
-      then: groceries,
-    })
-    .test("Duplicate list name rejected", {
-      given: groceries,
-      when: CreateList({ userId: "u-1", listId: "list-2", name: "Groceries" }),
-      reject: "list name already exists",
-    }),
+export const ListManagement = m.chapter()
 
-  m
-    .slice()
-    .command(
-      AddItem,
-      ItemAdded((c) => ({ title: c.text })),
-    )
-    .actor(User)
-    .screen(ListScreen)
-    .service(TodoService)
-    .test("User adds an item to a list", {
-      given: groceries,
-      when: AddItem({ userId: "u-1", listId: "list-1", itemId: "item-1", text: "Milk" }),
-      then: milk,
-    })
-    .test("Adding a fourth item is rejected", {
-      given: [
-        milk,
-        ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-2", title: "Eggs" }),
-        ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-3", title: "Bread" }),
-      ],
-      when: AddItem({ userId: "u-1", listId: "list-1", itemId: "item-4", text: "Butter" }),
-      reject: "maximum 3 items per list",
-    }),
+m.slice()
+  .command(CreateList, ListCreated)
+  .chapter(ListManagement)
+  .actor(User)
+  .service(TodoService)
+  .test("User creates a new list", {
+    when: CreateList({ userId: "u-1", listId: "list-1", name: "Groceries" }),
+    then: groceries,
+  })
+  .test("Duplicate list name rejected", {
+    given: groceries,
+    when: CreateList({ userId: "u-1", listId: "list-2", name: "Groceries" }),
+    reject: "list name already exists",
+  })
 
-  m
-    .slice()
-    .command(CompleteItem, ItemCompleted)
-    .actor(User)
-    .screen(ListScreen)
-    .service(TodoService)
-    .test("User completes an item", {
-      given: milk,
-      when: CompleteItem({ listId: "list-1", itemId: "item-1" }),
-      then: ItemCompleted({ listId: "list-1", itemId: "item-1" }),
-    }),
+m.slice()
+  .command(
+    AddItem,
+    ItemAdded((c) => ({ title: c.text })),
+  )
+  .chapter(ListManagement)
+  .actor(User)
+  .screen(ListScreen)
+  .service(TodoService)
+  .test("User adds an item to a list", {
+    given: groceries,
+    when: AddItem({ userId: "u-1", listId: "list-1", itemId: "item-1", text: "Milk" }),
+    then: milk,
+  })
+  .test("Adding a fourth item is rejected", {
+    given: [
+      milk,
+      ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-2", title: "Eggs" }),
+      ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-3", title: "Bread" }),
+    ],
+    when: AddItem({ userId: "u-1", listId: "list-1", itemId: "item-4", text: "Butter" }),
+    reject: "maximum 3 items per list",
+  })
 
-  m
-    .slice()
-    .command(DeleteItem, ItemDeleted)
-    .actor(User)
-    .screen(ListScreen)
-    .service(TodoService)
-    .test("User deletes an item from a list", {
-      given: milk,
-      when: DeleteItem({ listId: "list-1", itemId: "item-1" }),
-      then: ItemDeleted({ listId: "list-1", itemId: "item-1" }),
-    }),
+m.slice()
+  .command(CompleteItem, ItemCompleted)
+  .chapter(ListManagement)
+  .actor(User)
+  .screen(ListScreen)
+  .service(TodoService)
+  .test("User completes an item", {
+    given: milk,
+    when: CompleteItem({ listId: "list-1", itemId: "item-1" }),
+    then: ItemCompleted({ listId: "list-1", itemId: "item-1" }),
+  })
 
-  m
-    .slice()
-    .command(DeleteList, ListDeleted)
-    .actor(User)
-    .service(TodoService)
-    .test("User deletes a list", {
-      given: groceries,
-      when: DeleteList({ listId: "list-1" }),
-      then: ListDeleted({ listId: "list-1" }),
-    }),
-]
+m.slice()
+  .command(DeleteItem, ItemDeleted)
+  .chapter(ListManagement)
+  .actor(User)
+  .screen(ListScreen)
+  .service(TodoService)
+  .test("User deletes an item from a list", {
+    given: milk,
+    when: DeleteItem({ listId: "list-1", itemId: "item-1" }),
+    then: ItemDeleted({ listId: "list-1", itemId: "item-1" }),
+  })
+
+m.slice()
+  .command(DeleteList, ListDeleted)
+  .chapter(ListManagement)
+  .actor(User)
+  .service(TodoService)
+  .test("User deletes a list", {
+    given: groceries,
+    when: DeleteList({ listId: "list-1" }),
+    then: ListDeleted({ listId: "list-1" }),
+  })

@@ -9,6 +9,7 @@ export const NoteService = m.service("notes.v1")
 export const Notes = m.stream()
 
 // Capture: a note lands in the inbox.
+export const Capture = m.chapter()
 export const CreateNote = m.command({ noteId: z.string(), text: z.string() })
 export const NoteCreated = m.event({ noteId: z.string(), text: z.string() }).stream(Notes)
 export const Inbox = m.readModel({
@@ -17,41 +18,45 @@ export const Inbox = m.readModel({
   status: z.enum(["inbox", "filed"]),
 })
 
-const Capture = [
-  m
-    .slice()
-    .command(CreateNote, NoteCreated)
-    .actor(Writer)
-    .service(NoteService)
-    .test("A note lands in the inbox", {
-      when: CreateNote({ noteId: "note-1", text: "Call the plumber" }),
-      then: NoteCreated({ noteId: "note-1", text: "Call the plumber" }),
-    }),
-  m.slice().projection(
+m.slice()
+  .command(CreateNote, NoteCreated)
+  .chapter(Capture)
+  .actor(Writer)
+  .service(NoteService)
+  .test("A note lands in the inbox", {
+    when: CreateNote({ noteId: "note-1", text: "Call the plumber" }),
+    then: NoteCreated({ noteId: "note-1", text: "Call the plumber" }),
+  })
+
+m.slice()
+  .projection(
     Inbox,
     NoteCreated(() => ({ status: "inbox" })),
-  ),
-]
+  )
+  .chapter(Capture)
 
 // Filing: the writer files a note, and the inbox shows it filed.
+export const Filing = m.chapter()
 export const FileNote = m.command({ noteId: z.string() })
 export const NoteFiled = m.event({ noteId: z.string() }).stream(Notes)
 
-const Filing = [
-  m
-    .slice()
-    .command(FileNote, NoteFiled)
-    .actor(Writer)
-    .service(NoteService)
-    .test("The writer files a note", {
-      when: FileNote({ noteId: "note-1" }),
-      then: NoteFiled({ noteId: "note-1" }),
-    }),
-  m.slice().projection(
+m.slice()
+  .command(FileNote, NoteFiled)
+  .chapter(Filing)
+  .actor(Writer)
+  .service(NoteService)
+  .test("The writer files a note", {
+    when: FileNote({ noteId: "note-1" }),
+    then: NoteFiled({ noteId: "note-1" }),
+  })
+
+m.slice()
+  .projection(
     Inbox,
     NoteFiled(() => ({ status: "filed" })),
-  ),
-  m.slice().view(Inbox).actor(Writer).service(NoteService, "ListInbox"),
-]
+  )
+  .chapter(Filing)
 
-export default m.model("Notes", { chapters: { Capture, Filing } })
+m.slice().view(Inbox).chapter(Filing).actor(Writer).service(NoteService, "ListInbox")
+
+export default m.model("Notes")

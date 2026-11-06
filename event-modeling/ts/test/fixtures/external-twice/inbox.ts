@@ -6,4 +6,5 @@ export const Mail = m.external()
 export const Bounced = m.event({ id: z.string() }).external(Mail)
 export const Note = m.command({ id: z.string() })
 export const Noted = m.event({ id: z.string() })
-export const Inbox = [m.slice().trigger(Bounced, Note, Noted)]
+export const Inbox = m.chapter()
+m.slice().trigger(Bounced, Note, Noted).chapter(Inbox)

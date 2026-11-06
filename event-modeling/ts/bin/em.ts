@@ -102,8 +102,7 @@ async function json(path: string): Promise<void> {
 }
 
 async function proto(path: string, out: string): Promise<void> {
-  const { model } = await load(path)
-  const files = generateProto(model)
+  const files = generateProto(await load(path))
   if (files.length === 0)
     throw new Error(
       'No slice has a service, so no .proto was written. Add .service(Api) to the state changes and views the API serves, after `export const Api = m.service("my.v1")`.',

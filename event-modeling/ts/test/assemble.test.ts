@@ -6,9 +6,10 @@ import { join } from "node:path"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
 import { z } from "zod"
-import { m, type Slice } from "#em"
+import { type Chapter, m, type Slice } from "#em"
 
 import { assemble, assembleModules, load } from "../src/assemble.ts"
+import { toJson } from "../src/json.ts"
 import { layout } from "../viewer/src/layout.ts"
 
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url))
@@ -23,14 +24,17 @@ function validate(json: unknown): void {
   assert.equal(run.status, 0, run.stdout + run.stderr)
 }
 
+// A module runs once per process, so the example is loaded once.
+const todoApp = load(here("../examples/todo-app"))
+
 test("the todo example assembles to the checked-in render target", async () => {
-  const json = await assemble(here("../examples/todo-app"))
+  const json = toJson(await todoApp)
   assert.deepEqual(json, JSON.parse(readFileSync(here("./todo-app.json"), "utf8")))
 })
 
 test("load returns the named model the generators read", async () => {
-  const { model } = await load(here("../examples/todo-app"))
-  const first = model.chapters[0]?.slices[0]
+  const { model, chapters } = await todoApp
+  const first = chapters[0]?.slices[0]
   assert.deepEqual(
     [model.name, first?.name, first?.service?.service.name, first?.service?.service.pkg],
     ["Todo List Application", "CreateList", "TodoService", "todo.v1"],
@@ -62,9 +66,20 @@ const project = (f: Fixture) => m.slice().projection(f.Table, f.Created)
 const projectTable = project
 const view = (f: Fixture) => m.slice().view(f.Table).actor(f.User).service(f.Svc, "Get")
 
+/** A chapter per key, declared in key order, that its slices join in array order. */
+function chapters(story: Record<string, readonly Slice[]>): Record<string, Chapter> {
+  return Object.fromEntries(
+    Object.entries(story).map(([name, slices]) => {
+      const chapter = m.chapter()
+      for (const s of slices) s.chapter(chapter)
+      return [name, chapter]
+    }),
+  )
+}
+
 /** One module exporting `exports` and a model of one chapter, `Ch`. */
 function assembled(exports: Record<string, unknown>, slices: readonly Slice[]) {
-  return assembleModules([{ ...exports, default: m.model("x", { chapters: { Ch: slices } }) }])
+  return assembleModules([{ ...exports, ...chapters({ Ch: slices }), default: m.model("x") }])
 }
 
 test("a well-formed model assembles", () => {
@@ -117,7 +132,7 @@ test("a model still being written draws with a field that has no value", () => {
   const f = fixture()
   const Created = m.event({ id: z.string(), name: z.string(), extra: z.string() })
   const Ch = [unspecified({ ...f, Created })]
-  const json = assembleModules([{ ...f, Created, default: m.model("x", { chapters: { Ch } }) }], {
+  const json = assembleModules([{ ...f, Created, ...chapters({ Ch }), default: m.model("x") }], {
     partial: true,
   })
   assert.equal(json.chapters[0]?.slices.length, 1)
@@ -235,9 +250,8 @@ test("an event no slice emits is one line, at the slices that react to it", () =
         Processed,
         Rename,
         Renamed,
-        default: m.model("x", {
-          chapters: { Ch: [processor, project(f), view(f)], Other: [assumes] },
-        }),
+        ...chapters({ Ch: [processor, project(f), view(f)], Other: [assumes] }),
+        default: m.model("x"),
       },
     ],
     { partial: true },
@@ -322,7 +336,8 @@ test("an external event a call ends in that nothing triggers on", () => {
         Ask,
         User: f.User,
         Svc: f.Svc,
-        default: m.model("x", { chapters: { Ch: [specified] } }),
+        ...chapters({ Ch: [specified] }),
+        default: m.model("x"),
       },
     ],
     { partial: true },
@@ -347,7 +362,8 @@ function outcomes() {
   const model = (create: Slice) => ({
     ...f,
     Refused,
-    default: m.model("x", { chapters: { Ch: [create, project, view(f)] } }),
+    ...chapters({ Ch: [create, project, view(f)] }),
+    default: m.model("x"),
   })
   return { f, Refused, created, model }
 }
@@ -381,7 +397,8 @@ test("an external event a call ends in is an outcome", () => {
         Ask,
         User: f.User,
         Svc: f.Svc,
-        default: m.model("x", { chapters: { Ch: [ask] } }),
+        ...chapters({ Ch: [ask] }),
+        default: m.model("x"),
       },
     ],
     { partial: true },
@@ -528,7 +545,7 @@ test("same-named streams from two modules are one lane", () => {
   const Ch = [create(f), project(f), view(f)]
   const json = assembleModules(
     [
-      { ...f, default: m.model("x", { chapters: { Ch } }) },
+      { ...f, ...chapters({ Ch }), default: m.model("x") },
       { Inventory },
       { Inventory: Stock, Recounted },
     ],
@@ -589,7 +606,8 @@ test("a screen no one sees, and one no slice names, are left to do", () => {
         ...f,
         Lock,
         Home,
-        default: m.model("x", { chapters: { Ch: [unseen, project(f), view(f)] } }),
+        ...chapters({ Ch: [unseen, project(f), view(f)] }),
+        default: m.model("x"),
       },
     ],
     { partial: true },
@@ -621,25 +639,24 @@ test("two projection slices of one read model fill each other's columns", () => 
   const json = assembleModules([
     { ...f, Table, Archive, Archived },
     {
-      default: m.model("x", {
-        chapters: {
-          Capture: [
-            create(f),
-            m.slice().projection(
-              Table,
-              f.Created(() => ({ status: "open" })),
-            ),
-          ],
-          Tidy: [
-            archive,
-            m.slice().projection(
-              Table,
-              Archived(() => ({ status: "archived" })),
-            ),
-            view({ ...f, Table }),
-          ],
-        },
+      ...chapters({
+        Capture: [
+          create(f),
+          m.slice().projection(
+            Table,
+            f.Created(() => ({ status: "open" })),
+          ),
+        ],
+        Tidy: [
+          archive,
+          m.slice().projection(
+            Table,
+            Archived(() => ({ status: "archived" })),
+          ),
+          view({ ...f, Table }),
+        ],
       }),
+      default: m.model("x"),
     },
   ])
   assert.deepEqual(
@@ -655,7 +672,7 @@ test("a column neither projection slice writes is reported once, at the first", 
   const f = fixture()
   const Table = m.readModel({ id: m.key(z.string()), name: z.string(), status: z.string() })
   const Ch = [create(f), project({ ...f, Table }), project({ ...f, Table })]
-  const json = assembleModules([{ ...f, Table, default: m.model("x", { chapters: { Ch } }) }], {
+  const json = assembleModules([{ ...f, Table, ...chapters({ Ch }), default: m.model("x") }], {
     partial: true,
   })
   assert.deepEqual(
@@ -724,7 +741,7 @@ test("a partial assembly lists the dead ends and keeps the loose declarations in
   const Ended = m.event({ id: z.string() }).stream(Games)
   const Ch = [create(f)]
   const json = assembleModules(
-    [{ ...f, Ended, Started, Games, default: m.model("x", { chapters: { Ch } }) }],
+    [{ ...f, Ended, Started, Games, ...chapters({ Ch }), default: m.model("x") }],
     { partial: true },
   )
   assert.deepEqual(json.warnings, [
@@ -754,7 +771,7 @@ test("an actor in no slice is still one of the model's actors", () => {
   const f = fixture()
   const Bartender = m.actor()
   const Ch = [create(f)]
-  const json = assembleModules([{ ...f, Bartender, default: m.model("x", { chapters: { Ch } }) }], {
+  const json = assembleModules([{ ...f, Bartender, ...chapters({ Ch }), default: m.model("x") }], {
     partial: true,
   })
   assert.deepEqual(
@@ -778,7 +795,8 @@ test("an external event is drawn in its system's lane", () => {
         TaskMoved,
         Connect,
         Connected,
-        default: m.model("x", { chapters: { Ch } }),
+        ...chapters({ Ch }),
+        default: m.model("x"),
       },
     ],
     { partial: true },
@@ -787,6 +805,62 @@ test("an external event is drawn in its system's lane", () => {
   assert.deepEqual(json.loose, [
     { kind: "external", element: "TaskMoved(taskId)", aggregate: "events", actor: "calendar" },
   ])
+})
+
+// --- Chapters -----------------------------------------------------------------
+
+test("chapters come in the order declared, each with its slices in the order written", () => {
+  const f = fixture()
+  const Second = m.chapter()
+  const First = m.chapter().note("Where it starts.")
+  // The same chapter, declared again in another module, is one chapter.
+  const Again = m.chapter()
+  view(f).chapter(Again)
+  create(f).chapter(Second)
+  project(f).chapter(First)
+  const json = assembleModules([{ ...f, Second, First, default: m.model("x") }, { Second: Again }])
+  assert.deepEqual(
+    json.chapters.map((c) => [c.name, c.slices.map((s) => s.name)]),
+    [
+      ["Second", ["Get", "Create"]],
+      ["First", ["Table"]],
+    ],
+  )
+  assert.equal(json.notes.First, "Where it starts.")
+  assert.equal(layout(json).chapters[1]?.note, "Where it starts.")
+})
+
+test("a chapter no slice joins is drawn empty, as a to-do", () => {
+  const f = fixture()
+  const story = chapters({ Ch: [create(f), project(f), view(f)] })
+  const Later = m.chapter()
+  const json = assembleModules([{ ...f, ...story, Later, default: m.model("x") }], {
+    partial: true,
+  })
+  assert.deepEqual(json.chapters.at(-1), { name: "Later", slices: [] })
+  assert.deepEqual(json.warnings, [{ message: "Later has no slices yet.", element: "" }])
+  assert.equal(layout(json).chapters.at(-1)?.title, "Later")
+})
+
+test("a slice joins one chapter", () => {
+  const f = fixture()
+  const [A, B] = [m.chapter(), m.chapter()]
+  project(f).chapter(A)
+  view(f).chapter(A)
+  create(f).chapter(A).chapter(B)
+  assert.throws(
+    () => assembleModules([{ ...f, A, B, default: m.model("x") }]),
+    /^Error: Create: this slice joins A and B\. Keep one \.chapter\(\)\.$/,
+  )
+})
+
+test("a chapter a slice joins that no module exports", () => {
+  const f = fixture()
+  create(f).chapter(m.chapter())
+  assert.throws(
+    () => assembleModules([{ ...f, default: m.model("x") }]),
+    /^Error: Create: this slice joins a chapter that isn't exported\. Export it to give it a name\.$/,
+  )
 })
 
 // --- Slices in no chapter -----------------------------------------------------
@@ -819,7 +893,7 @@ test("a slice missing part of its core is drawn with the rest; strict assembly r
   // @ts-expect-error the compiler reports the missing event where the slice is written
   const incomplete = m.slice().command(f.Create).actor(f.User)
   const slices = [create(f), incomplete, project(f), view(f)]
-  const json = assembleModules([{ ...f, default: m.model("x", { chapters: { Ch: slices } }) }], {
+  const json = assembleModules([{ ...f, ...chapters({ Ch: slices }), default: m.model("x") }], {
     partial: true,
   })
   assert.deepEqual(
@@ -907,7 +981,7 @@ test("a trigger nothing emits yet is drawn on its own", () => {
   const Processed = m.event({ id: z.string() })
   const Ch = [m.slice("Processor").trigger(f.Created, Process, Processed)]
   const json = assembleModules(
-    [{ ...f, Process, Processed, default: m.model("x", { chapters: { Ch } }) }],
+    [{ ...f, Process, Processed, ...chapters({ Ch }), default: m.model("x") }],
     { partial: true },
   )
   assert.deepEqual(
@@ -933,7 +1007,7 @@ test("an example's nested values are printed", () => {
       then: Ordered({ id: "1", items: [{ name: "a" }] }),
     })
   const json = assembleModules(
-    [{ Order, Ordered, ...f, default: m.model("x", { chapters: { Ch: [slice] } }) }],
+    [{ Order, Ordered, ...f, ...chapters({ Ch: [slice] }), default: m.model("x") }],
     { partial: true },
   )
   const t = json.chapters[0]?.slices[0]?.tests[0]
@@ -948,7 +1022,7 @@ test("an example's nested values are printed", () => {
 /** What a partial assembly says about the specifications of `slices`. */
 function disagreements(exports: Record<string, unknown>, slices: readonly Slice[]): string[] {
   const json = assembleModules(
-    [{ ...exports, default: m.model("x", { chapters: { Ch: slices } }) }],
+    [{ ...exports, ...chapters({ Ch: slices }), default: m.model("x") }],
     {
       partial: true,
     },
@@ -1002,14 +1076,14 @@ test("a state change's then has what its command sends and its mapping sets", ()
     'Ch › Add › "disagrees": then has tags [{"name":"drink"}], but when sends [{"name":"food"}].',
   ])
   const json = assembleModules(
-    [{ ...exports, default: m.model("x", { chapters: { Ch: [wrong] } }) }],
+    [{ ...exports, ...chapters({ Ch: [wrong] }), default: m.model("x") }],
     {
       partial: true,
     },
   )
   assert.ok(json.warnings?.some((w) => w.element === "Added" && w.slice === "Add"))
   assert.throws(
-    () => assembleModules([{ ...exports, default: m.model("x", { chapters: { Ch: [wrong] } }) }]),
+    () => assembleModules([{ ...exports, ...chapters({ Ch: [wrong] }), default: m.model("x") }]),
     // Every problem, not just the first.
     /^Error: Ch › Add › "disagrees": then has id "a-2", but when sends "a-1"\.\nCh › Add › "disagrees": then has title /,
   )
