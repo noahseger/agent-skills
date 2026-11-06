@@ -63,7 +63,7 @@ slice's source, so the editor knows its fields. The editor offers only the calls
 | state change | the command | `.command(Command, Event)` | An actor issues a command and events are recorded. |
 | view | the read model | `.view(ReadModel)` | An actor reads a read model. |
 | automation | the trigger event, or a to-do list | `.trigger(Event, Command, Event)` or `.todoList(ReadModel, Command, Event)` | An event, or a list of work, causes a command. No actor is involved. |
-| state view | the read model | `.projection(ReadModel, Event)` | Events build a read model. |
+| state view | the read model | `.projection(ReadModel, Event)` | Our events build a read model. |
 
 The first call is the whole pattern, and leaving out any of its arguments is an error where the slice
 is written. Every later step is optional: `.event()` adds another event, `.readModel()` names what
@@ -408,6 +408,9 @@ a stream. An event joins it where the event is declared, with `.external()`. We 
 and never store them, so an event is in a stream or a system, not both. A system no event has joined
 yet is drawn empty, and two modules may export one under the same name.
 
+An external event builds no read model: it isn't stored, so the read model would be empty after a
+replay. Translate it into an event of ours with `.trigger()`, as above, and project that.
+
 The model says that data arrives, not how. A call to such a system is our command followed by the
 event that brings its data back, and that event's fields come from outside, so the command need
 not carry them:
@@ -491,6 +494,7 @@ The compiler catches:
 | the chain | Only a legal chain compiles; each start offers only its own steps. A slice missing part of its pattern is an error where it is written: `Expected 2 arguments, but got 1`, beside which the editor names the missing argument, such as `event`. |
 | a function | Its argument is the slice's source: the command for a handler's event, the trigger event or the to-do row for an automation's command, the event in a projection. Its result must be fields of the target, with matching types. Its second argument holds `generate`, except for an automation's command. |
 | a command's event | Every event field the command lacks must be set by the function, or marked `generate()`, unless it is optional. The error names the fields. |
+| a projection's event | An external event is refused, because it isn't stored. The error says to translate it first. |
 | a function outside a slice | A mapper only works inside a slice: `.event(...)`, `.command(...)` or a projection. The error says so. |
 | an automation's command | Every command field the trigger, or the to-do row, lacks must be set by the function, unless it is optional. The error names the fields. |
 | `.service()` on a view | It names the method. |
@@ -511,6 +515,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | Two slices claiming one service method; a slice without a service claims none | A union of literal types dedupes rather than counts. |
 | A declaration in no slice, a slice in no chapter, or a chapter no slice joins | Whether a value is used is not a type. |
 | A slice joining two chapters | `.chapter()` can be called again further down the chain. |
+| A read model built from an external event | `em json` runs the model without `tsc`, and `Event(map)` does not say whose event it is. |
 | An event in both a stream and an external system | `.stream()` and `.external()` can be called on it in separate statements. |
 | An event a command lists that no specification's `then` shows, an event a projection names or an automation's trigger that no specification's `given` has, or a view with no specification | Each `.test()` is checked on its own, not against the slice's other specifications. |
 | A specification value that is not what flows in: from `when`, the trigger in `given`, or the events that build the row | Example values are data, not types. |

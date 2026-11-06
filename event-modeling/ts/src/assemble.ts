@@ -265,6 +265,7 @@ function check(
   for (const at of located) {
     checkFilled(at, columns, fail)
     checkKeys(at, fail)
+    checkStored(at, fail)
     checkCovered(at, fail)
     checkSeen(at, fail)
     checkSpecs(at, columns, fail)
@@ -529,6 +530,19 @@ function checkKeys({ slice, where }: Located, fail: Fail): void {
   }
 }
 
+/** External events are not stored, so a read model built from one would be empty after a replay. */
+function checkStored({ slice, where }: Located, fail: Fail): void {
+  const { projection } = slice
+  if (!projection) return
+  for (const { decl } of slice.events)
+    if (decl.external)
+      fail({
+        message: `${where}: ${projection.name} is built from ${decl.name}, which is ${decl.external.name}'s and isn't stored. Translate it into an event of ours first, then project that.`,
+        element: decl.name ?? "",
+        slice: slice.name ?? "",
+      })
+}
+
 /**
  * Every event a slice handles or produces is in one of its specifications: a command's events are
  * alternatives, and only a specification says when each happens; an automation's trigger, and a
@@ -786,7 +800,9 @@ function checkConnected(located: Located[], columns: Columns, fail: Fail): void 
         fail(
           about(
             e,
-            `${where}: nothing uses ${e.name} yet. Add .trigger(${e.name}) or a projection's .event(${e.name}) where something reacts to it.`,
+            e.external
+              ? `${where}: nothing uses ${e.name} yet. Add .trigger(${e.name}) where we translate it into an event of ours.`
+              : `${where}: nothing uses ${e.name} yet. Add .trigger(${e.name}) or a projection's .event(${e.name}) where something reacts to it.`,
           ),
         )
     }

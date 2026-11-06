@@ -231,6 +231,12 @@ m.slice().trigger(CartUpdated, NameList((e) => ({ name: "" })), ListCreated)
 // @ts-expect-error ItemAdded is ours, so AddItem must still carry its title
 m.slice().command(AddItem, CartUpdated).event(ItemAdded)
 
+// @ts-expect-error an external event isn't stored, so it builds no read model
+m.slice().projection(TodoList, CartUpdated)
+
+// @ts-expect-error nor after the start
+m.slice().projection(TodoList, ListCreated).event(CartUpdated)
+
 // --- everything is declared with m.command or m.event, so a spec can name it --
 
 // @ts-expect-error a command is not declared in place

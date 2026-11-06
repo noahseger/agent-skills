@@ -146,6 +146,8 @@ export type ReadModelDecl<F extends Fields = Fields> = Decl<"readModel", F>
  */
 export interface ExternalEventDecl<F extends Fields = Fields> extends EventDecl<F> {
   readonly "add to the command or set in the mapping": never
+  /** A projection refuses an event with this key, so the editor's error names the fix. */
+  readonly "isn't stored: translate it into an event of ours, then project that": true
 }
 
 function decl<K extends DeclKind, F extends Fields>(kind: K, fields: F): Decl<K, F> {
@@ -433,8 +435,12 @@ type Issue<S extends Fields, C extends Fields, From extends string> =
   | (CommandDecl<C> & FilledBy<S, C, From>)
   | Mapped<"command", C, Into<S, NoHelpers>>
 
-/** `Event`, or `Event(map)` to fill columns the event does not carry by name. */
-type ProjectedEvent<R extends Fields, E extends Fields> = EventDecl<E> | Mapped<"event", E, Onto<R>>
+/** An event of ours, `Event`, or `Event(map)` to fill columns the event does not carry by name. */
+type ProjectedEvent<R extends Fields, E extends Fields> =
+  | (EventDecl<E> & {
+      readonly "isn't stored: translate it into an event of ours, then project that"?: never
+    })
+  | Mapped<"event", E, Onto<R>>
 
 /** A slice starts with its whole pattern, so an incomplete one does not compile where it is written. */
 export interface SliceStart {
