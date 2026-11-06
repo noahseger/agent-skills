@@ -1,6 +1,6 @@
 // Does the model answer the brief? That is the one thing left that no type
 // system can decide, so it is the one thing these tests assert. Each test is
-// one numbered requirement of tests/fixtures/todo_app_brief.md, checked on the
+// one numbered requirement of fixtures/todo_app_brief.md, checked on the
 // spec JSON the model emits.
 import assert from "node:assert/strict"
 import { test } from "node:test"

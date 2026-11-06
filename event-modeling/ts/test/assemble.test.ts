@@ -508,7 +508,7 @@ test("a slice with several actors draws a screen in each one's lane", () => {
   assert.deepEqual(lanes, ["actor:user", "actor:admin"])
 })
 
-// --- What the render target reads natively, and what it encodes ---------------
+// --- What the viewer draws: polls, lanes, screens ------------------------------
 
 test("a .todoList() automation polls the read model", () => {
   const f = fixture()

@@ -464,8 +464,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | An event a command lists that no specification's `then` shows | Each `.test()` is checked on its own, not against the slice's other specifications. |
 | A specification value that is not what flows in: from `when`, the trigger in `given`, or the events that build the row | Example values are data, not types. |
 
-`event_model.py` then checks the emitted JSON for what neither can: example values that are not
-placeholders. Naming is yours: the conventions above are not checked.
+Naming is yours: the conventions above are not checked.
 
 ## The JSON
 
@@ -612,7 +611,7 @@ npm test
 ```
 
 `npm test` type-checks, lints, builds the viewer and the package, runs the node tests, and lints the
-generated proto. It needs python 3 with `pydantic` for the renderer, the same as CI.
+generated proto.
 
 To model against the checkout, with nothing published, build it once and install it into a new
 repository by path. npm links the directory, so a rebuild of the checkout is picked up on the next
