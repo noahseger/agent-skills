@@ -24,6 +24,7 @@ import {
   type SliceData,
   type Source,
   type StreamData,
+  spliced,
   type TestData,
 } from "./types.ts"
 
@@ -32,8 +33,12 @@ type OneOrMany<T> = T | readonly T[]
 
 /** What a function gets as its second argument where a command's handler fills an event. */
 export interface EmitHelpers {
-  /** A value the handler assigns, such as an id or a clock. */
-  generate<T>(): T
+  /**
+   * A value the handler makes: from the source's fields, such as `generate(c.title)`, and the read
+   * models the slice names with `.readModel()`, such as `generate(e.pageId, Pages)`; from nothing,
+   * `generate()`, it is an id or a clock.
+   */
+  generate<T>(...inputs: unknown[]): T
 }
 
 /** What a function gets as its second argument in a projection. */
@@ -83,6 +88,17 @@ export type Mapper<F extends Fields, P> =
       ? (source: Infer<S>, helpers: H) => Pick<Infer<F>, Unfilled<S, F>> & Partial<Infer<F>>
       : never
 
+/**
+ * A function where an example's data goes is a mapper outside a slice. No result has this key, so
+ * the compiler's error names the fix; the parameters are typed, so that error is the only one.
+ */
+type SliceMapper = (
+  source: Record<string, unknown>,
+  helpers: EmitHelpers & ProjectionHelpers,
+) => {
+  readonly "a mapper only works inside a slice: .event(...), .command(...) or a projection": never
+}
+
 // ---------------------------------------------------------------------------
 // Declarations
 // ---------------------------------------------------------------------------
@@ -108,7 +124,7 @@ export interface Decl<K extends DeclKind, F extends Fields> {
    * overloads, so the compiler's error is about the form written. The slice step decides `P`.
    */
   <P extends Place = never>(
-    arg: [P] extends [never] ? Partial<Infer<F>> : Mapper<F, P>,
+    arg: [P] extends [never] ? Partial<Infer<F>> | SliceMapper : Mapper<F, P>,
   ): [P] extends [never] ? Example<K, F> : Mapped<K, F, P>
   readonly [META]: DeclData
   readonly __kind: K
@@ -284,26 +300,50 @@ const FIELD = Symbol("field")
 const COUNT = Symbol("count")
 const GENERATE = Symbol("generate")
 
-// Each helper returns its marker, so the probe can tell it from a source field or a constant.
-const helpers = { count: () => COUNT, generate: () => GENERATE }
-
 interface Probe {
   readonly [FIELD]: string
+}
+
+interface Generated {
+  readonly [GENERATE]: (string | DeclData)[]
 }
 
 function isProbe(value: unknown): value is Probe {
   return typeof value === "object" && value !== null && FIELD in value
 }
 
+function isGenerated(value: unknown): value is Generated {
+  return typeof value === "object" && value !== null && GENERATE in value
+}
+
+/** A source field by its name, a read model by its declaration. */
+function input(value: unknown): string | DeclData {
+  if (isProbe(value)) return value[FIELD]
+  const decl = (value as Partial<ReadModelDecl> | undefined)?.[META]
+  if (decl?.kind === "readModel") return decl
+  throw new Error(
+    `generate() takes the source's fields and read models, such as generate(e.pageId, Pages), not ${String(value)}.`,
+  )
+}
+
+// Each helper returns its marker, so the probe can tell it from a source field or a constant.
+const helpers = {
+  count: () => COUNT,
+  generate: (...inputs: unknown[]): Generated => ({ [GENERATE]: inputs.map(input) }),
+}
+
 function probe(fields: Fields, map: MapFn): Record<string, Source> {
-  const source = Object.fromEntries(Object.keys(fields).map((f) => [f, { [FIELD]: f }]))
+  // A field put into a string reads as its name between markers, which assembly refuses.
+  const source = Object.fromEntries(
+    Object.keys(fields).map((f) => [f, { [FIELD]: f, [Symbol.toPrimitive]: () => spliced(f) }]),
+  )
   const mapping: Record<string, Source> = {}
   for (const [field, value] of Object.entries(map(source as never, helpers as never))) {
     mapping[field] =
       value === COUNT
         ? { count: true }
-        : value === GENERATE
-          ? { generate: true }
+        : isGenerated(value)
+          ? { generate: value[GENERATE] }
           : isProbe(value)
             ? { from: value[FIELD] }
             : { value }

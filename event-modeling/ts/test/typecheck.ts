@@ -160,6 +160,14 @@ m.slice().command(AddItem, ItemAdded((c) => ({ listId: c.listId })))
 m.slice().command(AddItem, ItemAdded((c) => ({ title: c.text })))
 // generate() fills the field the command lacks.
 m.slice().command(AddItem, ItemAdded((c, { generate }) => ({ title: generate() })))
+// generate() says what the value is made from: the command's fields, and the read models the slice reads.
+m.slice().command(AddItem, ItemAdded((c, { generate }) => ({ title: generate(c.text, TodoList) }))).readModel(TodoList)
+
+// @ts-expect-error a mapper only works inside a slice
+ItemAdded((c, { generate }) => ({ title: generate(c.text) }))
+
+// @ts-expect-error a mapper only works inside a slice, for a projection's event too
+ItemAdded(() => ({ itemCount: 0 }))
 m.slice().command(CreateList, ListCreated).event(ItemAdded((c) => ({ title: c.name })))
 
 // @ts-expect-error count applies to a projection, not where a handler records an event

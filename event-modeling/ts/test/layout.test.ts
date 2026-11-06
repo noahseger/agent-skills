@@ -64,8 +64,20 @@ test("parseClause gives one line per field, and a rejection its message", () => 
 })
 
 test("a mapped field shows where its value came from", () => {
-  const sources: Source[] = [{ from: "text" }, { count: true }, { generate: true }, { value: 0 }]
-  assert.deepEqual(sources.map(source), ["← text", "count", "generated", "= 0"])
+  const sources: Source[] = [
+    { from: "text" },
+    { count: true },
+    { generate: [] },
+    { generate: ["pageId", "Pages"] },
+    { value: 0 },
+  ]
+  assert.deepEqual(sources.map(source), [
+    "← text",
+    "count",
+    "generated",
+    "generated from pageId, Pages",
+    "= 0",
+  ])
 })
 
 test("one column per slice, in chapter order, inside its chapter", () => {

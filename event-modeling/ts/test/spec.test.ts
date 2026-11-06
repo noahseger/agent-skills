@@ -184,7 +184,7 @@ test("a mapping says where each field comes from: a field, generated, count(), o
   const board = read(feed)
   const slice = (i: number) => board.chapters.flatMap((c) => c.slices)[i]
   assert.deepEqual(slice(0)?.mapping, {
-    OrderPlaced: { product: { from: "item" }, placedAt: { generate: true } },
+    OrderPlaced: { product: { from: "item" }, placedAt: { generate: [] } },
   })
   assert.deepEqual(slice(1)?.mapping?.PaymentRecorded, {
     product: { value: "" },

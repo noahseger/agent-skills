@@ -158,23 +158,72 @@ test("a mapping function fills what the command does not carry", () => {
   assert.equal(json.chapters[0]?.slices[0]?.command, "Create(id, name)")
 })
 
-test("generate() fills a field the handler assigns, and a specification gives it any value", () => {
+test("generate() records what a value is made from, and a specification gives it any value", () => {
   const f = fixture()
   const Created = m.event({ id: z.string(), name: z.string(), at: z.string() })
   const slice = m
     .slice()
     .command(
       f.Create,
-      Created((_, { generate }) => ({ at: generate() })),
+      Created((c, { generate }) => ({ at: generate(c.name, f.Table) })),
     )
+    .readModel(f.Table)
     .actor(f.User)
     .service(f.Svc)
     .test("Create", {
       when: f.Create({ id: "id-1", name: "Groceries" }),
       then: Created({ id: "id-1", name: "Groceries", at: "2026-01-01T00:00:00Z" }),
     })
-  const json = assembled({ ...f, Created }, [slice, project({ ...f, Created }), view(f)])
-  assert.deepEqual(json.chapters[0]?.slices[0]?.mapping, { Created: { at: { generate: true } } })
+  const exports = { ...f, Created }
+  const story = chapters({ Ch: [slice, project(exports), view(f)] })
+  const feed = feedOf([{ ...exports, ...story, default: m.model("x") }])
+  assert.deepEqual(
+    feed.model.slices[0]?.events[0]?.fields.find((field) => field.name === "at"),
+    { name: "at", type: "String", generated: true, mapping: "name, Table" },
+  )
+  assert.deepEqual(drawn(feed).chapters[0]?.slices[0]?.mapping, {
+    Created: { at: { generate: ["name", "Table"] } },
+  })
+})
+
+test("a read model a value is generated from, which the slice does not read", () => {
+  const f = fixture()
+  const Created = m.event({ id: z.string(), name: z.string(), at: z.string() })
+  const slice = m
+    .slice()
+    .command(
+      f.Create,
+      Created((c, { generate }) => ({ at: generate(c.id, f.Table) })),
+    )
+    .test("Create", { when: f.Create(list), then: Created({ ...list, at: "noon" }) })
+  assert.throws(
+    () => assembled({ ...f, Created }, [slice, project({ ...f, Created }), view(f)]),
+    /Ch › Create: Created\.at is generated from Table, which this slice doesn't read yet\. Add \.readModel\(Table\)\./,
+  )
+})
+
+test("a source field put into a string is refused, for generate() to say what it is made from", () => {
+  const f = fixture()
+  const Created = m.event({ id: z.string(), name: z.string(), label: z.string() })
+  const slice = m
+    .slice()
+    .command(
+      f.Create,
+      Created((c) => ({ label: `${c.name} (${c.id})` })),
+    )
+    .test("Create", { when: f.Create(list), then: Created({ ...list, label: "x" }) })
+  assert.throws(
+    () => assembled({ ...f, Created }, [slice, project({ ...f, Created }), view(f)]),
+    /Ch › Create: Created\.label builds a string from name, id\. Write generate\(\) with name, id instead, to say what it is made from\./,
+  )
+  assert.throws(
+    () =>
+      m.slice().command(
+        f.Create,
+        Created((_, { generate }) => ({ label: generate("x") })),
+      ),
+    /generate\(\) takes the source's fields and read models, such as generate\(e\.pageId, Pages\), not x\./,
+  )
 })
 
 test("a column no .event() writes", () => {

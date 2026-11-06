@@ -20,6 +20,7 @@ import {
   recorded,
   type SliceData,
   type StreamData,
+  splicedFields,
   type Warning,
 } from "./types.ts"
 
@@ -268,6 +269,7 @@ function check(
     checkOutcomes(at, fail)
     checkSeen(at, fail)
     checkSpecs(at, columns, fail)
+    checkGenerated(at, fail)
   }
   checkConnected(located, columns, fail)
   checkMethods(located)
@@ -355,13 +357,56 @@ function used(slice: SliceData): [keyof typeof KIND_LABEL, { name?: string }][] 
     out.push(["event", e])
     if (e.external) out.push(["external", e.external])
   }
-  const readModels = [...slice.readModels, ...slice.shows, slice.todoList, slice.projection]
+  const readModels = [
+    ...slice.readModels,
+    ...slice.shows,
+    slice.todoList,
+    slice.projection,
+    ...flows(slice).flatMap(generatedFrom),
+  ]
   for (const r of readModels) if (r) out.push(["readModel", r])
   for (const t of slice.tests) {
     for (const c of [...t.given, t.when, ...t.then])
       if (c && "decl" in c) out.push([c.decl.kind, c.decl])
   }
   return out
+}
+
+/** The command and events a slice maps. */
+const flows = (slice: SliceData): Flow[] => [
+  ...(slice.command ? [slice.command] : []),
+  ...slice.events,
+]
+
+/** The read models a flow's generated values are made from. */
+const generatedFrom = (flow: Flow): DeclData[] =>
+  Object.values(flow.mapping).flatMap((s) =>
+    "generate" in s ? s.generate.filter((i) => typeof i !== "string") : [],
+  )
+
+/**
+ * A mapping copies a field, sets a constant or says what a value is made from. A field put into a
+ * string is computed, so it is refused: the JavaScript would record text nobody wrote. A read model
+ * a value is made from is one the handler reads.
+ */
+function checkGenerated({ slice, where }: Located, fail: Fail): void {
+  for (const flow of flows(slice)) {
+    for (const [field, s] of Object.entries(flow.mapping)) {
+      const target = `${flow.decl.name}.${field}`
+      const fields = "value" in s && typeof s.value === "string" ? splicedFields(s.value) : []
+      if (fields.length > 0)
+        throw new Error(
+          `${where}: ${target} builds a string from ${fields.join(", ")}. Write generate() with ${fields.join(", ")} instead, to say what it is made from.`,
+        )
+      for (const input of "generate" in s ? s.generate : [])
+        if (typeof input !== "string" && !slice.readModels.includes(input))
+          fail({
+            message: `${where}: ${target} is generated from ${input.name}, which this slice doesn't read yet. Add .readModel(${input.name}).`,
+            element: input.name ?? "",
+            slice: slice.name ?? "",
+          })
+    }
+  }
 }
 
 /** The fields a flow fills: those that copy by name from `source`, and those its mapping sets. */

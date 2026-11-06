@@ -174,7 +174,7 @@ m.slice("OutcomeAdjudicator")
   .trigger(
     GameEnded,
     AdjudicateOutcome((e) => ({ termination: e.ending })),
-    BoardOutcomeAdjudicated((_, { generate }) => ({ result: generate() })),
+    BoardOutcomeAdjudicated((c, { generate }) => ({ result: generate(c.termination, GameState) })),
   )
   .chapter(Conclusion)
   .readModel(GameState)
@@ -236,8 +236,8 @@ m.slice("IllegalMoveForfeiter")
   .trigger(
     SecondIllegalMoveRuled,
     ForfeitGame,
-    IllegalMoveForfeited((_, { generate }) => ({
-      result: generate(),
+    IllegalMoveForfeited((c, { generate }) => ({
+      result: generate(c.offendingSide),
       termination: "illegal_move_forfeit",
     })),
   )

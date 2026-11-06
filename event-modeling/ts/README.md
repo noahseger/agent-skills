@@ -153,12 +153,20 @@ needed. In the second, the command says `text` and the event says `title`, so th
 with a function that supplies the field that does not match. Its argument is the command. Fields that
 do match still flow on their own.
 
-A value the handler assigns itself, such as an id or a clock, has no source. Mark it with `generate()`,
-which the function gets as its second argument; a specification may give it any value:
+A value the handler makes has no field to copy. Say what it is made from with `generate()`, which the
+function gets as its second argument: the command's fields, and any read model the handler looks it
+up in, which the slice names with `.readModel()`. From nothing, it is an id or a clock. A
+specification may give it any value.
 
 ```ts
-.command(AddNote, NoteAdded((c, { generate }) => ({ noteId: generate(), capturedAt: generate() })))
+.command(AddNote, NoteAdded((c, { generate }) => ({ noteId: generate(), slug: generate(c.title) })))
+.command(RecordChange, ChangeRecorded((c, { generate }) => ({ noteId: generate(c.pageId, Pages) })))
+  .readModel(Pages)
 ```
+
+A mapping only copies, sets constants and says what a value is made from; it computes nothing. A
+field put into a string, such as `` `${c.title}!` ``, is refused at assembly, with the fix:
+`generate(c.title)`. The compiler cannot see it, because a string built from a string is a string.
 
 `.actor()` takes any number of actors, and each is drawn with a screen. Without one the slice has
 no screen; without `.service()` it has no service method. When the handler reads a read model to
@@ -442,6 +450,7 @@ The compiler catches:
 | the chain | Only a legal chain compiles; each start offers only its own steps. A slice missing part of its pattern is an error where it is written: `Expected 2 arguments, but got 1`, beside which the editor names the missing argument, such as `event`. |
 | a function | Its argument is the slice's source: the command for a handler's event, the trigger event or the to-do row for an automation's command, the event in a projection. Its result must be fields of the target, with matching types. Its second argument holds only the helpers that apply: `generate` where a handler records an event, `count` in a projection. |
 | a command's event | Every event field the command lacks must be set by the function, or marked `generate()`. The error names the fields. |
+| a function outside a slice | A mapper only works inside a slice: `.event(...)`, `.command(...)` or a projection. The error says so. |
 | an automation's command | Every command field the trigger, or the to-do row, lacks must be set by the function. The error names the fields. |
 | `.service()` on a view | It names the method. |
 | `.test()` | `when` is the slice's command. `then` is its events or its read model; `reject` replaces `then`, and a projection has none. Zod checks the values. |
@@ -463,6 +472,8 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | An event in both a stream and an external system | `.stream()` and `.external()` can be called on it in separate statements. |
 | An event a command lists that no specification's `then` shows | Each `.test()` is checked on its own, not against the slice's other specifications. |
 | A specification value that is not what flows in: from `when`, the trigger in `given`, or the events that build the row | Example values are data, not types. |
+| A source field put into a string in a mapping | A string built from a string is a string. |
+| A read model passed to `generate()` that the slice does not name with `.readModel()` | `.readModel()` can be called anywhere down the chain. |
 
 Naming is yours: the conventions above are not checked.
 
@@ -493,7 +504,7 @@ written by hand can do the same, and the viewer draws it.
 
 | What | Where |
 |---|---|
-| where a mapped field's value comes from | the field's `mapping`: the source field's name, `count()`, or `= ` and a JSON value. A field the handler assigns is `generated: true`. A read model built from several events maps a column once per event, one line each: `ItemAdded: count()` |
+| where a mapped field's value comes from | the field's `mapping`: the source field's name, `count()`, or `= ` and a JSON value. A value the handler makes is `generated: true`, and its `mapping` lists what it is made from, comma-separated: source fields and read models, as `pageId, Pages`; made from nothing, it has no `mapping`. A read model built from several events maps a column once per event, one line each: `ItemAdded: count()` |
 | a system we do not own | its events have `context: "EXTERNAL"`, and `service` names the system. No `aggregate`: we never store them |
 | a call to one | the external event among the command's outbound events |
 | outcomes that are alternatives | no field: a command's outbound events are what it can record, and each specification's `then` says which it did |
