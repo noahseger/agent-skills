@@ -20,7 +20,6 @@ import {
   recorded,
   type SliceData,
   type StreamData,
-  splicedFields,
   type Warning,
 } from "./types.ts"
 
@@ -385,19 +384,23 @@ const generatedFrom = (flow: Flow): DeclData[] =>
   )
 
 /**
- * A mapping copies a field, sets a constant or says what a value is made from. A field put into a
- * string is computed, so it is refused: the JavaScript would record text nobody wrote. A read model
- * a value is made from is one the handler reads.
+ * A mapping copies a field, sets a constant or says what a value is made from. One that computes a
+ * value is drawn as generated and left to do: what it computes is the handler's, not the model's. A
+ * read model a value is made from is one the handler reads.
  */
 function checkGenerated({ slice, where }: Located, fail: Fail): void {
   for (const flow of flows(slice)) {
     for (const [field, s] of Object.entries(flow.mapping)) {
       const target = `${flow.decl.name}.${field}`
-      const fields = "value" in s && typeof s.value === "string" ? splicedFields(s.value) : []
-      if (fields.length > 0)
-        throw new Error(
-          `${where}: ${target} builds a string from ${fields.join(", ")}. Write generate() with ${fields.join(", ")} instead, to say what it is made from.`,
-        )
+      if ("built" in s && s.built !== undefined) {
+        const fields = s.generate.join(", ")
+        const builds = s.built === "string" ? "builds a string" : "computes a number"
+        fail({
+          message: `${where}: ${target} ${builds} from ${fields}. Write generate() with ${fields} instead, to say what it is made from.`,
+          element: flow.decl.name ?? "",
+          slice: slice.name ?? "",
+        })
+      }
       for (const input of "generate" in s ? s.generate : [])
         if (typeof input !== "string" && !slice.readModels.includes(input))
           fail({

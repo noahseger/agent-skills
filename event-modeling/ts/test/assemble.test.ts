@@ -202,25 +202,47 @@ test("a read model a value is generated from, which the slice does not read", ()
   )
 })
 
-test("a source field put into a string is refused, for generate() to say what it is made from", () => {
+test("a mapper that builds a value is drawn, and is left to do until generate() says what it is made from", () => {
   const f = fixture()
-  const Created = m.event({ id: z.string(), name: z.string(), label: z.string() })
-  const slice = m
-    .slice()
-    .command(
-      f.Create,
-      Created((c) => ({ label: `${c.name} (${c.id})` })),
-    )
-    .test("Create", { when: f.Create(list), then: Created({ ...list, label: "x" }) })
+  const Create = m.command({ id: z.string(), name: z.string(), n: z.number() })
+  const Created = m.event({ id: z.string(), name: z.string(), label: z.string(), size: z.number() })
+  const exports = { ...f, Create, Created }
+  // An assembly takes the slices written since the last, so each is written afresh.
+  const modules = () => {
+    const slice = m
+      .slice()
+      .command(
+        Create,
+        Created((c) => ({ label: `${c.name} (${c.id})`, size: c.n * 2 })),
+      )
+      .test("Create", {
+        when: Create({ ...list, n: 1 }),
+        then: Created({ ...list, label: "x", size: 2 }),
+      })
+    const story = chapters({ Ch: [slice, project(exports), view(f)] })
+    return [{ ...exports, ...story, default: m.model("x") }]
+  }
+  const label =
+    "Ch › Create: Created.label builds a string from name, id. Write generate() with name, id instead, to say what it is made from."
+  const size =
+    "Ch › Create: Created.size computes a number from n. Write generate() with n instead, to say what it is made from."
+  const partial = feedOf(modules(), { partial: true })
+  assert.deepEqual(
+    partial.warnings?.filter((w) => w.slice === "Create").map((w) => w.message),
+    [label, size],
+  )
+  assert.deepEqual(drawn(partial).chapters[0]?.slices[0]?.mapping, {
+    Created: { label: { generate: ["name", "id"] }, size: { generate: ["n"] } },
+  })
   assert.throws(
-    () => assembled({ ...f, Created }, [slice, project({ ...f, Created }), view(f)]),
-    /Ch › Create: Created\.label builds a string from name, id\. Write generate\(\) with name, id instead, to say what it is made from\./,
+    () => feedOf(modules()),
+    (e: Error) => e.message.includes(label) && e.message.includes(size),
   )
   assert.throws(
     () =>
       m.slice().command(
         f.Create,
-        Created((_, { generate }) => ({ label: generate("x") })),
+        Created((_, { generate }) => ({ label: generate("x"), size: 0 })),
       ),
     /generate\(\) takes the source's fields and read models, such as generate\(e\.pageId, Pages\), not x\./,
   )

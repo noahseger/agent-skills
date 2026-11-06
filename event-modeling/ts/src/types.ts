@@ -111,28 +111,18 @@ export interface Warning {
 
 /**
  * Where a mapping function got one target field from. A generated value lists what it is made
- * from: source fields by name, read models by declaration, or, from JSON, by name.
+ * from: source fields by name, read models by declaration, or, from JSON, by name. `built` marks one
+ * the mapping computed instead of saying so, which is left to do.
  */
 export type Source =
   | { from: string }
   | { count: true }
-  | { generate: (string | DeclData)[] }
+  | { generate: (string | DeclData)[]; built?: "string" | "number" }
   | { value: unknown }
 
 /** What a generated value is made from, by name. */
 export const inputNames = (s: { generate: (string | DeclData)[] }): string[] =>
   s.generate.map((i) => (typeof i === "string" ? i : (i.name ?? "")))
-
-// Private use, so no text a model writes contains it.
-const SPLICE = "\u{E000}"
-
-/** How a source field reads when a mapping puts it into a string. */
-export const spliced = (field: string): string => `${SPLICE}${field}${SPLICE}`
-
-/** The source fields a mapping put into `text`. */
-export function splicedFields(text: string): string[] {
-  return [...text.matchAll(new RegExp(`${SPLICE}(\\w+)${SPLICE}`, "gu"))].map((m) => m[1] ?? "")
-}
 
 /** A declaration a slice uses; `mapping` lists only fields not copied by name. */
 export interface Flow {

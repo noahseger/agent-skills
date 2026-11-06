@@ -165,8 +165,9 @@ specification may give it any value.
 ```
 
 A mapping only copies, sets constants and says what a value is made from; it computes nothing. A
-field put into a string, such as `` `${c.title}!` ``, is refused at assembly, with the fix:
-`generate(c.title)`. The compiler cannot see it, because a string built from a string is a string.
+field put into a string, such as `` `${c.title}!` ``, or into arithmetic, such as `c.minutes * 60`,
+is drawn as generated from that field and left to do, with the fix: `generate(c.title)`. The
+compiler cannot see it, because a string built from a string is a string.
 
 `.actor()` takes any number of actors, and each is drawn with a screen. Without one the slice has
 no screen; without `.service()` it has no service method. When the handler reads a read model to
@@ -472,7 +473,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | An event in both a stream and an external system | `.stream()` and `.external()` can be called on it in separate statements. |
 | An event a command lists that no specification's `then` shows | Each `.test()` is checked on its own, not against the slice's other specifications. |
 | A specification value that is not what flows in: from `when`, the trigger in `given`, or the events that build the row | Example values are data, not types. |
-| A source field put into a string in a mapping | A string built from a string is a string. |
+| A source field put into a string or arithmetic in a mapping | A string built from a string is a string, and a number from a number a number. |
 | A read model passed to `generate()` that the slice does not name with `.readModel()` | `.readModel()` can be called anywhere down the chain. |
 
 Naming is yours: the conventions above are not checked.

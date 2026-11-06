@@ -24,7 +24,6 @@ import {
   type SliceData,
   type Source,
   type StreamData,
-  spliced,
   type TestData,
 } from "./types.ts"
 
@@ -332,13 +331,37 @@ const helpers = {
   generate: (...inputs: unknown[]): Generated => ({ [GENERATE]: inputs.map(input) }),
 }
 
+// Private use, so no text a model writes contains it.
+const SPLICE = "\u{E000}"
+const SPLICED = new RegExp(`${SPLICE}(\\w+)${SPLICE}`, "gu")
+
+/**
+ * A mapping that computes a value is recorded as generated from the fields it used, and marked
+ * `built` for assembly to report. In a string a field reads as its name between markers. In
+ * arithmetic it is NaN, which carries no name, so every field used as a number in this mapping is
+ * named: the probe cannot tell which target each went into.
+ */
 function probe(fields: Fields, map: MapFn): Record<string, Source> {
-  // A field put into a string reads as its name between markers, which assembly refuses.
+  const counted: string[] = []
+  const numeric = (f: string) => fields[f]?.safeParse(0).success === true
   const source = Object.fromEntries(
-    Object.keys(fields).map((f) => [f, { [FIELD]: f, [Symbol.toPrimitive]: () => spliced(f) }]),
+    Object.keys(fields).map((f) => [
+      f,
+      {
+        [FIELD]: f,
+        [Symbol.toPrimitive]: (hint: string) => {
+          if (hint === "string" || (hint === "default" && !numeric(f)))
+            return `${SPLICE}${f}${SPLICE}`
+          counted.push(f)
+          return Number.NaN
+        },
+      },
+    ]),
   )
   const mapping: Record<string, Source> = {}
   for (const [field, value] of Object.entries(map(source as never, helpers as never))) {
+    const spliced =
+      typeof value === "string" ? [...value.matchAll(SPLICED)].map((m) => m[1] ?? "") : []
     mapping[field] =
       value === COUNT
         ? { count: true }
@@ -346,7 +369,11 @@ function probe(fields: Fields, map: MapFn): Record<string, Source> {
           ? { generate: value[GENERATE] }
           : isProbe(value)
             ? { from: value[FIELD] }
-            : { value }
+            : spliced.length > 0
+              ? { generate: [...new Set(spliced)], built: "string" }
+              : Number.isNaN(value) && counted.length > 0
+                ? { generate: [...new Set(counted)], built: "number" }
+                : { value }
   }
   return mapping
 }
