@@ -72,6 +72,7 @@ const { values, positionals } = parseArgs({
     port: { type: "string" },
     open: { type: "boolean", default: true },
     partial: { type: "boolean", default: false },
+    help: { type: "boolean", short: "h" },
   },
   allowPositionals: true,
   allowNegative: true,
@@ -102,7 +103,12 @@ async function json(path: string): Promise<void> {
 
 async function proto(path: string, out: string): Promise<void> {
   const { model } = await load(path)
-  for (const file of generateProto(model)) {
+  const files = generateProto(model)
+  if (files.length === 0)
+    throw new Error(
+      'No slice has a service, so no .proto was written. Add .service(Api) to the state changes and views the API serves, after `export const Api = m.service("my.v1")`.',
+    )
+  for (const file of files) {
     const target = join(out, file.path)
     mkdirSync(dirname(target), { recursive: true })
     writeFileSync(target, file.source)
@@ -164,14 +170,13 @@ function assembleFresh(path: string): Promise<{ ok: boolean; stdout: string; std
 }
 
 /** Assembles and type-checks at once, and logs everything left to fix in one block. */
-async function reload(path: string, types: Checker, changed?: string): Promise<Snapshot> {
+async function reload(path: string, types: Checker, cause = "Started"): Promise<Snapshot> {
   const started = Date.now()
   const [run, errors] = await Promise.all([
     assembleFresh(path),
     types.check().catch((e: unknown) => [`The type check stopped: ${String(e)}`]),
   ])
   const stamp = new Date().toTimeString().slice(0, 8)
-  const cause = changed ? `Saved ${changed}` : "Started"
   const took = `${Date.now() - started}ms`
   if (run.ok) {
     const model = JSON.parse(run.stdout) as ModelJson
@@ -231,7 +236,7 @@ async function view(path: string): Promise<void> {
   const server = await serve({
     dist: VIEWER_DIST,
     root: statSync(path).isDirectory() ? path : dirname(path),
-    load: (changed) => reload(path, types, changed),
+    load: (cause) => reload(path, types, cause),
     port: Number(values.port ?? 5311),
   })
   console.log(`Showing ${path} at ${server.url}. Press Ctrl-C to stop.`)
@@ -252,7 +257,8 @@ function openBrowser(url: string): void {
 }
 
 async function main(): Promise<void> {
-  if (!command || !path) usage()
+  if (values.help) console.log(USAGE)
+  else if (!command || !path) usage()
   else if (command === "init") init(path)
   else if (command === "json") await json(path)
   else if (command === "render" && values.out) await render(path, values.out)
