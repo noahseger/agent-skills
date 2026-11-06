@@ -163,27 +163,6 @@ class EventModel(BaseModel):
                         f"Automation '{sl.automation}' in {loc} has no trigger — "
                         f"automations MUST be driven by an event or a TODO-list read model"
                     )
-                if sl.external_event:
-                    ext_name = _parse_element(sl.external_event)[0]
-                    if not _looks_past_tense(ext_name):
-                        errors.append(
-                            f"External event '{ext_name}' in {loc} doesn't look past tense — "
-                            f"events should be facts (e.g. InventoryChanged, PriceUpdated)"
-                        )
-                for ev in [*sl.events, *(c.event for c in sl.calls)]:
-                    name = _parse_element(ev)[0]
-                    if not _looks_past_tense(name):
-                        errors.append(
-                            f"Event '{name}' in {loc} doesn't look past tense — "
-                            f"events should be facts (e.g. OrderPlaced, UserRegistered)"
-                        )
-                if sl.command:
-                    cmd_name = _parse_element(sl.command)[0]
-                    if _ends_past_tense(cmd_name):
-                        errors.append(
-                            f"Command '{cmd_name}' in {loc} looks past tense — "
-                            f"commands should be imperative (e.g. PlaceOrder, RegisterUser)"
-                        )
                 for test in sl.tests:
                     if not _has_concrete_data(test):
                         errors.append(
@@ -375,35 +354,6 @@ def _parse_element(text: str) -> tuple[str, str | None]:
         name = text[:idx].strip().rstrip("*")
         return name, text[idx + 1 : -1].strip()
     return text.rstrip("*"), None
-
-
-_PAST_TENSE_SUFFIXES = ("ed", "en", "wn", "zed")
-
-# Irregular past tenses that don't end in standard suffixes above.
-# Broad suffix matching on "ot"/"nt" produces too many false positives
-# on common nouns (Post, Connect, Grant, Sprint, Event, Point, etc.).
-_IRREGULAR_PAST_WORDS = frozenset({
-    "got", "forgot", "begot", "shot",           # -ot irregulars
-    "sent", "went", "spent", "burnt", "meant",  # -nt irregulars
-    "bent", "lent", "rent",
-    "built", "rebuilt",                          # -ilt irregulars
-})
-
-
-def _past_word(word: str) -> bool:
-    word = word.lower()
-    return word in _IRREGULAR_PAST_WORDS or word.endswith(_PAST_TENSE_SUFFIXES)
-
-
-def _looks_past_tense(name: str) -> bool:
-    """Heuristic: does a CamelCase name hold a past-tense word? ItemsAddedToOrder is a fact."""
-    return any(_past_word(w) for w in re.findall(r"[A-Z][a-z]*", name))
-
-
-def _ends_past_tense(name: str) -> bool:
-    """A command may hold a participle (OpenAccount, RetryFailedSync), but not end on one."""
-    words = re.findall(r"[A-Z][a-z]*", name)
-    return bool(words) and _past_word(words[-1])
 
 
 def _has_concrete_data(test: GivenWhenThen) -> bool:

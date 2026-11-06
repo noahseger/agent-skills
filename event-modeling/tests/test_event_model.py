@@ -14,7 +14,6 @@ from event_model import (
     EventModel,
     GivenWhenThen,
     _has_concrete_data,
-    _looks_past_tense,
     _parse_element,
     _parse_fields,
     _resolve_ref,
@@ -44,45 +43,6 @@ class TestParseElement:
         name, fields = _parse_element("AddItem(items=[sku-1, sku-2])")
         assert name == "AddItem"
         assert "items=" in fields
-
-
-# ---------------------------------------------------------------------------
-# _looks_past_tense
-# ---------------------------------------------------------------------------
-
-class TestLooksPastTense:
-    @pytest.mark.parametrize("name", [
-        "OrderPlaced", "UserRegistered", "ItemAdded", "CartCleared",
-        "InventoryReserved", "PaymentConfirmed", "ItemDeleted",
-        "PasswordFrozen", "TokenRevoked", "ItemsAddedToOrder",
-    ])
-    def test_recognizes_past_tense(self, name):
-        assert _looks_past_tense(name) is True
-
-    @pytest.mark.parametrize("name", [
-        "PlaceOrder", "RegisterUser", "AddItem", "ClearCart",
-        "ReserveInventory", "ConfirmPayment", "DeleteItem", "AddItemsToOrder",
-    ])
-    def test_rejects_imperative(self, name):
-        assert _looks_past_tense(name) is False
-
-    @pytest.mark.parametrize("name", [
-        "OrderSent", "MoneySpent", "ItemGot",
-    ])
-    def test_recognizes_irregular_past(self, name):
-        assert _looks_past_tense(name) is True
-
-    def test_single_word_past(self):
-        assert _looks_past_tense("Created") is True
-
-    def test_single_word_imperative(self):
-        assert _looks_past_tense("Create") is False
-
-    def test_empty_string(self):
-        assert _looks_past_tense("") is False
-
-    def test_no_camel_case(self):
-        assert _looks_past_tense("lowercase") is False
 
 
 # ---------------------------------------------------------------------------
@@ -336,17 +296,6 @@ class TestInvalidModel:
     def test_unknown_aggregate(self):
         data = self._base(aggregate="nonexistent")
         with pytest.raises(ValidationError, match="unknown aggregate"):
-            EventModel.model_validate(data)
-
-    def test_imperative_event_rejected(self):
-        data = self._base(events=["PlaceOrder(id, result)"],
-                          read_models=["OrderView(id, result)"])
-        with pytest.raises(ValidationError, match="doesn't look past tense"):
-            EventModel.model_validate(data)
-
-    def test_past_tense_command_rejected(self):
-        data = self._base(command="OrderPlaced(id)")
-        with pytest.raises(ValidationError, match="looks past tense"):
             EventModel.model_validate(data)
 
     def test_automation_without_trigger(self):
@@ -637,7 +586,7 @@ class TestNativeFields:
 
 def test_render_prints_validation_messages_without_a_traceback(tmp_path):
     data = json.loads((FIXTURES / "todo_app_model.json").read_text())
-    data["chapters"][0]["slices"][0]["events"] = ["AddList(listId)"]
+    data["chapters"][0]["slices"][0]["aggregate"] = "nowhere"
     model = tmp_path / "model.json"
     model.write_text(json.dumps(data))
     run = subprocess.run(
@@ -648,4 +597,4 @@ def test_render_prints_validation_messages_without_a_traceback(tmp_path):
     assert run.returncode == 1
     assert "Traceback" not in run.stderr
     assert run.stderr.startswith("Event model validation errors:")
-    assert "Event 'AddList'" in run.stderr
+    assert "unknown aggregate 'nowhere'" in run.stderr
