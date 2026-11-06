@@ -442,6 +442,40 @@ test("a call ends in the external event, whose fields come from outside", () => 
   assert.equal(asked?.events, undefined)
 })
 
+test("a projection refuses an external event, which isn't stored", () => {
+  const { f, Remote, Answered, Ask, specified } = specifiedCall()
+  const projected = m
+    .slice()
+    .projection(
+      f.Table,
+      Answered((e) => ({ id: e.id })),
+    )
+    .test("The answer is a row", {
+      given: Answered({ ...list, detail: "Two aisles over" }),
+      then: f.Table(list),
+    })
+  const { User, Svc, Table } = f
+  const modules = () => [
+    {
+      User,
+      Svc,
+      Table,
+      Remote,
+      Answered,
+      Ask,
+      ...chapters({ Ch: [specified, projected, view(f)] }),
+      default: m.model("x"),
+    },
+  ]
+  const message =
+    "Ch › Table: Table is built from Answered, which is Remote's and isn't stored. Translate it into an event of ours first, then project that."
+  assert.deepEqual(
+    feedOf(modules(), { partial: true }).warnings?.map((w) => w.message),
+    [message],
+  )
+  assert.throws(() => feedOf(modules()), { message })
+})
+
 test("an external event a call ends in that nothing triggers on", () => {
   const { f, Remote, Answered, Ask, specified } = specifiedCall()
   const json = assembleModules(
@@ -461,7 +495,7 @@ test("an external event a call ends in that nothing triggers on", () => {
   assert.deepEqual(json.warnings, [
     {
       message:
-        "Ch › Ask: nothing uses Answered yet. Add .trigger(Answered) or a projection's .event(Answered) where something reacts to it.",
+        "Ch › Ask: nothing uses Answered yet. Add .trigger(Answered) where we translate it into an event of ours.",
       element: "Answered",
       slice: "Ask",
     },
