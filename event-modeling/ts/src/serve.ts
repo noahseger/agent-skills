@@ -11,8 +11,8 @@ export interface ServeOptions {
   dist: string
   /** The directory to watch for saves. */
   root: string
-  /** Assemble the model; `changed` is the saved file that asked for it. */
-  load: (changed?: string) => Promise<Snapshot>
+  /** Assemble the model; `cause` is the save or deletion that asked for it, as `Saved index.ts`. */
+  load: (cause?: string) => Promise<Snapshot>
   /** 0 picks a free port. */
   port: number
 }
@@ -79,8 +79,10 @@ export async function serve(options: ServeOptions): Promise<Server> {
     pending = true
     setTimeout(() => {
       pending = false
+      const file = filename.toString()
+      const cause = `${existsSync(join(options.root, file)) ? "Saved" : "Deleted"} ${file}`
       loading = loading.then(async () => {
-        snapshot = await options.load(filename.toString())
+        snapshot = await options.load(cause)
         for (const client of clients) client.write("data: changed\n\n")
       })
     }, 50)

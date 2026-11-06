@@ -29,7 +29,7 @@ export interface Options {
   partial?: boolean
 }
 
-/** Throws, or warns when `partial`. */
+/** Records a dead end; a strict assembly throws them all at the end. */
 type Fail = (warning: Warning) => void
 
 /** `path` is a model directory or a single module. */
@@ -70,13 +70,9 @@ export function loadModules(
   DRAFTS.clear()
   const { model, streams, externals, declared, fileOf } = nameExports(modules, files)
   const warnings: Warning[] = []
-  const fail: Fail = options.partial
-    ? (warning) => {
-        warnings.push(warning)
-      }
-    : (warning) => {
-        throw new Error(warning.message)
-      }
+  const fail: Fail = (warning) => {
+    warnings.push(warning)
+  }
   const chaptered = new Set(model.chapters.flatMap((c) => c.slices))
   const unchaptered = drafts.filter((s) => !chaptered.has(s))
   check(model, unchaptered, declared, fileOf, fail, !options.partial)
@@ -86,6 +82,17 @@ export function loadModules(
   }
   const loose = looseOf([...chaptered, ...unchaptered], streams, declared)
   for (const d of loose) fail({ message: `${d.name} isn't in a slice yet.`, element: d.name ?? "" })
+  // Otherwise it is drawn in the first stream's lane, which says something nobody wrote.
+  const members = new Set([...streams.values()].flat())
+  for (const d of streams.size > 0 ? declared : [])
+    if (d.kind === "event" && !d.external && !members.has(d))
+      fail({
+        message: `${d.name} isn't in a stream yet. Add .stream() where it's declared, with the stream it belongs to.`,
+        element: d.name ?? "",
+      })
+  // Every dead end at once, so one run shows all there is to fix.
+  if (!options.partial && warnings.length > 0)
+    throw new Error(warnings.map((w) => w.message).join("\n"))
   return { model, streams, externals, loose, unchaptered, warnings }
 }
 
@@ -535,14 +542,20 @@ function checkSeen({ slice, where }: Located, fail: Fail): void {
 /** Anything produced and never used, or used and never produced. */
 function checkConnected(located: Located[], columns: Columns, fail: Fail): void {
   const emitted = new Set<DeclData>()
-  const consumed = new Set<DeclData>()
+  // The slices that react to an event, and those whose specifications assume it happened.
+  const reacting = new Map<DeclData, Set<Located>>()
+  const assuming = new Map<DeclData, Set<Located>>()
+  const add = (to: Map<DeclData, Set<Located>>, e: DeclData, at: Located) =>
+    to.set(e, (to.get(e) ?? new Set()).add(at))
   const read = new Set<DeclData>()
-  for (const { slice } of located) {
+  for (const at of located) {
+    const { slice } = at
     for (const e of recorded(slice)) emitted.add(e)
-    for (const e of heard(slice)) consumed.add(e)
-    for (const t of slice.tests) for (const g of t.given) consumed.add(g.decl)
+    for (const e of heard(slice)) add(reacting, e, at)
+    for (const t of slice.tests) for (const g of t.given) add(assuming, g.decl, at)
     for (const r of [...slice.readModels, ...slice.shows, slice.todoList]) if (r) read.add(r)
   }
+  const consumed = new Set([...reacting.keys(), ...assuming.keys()])
   for (const at of located) {
     const { slice, where } = at
     const about = (d: DeclData, message: string): Warning => ({
@@ -581,16 +594,6 @@ function checkConnected(located: Located[], columns: Columns, fail: Fail): void 
           ),
         )
     }
-    const given = slice.tests.flatMap((t) => t.given.map((g) => g.decl))
-    for (const e of [...heard(slice), ...given]) {
-      if (!e.external && !emitted.has(e))
-        fail(
-          about(
-            e,
-            `${where}: nothing emits ${e.name} yet. Add .event(${e.name}) to the slice that causes it.`,
-          ),
-        )
-    }
     // Once per read model, however many slices project it.
     if (
       slice.projection &&
@@ -612,6 +615,16 @@ function checkConnected(located: Located[], columns: Columns, fail: Fail): void 
           ),
         )
     }
+  }
+  // One line per event, at the slices that react to it, or else at those that assume it.
+  for (const e of consumed) {
+    if (e.external || emitted.has(e)) continue
+    const at = [...(reacting.get(e) ?? assuming.get(e) ?? [])]
+    fail({
+      message: `${at.map((a) => a.where).join(", ")}: nothing emits ${e.name} yet. Add .event(${e.name}) to the slice that causes it.`,
+      element: e.name ?? "",
+      slice: at[0]?.slice.name ?? "",
+    })
   }
 }
 

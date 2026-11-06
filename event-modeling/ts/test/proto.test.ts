@@ -62,6 +62,8 @@ test("every Zod type in the table maps as documented", () => {
     many: z.array(z.string()),
     owner: z.object({ id: z.string(), nick: z.string().optional() }),
     maybe: z.string().optional(),
+    labels: z.record(z.string(), z.string()),
+    counts: z.record(z.string(), z.number().int()).optional(),
   })
   assert.equal(
     source(modelOf({ Create }, stateChange(Create))),
@@ -87,6 +89,8 @@ test("every Zod type in the table maps as documented", () => {
       "  repeated string many = 6;",
       "  Owner owner = 7;",
       "  optional string maybe = 8;",
+      "  map<string, string> labels = 9;",
+      "  map<string, int32> counts = 10;",
       "}",
       "",
       "message CreateResponse {}",

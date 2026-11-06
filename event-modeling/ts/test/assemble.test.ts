@@ -210,6 +210,51 @@ test("an event no slice emits", () => {
   )
 })
 
+test("an event no slice emits is one line, at the slices that react to it", () => {
+  const f = fixture()
+  const created = f.Created({ id: "1", name: "n" })
+  const Process = m.command({ id: z.string(), name: z.string() })
+  const Processed = m.event({ id: z.string() })
+  const processor = m
+    .slice("Processor")
+    .trigger(f.Created, Process, Processed)
+    .test("one", { given: created, when: Process({ id: "1" }), then: Processed({ id: "1" }) })
+    .test("two", { given: created, when: Process({ id: "1" }), then: Processed({ id: "1" }) })
+  const Rename = m.command({ id: z.string() })
+  const Renamed = m.event({ id: z.string() })
+  const assumes = m
+    .slice()
+    .command(Rename, Renamed)
+    .actor(f.User)
+    .test("renames", { given: created, when: Rename({ id: "1" }), then: Renamed({ id: "1" }) })
+  const json = assembleModules(
+    [
+      {
+        ...f,
+        Process,
+        Processed,
+        Rename,
+        Renamed,
+        default: m.model("x", {
+          chapters: { Ch: [processor, project(f), view(f)], Other: [assumes] },
+        }),
+      },
+    ],
+    { partial: true },
+  )
+  assert.deepEqual(
+    json.warnings?.filter((w) => w.message.includes("nothing emits Created")),
+    [
+      {
+        message:
+          "Ch › Processor, Ch › Table: nothing emits Created yet. Add .event(Created) to the slice that causes it.",
+        element: "Created",
+        slice: "Processor",
+      },
+    ],
+  )
+})
+
 test("a read model nothing reads", () => {
   const f = fixture()
   assert.throws(
@@ -692,6 +737,11 @@ test("a partial assembly lists the dead ends and keeps the loose declarations in
     { message: "Started isn't in a slice yet.", element: "Started" },
     { message: "Ended isn't in a slice yet.", element: "Ended" },
     { message: "Table isn't in a slice yet.", element: "Table" },
+    {
+      message:
+        "Created isn't in a stream yet. Add .stream() where it's declared, with the stream it belongs to.",
+      element: "Created",
+    },
   ])
   assert.deepEqual(json.loose, [
     { kind: "event", element: "Started(id)", aggregate: "games" },
@@ -960,7 +1010,8 @@ test("a state change's then has what its command sends and its mapping sets", ()
   assert.ok(json.warnings?.some((w) => w.element === "Added" && w.slice === "Add"))
   assert.throws(
     () => assembleModules([{ ...exports, default: m.model("x", { chapters: { Ch: [wrong] } }) }]),
-    { message: 'Ch › Add › "disagrees": then has id "a-2", but when sends "a-1".' },
+    // Every problem, not just the first.
+    /^Error: Ch › Add › "disagrees": then has id "a-2", but when sends "a-1"\.\nCh › Add › "disagrees": then has title /,
   )
 })
 

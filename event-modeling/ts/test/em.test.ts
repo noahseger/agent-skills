@@ -100,6 +100,46 @@ test("a missing argument prints usage and exits 2", () => {
   assert.match(run.stderr, /^usage:/)
 })
 
+test("--help prints the usage", () => {
+  const run = em("--help")
+  assert.equal(run.status, 0, run.stderr)
+  assert.match(run.stdout, /^usage:/)
+})
+
+test("proto with no service says so and exits 1", () => {
+  const dir = mkdtempSync(here("../tmp-proto-"))
+  try {
+    writeFileSync(
+      join(dir, "index.ts"),
+      `import { z } from "zod"
+import { m } from "#em"
+
+export const Start = m.command({ id: z.string() })
+export const Started = m.event({ id: z.string() })
+export const Table = m.readModel({ id: m.key(z.string()) })
+export default m.model("x", {
+  chapters: {
+    Ch: [
+      m.slice().command(Start, Started).test("starts", { when: Start({ id: "1" }), then: [Started({ id: "1" })] }),
+      m.slice().projection(Table, Started),
+      m.slice().view(Table),
+    ],
+  },
+})
+`,
+    )
+    const run = em("proto", dir, "-o", join(dir, "out"))
+    assert.equal(run.status, 1)
+    assert.match(
+      run.stderr,
+      /^No slice has a service, so no \.proto was written\. Add \.service\(Api\)/,
+    )
+    assert.ok(!existsSync(join(dir, "out")))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 /** `em view` on a free port; resolves once it prints its URL. */
 async function view(path: string) {
   const server = spawn(process.execPath, [
@@ -122,6 +162,19 @@ async function view(path: string) {
     server.on("exit", (code) => reject(new Error(`exited ${code}: ${out}`)))
   })
   return { url, log: () => out, close: () => server.kill() }
+}
+
+/** Runs `act`, then waits for the server to say it reloaded. */
+async function reloaded(url: string, act: () => void) {
+  const reader = (await fetch(`${url}/events`)).body?.getReader()
+  act()
+  let seen = ""
+  while (!seen.includes("data: changed")) {
+    const chunk = await reader?.read()
+    if (!chunk || chunk.done) break
+    seen += new TextDecoder().decode(chunk.value)
+  }
+  await reader?.cancel()
 }
 
 test("view serves the app, the model, and a change feed", async () => {
@@ -156,10 +209,10 @@ export const Games = m.stream()
 export const User = m.actor()
 export const Chess = m.service("chess.v1")
 export const StartGame = m.command({ gameId: z.string() })
-export const GameStarted = m.event({ gameId: z.string(), white: z.string() }).stream(Games)
+export const GameStarted = m.event({ gameId: z.string(), white: z.string(), black: z.string() }).stream(Games)
 export default m.model("Chess", { chapters: { Play: [m.slice().command(StartGame, ${emits}).actor(User).service(Chess)] } })
 `
-  const error = "index.ts:9  GameStarted: add white to the command or set it in the mapping"
+  const error = "index.ts:9  GameStarted: add black, white to the command or set it in the mapping"
   const warnings = async (url: string) =>
     (
       (await (await fetch(`${url}/model.json`)).json()) as { warnings?: { message: string }[] }
@@ -170,21 +223,21 @@ export default m.model("Chess", { chapters: { Play: [m.slice().command(StartGame
     assert.ok(server.log().includes(`\n  ${error}\n`), server.log())
     assert.ok((await warnings(server.url)).includes(error))
 
-    const feed = await fetch(`${server.url}/events`)
-    const reader = feed.body?.getReader()
     // Saved the way many editors save: a hidden temporary file renamed over the model.
-    writeFileSync(join(dir, ".!1!index.ts"), model('GameStarted(() => ({ white: "me" }))'))
-    renameSync(join(dir, ".!1!index.ts"), file)
-    let seen = ""
-    while (!seen.includes("data: changed")) {
-      const chunk = await reader?.read()
-      if (!chunk || chunk.done) break
-      seen += new TextDecoder().decode(chunk.value)
-    }
-    await reader?.cancel()
+    await reloaded(server.url, () => {
+      writeFileSync(
+        join(dir, ".!1!index.ts"),
+        model('GameStarted(() => ({ white: "me", black: "you" }))'),
+      )
+      renameSync(join(dir, ".!1!index.ts"), file)
+    })
     assert.ok(!(await warnings(server.url)).includes(error))
     const saved = server.log().slice(server.log().indexOf("Saved"))
     assert.ok(saved.startsWith("Saved index.ts ") && !saved.includes(error), server.log())
+
+    await reloaded(server.url, () => writeFileSync(join(dir, "extra.ts"), "export {}\n"))
+    await reloaded(server.url, () => rmSync(join(dir, "extra.ts")))
+    assert.match(server.log(), /\d Deleted extra\.ts \(/)
   } finally {
     server.close()
     rmSync(dir, { recursive: true, force: true })

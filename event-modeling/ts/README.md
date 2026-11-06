@@ -510,6 +510,7 @@ message ListTodoListsResponse {
 | `z.boolean()` | `bool` |
 | `z.array(T)` | `repeated T` |
 | `z.object({...})` | a nested message |
+| `z.record(z.string(), T)` | `map<string, T>`, never `optional` |
 | `.optional()` | `optional` |
 
 Any other Zod type is an error that names the declaration and the field. The example's output is

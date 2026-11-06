@@ -47,12 +47,17 @@ type NoHelpers = Record<never, never>
 
 type Unfilled<S extends Fields, T extends Fields> = Exclude<keyof T, keyof S> & string
 
-/** Puts the fields the source lacks into the editor's error, so the fix is in front of you. */
+/**
+ * Puts the fields the source lacks into the editor's error, so the fix is in front of you. Spelled
+ * out rather than `Unfilled`, which the error would print by name and hide the fields.
+ */
 type FilledBy<S extends Fields, T extends Fields, From extends string> = [Unfilled<S, T>] extends [
   never,
 ]
   ? unknown
-  : { readonly [K in `add to the ${From} or set in the mapping`]: Unfilled<S, T> }
+  : {
+      readonly [K in `add to the ${From} or set in the mapping`]: Exclude<keyof T, keyof S> & string
+    }
 
 /** A use where a handler fills the declaration from `S`'s fields. */
 export interface Into<S extends Fields, H> {

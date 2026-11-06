@@ -36,6 +36,9 @@ interface JsonSchema {
   items?: JsonSchema
   properties?: Record<string, JsonSchema>
   required?: string[]
+  /** A `z.record()`'s keys and values. */
+  propertyNames?: JsonSchema
+  additionalProperties?: JsonSchema | boolean
 }
 
 const snake = (name: string) => name.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase()
@@ -45,8 +48,14 @@ const unmappable = (where: string, why: string) =>
     `${where} can't become protobuf: ${why}. The README's Protobuf section lists the Zod types that can.`,
   )
 
-/** The proto type of one schema. An object becomes a message nested in `parent`. */
+/** The proto type of one schema. An object becomes a message nested in `parent`, a record a map. */
 function typeOf(schema: JsonSchema, where: string, field: string, parent: Message): string {
+  const values = schema.additionalProperties
+  if (schema.type === "object" && typeof values === "object") {
+    if (schema.propertyNames?.type !== "string")
+      throw unmappable(where, "a record not keyed by string")
+    return `map<string, ${typeOf(values, where, field, parent)}>`
+  }
   switch (schema.type) {
     case "string":
       return "string"
@@ -75,12 +84,15 @@ function message(name: string, schema: JsonSchema, where: string): Message {
     const repeated = property.type === "array"
     const leaf = repeated ? property.items : property
     if (!leaf) throw unmappable(at, "an array with no item type")
+    const type = typeOf(leaf, at, field, msg)
+    const map = type.startsWith("map<")
+    if (repeated && map) throw unmappable(at, "a list of records")
     msg.fields.push({
       name: snake(field),
-      type: typeOf(leaf, at, field, msg),
+      type,
       number: msg.fields.length + 1,
-      // proto3 has no optional repeated field.
-      label: repeated ? "repeated " : required.has(field) ? "" : "optional ",
+      // proto3 has no optional repeated field or map.
+      label: repeated ? "repeated " : required.has(field) || map ? "" : "optional ",
     })
   }
   return msg

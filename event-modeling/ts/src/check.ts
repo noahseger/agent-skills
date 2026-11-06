@@ -102,7 +102,8 @@ const LAST_OVERLOAD = "The last overload gave the following error."
 function describe(d: Diagnostic, text: string, file: string): string {
   const at = (pos: number) => `${file}:${text.slice(0, pos).split("\n").length}  `
   const lines = messages(d)
-  const missing = lines.map((l) => l.match(MISSING)).find((found) => found !== null)
+  // The deepest line lists every field; the ones above it may elide some.
+  const missing = lines.map((l) => l.match(MISSING)).findLast((found) => found !== null)
   if (missing?.[1] && missing[2]) {
     const fields = [...missing[2].matchAll(/"(\w+)"/g)].map((f) => f[1])
     return `${at(d.pos)}${text.slice(d.pos, d.end)}: add ${fields.join(", ")} to the ${missing[1]} or set it in the mapping`
