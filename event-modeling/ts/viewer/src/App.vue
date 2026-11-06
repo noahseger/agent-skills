@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue"
-import type { ModelJson } from "../../src/json.ts"
+import type { Feed } from "../../src/spec.ts"
+import type { Board } from "./board.ts"
 import Canvas from "./Canvas.vue"
 import Detail from "./Detail.vue"
 import { type Box, layout } from "./layout.ts"
 import Nav from "./Nav.vue"
+import { read } from "./read.ts"
 import SliceView from "./SliceView.vue"
 
-const model = ref<ModelJson | null>(null)
+const model = ref<Board | null>(null)
 const error = ref<string | null>(null)
 const live = ref(false)
 
@@ -114,14 +116,14 @@ const snapshot = embedded !== null
 let loaded = false
 async function refresh() {
   if (embedded) {
-    model.value = JSON.parse(embedded.textContent ?? "null") as ModelJson
+    model.value = read(JSON.parse(embedded.textContent ?? "null") as Feed)
     go(fromHash(), { push: false, zoom: !loaded })
     loaded = true
     return
   }
   const res = await fetch("/model.json", { cache: "no-store" })
   if (res.ok) {
-    model.value = (await res.json()) as ModelJson
+    model.value = read((await res.json()) as Feed)
     error.value = null
     go(fromHash(), { push: false, zoom: !loaded })
     loaded = true

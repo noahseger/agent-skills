@@ -1,7 +1,8 @@
-// Lays out the eventmodeling.org canvas from the assembled JSON. Pure, so it
+// Lays out the eventmodeling.org canvas from the board `read.ts` makes. Pure, so it
 // is tested without a browser.
-import type { ModelJson, SliceJson } from "../../src/json.ts"
+
 import type { Source } from "../../src/types.ts"
+import type { Board, BoardSlice } from "./board.ts"
 
 /** Where a mapped field got its value, as the detail panes show it. */
 export function source(s: Source): string {
@@ -66,7 +67,7 @@ export interface Row {
 export interface Column {
   index: number
   chapter: number
-  slice: SliceJson
+  slice: BoardSlice
   /** The slice's name, or the name of what it is about. */
   label: string
   /** `label` as words, for the picture. */
@@ -344,7 +345,7 @@ export function polyline(points: Pt[]): string {
 
 type Placed = Omit<Box, "x" | "y"> & { dx: number }
 
-function labelOf(s: SliceJson): string {
+function labelOf(s: BoardSlice): string {
   if (s.name) return s.name
   if (s.command) return parse(s.command).name
   if (s.read_models?.[0]) return parse(s.read_models[0]).name
@@ -355,14 +356,14 @@ function labelOf(s: SliceJson): string {
 }
 
 /** A command's events are alternatives, so they stand side by side in their lane, and widen it. */
-function columnWidth(s: SliceJson): number {
+function columnWidth(s: BoardSlice): number {
   const perSystem = new Map<string, number>()
   for (const c of s.calls ?? []) perSystem.set(c.actor, (perSystem.get(c.actor) ?? 0) + 1)
   const beside = Math.max(1, s.events?.length ?? 0, ...perSystem.values())
   return COL_W + (beside - 1) * (CARD_W + STACK_GAP)
 }
 
-export function layout(model: ModelJson): Layout {
+export function layout(model: Board): Layout {
   // A `reads` entry is a name. Its fields come from where the read model is drawn in full.
   const registry = new Map<string, Element>()
   const kinds = new Map<string, Kind>()
@@ -424,7 +425,7 @@ export function layout(model: ModelJson): Layout {
             : item.kind === "command"
               ? { command: item.element }
               : { read_models: [item.element] }
-      const slice: SliceJson = {
+      const slice: BoardSlice = {
         name: el.name,
         actor: item.actor ?? "",
         aggregate: item.aggregate,

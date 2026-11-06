@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import type { ModelJson } from "../../src/json.ts"
+import type { Board } from "./board.ts"
 import { type Box, type Column, type Layout, parse, parseClause, source } from "./layout.ts"
 
 const props = defineProps<{
   box: Box | null
   column: Column
   layout: Layout
-  model: ModelJson
+  model: Board
   /** Whether the slice is already open at full width. */
   open: boolean
 }>()
