@@ -118,7 +118,14 @@ function test(t: TestData): TestJson {
   }
 }
 
-export function toJson({ model, streams, loose, unchaptered, warnings }: Assembled): ModelJson {
+export function toJson({
+  model,
+  streams,
+  externals,
+  loose,
+  unchaptered,
+  warnings,
+}: Assembled): ModelJson {
   const notes: Record<string, string> = {}
   const noted = (d: { name?: string; note?: string }) => {
     if (d.name !== undefined && d.note !== undefined) notes[d.name] = d.note
@@ -227,15 +234,16 @@ export function toJson({ model, streams, loose, unchaptered, warnings }: Assembl
   for (const d of [...loose, ...unemitted]) {
     noted(d)
     if (d.kind === "event" && d.external) {
-      const id = slug(d.external.name ?? "")
-      if (!actors.has(id)) actors.set(id, { id, name: d.external.name ?? "", type: "external" })
-      drawnLoose.push({ kind: "external", element: element(d), aggregate: fallback, actor: id })
+      const actor = system(d.external)
+      drawnLoose.push({ kind: "external", element: element(d), aggregate: fallback, actor })
     } else if (d.kind === "event" || d.kind === "command" || d.kind === "readModel")
       drawnLoose.push({ kind: d.kind, element: element(d), aggregate: streamOf(d) ?? fallback })
     // An actor in no slice is a lane with nothing in it yet.
     if (d.kind === "actor" && !actors.has(slug(d.name ?? "")))
       actors.set(slug(d.name ?? ""), { id: slug(d.name ?? ""), name: d.name ?? "", type: d.icon })
   }
+  // So is a system no event joins.
+  for (const name of externals) system({ kind: "external", name })
 
   return {
     name: model.name,

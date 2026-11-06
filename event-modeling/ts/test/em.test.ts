@@ -198,7 +198,7 @@ test("a model that doesn't load shows the compiler's errors, not the JavaScript 
     `import { z } from "zod"
 import { m } from "#em"
 
-export const Mail = m.external()
+export const Received = m.event({ id: z.string() }).stream("Inbox")
 export const Sync = m.command({ id: z.string() })
 export const Synced = m.event({ id: z.string() })
 export const Failed = m.event({ id: z.string() })
@@ -213,7 +213,7 @@ m.slice().command(Sync)
     assert.equal(
       shown,
       [
-        "  index.ts:4  Expected 1 arguments, but got 0. An argument for 'events' was not provided.",
+        "  index.ts:4  Argument of type 'string' is not assignable to parameter of type 'Stream'.",
         "  index.ts:8  .event() takes one event. To record Failed too, chain .event(Failed).",
         "  index.ts:9  Expected 2 arguments, but got 1. An argument for 'event' was not provided.",
         "",

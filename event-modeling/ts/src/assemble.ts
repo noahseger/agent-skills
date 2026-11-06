@@ -66,7 +66,7 @@ export function loadModules(
 ): Assembled {
   const drafts = [...DRAFTS]
   DRAFTS.clear()
-  const { model, streams, declared, fileOf } = nameExports(modules, files)
+  const { model, streams, externals, declared, fileOf } = nameExports(modules, files)
   const warnings: Warning[] = []
   const fail: Fail = options.partial
     ? (warning) => {
@@ -84,7 +84,7 @@ export function loadModules(
   }
   const loose = looseOf([...chaptered, ...unchaptered], streams, declared)
   for (const d of loose) fail({ message: `${d.name} isn't in a slice yet.`, element: d.name ?? "" })
-  return { model, streams, loose, unchaptered, warnings }
+  return { model, streams, externals, loose, unchaptered, warnings }
 }
 
 /** The model's own modules under `dir`. */
@@ -113,18 +113,23 @@ function exported(value: unknown): Exported | undefined {
     : undefined
 }
 
-/** Streams merge by name, so two modules can add to one lane. Lanes keep the order written. */
+/**
+ * Streams and external systems merge by name, so two modules can add to one lane. Streams keep the
+ * order written. An event is in one lane, so not in both.
+ */
 function nameExports(
   modules: readonly object[],
   files: readonly string[],
 ): {
   model: ModelData
   streams: Map<string, DeclData[]>
+  externals: string[]
   declared: Declaration[]
   fileOf: Map<object, string>
 } {
   let model: ModelData | undefined
   const lanes: [string, StreamData][] = []
+  const externals: string[] = []
   const declared: Declaration[] = []
   const fileOf = new Map<object, string>()
   for (const [i, module] of modules.entries()) {
@@ -139,8 +144,7 @@ function nameExports(
         lanes.push([key, data])
       } else if (data.kind === "external") {
         data.name = key
-        // Its events may be declared inside it, so no export names them.
-        for (const e of data.events) if (!declared.includes(e)) declared.push(e)
+        if (!externals.includes(key)) externals.push(key)
       } else if (data.name !== undefined && data.name !== key) {
         throw new Error(`${data.name} is exported twice, also as ${key}. Keep one.`)
       } else {
@@ -155,7 +159,13 @@ function nameExports(
   const streams = new Map<string, DeclData[]>()
   for (const [key, data] of lanes.sort((a, b) => a[1].order - b[1].order))
     streams.set(key, [...new Set([...(streams.get(key) ?? []), ...data.members])])
-  return { model, streams, declared, fileOf }
+  for (const [key, members] of streams)
+    for (const e of members)
+      if (e.external)
+        throw new Error(
+          `${e.name} is in the ${key} stream and the ${e.external.name} system. Keep one: .stream() for ours, .external() for theirs.`,
+        )
+  return { model, streams, externals, declared, fileOf }
 }
 
 /** Declarations in no slice yet, stream members first. */
@@ -254,14 +264,19 @@ function locate(chapter: string | undefined, slices: SliceData[]): Located[] {
   })
 }
 
-/** Two modules can export one name. An external system is found through the slices that use it. */
+/** Two modules can export one name, except for a lane, which they share. */
 function checkDeclaredOnce(
   located: Located[],
   declared: Declaration[],
   fileOf: Map<object, string>,
 ): void {
   const byName = new Map<string, object>()
-  const all = [...declared, ...located.flatMap(({ slice }) => used(slice).map(([, d]) => d))]
+  const all = [
+    ...declared,
+    ...located.flatMap(({ slice }) =>
+      used(slice).flatMap(([kind, d]) => (kind === "external" ? [] : [d])),
+    ),
+  ]
   for (const d of all) {
     if (d.name === undefined) continue
     const first = byName.get(d.name)

@@ -26,7 +26,7 @@ export interface DeclData extends Named {
   /** Read models only: the columns that identify a row. */
   keys: string[]
   note?: string
-  /** Set when an external system groups this event. */
+  /** Set when the event is a system's we do not own. */
   external?: ExternalData
 }
 
@@ -53,7 +53,6 @@ export interface StreamData extends Named {
 
 export interface ExternalData extends Named {
   kind: "external"
-  events: DeclData[]
 }
 
 export interface ChapterData {
@@ -77,6 +76,8 @@ export type Declaration = DeclData | ActorData | ServiceData | ExternalData
 export interface Assembled {
   model: ModelData
   streams: Map<string, DeclData[]>
+  /** The systems we do not own, by name. Each is a lane, with or without events. */
+  externals: string[]
   /** Exported but in no slice. Only a partial assembly keeps them; otherwise one is an error. */
   loose: Declaration[]
   /** Slices in no chapter, likewise. */

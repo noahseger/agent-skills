@@ -235,12 +235,13 @@ test("a read model nothing projects", () => {
 // A call to a system we do not own: our command, then the system's event with what it sent back.
 function call() {
   const f = fixture()
-  const Remote = m.external({
-    Answered: m.event({ id: z.string(), name: z.string(), detail: z.string() }),
-  })
+  const Remote = m.external()
+  const Answered = m
+    .event({ id: z.string(), name: z.string(), detail: z.string() })
+    .external(Remote)
   const Ask = m.command({ id: z.string() })
-  const ask = m.slice().command(Ask, Remote.Answered).actor(f.User).service(f.Svc)
-  return { f, Remote, Ask, ask }
+  const ask = m.slice().command(Ask, Answered).actor(f.User).service(f.Svc)
+  return { f, Remote, Answered, Ask, ask }
 }
 
 /** `call()` with a specification that shows its answer. */
@@ -248,18 +249,18 @@ function specifiedCall() {
   const { ask, ...rest } = call()
   const specified = ask.test("The remote system answers", {
     when: rest.Ask({ id: "list-1" }),
-    then: rest.Remote.Answered({ ...list, detail: "Two aisles over" }),
+    then: rest.Answered({ ...list, detail: "Two aisles over" }),
   })
   return { ...rest, specified }
 }
 
 test("a call ends in the external event, whose fields come from outside", () => {
-  const { f, Remote, Ask, specified } = specifiedCall()
+  const { f, Remote, Answered, Ask, specified } = specifiedCall()
   const keep = m
     .slice()
-    .trigger(Remote.Answered, f.Create, f.Created)
+    .trigger(Answered, f.Create, f.Created)
     .test("The answer is kept", { when: f.Create(list), then: f.Created(list) })
-  const json = assembled({ ...f, Remote, Ask }, [specified, keep, project(f), view(f)])
+  const json = assembled({ ...f, Remote, Answered, Ask }, [specified, keep, project(f), view(f)])
   const [asked] = json.chapters[0]?.slices ?? []
   assert.deepEqual(asked?.calls, [{ actor: "remote", event: "Answered(id, name, detail)" }])
   assert.equal(asked?.events, undefined)
@@ -267,11 +268,12 @@ test("a call ends in the external event, whose fields come from outside", () => 
 })
 
 test("an external event a call ends in that nothing triggers on", () => {
-  const { f, Remote, Ask, specified } = specifiedCall()
+  const { f, Remote, Answered, Ask, specified } = specifiedCall()
   const json = assembleModules(
     [
       {
         Remote,
+        Answered,
         Ask,
         User: f.User,
         Svc: f.Svc,
@@ -325,9 +327,18 @@ test("a specification whose then has the outcome finishes it", () => {
 })
 
 test("an external event a call ends in is an outcome", () => {
-  const { f, Remote, Ask, ask } = call()
+  const { f, Remote, Answered, Ask, ask } = call()
   const json = assembleModules(
-    [{ Remote, Ask, User: f.User, Svc: f.Svc, default: m.model("x", { chapters: { Ch: [ask] } }) }],
+    [
+      {
+        Remote,
+        Answered,
+        Ask,
+        User: f.User,
+        Svc: f.Svc,
+        default: m.model("x", { chapters: { Ch: [ask] } }),
+      },
+    ],
     { partial: true },
   )
   assert.ok(
@@ -657,16 +668,24 @@ test("an actor in no slice is still one of the model's actors", () => {
   )
 })
 
-test("an event declared inside m.external is named by its key and drawn in the system's lane", () => {
-  const Calendar = m.external({
-    Authenticated: m.event({ accessToken: z.string() }),
-    TaskMoved: m.event({ taskId: z.string() }),
-  })
+test("an external event is drawn in its system's lane", () => {
+  const Calendar = m.external()
+  const Authenticated = m.event({ accessToken: z.string() }).external(Calendar)
+  const TaskMoved = m.event({ taskId: z.string() }).external(Calendar)
   const Connect = m.command({ accessToken: z.string() })
   const Connected = m.event({ accessToken: z.string() })
-  const Ch = [m.slice().trigger(Calendar.Authenticated, Connect, Connected)]
+  const Ch = [m.slice().trigger(Authenticated, Connect, Connected)]
   const json = assembleModules(
-    [{ Calendar, Connect, Connected, default: m.model("x", { chapters: { Ch } }) }],
+    [
+      {
+        Calendar,
+        Authenticated,
+        TaskMoved,
+        Connect,
+        Connected,
+        default: m.model("x", { chapters: { Ch } }),
+      },
+    ],
     { partial: true },
   )
   assert.equal(json.chapters[0]?.slices[0]?.external_event, "Authenticated(accessToken)")
@@ -758,10 +777,32 @@ test("a name declared twice", () => {
   )
 })
 
-test("an external system declared in two modules names both", async () => {
-  await assert.rejects(
-    load(here("./fixtures/external-twice"), { partial: true }),
-    /^Error: Mail is declared in both calendar\.ts and inbox\.ts\. Keep one and import it in the other\.$/,
+test("an external system declared in two modules is one lane", async () => {
+  const json = await assemble(here("./fixtures/external-twice"), { partial: true })
+  assert.deepEqual(
+    json.actors.filter((a) => a.type === "external"),
+    [{ id: "mail", name: "Mail", type: "external" }],
+  )
+  assert.deepEqual(
+    json.chapters.map((c) => c.slices[0]?.actor),
+    ["mail", "mail"],
+  )
+})
+
+test("an external system no event joins is an empty lane", () => {
+  const f = fixture()
+  const json = assembled({ ...f, Mail: m.external() }, [create(f), project(f), view(f)])
+  assert.deepEqual(json.actors.at(-1), { id: "mail", name: "Mail", type: "external" })
+  assert.ok(layout(json).rows.some((r) => r.id === "actor:mail"))
+})
+
+test("an event in a stream and an external system", () => {
+  const f = fixture()
+  const [Lists, Mail] = [m.stream(), m.external()]
+  f.Created.stream(Lists).external(Mail)
+  assert.throws(
+    () => assembled({ ...f, Lists, Mail }, [create(f), project(f), view(f)]),
+    /^Error: Created is in the Lists stream and the Mail system\. Keep one: \.stream\(\) for ours, \.external\(\) for theirs\.$/,
   )
 })
 

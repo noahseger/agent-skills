@@ -166,13 +166,16 @@ export const Automations = [
 ]
 
 // The calendar pushes a scheduled task in, and we translate it into an item.
-export const TaskScheduled = m.event({
-  userId: z.string(),
-  listId: z.string(),
-  itemId: z.string(),
-  text: z.string(),
-})
-export const Calendar = m.external({ TaskScheduled })
+export const Calendar = m.external()
+
+export const TaskScheduled = m
+  .event({
+    userId: z.string(),
+    listId: z.string(),
+    itemId: z.string(),
+    text: z.string(),
+  })
+  .external(Calendar)
 
 export const Integrations = [
   m
