@@ -67,6 +67,7 @@
           "actor": "user",
           "aggregate": "items",
           "ui": "TodoService/AddItem",
+          "screen": "ListScreen",
           "command": "AddItem(userId, listId, itemId, text)",
           "events": [
             "ItemAdded(userId, listId, itemId, title)"
@@ -108,6 +109,7 @@
           "actor": "user",
           "aggregate": "items",
           "ui": "TodoService/CompleteItem",
+          "screen": "ListScreen",
           "command": "CompleteItem(listId, itemId)",
           "events": [
             "ItemCompleted(listId, itemId)"
@@ -130,6 +132,7 @@
           "actor": "user",
           "aggregate": "items",
           "ui": "TodoService/DeleteItem",
+          "screen": "ListScreen",
           "command": "DeleteItem(listId, itemId)",
           "events": [
             "ItemDeleted(listId, itemId)"
@@ -344,6 +347,7 @@
           "actor": "user",
           "aggregate": "items",
           "ui": "TodoService/GetList",
+          "screen": "ListScreen",
           "read_models": [
             "ItemSearch(*itemId, listId, title, done, deleted)"
           ],

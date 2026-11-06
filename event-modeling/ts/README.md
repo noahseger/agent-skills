@@ -66,8 +66,8 @@ slice's source, so the editor knows its fields. The editor offers only the calls
 The first call is the whole pattern, and leaving out any of its arguments is an error where the slice
 is written. Every later step is optional: `.event()` adds another event, `.readModel()` names what
 the handler reads, once per read model, `.query()` gives a view its request fields, and `.test()`
-adds a specification. A state change or a view also takes `.actor()` and `.service()`, and needs
-neither.
+adds a specification. A state change or a view also takes `.actor()`, `.screen()` and `.service()`,
+and needs none of them.
 
 ## Quickstart
 
@@ -158,6 +158,12 @@ which the function gets as its second argument; a specification may give it any 
 `.actor()` takes any number of actors, and each is drawn with a screen. Without one the slice has
 no screen; without `.service()` it has no service method. When the handler reads a read model to
 decide, name it: `.command(FileNote, NoteFiled).readModel(Inbox)`.
+
+The screen shows the command's form or the read model's table, titled with the service method. To
+say which screen the actor is on, declare it once, `export const LockScreen = m.screen()`, and name
+it: `.screen(LockScreen)`. The card is then titled with the screen's name, and several slices can
+share one. A screen is seen by the slice's actors, so a slice with a screen and no actor is left to
+do, and so is a screen no slice names; neither is drawn.
 
 A slice does not need a chapter to be drawn. Written on its own, `m.slice().command(...)` with no
 array around it, it is drawn after the story under "Not in a chapter yet" until a chapter lists it.
@@ -410,7 +416,7 @@ The compiler catches:
 
 | Where | What |
 |---|---|
-| any reference | An unknown actor, event, command, read model or service cannot be written, because references are values, not strings. |
+| any reference | An unknown actor, event, command, read model, screen or service cannot be written, because references are values, not strings. |
 | the chain | Only a legal chain compiles; each start offers only its own steps. A slice missing part of its pattern is an error where it is written: `Expected 2 arguments, but got 1`, beside which the editor names the missing argument, such as `event`. |
 | a function | Its argument is the slice's source: the command for a handler's event, the trigger event or the to-do row for an automation's command, the event in a projection. Its result must be fields of the target, with matching types. Its second argument holds only the helpers that apply: `generate` where a handler records an event, `count` in a projection. |
 | a command's event | Every event field the command lacks must be set by the function, or marked `generate()`. The error names the fields. |

@@ -9,6 +9,7 @@ import {
   ItemDeleted,
   ListCreated,
   ListDeleted,
+  ListScreen,
   Lists,
   TodoService,
   User,
@@ -143,6 +144,7 @@ export const Views = [
     .view(ItemSearch)
     .query({ listId: z.string() })
     .actor(User)
+    .screen(ListScreen)
     .service(TodoService, "GetList"),
 
   m

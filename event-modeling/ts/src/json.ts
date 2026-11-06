@@ -30,6 +30,8 @@ export interface SliceJson {
   actors?: string[]
   aggregate: string
   ui?: string
+  /** The screen the actors see the slice on; several slices can share one. */
+  screen?: string
   external_event?: string
   automation?: string
   trigger?: string | string[]
@@ -178,6 +180,10 @@ export function toJson({
     if (slice.actors.length > 0) {
       const method = slice.service?.method ?? command?.decl.name ?? slice.shows[0]?.name ?? ""
       out.ui = slice.service ? `${slice.service.service.name}/${method}` : method
+    }
+    if (slice.screen) {
+      out.screen = slice.screen.name ?? ""
+      noted(slice.screen)
     }
     if (slice.service) noted(slice.service.service)
     if (trigger && external) out.external_event = element(trigger)

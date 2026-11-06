@@ -80,6 +80,7 @@ class Slice(BaseModel):
     actors: list[str] = Field(default_factory=list)  # every actor with a screen, when there are several; actor is the first
     aggregate: str
     ui: str | None = None
+    screen: str | None = None  # the screen the actor sees the slice on; several slices can share one
     external_event: str | None = None  # event arriving from outside the system boundary
     automation: str | None = None
     trigger: str | list[str] | None = None  # event(s) that drive the automation or State View projection

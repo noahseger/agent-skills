@@ -8,6 +8,9 @@ export const User = m.actor()
 // The API every list operation goes through.
 export const TodoService = m.service("todo.v1")
 
+// One list, open: its items are added, completed and deleted here.
+export const ListScreen = m.screen()
+
 // Two lanes in the diagram: what happens to items, and what happens to the lists that hold them.
 export const Items = m.stream()
 export const Lists = m.stream()
@@ -73,6 +76,7 @@ export const ListManagement = [
       ItemAdded((c) => ({ title: c.text })),
     )
     .actor(User)
+    .screen(ListScreen)
     .service(TodoService)
     .test("User adds an item to a list", {
       given: groceries,
@@ -93,6 +97,7 @@ export const ListManagement = [
     .slice()
     .command(CompleteItem, ItemCompleted)
     .actor(User)
+    .screen(ListScreen)
     .service(TodoService)
     .test("User completes an item", {
       given: milk,
@@ -104,6 +109,7 @@ export const ListManagement = [
     .slice()
     .command(DeleteItem, ItemDeleted)
     .actor(User)
+    .screen(ListScreen)
     .service(TodoService)
     .test("User deletes an item from a list", {
       given: milk,

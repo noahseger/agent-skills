@@ -545,7 +545,7 @@ export function layout(model: ModelJson): Layout {
         const ui = make(
           i,
           "ui",
-          { name: method, fields: s.query ?? [], keys: [] },
+          { name: s.screen ?? method, fields: s.query ?? [], keys: [] },
           {
             ...(service === undefined ? {} : { detail: service }),
             form: s.command ? commandFields : (s.query ?? []),

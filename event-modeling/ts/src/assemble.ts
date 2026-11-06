@@ -190,6 +190,7 @@ const KIND_LABEL = {
   command: "a command",
   readModel: "a read model",
   actor: "an actor",
+  screen: "a screen",
   service: "a service",
   external: "an external system",
 }
@@ -223,6 +224,7 @@ function check(
     checkFilled(at, columns, fail)
     checkKeys(at, fail)
     checkOutcomes(at, fail)
+    checkSeen(at, fail)
   }
   checkConnected(located, columns, fail)
   checkMethods(located)
@@ -296,6 +298,7 @@ function checkDeclaredOnce(
 function used(slice: SliceData): [keyof typeof KIND_LABEL, { name?: string }][] {
   const out: [keyof typeof KIND_LABEL, { name?: string }][] = []
   for (const a of slice.actors) out.push(["actor", a])
+  if (slice.screen) out.push(["screen", slice.screen])
   if (slice.service) out.push(["service", slice.service.service])
   if (slice.command) out.push(["command", slice.command.decl])
   for (const e of [...slice.events.map((f) => f.decl), ...(slice.trigger ? [slice.trigger] : [])]) {
@@ -403,6 +406,16 @@ function checkOutcomes({ slice, where }: Located, fail: Fail): void {
         slice: slice.name ?? "",
       })
   }
+}
+
+/** A screen is drawn in its actors' lanes. */
+function checkSeen({ slice, where }: Located, fail: Fail): void {
+  if (slice.screen && slice.actors.length === 0)
+    fail({
+      message: `${where}: no one sees ${slice.screen.name} yet. Add .actor() for who does.`,
+      element: slice.screen.name ?? "",
+      slice: slice.name ?? "",
+    })
 }
 
 /** Anything produced and never used, or used and never produced. */
