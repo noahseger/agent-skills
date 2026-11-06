@@ -171,6 +171,16 @@ m.slice().trigger(ListCreated).command(AddItem((e, { generate }) => ({ text: gen
 m.slice().trigger(ListCreated).command(AddItem((e) => ({ text: e.name }))).event(ItemAdded((c) => ({ title: c.text })))
 m.slice().todoList(TodoList).command(AddItem((row) => ({ text: row.name }))).event(ListCreated((c) => ({ name: c.text })))
 
+// --- a call ends in the external event that brings the data back -------------
+
+// An external event's fields come from outside, so the command need not carry them.
+const Shop = m.external({ CartUpdated: m.event({ listId: z.string(), unavailable: z.array(z.string()) }) })
+m.slice().command(AddItem).event(Shop.CartUpdated).actor(User)
+m.slice().trigger(Shop.CartUpdated).command(NameList((e) => ({ name: "" }))).event(ListCreated)
+
+// @ts-expect-error ItemAdded is ours, so AddItem must still carry its title
+m.slice().command(AddItem).event(Shop.CartUpdated).event(ItemAdded)
+
 // --- a declaration written in place is checked like one declared apart -------
 
 // @ts-expect-error inline AddItem has no title, so inline ItemAdded.title has no value

@@ -26,7 +26,7 @@ export interface DeclData extends Named {
   /** Read models only: the columns that identify a row. */
   keys: string[]
   note?: string
-  /** Set when an external system groups this event. Such an event is never emitted. */
+  /** Set when an external system groups this event. */
   external?: ExternalData
 }
 

@@ -114,6 +114,14 @@ export type EventDecl<F extends Fields = Fields> = Decl<"event", F>
 export type CommandDecl<F extends Fields = Fields> = Decl<"command", F>
 export type ReadModelDecl<F extends Fields = Fields> = Decl<"readModel", F>
 
+/**
+ * An event of a system we do not own, as `m.external()` returns it. Its fields come from outside,
+ * so it passes the check that the command carries them: `never` fills any list of missing fields.
+ */
+export interface ExternalEventDecl<F extends Fields = Fields> extends EventDecl<F> {
+  readonly "add to the command or set in the mapping": never
+}
+
 function decl<K extends DeclKind, F extends Fields>(kind: K, fields: F): Decl<K, F> {
   const keys = Object.keys(fields).filter((f) => fields[f]?.meta()?.key === true)
   const data: DeclData = { kind, fields, keys }
@@ -200,15 +208,19 @@ export interface External {
   readonly [META]: ExternalData
 }
 
-/** A system we do not own. Its events can be received and never emitted. */
-function external<const E extends Record<string, EventDecl>>(events: E): External & E {
+type Externals<E> = {
+  [K in keyof E]: E[K] extends EventDecl<infer F> ? ExternalEventDecl<F> : never
+}
+
+/** A system we do not own. A slice's command can end in its event, and a slice can trigger on one. */
+function external<const E extends Record<string, EventDecl>>(events: E): External & Externals<E> {
   const data: ExternalData = { kind: "external", events: [] }
   for (const [key, event] of Object.entries(events)) {
     event[META].name ??= key
     event[META].external = data
     data.events.push(event[META])
   }
-  return { ...events, [META]: data }
+  return { ...events, [META]: data } as External & Externals<E>
 }
 
 // ---------------------------------------------------------------------------

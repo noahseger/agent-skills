@@ -367,6 +367,7 @@ export function layout(model: ModelJson): Layout {
       for (const ev of slice.events ?? []) kinds.set(parse(ev).name, "event")
       if (slice.command) kinds.set(parse(slice.command).name, "command")
       if (slice.external_event) kinds.set(parse(slice.external_event).name, "external")
+      for (const call of slice.calls ?? []) kinds.set(parse(call.event).name, "external")
     }
   }
 
@@ -512,6 +513,7 @@ export function layout(model: ModelJson): Layout {
     let gear: Placed | undefined
     const readModels: Placed[] = []
     const events: Placed[] = []
+    const calls: Placed[] = []
 
     // A screen in each actor's lane.
     if (s.ui) {
@@ -572,6 +574,13 @@ export function layout(model: ModelJson): Layout {
       seen.push(box)
       eventBoxes.set(box.name, seen)
     }
+    // The external event a call ends in, in its system's lane.
+    for (const call of s.calls ?? []) {
+      const box = make(i, "external", parse(call.event))
+      calls.push(box)
+      into(`actor:${call.actor}`, i, box)
+      useActor(call.actor)
+    }
 
     if (command) for (const ui of uis) edge(ui, command)
     if (external) {
@@ -580,7 +589,7 @@ export function layout(model: ModelJson): Layout {
     }
     if (!command) for (const ui of uis) for (const rm of readModels) edge(rm, ui)
     if (gear && command) edge(gear, command)
-    if (command) for (const ev of events) edge(command, ev)
+    if (command) for (const ev of [...events, ...calls]) edge(command, ev)
     consumers.set(i, { ...(command ? { command } : {}), ...(gear ? { gear } : {}) })
 
     // What a trigger points at: the automation, or the read model it builds.

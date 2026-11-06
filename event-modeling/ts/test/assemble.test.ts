@@ -213,15 +213,41 @@ test("a read model nothing projects", () => {
   )
 })
 
-test("a slice that emits an external event", () => {
+// A call to a system we do not own: our command, then the system's event with what it sent back.
+function call() {
   const f = fixture()
-  const Pushed = m.event({ id: z.string(), name: z.string() })
-  const Cal = m.external({ Pushed })
-  const slice = m.slice().command(f.Create).event(Pushed).actor(f.User).service(f.Svc)
-  assert.throws(
-    () => assembled({ ...f, Pushed, Cal }, [slice]),
-    /Ch › Create: Pushed belongs to Cal, so only it can emit it\. To react to it, start a slice with m\.slice\(\)\.trigger\(Pushed\)\./,
+  const Remote = m.external({
+    Answered: m.event({ id: z.string(), name: z.string(), detail: z.string() }),
+  })
+  const Ask = m.command({ id: z.string() })
+  const ask = m.slice().command(Ask).event(Remote.Answered).actor(f.User).service(f.Svc)
+  return { f, Remote, Ask, ask }
+}
+
+test("a call ends in the external event, whose fields come from outside", () => {
+  const { f, Remote, Ask, ask } = call()
+  const keep = m.slice().trigger(Remote.Answered).command(f.Create).event(f.Created)
+  const json = assembled({ ...f, Remote, Ask }, [ask, keep, project(f), view(f)])
+  const [asked] = json.chapters[0]?.slices ?? []
+  assert.deepEqual(asked?.calls, [{ actor: "remote", event: "Answered(id, name, detail)" }])
+  assert.equal(asked?.events, undefined)
+  validate(json)
+})
+
+test("an external event a call ends in that nothing triggers on", () => {
+  const { f, Remote, Ask, ask } = call()
+  const json = assembleModules(
+    [{ Remote, Ask, User: f.User, Svc: f.Svc, default: m.model("x", { chapters: { Ch: [ask] } }) }],
+    { partial: true },
   )
+  assert.deepEqual(json.warnings, [
+    {
+      message:
+        "Ch › Ask: nothing uses Answered yet. Add .trigger(Answered) or a projection's .event(Answered) where something reacts to it.",
+      element: "Answered",
+      slice: "Ask",
+    },
+  ])
 })
 
 test("two slices claiming one service method", () => {

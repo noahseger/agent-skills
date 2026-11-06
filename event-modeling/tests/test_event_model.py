@@ -190,6 +190,28 @@ class TestValidModel:
         model = EventModel.model_validate(data)
         assert model.name == "Minimal"
 
+    def test_a_call_ends_in_an_external_event_whose_fields_come_from_outside(self):
+        data = {
+            "name": "Call",
+            "actors": [
+                {"id": "u", "name": "User", "type": "user"},
+                {"id": "shop", "name": "Shop", "type": "external"},
+            ],
+            "aggregates": [{"id": "a", "name": "A"}],
+            "chapters": [{
+                "name": "Ch",
+                "slices": [{
+                    "actor": "u", "aggregate": "a",
+                    "ui": "POST /cart",
+                    "command": "AddToCart(itemId)",
+                    "calls": [{"actor": "shop", "event": "CartUpdated(added, unavailable)"}],
+                }],
+            }],
+        }
+        model = EventModel.model_validate(data)
+        assert model.chapters[0].slices[0].calls[0].actor == "shop"
+        render_svg(model)
+
     def test_view_only_slice(self):
         data = {
             "name": "ViewOnly",
