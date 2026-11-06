@@ -338,8 +338,19 @@ export const Integrations = [
 ```
 
 Declare the events of a system you do not own inside `m.external()`; each is named by its key.
-They are drawn in the system's lane, `.trigger()` can receive them, and no slice can emit them. We
-translate them and never store them.
+They are drawn in the system's lane, and we translate them and never store them.
+
+The model says that data arrives, not how. A call to such a system is our command followed by the
+event that brings its data back, and that event's fields come from outside, so the command need
+not carry them. Use it as `Shop.CartUpdated`: the editor only knows an event is external through
+the group.
+
+```ts
+export const Shop = m.external({ CartUpdated: m.event({ added: z.array(Item), unavailable: z.array(Item) }) })
+
+m.slice().todoList(GroceriesToOrder).command(AddGroceriesToCart).event(Shop.CartUpdated)   // the call
+m.slice().trigger(Shop.CartUpdated).command(RecordOrder).event(OrderUpdated)               // we keep what came back
+```
 
 ### 8. Streams
 
@@ -420,7 +431,6 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | An event nothing consumes: no `.trigger()`, no projection, no `given` | Same. |
 | An event no slice records; a read model nothing reads or projects | Same. |
 | A field with no value, in a model the compiler did not check | `em json` runs the model without `tsc`. |
-| A slice that emits an external event | The group decides, and the group is a runtime value. |
 | Two slices claiming one service method; a slice without a service claims none | A union of literal types dedupes rather than counts. |
 | A declaration in no slice, or a slice in no chapter | Whether a value is used is not a type. |
 

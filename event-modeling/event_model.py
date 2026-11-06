@@ -67,6 +67,12 @@ class FieldSource(BaseModel):
     generate: bool = False  # the handler assigns it, like an id or a clock
 
 
+class Call(BaseModel):
+    """An external event a slice's command ends in: the system's answer to our call."""
+    actor: str  # the external system
+    event: str
+
+
 class Slice(BaseModel):
     """One vertical cut through the timeline. At most one command."""
     name: str | None = None
@@ -80,6 +86,7 @@ class Slice(BaseModel):
     polls: str | None = None  # the TODO-list read model an automation works through instead of a trigger
     command: str | None = None
     events: list[str] = Field(default_factory=list)
+    calls: list[Call] = Field(default_factory=list)  # its fields come from outside, so none is traced
     reads: list[str] = Field(default_factory=list)  # consumed read models (inputs)
     read_models: list[str] = Field(default_factory=list)  # produced read models (outputs)
     query: list[str] = Field(default_factory=list)  # a view's request fields, drawn on the ui card
@@ -135,7 +142,7 @@ class EventModel(BaseModel):
             for si, sl in enumerate(ch.slices):
                 loc = f"'{sl.name}'" if sl.name else f"slice #{si + 1}"
                 loc = f"{loc} in '{ch.name}'"
-                for actor in [sl.actor, *sl.actors]:
+                for actor in [sl.actor, *sl.actors, *(c.actor for c in sl.calls)]:
                     if actor not in actor_ids:
                         errors.append(
                             f"{loc} references unknown actor '{actor}'"
@@ -156,7 +163,7 @@ class EventModel(BaseModel):
                             f"External event '{ext_name}' in {loc} doesn't look past tense — "
                             f"events should be facts (e.g. InventoryChanged, PriceUpdated)"
                         )
-                for ev in sl.events:
+                for ev in [*sl.events, *(c.event for c in sl.calls)]:
                     name = _parse_element(ev)[0]
                     if not _looks_past_tense(name):
                         errors.append(

@@ -6,6 +6,7 @@ import {
   type ClauseData,
   type DeclData,
   type ExampleData,
+  type ExternalData,
   heard,
   recorded,
   type SliceData,
@@ -34,6 +35,8 @@ export interface SliceJson {
   trigger?: string | string[]
   command?: string
   events?: string[]
+  /** The external events the command ends in, each with the system it comes from. */
+  calls?: { actor: string; event: string }[]
   reads?: string[]
   read_models?: string[]
   tests: TestJson[]
@@ -147,10 +150,10 @@ export function toJson({ model, streams, loose, unchaptered, warnings }: Assembl
     name: a.name ?? "",
     type: a.icon,
   })
+  const system = (external: ExternalData): string =>
+    add({ id: slug(external.name ?? ""), name: external.name ?? "", type: "external" })
   const actorOf = (slice: SliceData): string => {
-    const external = slice.trigger?.external
-    if (external)
-      return add({ id: slug(external.name ?? ""), name: external.name ?? "", type: "external" })
+    if (slice.trigger?.external) return system(slice.trigger.external)
     return slice.actors.map((a) => add(person(a)))[0] ?? add(SYSTEM)
   }
 
@@ -178,8 +181,14 @@ export function toJson({ model, streams, loose, unchaptered, warnings }: Assembl
       out.command = element(command.decl)
       noted(command.decl)
     }
-    if (!projection && slice.events.length > 0)
-      out.events = slice.events.map((f) => element(f.decl))
+    if (!projection) {
+      const ours = slice.events.filter((f) => !f.decl.external)
+      if (ours.length > 0) out.events = ours.map((f) => element(f.decl))
+      const calls = slice.events.flatMap(({ decl }) =>
+        decl.external ? [{ actor: system(decl.external), event: element(decl) }] : [],
+      )
+      if (calls.length > 0) out.calls = calls
+    }
     if (slice.readModels.length > 0) out.reads = slice.readModels.map((r) => r.name ?? "")
     if (slice.shows.length > 0) out.read_models = slice.shows.map((r) => element(r))
     if (projection) out.read_models = [element(projection)]
@@ -197,9 +206,10 @@ export function toJson({ model, streams, loose, unchaptered, warnings }: Assembl
 
     const decls = [...slice.actors, projection, slice.todoList, ...slice.readModels, ...slice.shows]
     for (const d of decls) if (d) noted(d)
-    for (const f of slice.events) noted(f.decl)
-    if (trigger) noted(trigger)
-    if (trigger?.external) noted(trigger.external)
+    for (const e of [...slice.events.map((f) => f.decl), ...(trigger ? [trigger] : [])]) {
+      noted(e)
+      if (e.external) noted(e.external)
+    }
     return json
   }
   const stories = [

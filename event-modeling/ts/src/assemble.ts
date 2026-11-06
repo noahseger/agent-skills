@@ -199,7 +199,6 @@ function check(
   for (const at of located) {
     checkFilled(at, fail)
     checkKeys(at, fail)
-    checkExternal(at)
   }
   checkConnected(located, fail)
   checkMethods(located)
@@ -296,8 +295,9 @@ function checkFilled({ slice, where }: Located, fail: Fail): void {
       filled(command, from),
       (f) => `Add ${f} to ${from.name}, or set it in the mapping.`,
     )
+  // An external event's fields come from outside.
   if (command && !projection)
-    for (const flow of slice.events)
+    for (const flow of slice.events.filter((f) => !f.decl.external))
       check(
         flow.decl,
         filled(flow, command.decl),
@@ -324,17 +324,6 @@ function checkKeys({ slice, where }: Located, fail: Fail): void {
         element: flow.decl.name ?? "",
         slice: slice.name ?? "",
       })
-    }
-  }
-}
-
-function checkExternal({ slice, where }: Located): void {
-  for (const event of recorded(slice)) {
-    if (event.external) {
-      throw new Error(
-        `${where}: ${event.name} belongs to ${event.external.name}, so only it can emit it. ` +
-          `To react to it, start a slice with m.slice().trigger(${event.name}).`,
-      )
     }
   }
 }

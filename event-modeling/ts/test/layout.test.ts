@@ -320,6 +320,54 @@ test("a translation gets an automation of ours between the outside event and the
   assert.ok(!out.edges.some((e) => e.from === external.id && e.to === command.id))
 })
 
+test("a call's external event is drawn in the system's lane, and a later trigger links to it", () => {
+  const called = layout({
+    name: "x",
+    description: "",
+    actors: [
+      { id: "user", name: "User", type: "user" },
+      { id: "remote", name: "Remote", type: "external" },
+    ],
+    aggregates: [{ id: "events", name: "Events" }],
+    chapters: [
+      {
+        name: "Ch",
+        slices: [
+          {
+            name: "Ask",
+            actor: "user",
+            aggregate: "events",
+            ui: "Ask",
+            command: "Ask(id)",
+            calls: [{ actor: "remote", event: "Answered(id, detail)" }],
+            tests: [],
+          },
+          {
+            name: "Keep",
+            actor: "remote",
+            aggregate: "events",
+            external_event: "Answered(id, detail)",
+            command: "Keep(id, detail)",
+            events: ["Kept(id, detail)"],
+            tests: [],
+          },
+        ],
+      },
+    ],
+    notes: {},
+  })
+  const [first, later] = called.boxes.filter((b) => b.name === "Answered")
+  const command = called.boxes.find((b) => b.name === "Ask" && b.kind === "command")
+  assert.ok(first && later && command)
+  assert.equal(first.kind, "external")
+  assert.equal(first.column, 0)
+  assert.ok(!first.compact)
+  const lane = called.rows.find((r) => first.y >= r.y && first.y + first.h <= r.y + r.h)
+  assert.equal(lane?.id, "actor:remote")
+  assert.ok(called.edges.some((e) => e.from === command.id && e.to === first.id))
+  assert.equal(later.canonical, first.id)
+})
+
 test("a long value wraps inside its specification card", () => {
   const fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
   const copy: ModelJson = JSON.parse(JSON.stringify(model))
