@@ -289,6 +289,11 @@ m.slice()
   }),
 ```
 
+A specification must agree with its slice's wiring. A value copied or mapped from the command, the
+trigger or a given event must equal the value there; a constant the mapping sets, the constant; a
+`count()`, the number of those events in `given`. A `generate()` field, and any field of an
+external event, may be anything. A disagreement names the spec, the field and both values.
+
 ### 6. Automations
 
 An automation issues a command with no actor. It has two forms.
@@ -439,6 +444,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | A declaration in no slice, or a slice in no chapter | Whether a value is used is not a type. |
 | An event in both a stream and an external system | `.stream()` and `.external()` can be called on it in separate statements. |
 | An event a command lists that no specification's `then` shows | Each `.test()` is checked on its own, not against the slice's other specifications. |
+| A specification value that is not what flows in: from `when`, the trigger in `given`, or the events that build the row | Example values are data, not types. |
 
 `event_model.py` then checks the emitted JSON for what neither can: event names in the past tense,
 command names in the imperative, and example values that are not placeholders.
