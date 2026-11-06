@@ -579,7 +579,8 @@ Any other Zod type is an error that names the declaration and the field. The exa
 ```bash
 npx em init   model/                 # scaffold a model directory
 npx em view   model/                 # live diagram; runs until Ctrl-C
-npx em export model/ -o model.html   # one self-contained page, for sharing
+npx em view   model.json             # the same for a model written as spec JSON
+npx em export model/ -o model.html   # one self-contained page, for sharing; takes model.json too
 npx em json   model/                 # the model as event-modeling-spec JSON
 npx em json   model/ --partial       # what the viewer draws of an unfinished model
 npx em proto  model/ -o proto        # one .proto per service
@@ -589,6 +590,12 @@ Every command also accepts a single self-contained file. `json` assembles the mo
 the first error. With `--partial` it goes on past dead ends and prints what the viewer reads: the
 spec JSON as `model`, beside it what the spec has no place for, and the dead ends as `warnings`;
 `view` and `export` assemble that way.
+
+`view` and `export` also draw a model written as spec JSON, by hand or extracted from a running
+system. It is drawn as far as it goes, and each place it breaks the schema is listed as left to
+do, as `model.json/slices/0/sliceType must be equal to one of the allowed values ...`. The file
+has only what the spec has, so lanes and chapters come in the order its slices first name them,
+and a screen no actor is said to see is a User's.
 `view` also type-checks the model on every save, with the `tsconfig.json` that `init` wrote, and
 logs each compiler error as `file:line` with what assembly left to do, in the terminal and above the
 picture. Names used above their declarations are one line per file, listing what to move up. Node runs the TypeScript directly with `--experimental-strip-types`. The package carries

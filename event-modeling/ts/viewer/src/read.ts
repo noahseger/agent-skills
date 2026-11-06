@@ -118,7 +118,11 @@ function parts(s: SpecSlice) {
 }
 
 export function read(feed: Feed): Board {
-  const slices = [...(feed.model?.slices ?? [])].sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+  // A file that breaks the schema is drawn as far as its slices go.
+  const written: unknown = feed.model?.slices
+  const slices = (Array.isArray(written) ? (written as SpecSlice[]) : [])
+    .filter((s) => typeof s === "object" && s !== null)
+    .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
 
   // Lanes in the order declared, then as the slices first name them. Without any, one: Events.
   const lanes = [...(feed.streams ?? [])]

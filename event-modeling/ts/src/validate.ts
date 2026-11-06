@@ -1,9 +1,14 @@
 // Checks a model against the vendored event-modeling-spec JSON Schema.
-import { readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { Ajv } from "ajv"
 
+// The schema is at the package root, whether this runs from `src/` or from `dist/src/`.
+let root = dirname(fileURLToPath(import.meta.url))
+while (!existsSync(join(root, "package.json"))) root = dirname(root)
 const schema: unknown = JSON.parse(
-  readFileSync(new URL("../schema/eventmodeling.schema.json", import.meta.url), "utf8"),
+  readFileSync(join(root, "schema", "eventmodeling.schema.json"), "utf8"),
 )
 const check = new Ajv({ allErrors: true }).compile(schema as object)
 
