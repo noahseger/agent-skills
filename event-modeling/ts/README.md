@@ -41,6 +41,9 @@ Your own names follow the practice: events in the past tense (`NoteCreated`), co
 imperative (`CreateNote`), read models as nouns (`Inbox`). Everything you declare, chapters
 included, is named by its export.
 
+A lane says whose it is and what it holds. Name a system after the system (`Calendar`) and a stream
+after what we keep track of (`Connections`), never after the system it is about (`CalendarStream`).
+
 ## How it fits together
 
 **Names come from exports.** Export a declaration and the CLI uses the binding's name:
