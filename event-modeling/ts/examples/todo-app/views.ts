@@ -177,5 +177,10 @@ export const Integrations = [
     .slice()
     .trigger(TaskScheduled)
     .command(AddItem)
-    .event(ItemAdded((c) => ({ title: c.text }))),
+    .event(ItemAdded((c) => ({ title: c.text })))
+    .test("A scheduled task becomes an item", {
+      given: groceries,
+      when: AddItem({ userId: "u-1", listId: "list-1", itemId: "item-4", text: "Flour" }),
+      then: ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-4", title: "Flour" }),
+    }),
 ]

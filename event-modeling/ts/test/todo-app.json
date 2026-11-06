@@ -411,7 +411,18 @@
           "events": [
             "ItemAdded(userId, listId, itemId, title)"
           ],
-          "tests": [],
+          "tests": [
+            {
+              "name": "A scheduled task becomes an item",
+              "given": [
+                "ListCreated(listId=list-1, userId=u-1, name=Groceries)"
+              ],
+              "when": "AddItem(userId=u-1, listId=list-1, itemId=item-4, text=Flour)",
+              "then": [
+                "ItemAdded(userId=u-1, listId=list-1, itemId=item-4, title=Flour)"
+              ]
+            }
+          ],
           "mapping": {
             "ItemAdded": {
               "title": {

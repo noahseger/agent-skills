@@ -283,6 +283,11 @@ and `then` accept one example or a list. A specification has `then`, the events 
 `reject`, why the command is refused; never both. Called with data, a declaration is an example;
 called with a function, it is a use in a slice.
 
+The events a command lists, `.event(ItemAdded).event(ListFull)`, are what it can produce, not a
+sequence; the diagram draws them side by side. A specification says which happens: its `then` lists
+the events recorded in that case, one, or several when the command records them together. Until a
+specification's `then` shows each of them, external events included, the model is unfinished.
+
 A projection is specified the same way, without `when` or `reject`, because a read model cannot
 reject an event:
 
@@ -445,6 +450,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | A field with no value, in a model the compiler did not check | `em json` runs the model without `tsc`. |
 | Two slices claiming one service method; a slice without a service claims none | A union of literal types dedupes rather than counts. |
 | A declaration in no slice, or a slice in no chapter | Whether a value is used is not a type. |
+| An event a command lists that no specification's `then` shows | Each `.test()` is checked on its own, not against the slice's other specifications. |
 
 `event_model.py` then checks the emitted JSON for what neither can: event names in the past tense,
 command names in the imperative, and example values that are not placeholders.
