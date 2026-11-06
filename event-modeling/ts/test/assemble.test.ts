@@ -349,17 +349,107 @@ test("a .todoList() automation polls the read model", () => {
 
 test("same-named streams from two modules are one lane", () => {
   const f = fixture()
+  const [Inventory, Stock] = [m.stream(), m.stream()]
+  f.Created.stream(Inventory)
+  const Recounted = m.event({ id: z.string() }).stream(Stock)
   const Ch = [create(f), project(f), view(f)]
-  const json = assembleModules([
-    { ...f, default: m.model("x", { chapters: { Ch } }) },
-    { Inventory: m.stream({ Create: f.Create }) },
-    { Inventory: m.stream({ Created: f.Created }) },
-  ])
+  const json = assembleModules(
+    [
+      { ...f, default: m.model("x", { chapters: { Ch } }) },
+      { Inventory },
+      { Inventory: Stock, Recounted },
+    ],
+    { partial: true },
+  )
   assert.deepEqual(json.aggregates, [{ id: "inventory", name: "Inventory" }])
+  assert.equal(json.chapters[0]?.slices[0]?.aggregate, "inventory")
+  assert.equal(json.loose?.[0]?.aggregate, "inventory")
+})
+
+test("a stream no event joins is an empty lane", () => {
+  const f = fixture()
+  const Inventory = m.stream()
+  f.Created.stream(Inventory)
+  const json = assembled({ ...f, Inventory, Returns: m.stream() }, [create(f), project(f), view(f)])
+  assert.deepEqual(json.aggregates, [
+    { id: "inventory", name: "Inventory" },
+    { id: "returns", name: "Returns" },
+  ])
   assert.deepEqual(
     json.chapters[0]?.slices.map((s) => s.aggregate),
     ["inventory", "inventory", "inventory"],
   )
+  const rows = layout(json).rows.filter((r) => r.kind === "stream")
+  assert.deepEqual(
+    rows.map((r) => r.id),
+    ["stream:inventory", "stream:returns"],
+  )
+})
+
+test("two projection slices of one read model fill each other's columns", () => {
+  const f = fixture()
+  const Table = m.readModel({ id: m.key(z.string()), name: z.string(), status: z.string() })
+  const Archive = m.command({ id: z.string() })
+  const Archived = m.event({ id: z.string() })
+  const archive = m.slice().command(Archive).event(Archived).actor(f.User).service(f.Svc)
+  const json = assembleModules([
+    { ...f, Table, Archive, Archived },
+    {
+      default: m.model("x", {
+        chapters: {
+          Capture: [
+            create(f),
+            m
+              .slice()
+              .projection(Table)
+              .event(f.Created(() => ({ status: "open" }))),
+          ],
+          Tidy: [
+            archive,
+            m
+              .slice()
+              .projection(Table)
+              .event(Archived(() => ({ status: "archived" }))),
+            view({ ...f, Table }),
+          ],
+        },
+      }),
+    },
+  ])
+  assert.deepEqual(
+    json.chapters.map((c) => c.slices.map((s) => s.name)),
+    [
+      ["Create", "Table"],
+      ["Archive", "Table", "Get"],
+    ],
+  )
+})
+
+test("a column neither projection slice writes is reported once, at the first", () => {
+  const f = fixture()
+  const Table = m.readModel({ id: m.key(z.string()), name: z.string(), status: z.string() })
+  const Ch = [create(f), project({ ...f, Table }), project({ ...f, Table })]
+  const json = assembleModules([{ ...f, Table, default: m.model("x", { chapters: { Ch } }) }], {
+    partial: true,
+  })
+  assert.deepEqual(
+    json.warnings?.map((w) => w.message),
+    [
+      "Ch › Table: Table.status has no value. Add .event() for an event that carries status, or set it in a mapping.",
+      "Ch › Table: nothing reads Table yet. Add .readModel(Table), .view(Table) or .todoList(Table) where it's needed.",
+    ],
+  )
+})
+
+test("a single file written top to bottom extends an earlier read model in a later chapter", async () => {
+  const json = await assemble(here("./fixtures/top-to-bottom.ts"))
+  assert.equal(json.warnings, undefined)
+  assert.equal(json.loose, undefined)
+  assert.deepEqual(
+    json.aggregates.map((a) => a.id),
+    ["notes"],
+  )
+  validate(json)
 })
 
 test("a view may show more than one read model", () => {
@@ -403,9 +493,9 @@ test("a declaration in no slice is an error", () => {
 
 test("a partial assembly lists the dead ends and keeps the loose declarations in stream order", () => {
   const f = fixture()
-  const Started = m.event({ id: z.string() })
-  const Ended = m.event({ id: z.string() })
-  const Games = m.stream({ Started, Ended })
+  const Games = m.stream()
+  const Started = m.event({ id: z.string() }).stream(Games)
+  const Ended = m.event({ id: z.string() }).stream(Games)
   const Ch = [create(f)]
   const json = assembleModules(
     [{ ...f, Ended, Started, Games, default: m.model("x", { chapters: { Ch } }) }],

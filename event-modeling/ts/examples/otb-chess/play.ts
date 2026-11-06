@@ -2,7 +2,15 @@
 
 import { m, z } from "#em"
 
-import { ChessService, ClockStarted, GameStarted, gameStarted, Player } from "./setup.ts"
+import {
+  ChessService,
+  Clock,
+  ClockStarted,
+  Game,
+  GameStarted,
+  gameStarted,
+  Player,
+} from "./setup.ts"
 
 // A player moves. FIDE 1.1: the two players move alternately.
 export const PlayMove = m.command({
@@ -18,27 +26,31 @@ export const PlayMove = m.command({
   isCapture: z.boolean(),
   ending: z.enum(["checkmate", "stalemate", "dead_position"]).optional(),
 })
-export const MovePlayed = m.event({
-  gameId: z.string(),
-  ply: z.number().int(),
-  san: z.string(),
-  fromSquare: z.string(),
-  toSquare: z.string(),
-  piece: z.enum(["pawn", "knight", "bishop", "rook", "queen", "king"]),
-  fen: z.string(),
-  sideToMove: z.enum(["white", "black"]),
-  isCheck: z.boolean(),
-  isCapture: z.boolean(),
-})
+export const MovePlayed = m
+  .event({
+    gameId: z.string(),
+    ply: z.number().int(),
+    san: z.string(),
+    fromSquare: z.string(),
+    toSquare: z.string(),
+    piece: z.enum(["pawn", "knight", "bishop", "rook", "queen", "king"]),
+    fen: z.string(),
+    sideToMove: z.enum(["white", "black"]),
+    isCheck: z.boolean(),
+    isCapture: z.boolean(),
+  })
+  .stream(Game)
 
 // A move that mates, stalemates, or leaves a dead position ends the game as it is played.
 // FIDE 5.1.1, 5.2.1 and 5.2.2: the game is over at that moment, before anyone rules on it.
-export const GameEnded = m.event({
-  gameId: z.string(),
-  ply: z.number().int(),
-  fen: z.string(),
-  ending: z.enum(["checkmate", "stalemate", "dead_position"]),
-})
+export const GameEnded = m
+  .event({
+    gameId: z.string(),
+    ply: z.number().int(),
+    fen: z.string(),
+    ending: z.enum(["checkmate", "stalemate", "dead_position"]),
+  })
+  .stream(Game)
 
 // The position on the board right now.
 export const GameState = m.readModel({
@@ -55,12 +67,14 @@ export const PressClock = m.command({
   blackTimeMs: z.number().int(),
   runningSide: z.enum(["white", "black"]),
 })
-export const ClockPressed = m.event({
-  gameId: z.string(),
-  whiteTimeMs: z.number().int(),
-  blackTimeMs: z.number().int(),
-  runningSide: z.enum(["white", "black"]),
-})
+export const ClockPressed = m
+  .event({
+    gameId: z.string(),
+    whiteTimeMs: z.number().int(),
+    blackTimeMs: z.number().int(),
+    runningSide: z.enum(["white", "black"]),
+  })
+  .stream(Clock)
 
 // Whose clock runs, and how much time each side has left.
 export const ClockState = m.readModel({
@@ -83,16 +97,18 @@ export const RuleIllegalMove = m.command({
   fen: z.string(),
   sideToMove: z.enum(["white", "black"]),
 })
-export const IllegalMoveRuled = m.event({
-  gameId: z.string(),
-  ply: z.number().int(),
-  offendingSide: z.enum(["white", "black"]),
-  illegalMoveCount: z.number().int(),
-  addedTimeMs: z.number().int(),
-  penalty: z.enum(["opponent_time_added", "loss"]),
-  fen: z.string(),
-  sideToMove: z.enum(["white", "black"]),
-})
+export const IllegalMoveRuled = m
+  .event({
+    gameId: z.string(),
+    ply: z.number().int(),
+    offendingSide: z.enum(["white", "black"]),
+    illegalMoveCount: z.number().int(),
+    addedTimeMs: z.number().int(),
+    penalty: z.enum(["opponent_time_added", "loss"]),
+    fen: z.string(),
+    sideToMove: z.enum(["white", "black"]),
+  })
+  .stream(Game)
 
 // The scoresheet: one row per ply. A struck move stays on the sheet, marked.
 export const MoveList = m.readModel({
@@ -384,12 +400,3 @@ export const Play = [
       }),
     }),
 ]
-
-export const Game = m.stream({
-  PlayMove,
-  MovePlayed,
-  GameEnded,
-  RuleIllegalMove,
-  IllegalMoveRuled,
-})
-export const Clock = m.stream({ PressClock, ClockPressed })

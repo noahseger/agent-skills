@@ -45,6 +45,9 @@ export interface ServiceData extends Named {
 
 export interface StreamData extends Named {
   kind: "stream"
+  /** How many streams were declared before it. */
+  order: number
+  /** The events that joined it, in the order they did. */
   members: DeclData[]
 }
 

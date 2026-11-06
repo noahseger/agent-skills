@@ -9,13 +9,14 @@ import {
   ItemDeleted,
   ListCreated,
   ListDeleted,
+  Lists,
   TodoService,
   User,
 } from "./list-management.ts"
 
 // When the last item is done, the list completes.
 export const CompleteList = m.command({ listId: z.string() })
-export const ListCompleted = m.event({ listId: z.string() })
+export const ListCompleted = m.event({ listId: z.string() }).stream(Lists)
 
 // A user's lists, one row per list.
 export const TodoList = m.readModel({
@@ -178,6 +179,3 @@ export const Integrations = [
     .command(AddItem)
     .event(ItemAdded((c) => ({ title: c.text }))),
 ]
-
-// The same lane as list-management.ts declares; the CLI merges them by name.
-export const Lists = m.stream({ CompleteList, ListCompleted })

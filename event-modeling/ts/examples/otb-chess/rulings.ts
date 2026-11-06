@@ -2,7 +2,7 @@
 
 import { m, z } from "#em"
 import { IllegalMoveRuled, illegalMoveRuled, MoveList, RuleIllegalMove } from "./play.ts"
-import { Arbiter, ChessService } from "./setup.ts"
+import { Arbiter, ChessService, Game } from "./setup.ts"
 
 // How many illegal moves each side has made. FIDE 7.5.5 escalates on the second.
 export const IllegalMoveTally = m.readModel({
@@ -12,11 +12,13 @@ export const IllegalMoveTally = m.readModel({
 })
 
 // The ruling that makes it two says so, so the forfeiter hears only the offence that forfeits.
-export const SecondIllegalMoveRuled = m.event({
-  gameId: z.string(),
-  offendingSide: z.enum(["white", "black"]),
-  illegalMoveCount: z.number().int(),
-})
+export const SecondIllegalMoveRuled = m
+  .event({
+    gameId: z.string(),
+    offendingSide: z.enum(["white", "black"]),
+    illegalMoveCount: z.number().int(),
+  })
+  .stream(Game)
 
 export const secondIllegalMoveRuled = IllegalMoveRuled({
   gameId: "otb-2024-ct-r5-b1",
@@ -98,5 +100,3 @@ export const ArbiterRulings = [
       }),
     }),
 ]
-
-export const Game = m.stream({ SecondIllegalMoveRuled })

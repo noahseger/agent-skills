@@ -4,7 +4,7 @@ import { m, z } from "#em"
 import { DrawAgreed, drawAgreed, GameResigned, gameResigned, Result, Termination } from "./draws.ts"
 import { ClockPressed, ClockState, GameEnded, GameState, MATE_FEN, mated } from "./play.ts"
 import { IllegalMoveTally, SecondIllegalMoveRuled, secondOffence } from "./rulings.ts"
-import { Arbiter, ChessService, GamePairing, gameStarted, Player } from "./setup.ts"
+import { Arbiter, ChessService, Game, GamePairing, gameStarted, Player } from "./setup.ts"
 
 // FIDE 6.8: a flag has fallen when the arbiter or a player observes it.
 export const ClaimFlagFall = m.command({
@@ -13,12 +13,14 @@ export const ClaimFlagFall = m.command({
   result: Result,
   termination: Termination,
 })
-export const TimeForfeited = m.event({
-  gameId: z.string(),
-  flaggedSide: z.enum(["white", "black"]),
-  result: Result,
-  termination: Termination,
-})
+export const TimeForfeited = m
+  .event({
+    gameId: z.string(),
+    flaggedSide: z.enum(["white", "black"]),
+    result: Result,
+    termination: Termination,
+  })
+  .stream(Game)
 
 // The position itself ends the game: checkmate, stalemate, or a dead position.
 export const AdjudicateOutcome = m.command({
@@ -27,13 +29,15 @@ export const AdjudicateOutcome = m.command({
   fen: z.string(),
   termination: Termination,
 })
-export const BoardOutcomeAdjudicated = m.event({
-  gameId: z.string(),
-  ply: z.number().int(),
-  fen: z.string(),
-  result: Result,
-  termination: Termination,
-})
+export const BoardOutcomeAdjudicated = m
+  .event({
+    gameId: z.string(),
+    ply: z.number().int(),
+    fen: z.string(),
+    result: Result,
+    termination: Termination,
+  })
+  .stream(Game)
 
 // FIDE 7.5.5: the second illegal move by the same player loses the game.
 export const ForfeitGame = m.command({
@@ -41,13 +45,15 @@ export const ForfeitGame = m.command({
   offendingSide: z.enum(["white", "black"]),
   illegalMoveCount: z.number().int(),
 })
-export const IllegalMoveForfeited = m.event({
-  gameId: z.string(),
-  offendingSide: z.enum(["white", "black"]),
-  illegalMoveCount: z.number().int(),
-  result: Result,
-  termination: Termination,
-})
+export const IllegalMoveForfeited = m
+  .event({
+    gameId: z.string(),
+    offendingSide: z.enum(["white", "black"]),
+    illegalMoveCount: z.number().int(),
+    result: Result,
+    termination: Termination,
+  })
+  .stream(Game)
 
 // How this game finished, whichever way it finished.
 export const GameResult = m.readModel({
@@ -66,15 +72,17 @@ export const RecordResult = m.command({
   result: Result,
   termination: Termination,
 })
-export const ResultRecorded = m.event({
-  gameId: z.string(),
-  round: z.number().int(),
-  boardNumber: z.number().int(),
-  whitePlayerId: z.string(),
-  blackPlayerId: z.string(),
-  result: Result,
-  termination: Termination,
-})
+export const ResultRecorded = m
+  .event({
+    gameId: z.string(),
+    round: z.number().int(),
+    boardNumber: z.number().int(),
+    whitePlayerId: z.string(),
+    blackPlayerId: z.string(),
+    result: Result,
+    termination: Termination,
+  })
+  .stream(Game)
 
 // The finished game as the crosstable shows it.
 export const GameRecord = m.readModel({
@@ -332,14 +340,3 @@ export const Conclusion = [
       }),
     }),
 ]
-
-export const Game = m.stream({
-  ClaimFlagFall,
-  TimeForfeited,
-  AdjudicateOutcome,
-  BoardOutcomeAdjudicated,
-  ForfeitGame,
-  IllegalMoveForfeited,
-  RecordResult,
-  ResultRecorded,
-})

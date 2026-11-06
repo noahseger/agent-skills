@@ -126,12 +126,18 @@ class EventModel(BaseModel):
         errors: list[str] = []
         warnings: list[str] = []
 
-        # Build read model registry: name → union of all field sets
+        # Build read model registry: name → union of all field sets. A read
+        # model's columns are filled by every State View that projects it.
         rm_registry: dict[str, set[str]] = {}
+        projected: dict[str, set[str]] = {}
         for ch in self.chapters:
             for sl in ch.slices:
                 for rm in sl.read_models:
                     rm_name = _parse_element(rm)[0]
+                    if _is_state_view(sl):
+                        projected.setdefault(rm_name, set()).update(
+                            _trigger_fields_union(sl) | _mapped_fields(sl)
+                        )
                     rm_fields = _parse_fields(rm)
                     if rm_name in rm_registry:
                         rm_registry[rm_name] |= rm_fields
@@ -198,11 +204,12 @@ class EventModel(BaseModel):
                                 f"with events — read models must be projectable from events"
                             )
                 elif _is_state_view(sl):
-                    trigger_fields = _trigger_fields_union(sl)
                     # State View projections can also draw from consumed
                     # read models declared in 'reads' (data sources), and a
                     # field the mapping fills is traced by construction.
-                    sv_allowed = set(trigger_fields) | _mapped_fields(sl)
+                    sv_allowed: set[str] = set()
+                    for rm in sl.read_models:
+                        sv_allowed |= projected[_parse_element(rm)[0]]
                     for consumed in _consumed(sl):
                         consumed_name = _parse_element(consumed)[0]
                         if consumed_name in rm_registry:
