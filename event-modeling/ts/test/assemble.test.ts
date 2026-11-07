@@ -935,7 +935,7 @@ test("a screen no one sees, and one no slice names, are left to do", () => {
   ])
 })
 
-test("two projection slices of one read model fill each other's columns", () => {
+test("every .projection() of a read model is one slice, drawn where the first is", () => {
   const f = fixture()
   const Table = m.readModel({ id: m.key(z.string()), name: z.string(), status: z.string() })
   const Archive = m.command({ id: z.string() })
@@ -949,7 +949,7 @@ test("two projection slices of one read model fill each other's columns", () => 
       when: Archive({ id: "list-1" }),
       then: Archived({ id: "list-1" }),
     })
-  const json = assembleModules([
+  const feed = feedOf([
     { ...f, Table, Archive, Archived },
     {
       ...chapters({
@@ -985,15 +985,24 @@ test("two projection slices of one read model fill each other's columns", () => 
     },
   ])
   assert.deepEqual(
-    json.chapters.map((c) => c.slices.map((s) => s.name)),
+    drawn(feed).chapters.map((c) => c.slices.map((s) => s.name)),
     [
       ["Create", "Table"],
-      ["Archive", "Table", "Get"],
+      ["Archive", "Get"],
     ],
+  )
+  const table = feed.model.slices.filter((s) => s.sliceType === "STATE_VIEW" && s.title === "Table")
+  assert.deepEqual(
+    table.map((s) => [
+      s.context,
+      s.events.map((e) => e.title),
+      s.specifications.map((t) => t.title),
+    ]),
+    [["Capture", ["Created", "Archived"], ["A new list is open", "An archived list is archived"]]],
   )
 })
 
-test("a column neither projection slice writes is reported once, at the first", () => {
+test("a column no .projection() of the read model writes is reported once", () => {
   const f = fixture()
   const Table = m.readModel({ id: m.key(z.string()), name: z.string(), status: z.string() })
   const Ch = [create(f), project({ ...f, Table }), project({ ...f, Table })]

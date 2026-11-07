@@ -271,13 +271,13 @@ m.slice()
   .service(TodoService, "SearchItems")
 ```
 
-Every `.projection()` of a read model adds to it, so a later chapter extends a table next to the
-event that changes it. Each is its own column, where it happens in the story; a column one of them
-fills is filled.
+A read model has one state view slice, so a later chapter can extend a table next to the event
+that changes it. Every `.projection()` of it adds its events, mappings and specifications to that
+slice, which is drawn where the first one is, in its chapter. A later call's `.chapter()` is ignored.
 
 ```ts
 m.slice().projection(Inbox, NoteCreated(() => ({ status: "inbox" }))).chapter(Capture)
-// further down the file
+// further down the file: adds NoteFiled to the Inbox slice in Capture
 m.slice().projection(Inbox, NoteFiled(() => ({ status: "filed" }))).chapter(Filing)
 ```
 
@@ -349,7 +349,7 @@ A specification must agree with its slice's wiring. A value copied or mapped fro
 trigger or a given event must equal the value there; a constant the mapping sets, the constant. A
 `generate()` field, and any field of an external event, may be anything. A disagreement names the spec, the field and both values.
 
-A view's `given` builds the rows through every projection of the read models it shows. Each row in
+A view's `given` builds the rows through the projection of each read model it shows. Each row in
 `then` must be one of them, matched by its key columns, with the values they have. A row built and
 left out of `then` must be one the query excludes: a query field filters by equality with the
 column of the same name. A query field with no such column, such as a search's `text`, excludes
@@ -509,7 +509,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 |---|---|
 | A declaration used in a slice that no module exports, or one exported under two names | It has no name until it is exported. |
 | Two modules exporting one name, such as `ListCreated` | Each module is compiled on its own. |
-| A column no event of the read model's projections writes | The columns are filled across several events, in several slices. |
+| A column no event of the read model's `.projection()` calls writes | The calls can be in several modules. |
 | An optional field no slice fills | Same. |
 | An event that carries none of the read model's key columns | Declarations are anonymous, so two events with the same fields are one type. |
 | An event nothing consumes: no `.trigger()`, no projection, no `given` | Same. |

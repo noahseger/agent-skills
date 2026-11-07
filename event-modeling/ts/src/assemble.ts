@@ -68,7 +68,7 @@ export function loadModules(
   options: Options = {},
   files: readonly string[] = [],
 ): Assembled {
-  const drafts = [...DRAFTS]
+  const drafts = oneSlicePerReadModel([...DRAFTS])
   DRAFTS.clear()
   const { model, streams, chapters, externals, declared, fileOf } = nameExports(modules, files)
   const warnings: Warning[] = []
@@ -107,6 +107,22 @@ export function loadModules(
   if (!options.partial && warnings.length > 0)
     throw new Error(warnings.map((w) => w.message).join("\n"))
   return { model, streams, chapters, externals, loose, unchaptered, warnings, unfinished }
+}
+
+/**
+ * Every `.projection()` of a read model is one slice: the first, where it is drawn and which chapter
+ * it joins, built from the events of all of them and specified by all their specifications.
+ */
+function oneSlicePerReadModel(drafts: SliceData[]): SliceData[] {
+  const calls = new Map<DeclData, SliceData[]>()
+  for (const s of drafts)
+    if (s.projection) calls.set(s.projection, [...(calls.get(s.projection) ?? []), s])
+  return drafts.flatMap((s) => {
+    const all = s.projection && calls.get(s.projection)
+    if (!all) return [s]
+    if (all[0] !== s) return []
+    return [{ ...s, events: all.flatMap((c) => c.events), tests: all.flatMap((c) => c.tests) }]
+  })
 }
 
 /** The model's own modules under `dir`. */
@@ -268,19 +284,19 @@ function check(
     note(slice, `${where}: ${missing}`)
   }
   checkDeclaredOnce(located, declared, fileOf)
-  const columns = columnsOf(located)
+  const built = builtOf(located)
   for (const at of located) {
     const own: Fail = (warning) => fail(warning, at.slice)
-    checkFilled(at, columns, own)
+    checkFilled(at, own)
     checkKeys(at, own)
     checkStored(at, own)
     checkCovered(at, own)
     checkSeen(at, own)
-    checkSpecs(at, columns, own)
+    checkSpecs(at, built, own)
     checkGenerated(at, own)
   }
   checkFilledSomewhere(located, fail)
-  checkConnected(located, columns, fail)
+  checkConnected(located, built, fail)
   checkMethods(located)
 }
 
@@ -438,28 +454,20 @@ function optional(decl: DeclData): string[] {
   return Object.keys(decl.fields).filter((f) => decl.fields[f]?.safeParse(undefined).success)
 }
 
-/** Each read model's projection slices, the first of them, and the events they build it from together. */
-type Columns = Map<DeclData, { first: Located; flows: Flow[] }>
+/** Each read model a slice projects, and the events that build it. */
+type Built = Map<DeclData, Flow[]>
 
-function columnsOf(located: Located[]): Columns {
-  const columns: Columns = new Map()
-  for (const at of located) {
-    const { projection, events } = at.slice
-    if (!projection) continue
-    const sofar = columns.get(projection) ?? { first: at, flows: [] }
-    sofar.flows.push(...events)
-    columns.set(projection, sofar)
-  }
-  return columns
+function builtOf(located: Located[]): Built {
+  return new Map(
+    located.flatMap(({ slice }) => (slice.projection ? [[slice.projection, slice.events]] : [])),
+  )
 }
 
 /**
  * Every field has a source. A model still being written may lack one, so this warns. An optional
- * field may go unfilled here, if another slice fills it. A read model's columns are filled by all
- * its projection slices, and reported at the first.
+ * field may go unfilled here, if another slice fills it.
  */
-function checkFilled(at: Located, columns: Columns, fail: Fail): void {
-  const { slice, where } = at
+function checkFilled({ slice, where }: Located, fail: Fail): void {
   const check = (target: DeclData, sources: string[], fix: (field: string) => string) => {
     for (const field of Object.keys(target.fields)) {
       if (!sources.includes(field))
@@ -486,11 +494,10 @@ function checkFilled(at: Located, columns: Columns, fail: Fail): void {
         [...filled(flow, command.decl), ...optional(flow.decl)],
         (f) => `Add ${f} to ${command.decl.name}, or set it in the mapping.`,
       )
-  const together = projection && columns.get(projection)
-  if (projection && together?.first === at)
+  if (projection)
     check(
       projection,
-      together.flows.flatMap((flow) => filled(flow, flow.decl)),
+      slice.events.flatMap((flow) => filled(flow, flow.decl)),
       (f) => `Add .event() for an event that carries ${f}, or set it in a mapping.`,
     )
 }
@@ -592,7 +599,7 @@ interface Expected {
  * A specification agrees with its slice's wiring: each value it shows is the one that flows in. A
  * generated field, or an external event's, may be anything.
  */
-function checkSpecs({ slice, where }: Located, columns: Columns, fail: Fail): void {
+function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
   const { command, projection } = slice
   for (const t of slice.tests) {
     const compare = (
@@ -612,7 +619,7 @@ function checkSpecs({ slice, where }: Located, columns: Columns, fail: Fail): vo
       }
     }
     if (projection) {
-      const rows = project(projection, columns.get(projection)?.flows ?? [], t.given)
+      const rows = project(projection, slice.events, t.given)
       for (const c of t.then) {
         if (!("decl" in c) || c.decl !== projection) continue
         const matched = rowsLike(rows, projection, c.data)
@@ -622,7 +629,7 @@ function checkSpecs({ slice, where }: Located, columns: Columns, fail: Fail): vo
       const said = (message: string, element: string) =>
         fail({ message: `${where} › "${t.name}": ${message}`, element, slice: slice.name ?? "" })
       for (const shown of slice.shows) {
-        const rows = project(shown, columns.get(shown)?.flows ?? [], t.given)
+        const rows = project(shown, built.get(shown) ?? [], t.given)
         const then = t.then.flatMap((c) => ("decl" in c && c.decl === shown ? [c] : []))
         for (const c of then) {
           const matched = rowsLike(rows, shown, c.data)
@@ -750,7 +757,7 @@ function checkSeen({ slice, where }: Located, fail: Fail): void {
 }
 
 /** Anything produced and never used, or used and never produced. */
-function checkConnected(located: Located[], columns: Columns, fail: Fail): void {
+function checkConnected(located: Located[], built: Built, fail: Fail): void {
   const emitted = new Set<DeclData>()
   // The slices that react to an event, and those whose specifications assume it happened.
   const reacting = new Map<DeclData, Set<Located>>()
@@ -766,8 +773,7 @@ function checkConnected(located: Located[], columns: Columns, fail: Fail): void 
     for (const r of [...slice.readModels, ...slice.shows, slice.todoList]) if (r) read.add(r)
   }
   const consumed = new Set([...reacting.keys(), ...assuming.keys()])
-  for (const at of located) {
-    const { slice, where } = at
+  for (const { slice, where } of located) {
     const about = (d: DeclData, message: string): Warning => ({
       message,
       element: d.name ?? "",
@@ -814,12 +820,7 @@ function checkConnected(located: Located[], columns: Columns, fail: Fail): void 
           ),
         )
     }
-    // Once per read model, however many slices project it.
-    if (
-      slice.projection &&
-      !read.has(slice.projection) &&
-      columns.get(slice.projection)?.first === at
-    )
+    if (slice.projection && !read.has(slice.projection))
       fail(
         about(
           slice.projection,
@@ -827,7 +828,7 @@ function checkConnected(located: Located[], columns: Columns, fail: Fail): void 
         ),
       )
     for (const r of [...slice.readModels, ...slice.shows, slice.todoList]) {
-      if (r && !columns.has(r))
+      if (r && !built.has(r))
         fail(
           about(
             r,
