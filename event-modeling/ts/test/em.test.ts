@@ -125,6 +125,56 @@ export default m.model("x")
   }
 })
 
+/** A finished Api service; the projection has no specification and Loose is in no slice. */
+const API_DONE = `import { z } from "zod"
+import { m } from "#em"
+
+export const Api = m.service("api.v1")
+export const Start = m.command({ id: z.string() })
+export const Started = m.event({ id: z.string() })
+export const Table = m.readModel({ id: m.key(z.string()) })
+export const Loose = m.event({ id: z.string() })
+export const Ch = m.chapter()
+m.slice().command(Start, Started).service(Api).chapter(Ch).test("starts", { when: Start({ id: "1" }), then: [Started({ id: "1" })] })
+m.slice().projection(Table, Started).chapter(Ch)
+export default m.model("x")
+`
+
+/** \`em proto\` on a model directory holding \`source\`; returns the run and the files under -o. */
+function protoOf(source: string) {
+  const dir = mkdtempSync(here("../tmp-proto-"))
+  try {
+    writeFileSync(join(dir, "index.ts"), source)
+    const run = em("proto", dir, "-o", join(dir, "out"))
+    const read = (path: string) =>
+      existsSync(join(dir, "out", path)) ? readFileSync(join(dir, "out", path), "utf8") : undefined
+    return { run, api: read("api/v1/api.proto"), board: read("board/v1/board.proto") }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+test("proto writes a finished service whatever is left to do elsewhere", () => {
+  const { run, api } = protoOf(API_DONE)
+  assert.equal(run.status, 0, run.stderr)
+  assert.match(api ?? "", /rpc Start\(StartRequest\) returns \(StartResponse\);/)
+})
+
+test("proto skips a service with an unfinished slice, says why, and exits 1", () => {
+  const { run, api, board } = protoOf(
+    `${API_DONE}export const Board = m.service("board.v1")
+m.slice().view(Table).service(Board, "List").chapter(Ch)
+`,
+  )
+  assert.equal(run.status, 1)
+  assert.ok(api)
+  assert.equal(board, undefined)
+  assert.match(
+    run.stderr,
+    /Skipped .*board\/v1\/board\.proto\. Its service has left to do:\nCh › List: no specification shows this view yet\./,
+  )
+})
+
 /** `em view` on a free port; resolves once it prints its URL. */
 async function view(path: string) {
   const server = spawn(process.execPath, [

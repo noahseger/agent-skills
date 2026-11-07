@@ -4,11 +4,11 @@ import { z } from "zod"
 
 import type { Assembled, DeclData, Fields, ServiceData, SliceData } from "./types.ts"
 
-export interface ProtoFile {
+/** A service's file, or what stops it: its slices' own dead ends, or a type with no protobuf equivalent. */
+export type ProtoFile = {
   /** Under the output directory, where the package puts it for buf. */
   path: string
-  source: string
-}
+} & ({ source: string } | { problems: string[] })
 
 interface Field {
   name: string
@@ -160,24 +160,34 @@ function render(msg: Message, indent = ""): string {
 }
 
 /** One file per service that has a method, at the path its package implies. */
-export function generateProto({ chapters }: Pick<Assembled, "chapters">): ProtoFile[] {
+export function generateProto({
+  chapters,
+  unchaptered,
+  unfinished,
+}: Pick<Assembled, "chapters" | "unchaptered" | "unfinished">): ProtoFile[] {
   const byService = new Map<ServiceData, SliceData[]>()
-  for (const chapter of chapters) {
-    for (const slice of chapter.slices) {
-      if (!slice.service) continue
-      const service = slice.service.service
-      byService.set(service, [...(byService.get(service) ?? []), slice])
-    }
+  for (const slice of [...chapters.flatMap((c) => c.slices), ...unchaptered]) {
+    if (!slice.service) continue
+    const service = slice.service.service
+    byService.set(service, [...(byService.get(service) ?? []), slice])
   }
   return [...byService].map(([service, slices]) => {
+    const name = service.name ?? ""
+    const path = `${service.pkg.replaceAll(".", "/")}/${snake(name)}.proto`
+    const problems = slices.flatMap((s) => unfinished.get(s) ?? [])
+    if (problems.length > 0) return { path, problems }
     const printed = new Set<DeclData>()
-    const methods = slices.map((s) => methodOf(s, printed))
+    let methods: Method[]
+    try {
+      methods = slices.map((s) => methodOf(s, printed))
+    } catch (error) {
+      return { path, problems: [error instanceof Error ? error.message : String(error)] }
+    }
     const rpcs = methods.map(
       (m) => `  rpc ${m.name}(${m.name}Request) returns (${m.name}Response);\n`,
     )
-    const name = service.name ?? ""
     return {
-      path: `${service.pkg.replaceAll(".", "/")}/${snake(name)}.proto`,
+      path,
       source: [
         'syntax = "proto3";\n',
         `package ${service.pkg};\n`,
