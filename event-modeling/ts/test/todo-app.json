@@ -1,429 +1,2418 @@
 {
-  "name": "Todo List Application",
-  "description": "Users manage personal todo lists.",
-  "actors": [
+  "slices": [
     {
-      "id": "user",
-      "name": "User",
-      "type": "user"
+      "id": "create-list",
+      "index": 0,
+      "title": "CreateList",
+      "context": "ListManagement",
+      "sliceType": "STATE_CHANGE",
+      "commands": [
+        {
+          "id": "create-list:command:create-list",
+          "title": "CreateList",
+          "type": "COMMAND",
+          "fields": [
+            {
+              "name": "userId",
+              "type": "String"
+            },
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "name",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "create-list:screen:create-list",
+              "type": "INBOUND",
+              "title": "CreateList",
+              "elementType": "SCREEN"
+            },
+            {
+              "id": "create-list:event:list-created",
+              "type": "OUTBOUND",
+              "title": "ListCreated",
+              "elementType": "EVENT"
+            }
+          ],
+          "service": "TodoService",
+          "apiEndpoint": "CreateList"
+        }
+      ],
+      "events": [
+        {
+          "id": "create-list:event:list-created",
+          "title": "ListCreated",
+          "type": "EVENT",
+          "fields": [
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "userId",
+              "type": "String"
+            },
+            {
+              "name": "name",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "create-list:command:create-list",
+              "type": "INBOUND",
+              "title": "CreateList",
+              "elementType": "COMMAND"
+            }
+          ],
+          "description": "Names are unique per user.",
+          "aggregate": "Lists"
+        }
+      ],
+      "readmodels": [],
+      "screens": [
+        {
+          "id": "create-list:screen:create-list",
+          "title": "CreateList",
+          "type": "SCREEN",
+          "fields": [
+            {
+              "name": "userId",
+              "type": "String"
+            },
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "name",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "create-list:command:create-list",
+              "type": "OUTBOUND",
+              "title": "CreateList",
+              "elementType": "COMMAND"
+            }
+          ]
+        }
+      ],
+      "processors": [],
+      "tables": [],
+      "specifications": [
+        {
+          "id": "create-list:spec:0",
+          "title": "User creates a new list",
+          "sliceName": "CreateList",
+          "given": [],
+          "when": [
+            {
+              "id": "create-list:spec:0:when:0",
+              "title": "CreateList",
+              "type": "SPEC_COMMAND",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "name": "Groceries"
+                }
+              ]
+            }
+          ],
+          "then": [
+            {
+              "id": "create-list:spec:0:then:0",
+              "title": "ListCreated",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "userId": "u-1",
+                  "name": "Groceries"
+                }
+              ]
+            }
+          ],
+          "linkedId": "create-list"
+        },
+        {
+          "id": "create-list:spec:1",
+          "title": "Duplicate list name rejected",
+          "sliceName": "CreateList",
+          "given": [
+            {
+              "id": "create-list:spec:1:given:0",
+              "title": "ListCreated",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "userId": "u-1",
+                  "name": "Groceries"
+                }
+              ]
+            }
+          ],
+          "when": [
+            {
+              "id": "create-list:spec:1:when:0",
+              "title": "CreateList",
+              "type": "SPEC_COMMAND",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-2",
+                  "name": "Groceries"
+                }
+              ]
+            }
+          ],
+          "then": [
+            {
+              "id": "create-list:spec:1:then:0",
+              "title": "list name already exists",
+              "type": "SPEC_ERROR"
+            }
+          ],
+          "linkedId": "create-list"
+        }
+      ],
+      "actors": [
+        {
+          "name": "User",
+          "authRequired": false
+        }
+      ],
+      "aggregates": [
+        "Lists"
+      ]
     },
     {
-      "id": "system",
-      "name": "System",
-      "type": "system"
+      "id": "add-item",
+      "index": 1,
+      "title": "AddItem",
+      "context": "ListManagement",
+      "sliceType": "STATE_CHANGE",
+      "commands": [
+        {
+          "id": "add-item:command:add-item",
+          "title": "AddItem",
+          "type": "COMMAND",
+          "fields": [
+            {
+              "name": "userId",
+              "type": "String"
+            },
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "itemId",
+              "type": "String"
+            },
+            {
+              "name": "text",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "add-item:screen:list-screen",
+              "type": "INBOUND",
+              "title": "ListScreen",
+              "elementType": "SCREEN"
+            },
+            {
+              "id": "add-item:event:item-added",
+              "type": "OUTBOUND",
+              "title": "ItemAdded",
+              "elementType": "EVENT"
+            }
+          ],
+          "service": "TodoService",
+          "apiEndpoint": "AddItem"
+        }
+      ],
+      "events": [
+        {
+          "id": "add-item:event:item-added",
+          "title": "ItemAdded",
+          "type": "EVENT",
+          "fields": [
+            {
+              "name": "userId",
+              "type": "String"
+            },
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "itemId",
+              "type": "String"
+            },
+            {
+              "name": "title",
+              "type": "String",
+              "mapping": "text"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "add-item:command:add-item",
+              "type": "INBOUND",
+              "title": "AddItem",
+              "elementType": "COMMAND"
+            }
+          ],
+          "aggregate": "Items"
+        }
+      ],
+      "readmodels": [],
+      "screens": [
+        {
+          "id": "add-item:screen:list-screen",
+          "title": "ListScreen",
+          "type": "SCREEN",
+          "fields": [
+            {
+              "name": "userId",
+              "type": "String"
+            },
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "itemId",
+              "type": "String"
+            },
+            {
+              "name": "text",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "add-item:command:add-item",
+              "type": "OUTBOUND",
+              "title": "AddItem",
+              "elementType": "COMMAND"
+            }
+          ]
+        }
+      ],
+      "processors": [],
+      "tables": [],
+      "specifications": [
+        {
+          "id": "add-item:spec:0",
+          "title": "User adds an item to a list",
+          "sliceName": "AddItem",
+          "given": [
+            {
+              "id": "add-item:spec:0:given:0",
+              "title": "ListCreated",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "userId": "u-1",
+                  "name": "Groceries"
+                }
+              ]
+            }
+          ],
+          "when": [
+            {
+              "id": "add-item:spec:0:when:0",
+              "title": "AddItem",
+              "type": "SPEC_COMMAND",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-1",
+                  "text": "Milk"
+                }
+              ]
+            }
+          ],
+          "then": [
+            {
+              "id": "add-item:spec:0:then:0",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-1",
+                  "title": "Milk"
+                }
+              ]
+            }
+          ],
+          "linkedId": "add-item"
+        },
+        {
+          "id": "add-item:spec:1",
+          "title": "Adding a fourth item is rejected",
+          "sliceName": "AddItem",
+          "given": [
+            {
+              "id": "add-item:spec:1:given:0",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-1",
+                  "title": "Milk"
+                }
+              ]
+            },
+            {
+              "id": "add-item:spec:1:given:1",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-2",
+                  "title": "Eggs"
+                }
+              ]
+            },
+            {
+              "id": "add-item:spec:1:given:2",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-3",
+                  "title": "Bread"
+                }
+              ]
+            }
+          ],
+          "when": [
+            {
+              "id": "add-item:spec:1:when:0",
+              "title": "AddItem",
+              "type": "SPEC_COMMAND",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-4",
+                  "text": "Butter"
+                }
+              ]
+            }
+          ],
+          "then": [
+            {
+              "id": "add-item:spec:1:then:0",
+              "title": "maximum 3 items per list",
+              "type": "SPEC_ERROR"
+            }
+          ],
+          "linkedId": "add-item"
+        }
+      ],
+      "actors": [
+        {
+          "name": "User",
+          "authRequired": false
+        }
+      ],
+      "aggregates": [
+        "Items"
+      ]
     },
     {
-      "id": "calendar",
-      "name": "Calendar",
-      "type": "external"
+      "id": "complete-item",
+      "index": 2,
+      "title": "CompleteItem",
+      "context": "ListManagement",
+      "sliceType": "STATE_CHANGE",
+      "commands": [
+        {
+          "id": "complete-item:command:complete-item",
+          "title": "CompleteItem",
+          "type": "COMMAND",
+          "fields": [
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "itemId",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "complete-item:screen:list-screen",
+              "type": "INBOUND",
+              "title": "ListScreen",
+              "elementType": "SCREEN"
+            },
+            {
+              "id": "complete-item:event:item-completed",
+              "type": "OUTBOUND",
+              "title": "ItemCompleted",
+              "elementType": "EVENT"
+            }
+          ],
+          "service": "TodoService",
+          "apiEndpoint": "CompleteItem"
+        }
+      ],
+      "events": [
+        {
+          "id": "complete-item:event:item-completed",
+          "title": "ItemCompleted",
+          "type": "EVENT",
+          "fields": [
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "itemId",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "complete-item:command:complete-item",
+              "type": "INBOUND",
+              "title": "CompleteItem",
+              "elementType": "COMMAND"
+            }
+          ],
+          "aggregate": "Items"
+        }
+      ],
+      "readmodels": [],
+      "screens": [
+        {
+          "id": "complete-item:screen:list-screen",
+          "title": "ListScreen",
+          "type": "SCREEN",
+          "fields": [
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "itemId",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "complete-item:command:complete-item",
+              "type": "OUTBOUND",
+              "title": "CompleteItem",
+              "elementType": "COMMAND"
+            }
+          ]
+        }
+      ],
+      "processors": [],
+      "tables": [],
+      "specifications": [
+        {
+          "id": "complete-item:spec:0",
+          "title": "User completes an item",
+          "sliceName": "CompleteItem",
+          "given": [
+            {
+              "id": "complete-item:spec:0:given:0",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-1",
+                  "title": "Milk"
+                }
+              ]
+            }
+          ],
+          "when": [
+            {
+              "id": "complete-item:spec:0:when:0",
+              "title": "CompleteItem",
+              "type": "SPEC_COMMAND",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "itemId": "item-1"
+                }
+              ]
+            }
+          ],
+          "then": [
+            {
+              "id": "complete-item:spec:0:then:0",
+              "title": "ItemCompleted",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "itemId": "item-1"
+                }
+              ]
+            }
+          ],
+          "linkedId": "complete-item"
+        }
+      ],
+      "actors": [
+        {
+          "name": "User",
+          "authRequired": false
+        }
+      ],
+      "aggregates": [
+        "Items"
+      ]
+    },
+    {
+      "id": "delete-item",
+      "index": 3,
+      "title": "DeleteItem",
+      "context": "ListManagement",
+      "sliceType": "STATE_CHANGE",
+      "commands": [
+        {
+          "id": "delete-item:command:delete-item",
+          "title": "DeleteItem",
+          "type": "COMMAND",
+          "fields": [
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "itemId",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "delete-item:screen:list-screen",
+              "type": "INBOUND",
+              "title": "ListScreen",
+              "elementType": "SCREEN"
+            },
+            {
+              "id": "delete-item:event:item-deleted",
+              "type": "OUTBOUND",
+              "title": "ItemDeleted",
+              "elementType": "EVENT"
+            }
+          ],
+          "service": "TodoService",
+          "apiEndpoint": "DeleteItem"
+        }
+      ],
+      "events": [
+        {
+          "id": "delete-item:event:item-deleted",
+          "title": "ItemDeleted",
+          "type": "EVENT",
+          "fields": [
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "itemId",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "delete-item:command:delete-item",
+              "type": "INBOUND",
+              "title": "DeleteItem",
+              "elementType": "COMMAND"
+            }
+          ],
+          "aggregate": "Items"
+        }
+      ],
+      "readmodels": [],
+      "screens": [
+        {
+          "id": "delete-item:screen:list-screen",
+          "title": "ListScreen",
+          "type": "SCREEN",
+          "fields": [
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "itemId",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "delete-item:command:delete-item",
+              "type": "OUTBOUND",
+              "title": "DeleteItem",
+              "elementType": "COMMAND"
+            }
+          ]
+        }
+      ],
+      "processors": [],
+      "tables": [],
+      "specifications": [
+        {
+          "id": "delete-item:spec:0",
+          "title": "User deletes an item from a list",
+          "sliceName": "DeleteItem",
+          "given": [
+            {
+              "id": "delete-item:spec:0:given:0",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-1",
+                  "title": "Milk"
+                }
+              ]
+            }
+          ],
+          "when": [
+            {
+              "id": "delete-item:spec:0:when:0",
+              "title": "DeleteItem",
+              "type": "SPEC_COMMAND",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "itemId": "item-1"
+                }
+              ]
+            }
+          ],
+          "then": [
+            {
+              "id": "delete-item:spec:0:then:0",
+              "title": "ItemDeleted",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "itemId": "item-1"
+                }
+              ]
+            }
+          ],
+          "linkedId": "delete-item"
+        }
+      ],
+      "actors": [
+        {
+          "name": "User",
+          "authRequired": false
+        }
+      ],
+      "aggregates": [
+        "Items"
+      ]
+    },
+    {
+      "id": "delete-list",
+      "index": 4,
+      "title": "DeleteList",
+      "context": "ListManagement",
+      "sliceType": "STATE_CHANGE",
+      "commands": [
+        {
+          "id": "delete-list:command:delete-list",
+          "title": "DeleteList",
+          "type": "COMMAND",
+          "fields": [
+            {
+              "name": "listId",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "delete-list:screen:delete-list",
+              "type": "INBOUND",
+              "title": "DeleteList",
+              "elementType": "SCREEN"
+            },
+            {
+              "id": "delete-list:event:list-deleted",
+              "type": "OUTBOUND",
+              "title": "ListDeleted",
+              "elementType": "EVENT"
+            }
+          ],
+          "service": "TodoService",
+          "apiEndpoint": "DeleteList"
+        }
+      ],
+      "events": [
+        {
+          "id": "delete-list:event:list-deleted",
+          "title": "ListDeleted",
+          "type": "EVENT",
+          "fields": [
+            {
+              "name": "listId",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "delete-list:command:delete-list",
+              "type": "INBOUND",
+              "title": "DeleteList",
+              "elementType": "COMMAND"
+            }
+          ],
+          "aggregate": "Lists"
+        }
+      ],
+      "readmodels": [],
+      "screens": [
+        {
+          "id": "delete-list:screen:delete-list",
+          "title": "DeleteList",
+          "type": "SCREEN",
+          "fields": [
+            {
+              "name": "listId",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "delete-list:command:delete-list",
+              "type": "OUTBOUND",
+              "title": "DeleteList",
+              "elementType": "COMMAND"
+            }
+          ]
+        }
+      ],
+      "processors": [],
+      "tables": [],
+      "specifications": [
+        {
+          "id": "delete-list:spec:0",
+          "title": "User deletes a list",
+          "sliceName": "DeleteList",
+          "given": [
+            {
+              "id": "delete-list:spec:0:given:0",
+              "title": "ListCreated",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "userId": "u-1",
+                  "name": "Groceries"
+                }
+              ]
+            }
+          ],
+          "when": [
+            {
+              "id": "delete-list:spec:0:when:0",
+              "title": "DeleteList",
+              "type": "SPEC_COMMAND",
+              "examples": [
+                {
+                  "listId": "list-1"
+                }
+              ]
+            }
+          ],
+          "then": [
+            {
+              "id": "delete-list:spec:0:then:0",
+              "title": "ListDeleted",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1"
+                }
+              ]
+            }
+          ],
+          "linkedId": "delete-list"
+        }
+      ],
+      "actors": [
+        {
+          "name": "User",
+          "authRequired": false
+        }
+      ],
+      "aggregates": [
+        "Lists"
+      ]
+    },
+    {
+      "id": "todo-list",
+      "index": 5,
+      "title": "TodoList",
+      "context": "Views",
+      "sliceType": "STATE_VIEW",
+      "commands": [],
+      "events": [
+        {
+          "id": "todo-list:event:list-created",
+          "title": "ListCreated",
+          "type": "EVENT",
+          "fields": [
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "userId",
+              "type": "String"
+            },
+            {
+              "name": "name",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "todo-list:readmodel:todo-list",
+              "type": "OUTBOUND",
+              "title": "TodoList",
+              "elementType": "READMODEL"
+            }
+          ],
+          "description": "Names are unique per user.",
+          "aggregate": "Lists"
+        },
+        {
+          "id": "todo-list:event:item-added",
+          "title": "ItemAdded",
+          "type": "EVENT",
+          "fields": [
+            {
+              "name": "userId",
+              "type": "String"
+            },
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "itemId",
+              "type": "String"
+            },
+            {
+              "name": "title",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "todo-list:readmodel:todo-list",
+              "type": "OUTBOUND",
+              "title": "TodoList",
+              "elementType": "READMODEL"
+            }
+          ],
+          "aggregate": "Items"
+        },
+        {
+          "id": "todo-list:event:list-completed",
+          "title": "ListCompleted",
+          "type": "EVENT",
+          "fields": [
+            {
+              "name": "listId",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "todo-list:readmodel:todo-list",
+              "type": "OUTBOUND",
+              "title": "TodoList",
+              "elementType": "READMODEL"
+            }
+          ],
+          "aggregate": "Lists"
+        },
+        {
+          "id": "todo-list:event:list-deleted",
+          "title": "ListDeleted",
+          "type": "EVENT",
+          "fields": [
+            {
+              "name": "listId",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "todo-list:readmodel:todo-list",
+              "type": "OUTBOUND",
+              "title": "TodoList",
+              "elementType": "READMODEL"
+            }
+          ],
+          "aggregate": "Lists"
+        }
+      ],
+      "readmodels": [
+        {
+          "id": "todo-list:readmodel:todo-list",
+          "title": "TodoList",
+          "type": "READMODEL",
+          "fields": [
+            {
+              "name": "userId",
+              "type": "String",
+              "idAttribute": true
+            },
+            {
+              "name": "listId",
+              "type": "String",
+              "idAttribute": true
+            },
+            {
+              "name": "name",
+              "type": "String"
+            },
+            {
+              "name": "itemCount",
+              "type": "Int",
+              "mapping": "ListCreated: = 0\nItemAdded: generate(ItemAdded)"
+            },
+            {
+              "name": "status",
+              "type": "String",
+              "mapping": "ListCreated: = \"open\"\nListCompleted: = \"completed\"\nListDeleted: = \"deleted\""
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "todo-list:event:list-created",
+              "type": "INBOUND",
+              "title": "ListCreated",
+              "elementType": "EVENT"
+            },
+            {
+              "id": "todo-list:event:item-added",
+              "type": "INBOUND",
+              "title": "ItemAdded",
+              "elementType": "EVENT"
+            },
+            {
+              "id": "todo-list:event:list-completed",
+              "type": "INBOUND",
+              "title": "ListCompleted",
+              "elementType": "EVENT"
+            },
+            {
+              "id": "todo-list:event:list-deleted",
+              "type": "INBOUND",
+              "title": "ListDeleted",
+              "elementType": "EVENT"
+            }
+          ]
+        }
+      ],
+      "screens": [],
+      "processors": [],
+      "tables": [],
+      "specifications": [
+        {
+          "id": "todo-list:spec:0",
+          "title": "A new list shows with no items",
+          "sliceName": "TodoList",
+          "given": [
+            {
+              "id": "todo-list:spec:0:given:0",
+              "title": "ListCreated",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "userId": "u-1",
+                  "name": "Groceries"
+                }
+              ]
+            }
+          ],
+          "when": [],
+          "then": [
+            {
+              "id": "todo-list:spec:0:then:0",
+              "title": "TodoList",
+              "type": "SPEC_READMODEL",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "name": "Groceries",
+                  "itemCount": 0,
+                  "status": "open"
+                }
+              ]
+            }
+          ],
+          "linkedId": "todo-list"
+        },
+        {
+          "id": "todo-list:spec:1",
+          "title": "Items are counted as they are added",
+          "sliceName": "TodoList",
+          "given": [
+            {
+              "id": "todo-list:spec:1:given:0",
+              "title": "ListCreated",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "userId": "u-1",
+                  "name": "Groceries"
+                }
+              ]
+            },
+            {
+              "id": "todo-list:spec:1:given:1",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-1",
+                  "title": "Milk"
+                }
+              ]
+            },
+            {
+              "id": "todo-list:spec:1:given:2",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-2",
+                  "title": "Eggs"
+                }
+              ]
+            }
+          ],
+          "when": [],
+          "then": [
+            {
+              "id": "todo-list:spec:1:then:0",
+              "title": "TodoList",
+              "type": "SPEC_READMODEL",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "name": "Groceries",
+                  "itemCount": 2,
+                  "status": "open"
+                }
+              ]
+            }
+          ],
+          "linkedId": "todo-list"
+        },
+        {
+          "id": "todo-list:spec:2",
+          "title": "A completed list shows as completed",
+          "sliceName": "TodoList",
+          "given": [
+            {
+              "id": "todo-list:spec:2:given:0",
+              "title": "ListCreated",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "userId": "u-1",
+                  "name": "Groceries"
+                }
+              ]
+            },
+            {
+              "id": "todo-list:spec:2:given:1",
+              "title": "ListCompleted",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1"
+                }
+              ]
+            }
+          ],
+          "when": [],
+          "then": [
+            {
+              "id": "todo-list:spec:2:then:0",
+              "title": "TodoList",
+              "type": "SPEC_READMODEL",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "name": "Groceries",
+                  "itemCount": 0,
+                  "status": "completed"
+                }
+              ]
+            }
+          ],
+          "linkedId": "todo-list"
+        },
+        {
+          "id": "todo-list:spec:3",
+          "title": "A deleted list shows as deleted",
+          "sliceName": "TodoList",
+          "given": [
+            {
+              "id": "todo-list:spec:3:given:0",
+              "title": "ListCreated",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "userId": "u-1",
+                  "name": "Groceries"
+                }
+              ]
+            },
+            {
+              "id": "todo-list:spec:3:given:1",
+              "title": "ListDeleted",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1"
+                }
+              ]
+            }
+          ],
+          "when": [],
+          "then": [
+            {
+              "id": "todo-list:spec:3:then:0",
+              "title": "TodoList",
+              "type": "SPEC_READMODEL",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "name": "Groceries",
+                  "itemCount": 0,
+                  "status": "deleted"
+                }
+              ]
+            }
+          ],
+          "linkedId": "todo-list"
+        }
+      ]
+    },
+    {
+      "id": "list-todo-lists",
+      "index": 6,
+      "title": "ListTodoLists",
+      "context": "Views",
+      "sliceType": "STATE_VIEW",
+      "commands": [],
+      "events": [],
+      "readmodels": [
+        {
+          "id": "list-todo-lists:readmodel:todo-list",
+          "title": "TodoList",
+          "type": "READMODEL",
+          "fields": [
+            {
+              "name": "userId",
+              "type": "String",
+              "idAttribute": true
+            },
+            {
+              "name": "listId",
+              "type": "String",
+              "idAttribute": true
+            },
+            {
+              "name": "name",
+              "type": "String"
+            },
+            {
+              "name": "itemCount",
+              "type": "Int"
+            },
+            {
+              "name": "status",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "list-todo-lists:screen:list-todo-lists",
+              "type": "OUTBOUND",
+              "title": "ListTodoLists",
+              "elementType": "SCREEN"
+            }
+          ],
+          "service": "TodoService",
+          "apiEndpoint": "ListTodoLists"
+        }
+      ],
+      "screens": [
+        {
+          "id": "list-todo-lists:screen:list-todo-lists",
+          "title": "ListTodoLists",
+          "type": "SCREEN",
+          "fields": [
+            {
+              "name": "userId",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "list-todo-lists:readmodel:todo-list",
+              "type": "INBOUND",
+              "title": "TodoList",
+              "elementType": "READMODEL"
+            }
+          ]
+        }
+      ],
+      "processors": [],
+      "tables": [],
+      "specifications": [
+        {
+          "id": "list-todo-lists:spec:0",
+          "title": "A user sees only their own lists",
+          "sliceName": "ListTodoLists",
+          "given": [
+            {
+              "id": "list-todo-lists:spec:0:given:0",
+              "title": "ListCreated",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "userId": "u-1",
+                  "name": "Groceries"
+                }
+              ]
+            },
+            {
+              "id": "list-todo-lists:spec:0:given:1",
+              "title": "ListCreated",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-2",
+                  "userId": "u-2",
+                  "name": "Hardware"
+                }
+              ]
+            }
+          ],
+          "when": [
+            {
+              "id": "list-todo-lists:spec:0:when:0",
+              "title": "ListTodoLists",
+              "type": "SPEC_COMMAND",
+              "examples": [
+                {
+                  "userId": "u-1"
+                }
+              ]
+            }
+          ],
+          "then": [
+            {
+              "id": "list-todo-lists:spec:0:then:0",
+              "title": "TodoList",
+              "type": "SPEC_READMODEL",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "name": "Groceries",
+                  "itemCount": 0,
+                  "status": "open"
+                }
+              ]
+            }
+          ],
+          "linkedId": "list-todo-lists"
+        }
+      ],
+      "actors": [
+        {
+          "name": "User",
+          "authRequired": false
+        }
+      ]
+    },
+    {
+      "id": "item-search",
+      "index": 7,
+      "title": "ItemSearch",
+      "context": "Views",
+      "sliceType": "STATE_VIEW",
+      "commands": [],
+      "events": [
+        {
+          "id": "item-search:event:item-added",
+          "title": "ItemAdded",
+          "type": "EVENT",
+          "fields": [
+            {
+              "name": "userId",
+              "type": "String"
+            },
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "itemId",
+              "type": "String"
+            },
+            {
+              "name": "title",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "item-search:readmodel:item-search",
+              "type": "OUTBOUND",
+              "title": "ItemSearch",
+              "elementType": "READMODEL"
+            }
+          ],
+          "aggregate": "Items"
+        },
+        {
+          "id": "item-search:event:item-completed",
+          "title": "ItemCompleted",
+          "type": "EVENT",
+          "fields": [
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "itemId",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "item-search:readmodel:item-search",
+              "type": "OUTBOUND",
+              "title": "ItemSearch",
+              "elementType": "READMODEL"
+            }
+          ],
+          "aggregate": "Items"
+        },
+        {
+          "id": "item-search:event:item-deleted",
+          "title": "ItemDeleted",
+          "type": "EVENT",
+          "fields": [
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "itemId",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "item-search:readmodel:item-search",
+              "type": "OUTBOUND",
+              "title": "ItemSearch",
+              "elementType": "READMODEL"
+            }
+          ],
+          "aggregate": "Items"
+        }
+      ],
+      "readmodels": [
+        {
+          "id": "item-search:readmodel:item-search",
+          "title": "ItemSearch",
+          "type": "READMODEL",
+          "fields": [
+            {
+              "name": "itemId",
+              "type": "String",
+              "idAttribute": true
+            },
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "title",
+              "type": "String"
+            },
+            {
+              "name": "done",
+              "type": "Boolean",
+              "mapping": "ItemAdded: = false\nItemCompleted: = true"
+            },
+            {
+              "name": "deleted",
+              "type": "Boolean",
+              "mapping": "ItemAdded: = false\nItemDeleted: = true"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "item-search:event:item-added",
+              "type": "INBOUND",
+              "title": "ItemAdded",
+              "elementType": "EVENT"
+            },
+            {
+              "id": "item-search:event:item-completed",
+              "type": "INBOUND",
+              "title": "ItemCompleted",
+              "elementType": "EVENT"
+            },
+            {
+              "id": "item-search:event:item-deleted",
+              "type": "INBOUND",
+              "title": "ItemDeleted",
+              "elementType": "EVENT"
+            }
+          ]
+        }
+      ],
+      "screens": [],
+      "processors": [],
+      "tables": [],
+      "specifications": [
+        {
+          "id": "item-search:spec:0",
+          "title": "A completed item shows as done",
+          "sliceName": "ItemSearch",
+          "given": [
+            {
+              "id": "item-search:spec:0:given:0",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-1",
+                  "title": "Milk"
+                }
+              ]
+            },
+            {
+              "id": "item-search:spec:0:given:1",
+              "title": "ItemCompleted",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "itemId": "item-1"
+                }
+              ]
+            }
+          ],
+          "when": [],
+          "then": [
+            {
+              "id": "item-search:spec:0:then:0",
+              "title": "ItemSearch",
+              "type": "SPEC_READMODEL",
+              "examples": [
+                {
+                  "itemId": "item-1",
+                  "listId": "list-1",
+                  "title": "Milk",
+                  "done": true,
+                  "deleted": false
+                }
+              ]
+            }
+          ],
+          "linkedId": "item-search"
+        },
+        {
+          "id": "item-search:spec:1",
+          "title": "An added item shows as not done",
+          "sliceName": "ItemSearch",
+          "given": [
+            {
+              "id": "item-search:spec:1:given:0",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-1",
+                  "title": "Milk"
+                }
+              ]
+            }
+          ],
+          "when": [],
+          "then": [
+            {
+              "id": "item-search:spec:1:then:0",
+              "title": "ItemSearch",
+              "type": "SPEC_READMODEL",
+              "examples": [
+                {
+                  "itemId": "item-1",
+                  "listId": "list-1",
+                  "title": "Milk",
+                  "done": false,
+                  "deleted": false
+                }
+              ]
+            }
+          ],
+          "linkedId": "item-search"
+        },
+        {
+          "id": "item-search:spec:2",
+          "title": "A deleted item shows as deleted",
+          "sliceName": "ItemSearch",
+          "given": [
+            {
+              "id": "item-search:spec:2:given:0",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-1",
+                  "title": "Milk"
+                }
+              ]
+            },
+            {
+              "id": "item-search:spec:2:given:1",
+              "title": "ItemDeleted",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "itemId": "item-1"
+                }
+              ]
+            }
+          ],
+          "when": [],
+          "then": [
+            {
+              "id": "item-search:spec:2:then:0",
+              "title": "ItemSearch",
+              "type": "SPEC_READMODEL",
+              "examples": [
+                {
+                  "itemId": "item-1",
+                  "listId": "list-1",
+                  "title": "Milk",
+                  "done": false,
+                  "deleted": true
+                }
+              ]
+            }
+          ],
+          "linkedId": "item-search"
+        }
+      ]
+    },
+    {
+      "id": "get-list",
+      "index": 8,
+      "title": "GetList",
+      "context": "Views",
+      "sliceType": "STATE_VIEW",
+      "commands": [],
+      "events": [],
+      "readmodels": [
+        {
+          "id": "get-list:readmodel:item-search",
+          "title": "ItemSearch",
+          "type": "READMODEL",
+          "fields": [
+            {
+              "name": "itemId",
+              "type": "String",
+              "idAttribute": true
+            },
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "title",
+              "type": "String"
+            },
+            {
+              "name": "done",
+              "type": "Boolean"
+            },
+            {
+              "name": "deleted",
+              "type": "Boolean"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "get-list:screen:list-screen",
+              "type": "OUTBOUND",
+              "title": "ListScreen",
+              "elementType": "SCREEN"
+            }
+          ],
+          "service": "TodoService",
+          "apiEndpoint": "GetList"
+        }
+      ],
+      "screens": [
+        {
+          "id": "get-list:screen:list-screen",
+          "title": "ListScreen",
+          "type": "SCREEN",
+          "fields": [
+            {
+              "name": "listId",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "get-list:readmodel:item-search",
+              "type": "INBOUND",
+              "title": "ItemSearch",
+              "elementType": "READMODEL"
+            }
+          ]
+        }
+      ],
+      "processors": [],
+      "tables": [],
+      "specifications": [
+        {
+          "id": "get-list:spec:0",
+          "title": "A list shows its own items",
+          "sliceName": "GetList",
+          "given": [
+            {
+              "id": "get-list:spec:0:given:0",
+              "title": "ListCreated",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "userId": "u-1",
+                  "name": "Groceries"
+                }
+              ]
+            },
+            {
+              "id": "get-list:spec:0:given:1",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-1",
+                  "title": "Milk"
+                }
+              ]
+            },
+            {
+              "id": "get-list:spec:0:given:2",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-2",
+                  "title": "Eggs"
+                }
+              ]
+            },
+            {
+              "id": "get-list:spec:0:given:3",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-2",
+                  "itemId": "item-3",
+                  "title": "Nails"
+                }
+              ]
+            }
+          ],
+          "when": [
+            {
+              "id": "get-list:spec:0:when:0",
+              "title": "ListScreen",
+              "type": "SPEC_COMMAND",
+              "examples": [
+                {
+                  "listId": "list-1"
+                }
+              ]
+            }
+          ],
+          "then": [
+            {
+              "id": "get-list:spec:0:then:0",
+              "title": "ItemSearch",
+              "type": "SPEC_READMODEL",
+              "examples": [
+                {
+                  "itemId": "item-1",
+                  "listId": "list-1",
+                  "title": "Milk",
+                  "done": false,
+                  "deleted": false
+                }
+              ]
+            },
+            {
+              "id": "get-list:spec:0:then:1",
+              "title": "ItemSearch",
+              "type": "SPEC_READMODEL",
+              "examples": [
+                {
+                  "itemId": "item-2",
+                  "listId": "list-1",
+                  "title": "Eggs",
+                  "done": false,
+                  "deleted": false
+                }
+              ]
+            }
+          ],
+          "linkedId": "get-list"
+        }
+      ],
+      "actors": [
+        {
+          "name": "User",
+          "authRequired": false
+        }
+      ]
+    },
+    {
+      "id": "search-items",
+      "index": 9,
+      "title": "SearchItems",
+      "context": "Views",
+      "sliceType": "STATE_VIEW",
+      "commands": [],
+      "events": [],
+      "readmodels": [
+        {
+          "id": "search-items:readmodel:item-search",
+          "title": "ItemSearch",
+          "type": "READMODEL",
+          "fields": [
+            {
+              "name": "itemId",
+              "type": "String",
+              "idAttribute": true
+            },
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "title",
+              "type": "String"
+            },
+            {
+              "name": "done",
+              "type": "Boolean"
+            },
+            {
+              "name": "deleted",
+              "type": "Boolean"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "search-items:screen:search-items",
+              "type": "OUTBOUND",
+              "title": "SearchItems",
+              "elementType": "SCREEN"
+            }
+          ],
+          "service": "TodoService",
+          "apiEndpoint": "SearchItems"
+        }
+      ],
+      "screens": [
+        {
+          "id": "search-items:screen:search-items",
+          "title": "SearchItems",
+          "type": "SCREEN",
+          "fields": [
+            {
+              "name": "text",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "search-items:readmodel:item-search",
+              "type": "INBOUND",
+              "title": "ItemSearch",
+              "elementType": "READMODEL"
+            }
+          ]
+        }
+      ],
+      "processors": [],
+      "tables": [],
+      "specifications": [
+        {
+          "id": "search-items:spec:0",
+          "title": "A search finds a done item by its title",
+          "sliceName": "SearchItems",
+          "given": [
+            {
+              "id": "search-items:spec:0:given:0",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-1",
+                  "title": "Milk"
+                }
+              ]
+            },
+            {
+              "id": "search-items:spec:0:given:1",
+              "title": "ItemCompleted",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "itemId": "item-1"
+                }
+              ]
+            }
+          ],
+          "when": [
+            {
+              "id": "search-items:spec:0:when:0",
+              "title": "SearchItems",
+              "type": "SPEC_COMMAND",
+              "examples": [
+                {
+                  "text": "Milk"
+                }
+              ]
+            }
+          ],
+          "then": [
+            {
+              "id": "search-items:spec:0:then:0",
+              "title": "ItemSearch",
+              "type": "SPEC_READMODEL",
+              "examples": [
+                {
+                  "itemId": "item-1",
+                  "listId": "list-1",
+                  "title": "Milk",
+                  "done": true,
+                  "deleted": false
+                }
+              ]
+            }
+          ],
+          "linkedId": "search-items"
+        }
+      ],
+      "actors": [
+        {
+          "name": "User",
+          "authRequired": false
+        }
+      ]
+    },
+    {
+      "id": "list-completer",
+      "index": 10,
+      "title": "ListCompleter",
+      "context": "Automations",
+      "sliceType": "AUTOMATION",
+      "commands": [
+        {
+          "id": "list-completer:command:complete-list",
+          "title": "CompleteList",
+          "type": "COMMAND",
+          "fields": [
+            {
+              "name": "listId",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "list-completer:automation:list-completer",
+              "type": "INBOUND",
+              "title": "ListCompleter",
+              "elementType": "AUTOMATION"
+            },
+            {
+              "id": "list-completer:readmodel:item-search",
+              "type": "INBOUND",
+              "title": "ItemSearch",
+              "elementType": "READMODEL"
+            },
+            {
+              "id": "list-completer:event:list-completed",
+              "type": "OUTBOUND",
+              "title": "ListCompleted",
+              "elementType": "EVENT"
+            }
+          ]
+        }
+      ],
+      "events": [
+        {
+          "id": "list-completer:event:item-completed",
+          "title": "ItemCompleted",
+          "type": "EVENT",
+          "fields": [
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "itemId",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "list-completer:automation:list-completer",
+              "type": "OUTBOUND",
+              "title": "ListCompleter",
+              "elementType": "AUTOMATION"
+            }
+          ],
+          "aggregate": "Items"
+        },
+        {
+          "id": "list-completer:event:list-completed",
+          "title": "ListCompleted",
+          "type": "EVENT",
+          "fields": [
+            {
+              "name": "listId",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "list-completer:command:complete-list",
+              "type": "INBOUND",
+              "title": "CompleteList",
+              "elementType": "COMMAND"
+            }
+          ],
+          "aggregate": "Lists"
+        }
+      ],
+      "readmodels": [
+        {
+          "id": "list-completer:readmodel:item-search",
+          "title": "ItemSearch",
+          "type": "READMODEL",
+          "fields": [
+            {
+              "name": "itemId",
+              "type": "String",
+              "idAttribute": true
+            },
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "title",
+              "type": "String"
+            },
+            {
+              "name": "done",
+              "type": "Boolean"
+            },
+            {
+              "name": "deleted",
+              "type": "Boolean"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "list-completer:command:complete-list",
+              "type": "OUTBOUND",
+              "title": "CompleteList",
+              "elementType": "COMMAND"
+            }
+          ]
+        }
+      ],
+      "screens": [],
+      "processors": [
+        {
+          "id": "list-completer:automation:list-completer",
+          "title": "ListCompleter",
+          "type": "AUTOMATION",
+          "fields": [],
+          "dependencies": [
+            {
+              "id": "list-completer:event:item-completed",
+              "type": "INBOUND",
+              "title": "ItemCompleted",
+              "elementType": "EVENT"
+            },
+            {
+              "id": "list-completer:command:complete-list",
+              "type": "OUTBOUND",
+              "title": "CompleteList",
+              "elementType": "COMMAND"
+            }
+          ]
+        }
+      ],
+      "tables": [],
+      "specifications": [
+        {
+          "id": "list-completer:spec:0",
+          "title": "List completes when every item is done",
+          "sliceName": "ListCompleter",
+          "given": [
+            {
+              "id": "list-completer:spec:0:given:0",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-1",
+                  "title": "Milk"
+                }
+              ]
+            },
+            {
+              "id": "list-completer:spec:0:given:1",
+              "title": "ItemCompleted",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "itemId": "item-1"
+                }
+              ]
+            }
+          ],
+          "when": [
+            {
+              "id": "list-completer:spec:0:when:0",
+              "title": "CompleteList",
+              "type": "SPEC_COMMAND",
+              "examples": [
+                {
+                  "listId": "list-1"
+                }
+              ]
+            }
+          ],
+          "then": [
+            {
+              "id": "list-completer:spec:0:then:0",
+              "title": "ListCompleted",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1"
+                }
+              ]
+            }
+          ],
+          "linkedId": "list-completer"
+        }
+      ],
+      "aggregates": [
+        "Lists"
+      ]
+    },
+    {
+      "id": "add-item",
+      "index": 11,
+      "title": "AddItem",
+      "context": "Integrations",
+      "sliceType": "TRANSLATION",
+      "commands": [
+        {
+          "id": "add-item:command:add-item",
+          "title": "AddItem",
+          "type": "COMMAND",
+          "fields": [
+            {
+              "name": "userId",
+              "type": "String"
+            },
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "itemId",
+              "type": "String"
+            },
+            {
+              "name": "text",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "add-item:automation:add-item",
+              "type": "INBOUND",
+              "title": "AddItem",
+              "elementType": "AUTOMATION"
+            },
+            {
+              "id": "add-item:event:item-added",
+              "type": "OUTBOUND",
+              "title": "ItemAdded",
+              "elementType": "EVENT"
+            }
+          ]
+        }
+      ],
+      "events": [
+        {
+          "id": "add-item:event:task-scheduled",
+          "title": "TaskScheduled",
+          "type": "EVENT",
+          "fields": [
+            {
+              "name": "userId",
+              "type": "String"
+            },
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "itemId",
+              "type": "String"
+            },
+            {
+              "name": "text",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "add-item:automation:add-item",
+              "type": "OUTBOUND",
+              "title": "AddItem",
+              "elementType": "AUTOMATION"
+            }
+          ],
+          "context": "EXTERNAL",
+          "service": "Calendar"
+        },
+        {
+          "id": "add-item:event:item-added",
+          "title": "ItemAdded",
+          "type": "EVENT",
+          "fields": [
+            {
+              "name": "userId",
+              "type": "String"
+            },
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "itemId",
+              "type": "String"
+            },
+            {
+              "name": "title",
+              "type": "String",
+              "mapping": "text"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "add-item:command:add-item",
+              "type": "INBOUND",
+              "title": "AddItem",
+              "elementType": "COMMAND"
+            }
+          ],
+          "aggregate": "Items"
+        }
+      ],
+      "readmodels": [],
+      "screens": [],
+      "processors": [
+        {
+          "id": "add-item:automation:add-item",
+          "title": "AddItem",
+          "type": "AUTOMATION",
+          "fields": [],
+          "dependencies": [
+            {
+              "id": "add-item:event:task-scheduled",
+              "type": "INBOUND",
+              "title": "TaskScheduled",
+              "elementType": "EVENT"
+            },
+            {
+              "id": "add-item:command:add-item",
+              "type": "OUTBOUND",
+              "title": "AddItem",
+              "elementType": "COMMAND"
+            }
+          ]
+        }
+      ],
+      "tables": [],
+      "specifications": [
+        {
+          "id": "add-item:spec:0",
+          "title": "A scheduled task becomes an item",
+          "sliceName": "AddItem",
+          "given": [
+            {
+              "id": "add-item:spec:0:given:0",
+              "title": "ListCreated",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "userId": "u-1",
+                  "name": "Groceries"
+                }
+              ]
+            },
+            {
+              "id": "add-item:spec:0:given:1",
+              "title": "TaskScheduled",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-4",
+                  "text": "Flour"
+                }
+              ]
+            }
+          ],
+          "when": [
+            {
+              "id": "add-item:spec:0:when:0",
+              "title": "AddItem",
+              "type": "SPEC_COMMAND",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-4",
+                  "text": "Flour"
+                }
+              ]
+            }
+          ],
+          "then": [
+            {
+              "id": "add-item:spec:0:then:0",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-4",
+                  "title": "Flour"
+                }
+              ]
+            }
+          ],
+          "linkedId": "add-item"
+        }
+      ],
+      "aggregates": [
+        "Items"
+      ]
     }
-  ],
-  "aggregates": [
-    {
-      "id": "items",
-      "name": "Items"
-    },
-    {
-      "id": "lists",
-      "name": "Lists"
-    }
-  ],
-  "chapters": [
-    {
-      "name": "ListManagement",
-      "slices": [
-        {
-          "name": "CreateList",
-          "actor": "user",
-          "aggregate": "lists",
-          "ui": "TodoService/CreateList",
-          "command": "CreateList(userId, listId, name)",
-          "events": [
-            "ListCreated(listId, userId, name)"
-          ],
-          "tests": [
-            {
-              "name": "User creates a new list",
-              "given": [],
-              "when": "CreateList(userId=u-1, listId=list-1, name=Groceries)",
-              "then": [
-                "ListCreated(listId=list-1, userId=u-1, name=Groceries)"
-              ]
-            },
-            {
-              "name": "Duplicate list name rejected",
-              "given": [
-                "ListCreated(listId=list-1, userId=u-1, name=Groceries)"
-              ],
-              "when": "CreateList(userId=u-1, listId=list-2, name=Groceries)",
-              "then": [
-                "Error: list name already exists"
-              ]
-            }
-          ]
-        },
-        {
-          "name": "AddItem",
-          "actor": "user",
-          "aggregate": "items",
-          "ui": "TodoService/AddItem",
-          "command": "AddItem(userId, listId, itemId, text)",
-          "events": [
-            "ItemAdded(userId, listId, itemId, title)"
-          ],
-          "tests": [
-            {
-              "name": "User adds an item to a list",
-              "given": [
-                "ListCreated(listId=list-1, userId=u-1, name=Groceries)"
-              ],
-              "when": "AddItem(userId=u-1, listId=list-1, itemId=item-1, text=Milk)",
-              "then": [
-                "ItemAdded(userId=u-1, listId=list-1, itemId=item-1, title=Milk)"
-              ]
-            },
-            {
-              "name": "Adding a fourth item is rejected",
-              "given": [
-                "ItemAdded(userId=u-1, listId=list-1, itemId=item-1, title=Milk)",
-                "ItemAdded(userId=u-1, listId=list-1, itemId=item-2, title=Eggs)",
-                "ItemAdded(userId=u-1, listId=list-1, itemId=item-3, title=Bread)"
-              ],
-              "when": "AddItem(userId=u-1, listId=list-1, itemId=item-4, text=Butter)",
-              "then": [
-                "Error: maximum 3 items per list"
-              ]
-            }
-          ],
-          "mapping": {
-            "ItemAdded": {
-              "title": {
-                "from": "text"
-              }
-            }
-          }
-        },
-        {
-          "name": "CompleteItem",
-          "actor": "user",
-          "aggregate": "items",
-          "ui": "TodoService/CompleteItem",
-          "command": "CompleteItem(listId, itemId)",
-          "events": [
-            "ItemCompleted(listId, itemId)"
-          ],
-          "tests": [
-            {
-              "name": "User completes an item",
-              "given": [
-                "ItemAdded(userId=u-1, listId=list-1, itemId=item-1, title=Milk)"
-              ],
-              "when": "CompleteItem(listId=list-1, itemId=item-1)",
-              "then": [
-                "ItemCompleted(listId=list-1, itemId=item-1)"
-              ]
-            }
-          ]
-        },
-        {
-          "name": "DeleteItem",
-          "actor": "user",
-          "aggregate": "items",
-          "ui": "TodoService/DeleteItem",
-          "command": "DeleteItem(listId, itemId)",
-          "events": [
-            "ItemDeleted(listId, itemId)"
-          ],
-          "tests": [
-            {
-              "name": "User deletes an item from a list",
-              "given": [
-                "ItemAdded(userId=u-1, listId=list-1, itemId=item-1, title=Milk)"
-              ],
-              "when": "DeleteItem(listId=list-1, itemId=item-1)",
-              "then": [
-                "ItemDeleted(listId=list-1, itemId=item-1)"
-              ]
-            }
-          ]
-        },
-        {
-          "name": "DeleteList",
-          "actor": "user",
-          "aggregate": "lists",
-          "ui": "TodoService/DeleteList",
-          "command": "DeleteList(listId)",
-          "events": [
-            "ListDeleted(listId)"
-          ],
-          "tests": [
-            {
-              "name": "User deletes a list",
-              "given": [
-                "ListCreated(listId=list-1, userId=u-1, name=Groceries)"
-              ],
-              "when": "DeleteList(listId=list-1)",
-              "then": [
-                "ListDeleted(listId=list-1)"
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Views",
-      "slices": [
-        {
-          "name": "TodoList",
-          "actor": "system",
-          "aggregate": "lists",
-          "trigger": [
-            "ListCreated(listId, userId, name)",
-            "ItemAdded(userId, listId, itemId, title)",
-            "ListCompleted(listId)",
-            "ListDeleted(listId)"
-          ],
-          "read_models": [
-            "TodoList(*userId, *listId, name, itemCount, status)"
-          ],
-          "tests": [
-            {
-              "name": "A new list shows with no items",
-              "given": [
-                "ListCreated(listId=list-1, userId=u-1, name=Groceries)"
-              ],
-              "when": "",
-              "then": [
-                "TodoList(userId=u-1, listId=list-1, name=Groceries, itemCount=0, status=open)"
-              ]
-            },
-            {
-              "name": "Items are counted as they are added",
-              "given": [
-                "ListCreated(listId=list-1, userId=u-1, name=Groceries)",
-                "ItemAdded(userId=u-1, listId=list-1, itemId=item-1, title=Milk)",
-                "ItemAdded(userId=u-1, listId=list-1, itemId=item-2, title=Eggs)"
-              ],
-              "when": "",
-              "then": [
-                "TodoList(userId=u-1, listId=list-1, name=Groceries, itemCount=2, status=open)"
-              ]
-            },
-            {
-              "name": "A completed list shows as completed",
-              "given": [
-                "ListCreated(listId=list-1, userId=u-1, name=Groceries)",
-                "ListCompleted(listId=list-1)"
-              ],
-              "when": "",
-              "then": [
-                "TodoList(userId=u-1, listId=list-1, name=Groceries, itemCount=0, status=completed)"
-              ]
-            },
-            {
-              "name": "A deleted list shows as deleted",
-              "given": [
-                "ListCreated(listId=list-1, userId=u-1, name=Groceries)",
-                "ListDeleted(listId=list-1)"
-              ],
-              "when": "",
-              "then": [
-                "TodoList(userId=u-1, listId=list-1, name=Groceries, itemCount=0, status=deleted)"
-              ]
-            }
-          ],
-          "mapping": {
-            "ListCreated": {
-              "itemCount": {
-                "value": 0
-              },
-              "status": {
-                "value": "open"
-              }
-            },
-            "ItemAdded": {
-              "itemCount": {
-                "count": true
-              }
-            },
-            "ListCompleted": {
-              "status": {
-                "value": "completed"
-              }
-            },
-            "ListDeleted": {
-              "status": {
-                "value": "deleted"
-              }
-            }
-          }
-        },
-        {
-          "name": "ListTodoLists",
-          "actor": "user",
-          "aggregate": "items",
-          "ui": "TodoService/ListTodoLists",
-          "read_models": [
-            "TodoList(*userId, *listId, name, itemCount, status)"
-          ],
-          "tests": [],
-          "query": [
-            "userId"
-          ]
-        },
-        {
-          "name": "ItemSearch",
-          "actor": "system",
-          "aggregate": "items",
-          "trigger": [
-            "ItemAdded(userId, listId, itemId, title)",
-            "ItemCompleted(listId, itemId)",
-            "ItemDeleted(listId, itemId)"
-          ],
-          "read_models": [
-            "ItemSearch(*itemId, listId, title, done, deleted)"
-          ],
-          "tests": [
-            {
-              "name": "A completed item shows as done",
-              "given": [
-                "ItemAdded(userId=u-1, listId=list-1, itemId=item-1, title=Milk)",
-                "ItemCompleted(listId=list-1, itemId=item-1)"
-              ],
-              "when": "",
-              "then": [
-                "ItemSearch(itemId=item-1, listId=list-1, title=Milk, done=true, deleted=false)"
-              ]
-            },
-            {
-              "name": "An added item shows as not done",
-              "given": [
-                "ItemAdded(userId=u-1, listId=list-1, itemId=item-1, title=Milk)"
-              ],
-              "when": "",
-              "then": [
-                "ItemSearch(itemId=item-1, listId=list-1, title=Milk, done=false, deleted=false)"
-              ]
-            },
-            {
-              "name": "A deleted item shows as deleted",
-              "given": [
-                "ItemAdded(userId=u-1, listId=list-1, itemId=item-1, title=Milk)",
-                "ItemDeleted(listId=list-1, itemId=item-1)"
-              ],
-              "when": "",
-              "then": [
-                "ItemSearch(itemId=item-1, listId=list-1, title=Milk, done=false, deleted=true)"
-              ]
-            }
-          ],
-          "mapping": {
-            "ItemAdded": {
-              "done": {
-                "value": false
-              },
-              "deleted": {
-                "value": false
-              }
-            },
-            "ItemCompleted": {
-              "done": {
-                "value": true
-              }
-            },
-            "ItemDeleted": {
-              "deleted": {
-                "value": true
-              }
-            }
-          }
-        },
-        {
-          "name": "GetList",
-          "actor": "user",
-          "aggregate": "items",
-          "ui": "TodoService/GetList",
-          "read_models": [
-            "ItemSearch(*itemId, listId, title, done, deleted)"
-          ],
-          "tests": [],
-          "query": [
-            "listId"
-          ]
-        },
-        {
-          "name": "SearchItems",
-          "actor": "user",
-          "aggregate": "items",
-          "ui": "TodoService/SearchItems",
-          "read_models": [
-            "ItemSearch(*itemId, listId, title, done, deleted)"
-          ],
-          "tests": [],
-          "query": [
-            "text"
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Automations",
-      "slices": [
-        {
-          "name": "ListCompleter",
-          "actor": "system",
-          "aggregate": "lists",
-          "automation": "ListCompleter",
-          "trigger": "ItemCompleted(listId, itemId)",
-          "command": "CompleteList(listId)",
-          "events": [
-            "ListCompleted(listId)"
-          ],
-          "reads": [
-            "ItemSearch"
-          ],
-          "tests": [
-            {
-              "name": "List completes when every item is done",
-              "given": [
-                "ItemAdded(userId=u-1, listId=list-1, itemId=item-1, title=Milk)",
-                "ItemCompleted(listId=list-1, itemId=item-1)"
-              ],
-              "when": "CompleteList(listId=list-1)",
-              "then": [
-                "ListCompleted(listId=list-1)"
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "Integrations",
-      "slices": [
-        {
-          "name": "AddItem",
-          "actor": "calendar",
-          "aggregate": "items",
-          "external_event": "TaskScheduled(userId, listId, itemId, text)",
-          "command": "AddItem(userId, listId, itemId, text)",
-          "events": [
-            "ItemAdded(userId, listId, itemId, title)"
-          ],
-          "tests": [],
-          "mapping": {
-            "ItemAdded": {
-              "title": {
-                "from": "text"
-              }
-            }
-          }
-        }
-      ]
-    }
-  ],
-  "notes": {
-    "ListCreated": "Names are unique per user."
-  }
+  ]
 }

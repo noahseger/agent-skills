@@ -1,7 +1,7 @@
 // `em view`: serves the viewer and the model, and tells the browser when to reload.
 import { existsSync, readFileSync, statSync, watch } from "node:fs"
 import { createServer, type ServerResponse } from "node:http"
-import { extname, join, normalize } from "node:path"
+import { basename, extname, join, normalize } from "node:path"
 
 /** The last assembly: the JSON it printed, or the error that stopped it. */
 export type Snapshot = { json: string; error?: undefined } | { error: string; json?: undefined }
@@ -11,8 +11,8 @@ export interface ServeOptions {
   dist: string
   /** The directory to watch for saves. */
   root: string
-  /** Assemble the model; `changed` is the saved file that asked for it. */
-  load: (changed?: string) => Promise<Snapshot>
+  /** Assemble the model; `cause` is the save or deletion that asked for it, as `Saved index.ts`. */
+  load: (cause?: string) => Promise<Snapshot>
   /** 0 picks a free port. */
   port: number
 }
@@ -70,13 +70,21 @@ export async function serve(options: ServeOptions): Promise<Server> {
   })
 
   let pending = false
+  // One load at a time, so a slow load never overwrites a later save's.
+  let loading = Promise.resolve()
   const watcher = watch(options.root, { recursive: true }, (_event, filename) => {
+    // A hidden file is an editor's temporary copy; the rename onto the model file follows it.
     if (!filename || filename.includes("node_modules") || pending) return
+    if (basename(filename.toString()).startsWith(".")) return
     pending = true
-    setTimeout(async () => {
+    setTimeout(() => {
       pending = false
-      snapshot = await options.load(filename.toString())
-      for (const client of clients) client.write("data: changed\n\n")
+      const file = filename.toString()
+      const cause = `${existsSync(join(options.root, file)) ? "Saved" : "Deleted"} ${file}`
+      loading = loading.then(async () => {
+        snapshot = await options.load(cause)
+        for (const client of clients) client.write("data: changed\n\n")
+      })
     }, 50)
   })
 

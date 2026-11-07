@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import type { ModelJson } from "../../src/json.ts"
-import { type Box, type Column, type Layout, parse, parseClause, words } from "./layout.ts"
+import type { Board } from "./board.ts"
+import { type Box, type Column, type Layout, parse, parseClause, source } from "./layout.ts"
 
 const props = defineProps<{
   box: Box | null
   column: Column
   layout: Layout
-  model: ModelJson
+  model: Board
   /** Whether the slice is already open at full width. */
   open: boolean
 }>()
@@ -43,9 +43,16 @@ const sliceWarnings = computed(() =>
     (w) => w.slice === slice.value.name && !elementWarnings.value.includes(w),
   ),
 )
-const actor = computed(() => props.model.actors.find((a) => a.id === slice.value.actor)?.name)
+const actor = computed(() =>
+  (slice.value.actors ?? [slice.value.actor])
+    .map((id) => props.model.actors.find((a) => a.id === id)?.name)
+    .filter((name) => name !== undefined)
+    .join(", "),
+)
 const mapping = computed(() =>
-  props.box?.kind === "event" ? slice.value.mapping?.[props.box.name] : undefined,
+  props.box?.kind === "event" || props.box?.kind === "command"
+    ? slice.value.mapping?.[props.box.name]
+    : undefined,
 )
 const triggers = computed(() => {
   const t = slice.value.trigger
@@ -70,17 +77,12 @@ const groups = computed<Group[]>(() => {
         ? col.slice.tests
         : []
     if (tests.length === 0) continue
-    const chapter = props.layout.chapters[col.chapter]?.name ?? ""
-    out.push({ column: col.index, heading: `${words(chapter)} › ${col.title}`, tests })
+    const chapter = props.layout.chapters[col.chapter]?.title ?? ""
+    out.push({ column: col.index, heading: `${chapter} › ${col.title}`, tests })
   }
   return out
 })
 
-function source(s: { from?: string; value?: unknown; count?: string }): string {
-  if (s.from !== undefined) return `← ${s.from}`
-  if (s.count !== undefined) return `count of ${s.count}`
-  return `= ${JSON.stringify(s.value)}`
-}
 const isError = (clause: string) => clause.startsWith("Error:")
 /** The JSON says `Error:`; the model and the manual say rejected. */
 const show = (clause: string) => clause.replace(/^Error:/, "Rejected:")
