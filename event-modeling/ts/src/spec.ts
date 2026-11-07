@@ -379,6 +379,8 @@ function sliceOf(
   for (const r of shows) link(r, screen)
 
   const stored = [...new Set(recorded(slice).flatMap((d) => streamOf(d) ?? []))]
+  // Who sees the slice, or the machine of ours that runs it.
+  const actors = slice.system ? [slice.system] : slice.actors
   return {
     id,
     index,
@@ -400,7 +402,7 @@ function sliceOf(
     ...(slice.note !== undefined && {
       storylines: [{ id: `${id}:note`, title: slice.note, elements: [] }],
     }),
-    ...(slice.actors.length > 0 && { actors: slice.actors.map(actorOf) }),
+    ...(actors.length > 0 && { actors: actors.map(actorOf) }),
     ...(stored.length > 0 && { aggregates: stored }),
   }
 }

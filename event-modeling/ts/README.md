@@ -72,7 +72,8 @@ The first call is the whole pattern, and leaving out any of its arguments is an 
 is written. Every later step is optional: `.event()` adds another event, `.readModel()` names what
 the handler reads, once per read model, `.query()` gives a view its request fields, `.test()`
 adds a specification, and `.chapter()` puts the slice in a chapter. A state change or a view also
-takes `.actor()`, `.screen()` and `.service()`, and needs none of them.
+takes `.actor()`, `.screen()` and `.service()`, and needs none of them. An automation or a state
+view takes `.actor()` for the system actor that runs it.
 
 ## Quickstart
 
@@ -120,6 +121,10 @@ export const TodoService = m.service("todo.v1")
 `m.actor()` is a person. Pass `{ icon: "admin" }` for one with authority, like an arbiter, and
 `{ icon: "system" }` for a machine of ours. `m.service()` takes the
 protobuf package; the service itself is named after the export.
+
+Automations and projections are drawn in the lane of the system actor that runs them. A model need
+not declare one: they are then under the built-in System. Once it does, the first system actor
+declared runs every automation and projection that names none, and `.actor(Syncer)` names another.
 
 ### 3. The first slices
 
@@ -543,7 +548,7 @@ Naming is yours: the conventions above are not checked.
 | a screen | one `SCREEN` per slice with an actor: the screen's name, or the method's. Its fields are the command's, or a view's `.query()` |
 | `.service()` | `service` and `apiEndpoint` on the command, or on each read model a view shows |
 | a stream | each event's `aggregate`, and the slice's `aggregates`: the streams it records into. A slice that records nothing names none |
-| an actor | the slice's `actors`. An admin is tagged `admin`, a machine of ours `system` |
+| an actor | the slice's `actors`. An admin is tagged `admin`, a machine of ours `system`. An automation's or a projection's is the system actor that runs it |
 | `m.key` | `idAttribute: true` |
 | `.optional()`, `z.array()`, `z.object()` | `optional`, `cardinality: "List"`, `subfields` |
 | a note | an element's `description` |

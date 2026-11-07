@@ -33,6 +33,8 @@ export interface DeclData extends Named {
 export interface ActorData extends Named {
   kind: "actor"
   icon: "user" | "admin" | "system"
+  /** How many actors were declared before it. */
+  order: number
   note?: string
 }
 
@@ -168,6 +170,8 @@ export interface SliceData {
   actors: ActorData[]
   /** Where the actors see it. */
   screen?: ScreenData
+  /** The machine of ours that runs an automation or a projection. */
+  system?: ActorData
   service?: { service: ServiceData; method?: string }
   /** A view's request fields. */
   query?: Fields

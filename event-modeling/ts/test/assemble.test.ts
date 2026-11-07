@@ -773,6 +773,69 @@ test("an automation's mapping fills its command from the trigger", () => {
   assert.deepEqual(json.chapters[0]?.slices[1]?.mapping, { Process: { label: { from: "name" } } })
 })
 
+test("the first system actor declared runs what names none, and .actor() names another", () => {
+  const f = fixture()
+  const Syncer = m.actor({ icon: "system" })
+  const Mailer = m.actor({ icon: "system" })
+  const Process = m.command({ id: z.string() })
+  const Processed = m.event({ id: z.string() })
+  const Mail = m.command({ id: z.string() })
+  const Mailed = m.event({ id: z.string() })
+  const Remote = m.external()
+  const Answered = m.event({ id: z.string() }).external(Remote)
+  const Ch = [
+    create(f),
+    m.slice("Processor").trigger(f.Created, Process, Processed),
+    m.slice("Notifier").trigger(f.Created, Mail, Mailed).actor(Mailer),
+    m.slice("Translator").trigger(Answered, Mail, Mailed).actor(Mailer),
+    project(f),
+  ]
+  const feed = feedOf(
+    [
+      {
+        ...f,
+        Syncer,
+        Mailer,
+        Process,
+        Processed,
+        Mail,
+        Mailed,
+        Remote,
+        Answered,
+        ...chapters({ Ch }),
+        default: m.model("x"),
+      },
+    ],
+    { partial: true },
+  )
+  assert.deepEqual(
+    feed.model.slices.map((s) => [s.title, s.actors?.map((a) => a.name), s.screens.length]),
+    [
+      ["Create", ["User"], 1],
+      ["Processor", ["Syncer"], 0],
+      ["Notifier", ["Mailer"], 0],
+      ["Translator", ["Mailer"], 0],
+      ["Table", ["Syncer"], 0],
+    ],
+  )
+  const board = drawn(feed)
+  assert.deepEqual(
+    board.chapters[0]?.slices.map((s) => s.actor),
+    ["user", "syncer", "mailer", "remote", "syncer"],
+  )
+  const drawing = layout(board)
+  const lanes = drawing.rows.filter((r) => r.kind === "actor")
+  assert.deepEqual(
+    lanes.map((r) => `${r.label} (${r.sub})`),
+    ["User (Actor)", "Syncer (System)", "Mailer (System)", "Remote (System)"],
+  )
+  const gears = drawing.boxes.filter((b) => b.kind === "automation")
+  assert.deepEqual(
+    gears.map((b) => lanes.find((r) => b.y >= r.y && b.y < r.y + r.h)?.id),
+    ["actor:syncer", "actor:mailer", "actor:mailer"],
+  )
+})
+
 test("a view without a service is named by its read model and has a screen", () => {
   const f = fixture()
   const Ch = [

@@ -22,6 +22,8 @@ export interface BoardSlice {
   /** The screen the actors see the slice on; several slices can share one. */
   screen?: string
   external_event?: string
+  /** The machine of ours that runs a translation, when not System. */
+  runner?: string
   automation?: string
   trigger?: string | string[]
   command?: string

@@ -165,13 +165,22 @@ export function read(feed: Feed): Board {
       ...(s.screens ?? []),
     ])
       noted(el)
-    // A screen is seen by someone; a model from elsewhere may not say who, so a User.
+    // A screen is seen by someone; a model from elsewhere may not say who, so a User. No one sees
+    // an automation or a projection: its actor is the machine of ours that runs it.
     const screen = s.screens?.[0]
     const people = (s.actors ?? []).filter((a) => actorType(a) !== "external")
-    const seers = people.length > 0 || !screen ? people : [{ name: "User", authRequired: false }]
+    const runs = Boolean(trigger || todoList || projection)
+    const runner = runs ? people[0] : undefined
+    const seers = runs
+      ? []
+      : people.length > 0 || !screen
+        ? people
+        : [{ name: "User", authRequired: false }]
 
     const outside = trigger && external(trigger) ? trigger : undefined
-    const actor = outside ? system(systemOf(outside)) : (seers.map(person)[0] ?? add(SYSTEM))
+    const actor = outside
+      ? system(systemOf(outside))
+      : ((runner ? [runner] : seers).map(person)[0] ?? add(SYSTEM))
     const laneOf = [...recorded, ...heard].find((e) => !external(e) && e.aggregate !== undefined)
     const out: BoardSlice = {
       name: s.title,
@@ -187,6 +196,7 @@ export function read(feed: Feed): Board {
       if (screen && screen.title !== method) out.screen = screen.title
     }
     if (outside) out.external_event = element(outside)
+    if (outside && runner) out.runner = person(runner)
     if ((trigger && !outside) || todoList) out.automation = s.title
     if (trigger && !outside) out.trigger = element(trigger)
     if (projection) out.trigger = heard.map(element)

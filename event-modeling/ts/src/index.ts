@@ -201,12 +201,21 @@ function key<S extends z.ZodType>(schema: S): S {
 
 export interface Actor {
   readonly [META]: ActorData
-  note(text: string): Actor
+  note(text: string): this
 }
 
+/** A machine of ours, which can run automations and projections. */
+export interface SystemActor extends Actor {
+  readonly __system: true
+}
+
+let actors = 0
+
 /** A person; `{ icon: "admin" }` for one with authority; `{ icon: "system" }` for a machine of ours. */
+function actor(options: { icon: "system" }): SystemActor
+function actor(options?: { icon?: "user" | "admin" }): Actor
 function actor(options: { icon?: "user" | "admin" | "system" } = {}): Actor {
-  const data: ActorData = { kind: "actor", icon: options.icon ?? "user" }
+  const data: ActorData = { kind: "actor", icon: options.icon ?? "user", order: actors++ }
   return {
     [META]: data,
     note(text) {
@@ -503,6 +512,8 @@ export interface Automation<C extends Fields, Em extends Fields> extends Slice {
   readModel(readModel: ReadModelDecl): Automation<C, Em>
   /** Another event the command can record instead. */
   event<E extends Fields>(event: Outcome<C, E>): Automation<C, Em | E>
+  /** The machine of ours that runs it; without one, the first declared, or else System. */
+  actor(actor: SystemActor): Automation<C, Em>
   test(name: string, spec: Spec<C, Em>): Automation<C, Em>
   note(text: string): Automation<C, Em>
 }
@@ -510,6 +521,8 @@ export interface Automation<C extends Fields, Em extends Fields> extends Slice {
 export interface Projection<R extends Fields> extends Slice {
   /** Another event that writes the read model. */
   event<E extends Fields>(event: ProjectedEvent<R, E>): Projection<R>
+  /** The machine of ours that runs it; without one, the first declared, or else System. */
+  actor(actor: SystemActor): Projection<R>
   test(name: string, spec: ProjectionSpec<R>): Projection<R>
   note(text: string): Projection<R>
 }
@@ -561,8 +574,13 @@ function chain(data: SliceData) {
         events: [...data.events, flow(event, data.projection ? undefined : data.command?.decl)],
       }),
     query: (fields: Fields) => next({ query: fields }),
-    actor: (...actors: Actor[]) =>
-      next({ actors: [...data.actors, ...actors.map((a) => a[META])] }),
+    // An automation or a projection is run by one machine of ours, and no one sees it.
+    actor: (first: Actor, ...rest: Actor[]) =>
+      next(
+        data.trigger || data.todoList || data.projection
+          ? { system: first[META] }
+          : { actors: [...data.actors, ...[first, ...rest].map((a) => a[META])] },
+      ),
     screen: (screen: Screen) => next({ screen: screen[META] }),
     service: (service: Service, method?: string) =>
       next({

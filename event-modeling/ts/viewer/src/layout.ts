@@ -575,8 +575,8 @@ export function layout(model: Board): Layout {
     } else if (s.external_event && s.command) {
       // A translation needs a gear the JSON does not name.
       gear = make(i, "automation", { name: s.name || "Translate", fields: [], keys: [] })
-      into("actor:system", i, gear)
-      useActor("system")
+      into(`actor:${s.runner ?? "system"}`, i, gear)
+      useActor(s.runner ?? "system")
     }
     for (const name of s.reads ?? []) readLinks.push({ name, column: i, polls: false })
     if (s.polls) readLinks.push({ name: s.polls, column: i, polls: true })
@@ -690,15 +690,15 @@ export function layout(model: Board): Layout {
     const slot = `actor:${id}`
     const h = slotHeight(slot) + 2 * LANE_PAD
     const actor = actors.get(id)
-    const system = id === "system" || actor?.type === "system"
-    const label = system ? "Automations" : words(actor?.name ?? id)
-    const sub = system
-      ? "System"
-      : actor?.type === "admin"
-        ? "Admin"
-        : actor?.type === "external"
-          ? "System"
-          : "Actor"
+    const label = id === "system" ? "Automations" : words(actor?.name ?? id)
+    const sub =
+      id === "system" || actor?.type === "system"
+        ? "System"
+        : actor?.type === "admin"
+          ? "Admin"
+          : actor?.type === "external"
+            ? "System"
+            : "Actor"
     rows.push({ id: slot, label, sub, kind: "actor", y, h })
     const top = y + LANE_PAD
     place(slot, top)

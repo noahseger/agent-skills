@@ -7,6 +7,7 @@ import { z } from "zod"
 
 const User = m.actor()
 const Admin = m.actor({ icon: "admin" })
+const Syncer = m.actor({ icon: "system" })
 const TodoService = m.service("todo.v1")
 const CreateList = m.command({ listId: z.string(), name: z.string() })
 const ListCreated = m.event({ listId: z.string(), name: z.string() })
@@ -101,7 +102,7 @@ m.slice().chapter(Ch)
 
 // Each start offers only its own next steps.
 
-// @ts-expect-error an automation has no actor
+// @ts-expect-error a machine of ours runs an automation, not a person
 m.slice().trigger(ListCreated, NameList, ListCreated).actor(User)
 
 // @ts-expect-error an automation works through a to-do list without a service
@@ -116,7 +117,7 @@ m.slice().view(TodoList).command(CreateList, ListCreated)
 // @ts-expect-error an automation has no screen: no one sees it
 m.slice().trigger(ListCreated, NameList, ListCreated).screen(Lock)
 
-// @ts-expect-error a projection has no actor
+// @ts-expect-error a machine of ours runs a projection, not a person
 m.slice().projection(TodoList, ListCreated).actor(User)
 
 // @ts-expect-error a projection has no command
@@ -138,6 +139,8 @@ m.slice().view(TodoList).actor(User).screen(Lock).service(TodoService, "GetList"
 m.slice().trigger(ListCreated, NameList, ListCreated).chapter(Ch).readModel(TodoList)
 m.slice().todoList(TodoList, NameList, ListCreated).readModel(TodoList).chapter(Ch)
 m.slice().projection(TodoList, ListCreated).chapter(Ch).event(ItemAdded)
+m.slice().trigger(ListCreated, NameList, ListCreated).actor(Syncer)
+m.slice().projection(TodoList, ListCreated).actor(Syncer)
 m.model("x", { description: "A model lists no chapters." })
 
 // @ts-expect-error a view names its method: it has no command to take one from

@@ -6,6 +6,7 @@ import { isDeepStrictEqual } from "node:util"
 
 import { type Feed, toFeed } from "./spec.ts"
 import {
+  type ActorData,
   type Assembled,
   type ChapterData,
   type Declaration,
@@ -68,9 +69,10 @@ export function loadModules(
   options: Options = {},
   files: readonly string[] = [],
 ): Assembled {
-  const drafts = oneSlicePerReadModel([...DRAFTS])
+  const written = [...DRAFTS]
   DRAFTS.clear()
   const { model, streams, chapters, externals, declared, fileOf } = nameExports(modules, files)
+  const drafts = runBy(firstSystem(declared), oneSlicePerReadModel(written))
   const warnings: Warning[] = []
   const unfinished = new Map<SliceData, string[]>()
   const note = (slice: SliceData, message: string) =>
@@ -123,6 +125,19 @@ function oneSlicePerReadModel(drafts: SliceData[]): SliceData[] {
     if (all[0] !== s) return []
     return [{ ...s, events: all.flatMap((c) => c.events), tests: all.flatMap((c) => c.tests) }]
   })
+}
+
+/** The machine of ours declared first, if any. */
+function firstSystem(declared: Declaration[]): ActorData | undefined {
+  const systems = declared.flatMap((d) => (d.kind === "actor" && d.icon === "system" ? [d] : []))
+  return systems.sort((a, b) => a.order - b.order)[0]
+}
+
+/** An automation or a projection that names no machine of ours is run by `system`, or else by System. */
+function runBy(system: ActorData | undefined, drafts: SliceData[]): SliceData[] {
+  return drafts.map((s) =>
+    system && !s.system && (s.trigger || s.todoList || s.projection) ? { ...s, system } : s,
+  )
 }
 
 /** The model's own modules under `dir`. */
@@ -374,7 +389,7 @@ function checkDeclaredOnce(
 /** Everything a slice refers to, with the word an error uses for it. */
 function used(slice: SliceData): [keyof typeof KIND_LABEL, { name?: string }][] {
   const out: [keyof typeof KIND_LABEL, { name?: string }][] = []
-  for (const a of slice.actors) out.push(["actor", a])
+  for (const a of [...slice.actors, ...(slice.system ? [slice.system] : [])]) out.push(["actor", a])
   if (slice.screen) out.push(["screen", slice.screen])
   if (slice.service) out.push(["service", slice.service.service])
   if (slice.command) out.push(["command", slice.command.decl])
