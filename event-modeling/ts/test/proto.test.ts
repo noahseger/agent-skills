@@ -12,13 +12,12 @@ import { type Assembled, META, type Named } from "../src/types.ts"
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url))
 
 test("the checked-in proto is what the model generates", async () => {
-  const files = generateProto(await load(here("../examples/todo-app")))
-  assert.equal(files.length, 1)
-  assert.equal(files[0]?.path, "todo/v1/todo_service.proto")
-  assert.equal(
-    files[0]?.source,
-    readFileSync(here("../examples/proto/todo/v1/todo_service.proto"), "utf8"),
-  )
+  assert.deepEqual(generateProto(await load(here("../examples/todo-app"))), [
+    {
+      path: "todo/v1/todo_service.proto",
+      source: readFileSync(here("../examples/proto/todo/v1/todo_service.proto"), "utf8"),
+    },
+  ])
 })
 
 // --- The generator reads the named model. Assembly's checks are another test's
@@ -29,15 +28,23 @@ const Svc = m.service("t.v1")
 
 type Slices = Slice[]
 
-type Chapters = Pick<Assembled, "chapters">
+type Chapters = Pick<Assembled, "chapters" | "unchaptered" | "unfinished">
 
 /** A one-service model of `slices`; `exports` are named as a module would name them. */
 function modelOf(exports: Record<string, { readonly [META]: Named }>, ...slices: Slices): Chapters {
   for (const [name, decl] of Object.entries({ Svc, ...exports })) decl[META].name = name
-  return { chapters: [{ name: "Ch", slices: slices.map((s) => s[META]) }] }
+  return {
+    chapters: [{ name: "Ch", slices: slices.map((s) => s[META]) }],
+    unchaptered: [],
+    unfinished: new Map(),
+  }
 }
 
-const source = (model: Chapters) => generateProto(model)[0]?.source ?? ""
+/** The first file's source, or else what stopped it. */
+function source(model: Chapters): string {
+  const file = generateProto(model)[0]
+  return file === undefined ? "" : "source" in file ? file.source : file.problems.join("\n")
+}
 
 const stateChange = (Create: ReturnType<typeof m.command>) =>
   m.slice().command(Create, m.event({})).actor(User).service(Svc)
@@ -97,16 +104,16 @@ test("every Zod type in the table maps as documented", () => {
   )
 })
 
-test("a type outside the table is an error naming the declaration and the field", () => {
+test("a type outside the table stops its service, naming the declaration and the field", () => {
   const Create = m.command({ id: z.string(), when: z.date() })
-  assert.throws(
-    () => source(modelOf({ Create }, stateChange(Create))),
-    /Create\.when can't become protobuf/,
+  assert.match(
+    source(modelOf({ Create }, stateChange(Create))),
+    /^Create\.when can't become protobuf/,
   )
   const Table = m.readModel({ id: m.key(z.string()), amount: z.bigint() })
-  assert.throws(
-    () => source(modelOf({ Table }, m.slice().view(Table).actor(User).service(Svc, "Get"))),
-    /Table\.amount can't become protobuf/,
+  assert.match(
+    source(modelOf({ Table }, m.slice().view(Table).actor(User).service(Svc, "Get"))),
+    /^Table\.amount can't become protobuf/,
   )
 })
 

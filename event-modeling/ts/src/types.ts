@@ -100,6 +100,8 @@ export interface Assembled {
   unchaptered: SliceData[]
   /** The dead ends a partial assembly went on past. Empty otherwise. */
   warnings: Warning[]
+  /** Each slice's own dead ends: what checking it alone finds, not what connects it to others. */
+  unfinished: Map<SliceData, string[]>
 }
 
 /** A dead end, with the element and slice the viewer marks. */

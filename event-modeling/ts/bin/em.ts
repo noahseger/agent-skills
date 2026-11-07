@@ -4,7 +4,7 @@
 //   init   <dir>                  scaffold a model directory
 //   json   <path> [--partial]     print the model as event-modeling-spec JSON; --partial keeps
 //                                 going past dead ends and prints what the viewer reads
-//   proto  <path> -o dir          write one .proto per service
+//   proto  <path> -o dir          write one .proto per service whose own slices are finished
 //   view   <path> [--port n]      serve the live diagram; --no-open keeps the browser closed
 //   export <path> -o out.html     one self-contained page of the model, for sharing
 //
@@ -96,14 +96,20 @@ async function json(path: string): Promise<void> {
   console.log(JSON.stringify(values.partial ? feed : feed.model, null, 2))
 }
 
+/** A service whose own slices are finished is written, whatever is left to do elsewhere. */
 async function proto(path: string, out: string): Promise<void> {
-  const files = generateProto(await load(path))
+  const files = generateProto(await load(path, { partial: true }))
   if (files.length === 0)
     throw new Error(
       'No slice has a service, so no .proto was written. Add .service(Api) to the state changes and views the API serves, after `export const Api = m.service("my.v1")`.',
     )
   for (const file of files) {
     const target = join(out, file.path)
+    if ("problems" in file) {
+      console.error(`Skipped ${target}. Its service has left to do:\n${file.problems.join("\n")}`)
+      process.exitCode = 1
+      continue
+    }
     mkdirSync(dirname(target), { recursive: true })
     writeFileSync(target, file.source)
     console.log(`Wrote ${target}`)

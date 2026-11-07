@@ -573,6 +573,11 @@ no place in either.
 `proto` writes one `.proto` file per service, at the path its package implies, ready for
 `buf generate` with your own `buf.gen.yaml`. The output passes `buf lint` under `STANDARD`.
 
+A service's file is written once its own slices are finished: the state changes and views with
+`.service()` naming it, each with its command, read models and query fields. What is left to do
+elsewhere does not hold it back; a service with its own left to do is skipped, its to-dos printed,
+and `proto` exits 1.
+
 | Slice | Generates |
 |---|---|
 | state change | `rpc Command(CommandRequest) returns (CommandResponse)`. The request is the command's fields. The response is empty, because events are internal. |

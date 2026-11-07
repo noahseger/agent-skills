@@ -30,8 +30,8 @@ export interface Options {
   partial?: boolean
 }
 
-/** Records a dead end; a strict assembly throws them all at the end. */
-type Fail = (warning: Warning) => void
+/** Records a dead end, and the slice it is found checking alone; a strict assembly throws them all at the end. */
+type Fail = (warning: Warning, of?: SliceData) => void
 
 /** `path` is a model directory or a single module. */
 export async function assemble(path: string, options: Options = {}): Promise<Feed> {
@@ -72,8 +72,12 @@ export function loadModules(
   DRAFTS.clear()
   const { model, streams, chapters, externals, declared, fileOf } = nameExports(modules, files)
   const warnings: Warning[] = []
-  const fail: Fail = (warning) => {
+  const unfinished = new Map<SliceData, string[]>()
+  const note = (slice: SliceData, message: string) =>
+    unfinished.set(slice, [...(unfinished.get(slice) ?? []), message])
+  const fail: Fail = (warning, of) => {
     warnings.push(warning)
+    if (of) note(of, warning.message)
   }
   const unchaptered: SliceData[] = []
   for (const s of drafts) {
@@ -82,10 +86,10 @@ export function loadModules(
     if (chapter) chapter.slices.push(s)
     else unchaptered.push(s)
   }
-  check(chapters, unchaptered, declared, fileOf, fail, !options.partial)
+  check(chapters, unchaptered, declared, fileOf, fail, options.partial ? note : undefined)
   for (const s of unchaptered) {
     const name = s.name ?? "A slice"
-    fail({ message: `${name} isn't in a chapter yet.`, element: "", slice: s.name ?? "" })
+    fail({ message: `${name} isn't in a chapter yet.`, element: "", slice: s.name ?? "" }, s)
   }
   for (const c of chapters)
     if (c.slices.length === 0) fail({ message: `${c.name} has no slices yet.`, element: "" })
@@ -102,7 +106,7 @@ export function loadModules(
   // Every dead end at once, so one run shows all there is to fix.
   if (!options.partial && warnings.length > 0)
     throw new Error(warnings.map((w) => w.message).join("\n"))
-  return { model, streams, chapters, externals, loose, unchaptered, warnings }
+  return { model, streams, chapters, externals, loose, unchaptered, warnings, unfinished }
 }
 
 /** The model's own modules under `dir`. */
@@ -248,28 +252,32 @@ function check(
   declared: Declaration[],
   fileOf: Map<object, string>,
   fail: Fail,
-  strict: boolean,
+  /** Only a partial assembly passes it. */
+  note?: (slice: SliceData, message: string) => void,
 ): void {
   const located = [
     ...chapters.flatMap((chapter) => locate(chapter.name, chapter.slices)),
     ...locate(undefined, unchaptered),
   ]
-  // The compiler reports it where the slice is written, so a partial model only draws it.
-  if (strict)
-    for (const { slice, where } of located) {
-      const missing = missingCore(slice)
-      if (missing) throw new Error(`${where}: ${missing}`)
-    }
+  // The compiler reports it where the slice is written, so a partial model only draws it and
+  // keeps it out of the proto.
+  for (const { slice, where } of located) {
+    const missing = missingCore(slice)
+    if (!missing) continue
+    if (!note) throw new Error(`${where}: ${missing}`)
+    note(slice, `${where}: ${missing}`)
+  }
   checkDeclaredOnce(located, declared, fileOf)
   const columns = columnsOf(located)
   for (const at of located) {
-    checkFilled(at, columns, fail)
-    checkKeys(at, fail)
-    checkStored(at, fail)
-    checkCovered(at, fail)
-    checkSeen(at, fail)
-    checkSpecs(at, columns, fail)
-    checkGenerated(at, fail)
+    const own: Fail = (warning) => fail(warning, at.slice)
+    checkFilled(at, columns, own)
+    checkKeys(at, own)
+    checkStored(at, own)
+    checkCovered(at, own)
+    checkSeen(at, own)
+    checkSpecs(at, columns, own)
+    checkGenerated(at, own)
   }
   checkFilledSomewhere(located, fail)
   checkConnected(located, columns, fail)
