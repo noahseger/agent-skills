@@ -317,12 +317,12 @@ function sliceOf(
     to.dependencies.push(ref(from, "INBOUND"))
   }
 
-  const { trigger, todoList, projection, command, service } = slice
+  const { trigger, polls, projection, command, service } = slice
   const sliceType: SliceType = projection
     ? "STATE_VIEW"
     : trigger?.external
       ? "TRANSLATION"
-      : trigger || todoList
+      : trigger || polls
         ? "AUTOMATION"
         : command
           ? "STATE_CHANGE"
@@ -333,7 +333,7 @@ function sliceOf(
   const endpoint = service ? { service: service.service.name ?? "", apiEndpoint: method } : {}
 
   const commandEl = command && element(command.decl, mappedFields(command.decl, command.mapping))
-  if (commandEl && !trigger && !todoList) Object.assign(commandEl, endpoint)
+  if (commandEl && !trigger && !polls) Object.assign(commandEl, endpoint)
   const events = projection
     ? []
     : slice.events.map((f) => element(f.decl, mappedFields(f.decl, f.mapping)))
@@ -342,11 +342,11 @@ function sliceOf(
     : []
   const triggerEl = trigger && element(trigger, fieldsOf(trigger.fields))
   const reads = slice.readModels.map((r) => element(r, fieldsOf(r.fields, r.keys)))
-  const todoEl = todoList && element(todoList, fieldsOf(todoList.fields, todoList.keys))
+  const pollsEl = polls && element(polls, fieldsOf(polls.fields, polls.keys))
   const projectionEl = projection && element(projection, projectedFields(projection, slice.events))
   const shows = slice.shows.map((r) => element(r, fieldsOf(r.fields, r.keys), endpoint))
   const processor: SpecElement | undefined =
-    trigger || todoList
+    trigger || polls
       ? {
           id: idOf("AUTOMATION", name),
           title: name,
@@ -370,7 +370,7 @@ function sliceOf(
       : undefined
 
   link(triggerEl, processor)
-  link(todoEl, processor)
+  link(pollsEl, processor)
   link(processor, commandEl)
   link(screen, commandEl)
   for (const r of reads) link(r, commandEl)
@@ -390,7 +390,7 @@ function sliceOf(
     commands: commandEl ? [commandEl] : [],
     events: [...(triggerEl ? [triggerEl] : []), ...heardEvents, ...events],
     readmodels: [
-      ...(todoEl ? [todoEl] : []),
+      ...(pollsEl ? [pollsEl] : []),
       ...(projectionEl ? [projectionEl] : []),
       ...shows,
       ...reads,

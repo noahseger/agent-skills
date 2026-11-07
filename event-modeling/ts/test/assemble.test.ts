@@ -386,7 +386,7 @@ test("a read model nothing reads", () => {
   const f = fixture()
   assert.throws(
     () => assembled(f, [create(f), project(f)]),
-    /Ch › Table: nothing reads Table yet\. Add \.readModel\(Table\), \.view\(Table\) or \.todoList\(Table\) where it's needed\./,
+    /Ch › Table: nothing reads Table yet\. Add \.readModel\(Table\), \.view\(Table\) or \.trigger\(Table\) where it's needed\./,
   )
 })
 
@@ -730,7 +730,7 @@ const processedProjection = (f: Fixture, Processed: EventDecl<{ id: z.ZodString 
       then: f.Table(list),
     })
 
-test("an automation's trigger no specification's given has is left to do, and an error when strict; a to-do list has none", () => {
+test("an automation's trigger no specification's given has is left to do, and an error when strict; one a read model starts has none", () => {
   const f = fixture()
   const Process = m.command({ id: z.string() })
   const Processed = m.event({ id: z.string() })
@@ -895,13 +895,13 @@ test("a slice with several actors draws a screen in each one's lane", () => {
 
 // --- What the viewer draws: polls, lanes, screens ------------------------------
 
-test("a .todoList() automation polls the read model", () => {
+test("a .trigger() automation polls the read model", () => {
   const f = fixture()
   const Process = m.command({ id: z.string() })
   const Processed = m.event({ id: z.string() })
   const processor = m
     .slice("Processor")
-    .todoList(f.Table, Process, Processed)
+    .trigger(f.Table, Process, Processed)
     .test("A listed row is processed", {
       when: Process({ id: "list-1" }),
       then: Processed({ id: "list-1" }),
@@ -912,6 +912,36 @@ test("a .todoList() automation polls the read model", () => {
   assert.equal(slice?.automation, "Processor")
   assert.equal(slice?.trigger, undefined)
   assert.equal(slice?.polls, "Table")
+})
+
+test("a polled command's when matches the row given builds", () => {
+  const f = fixture()
+  const Process = m.command({ id: z.string(), label: z.string() })
+  const Processed = m.event({ id: z.string() })
+  const processor = (label: string) =>
+    m
+      .slice("Processor")
+      .trigger(
+        f.Table,
+        Process((row) => ({ label: row.name })),
+        Processed,
+      )
+      .test("A listed row is processed", {
+        given: f.Created(list),
+        when: Process({ id: "list-1", label }),
+        then: Processed({ id: "list-1" }),
+      })
+  const model = (label: string) =>
+    assembled({ ...f, Process, Processed }, [
+      create(f),
+      project(f),
+      processor(label),
+      processedProjection(f, Processed),
+    ])
+  model("Groceries")
+  assert.throws(() => model("Milk"), {
+    message: `Ch › Processor › "A listed row is processed": when has label "Milk", but the Table row given builds has name "Groceries".`,
+  })
 })
 
 test("same-named streams from two modules are one lane", () => {
@@ -1076,7 +1106,7 @@ test("a column no .projection() of the read model writes is reported once", () =
     json.warnings?.map((w) => w.message),
     [
       "Ch › Table: Table.status has no value. Add .event() for an event that carries status, or set it in a mapping.",
-      "Ch › Table: nothing reads Table yet. Add .readModel(Table), .view(Table) or .todoList(Table) where it's needed.",
+      "Ch › Table: nothing reads Table yet. Add .readModel(Table), .view(Table) or .trigger(Table) where it's needed.",
     ],
   )
 })

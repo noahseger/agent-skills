@@ -57,8 +57,8 @@ m.slice().projection(CreateList, ListCreated)
 // @ts-expect-error an event is not a read model
 m.slice().view(ListCreated)
 
-// @ts-expect-error a read model is not an event
-m.slice().trigger(TodoList, NameList, ListCreated)
+// @ts-expect-error a command starts no automation: an event or a read model does
+m.slice().trigger(CreateList, NameList, ListCreated)
 
 // --- the chain: a slice starts with its whole pattern -------------------------
 
@@ -85,12 +85,6 @@ m.slice().trigger(ListCreated)
 // @ts-expect-error an automation's command records an event
 m.slice().trigger(ListCreated, NameList)
 
-// @ts-expect-error a to-do list's automation issues a command
-m.slice().todoList(TodoList)
-
-// @ts-expect-error a to-do list's command records an event
-m.slice().todoList(TodoList, NameList)
-
 // @ts-expect-error a projection is built by an event
 m.slice().projection(TodoList)
 
@@ -105,8 +99,8 @@ m.slice().chapter(Ch)
 // @ts-expect-error a machine of ours runs an automation, not a person
 m.slice().trigger(ListCreated, NameList, ListCreated).actor(User)
 
-// @ts-expect-error an automation works through a to-do list without a service
-m.slice().todoList(TodoList, NameList, ListCreated).service(TodoService)
+// @ts-expect-error an automation polls a read model without a service
+m.slice().trigger(TodoList, NameList, ListCreated).service(TodoService)
 
 // @ts-expect-error a view records no event
 m.slice().view(TodoList).event(ListCreated)
@@ -137,7 +131,7 @@ m.slice().view(TodoList).chapter(Ch)
 m.slice().view(TodoList, TodoList).chapter(Ch).query({ listId: z.string() }).actor(User)
 m.slice().view(TodoList).actor(User).screen(Lock).service(TodoService, "GetList")
 m.slice().trigger(ListCreated, NameList, ListCreated).chapter(Ch).readModel(TodoList)
-m.slice().todoList(TodoList, NameList, ListCreated).readModel(TodoList).chapter(Ch)
+m.slice().trigger(TodoList, NameList, ListCreated).readModel(TodoList).chapter(Ch)
 m.slice().projection(TodoList, ListCreated).chapter(Ch).event(ItemAdded)
 m.slice().trigger(ListCreated, NameList, ListCreated).actor(Syncer)
 m.slice().projection(TodoList, ListCreated).actor(Syncer)
@@ -191,7 +185,7 @@ m.slice().command(AddItem, ItemAdded((c) => ({ title: c.name })))
 // @ts-expect-error the mapping is the declaration's call, not a third argument
 m.slice().command(AddItem, ItemAdded, (c: { text: string }) => ({ title: c.text }))
 
-// An automation's command: every field its trigger, or to-do row, lacks is set by the mapping.
+// An automation's command: every field its trigger event, or polled row, lacks is set by the mapping.
 
 // @ts-expect-error ListCreated has no text, so AddItem.text has no value
 m.slice().trigger(ListCreated, AddItem, ItemAdded((c) => ({ title: c.text })))
@@ -202,8 +196,11 @@ m.slice().trigger(ListCreated, AddItem((e) => ({ listId: e.listId })), ItemAdded
 // @ts-expect-error the argument is the trigger's fields, and ListCreated has no title
 m.slice().trigger(ListCreated, AddItem((e) => ({ text: e.title })), ItemAdded((c) => ({ title: c.text })))
 
-// @ts-expect-error the to-do row has no text, so AddItem.text has no value
-m.slice().todoList(TodoList, AddItem, ItemAdded((c) => ({ title: c.text })))
+// @ts-expect-error the polled row has no text, so AddItem.text has no value
+m.slice().trigger(TodoList, AddItem, ItemAdded((c) => ({ title: c.text })))
+
+// @ts-expect-error the argument is the polled row, and TodoList has no title
+m.slice().trigger(TodoList, AddItem((row) => ({ text: row.title })), ItemAdded((c) => ({ title: c.text })))
 
 // @ts-expect-error an automation's command gets no helpers
 m.slice().trigger(ListCreated, AddItem((e, { generate }) => ({ text: generate() })), ItemAdded((c) => ({ title: c.text })))
@@ -214,7 +211,7 @@ m.slice().trigger(ListCreated, AddItem((e) => ({ text: e.name })), ItemAdded)
 m.slice().trigger(ListCreated, AddItem((e) => ({ text: e.name })), ItemAdded((c) => ({ title: c.text })))
 // An automation's optional command field may go unfilled too.
 m.slice().trigger(ListCreated, m.command({ listId: z.string(), text: z.string().optional() }), ItemShared)
-m.slice().todoList(TodoList, AddItem((row) => ({ text: row.name })), ListCreated((c) => ({ name: c.text })))
+m.slice().trigger(TodoList, AddItem((row) => ({ text: row.name })), ListCreated((c) => ({ name: c.text })))
 
 // --- a call ends in the external event that brings the data back -------------
 

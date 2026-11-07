@@ -462,16 +462,13 @@ export interface SliceStart {
   view<Shown extends [ReadModelDecl, ...ReadModelDecl[]]>(
     ...readModels: Shown
   ): View<Record<never, never>, Row<Shown[number]>>
-  /** Automation: the event that starts it, the command it issues, and an event that records. */
+  /**
+   * Automation: what starts it, the command it issues, and an event that records. An event starts it
+   * as it happens; a read model, polled on the automation's own schedule, starts it once per row.
+   */
   trigger<T extends Fields, C extends Fields, E extends Fields>(
-    trigger: EventDecl<T>,
+    trigger: EventDecl<T> | ReadModelDecl<T>,
     command: Issue<T, C, "trigger">,
-    event: Outcome<C, E>,
-  ): Automation<C, E>
-  /** Automation: the to-do list it works through on its own schedule, the command, and an event. */
-  todoList<R extends Fields, C extends Fields, E extends Fields>(
-    todoList: ReadModelDecl<R>,
-    command: Issue<R, C, "to-do list">,
     event: Outcome<C, E>,
   ): Automation<C, E>
   /** State view: the read model, and an event that builds it. */
@@ -577,7 +574,7 @@ function chain(data: SliceData) {
     // An automation or a projection is run by one machine of ours, and no one sees it.
     actor: (first: Actor, ...rest: Actor[]) =>
       next(
-        data.trigger || data.todoList || data.projection
+        data.trigger || data.polls || data.projection
           ? { system: first[META] }
           : { actors: [...data.actors, ...[first, ...rest].map((a) => a[META])] },
       ),
@@ -618,10 +615,15 @@ function slice(name?: string): SliceStart {
     command: (command?: Used, event?: Used) => handled({}, command, event),
     view: (...readModels: ReadModelDecl[]) =>
       chain({ ...empty, shows: readModels.map((r) => r[META]) }),
-    trigger: (trigger?: EventDecl, command?: Used, event?: Used) =>
-      handled(trigger ? { trigger: trigger[META] } : {}, command, event, trigger?.[META]),
-    todoList: (todoList?: ReadModelDecl, command?: Used, event?: Used) =>
-      handled(todoList ? { todoList: todoList[META] } : {}, command, event, todoList?.[META]),
+    trigger: (trigger?: EventDecl | ReadModelDecl, command?: Used, event?: Used) =>
+      handled(
+        trigger
+          ? { [trigger[META].kind === "readModel" ? "polls" : "trigger"]: trigger[META] }
+          : {},
+        command,
+        event,
+        trigger?.[META],
+      ),
     projection: (readModel?: ReadModelDecl, event?: Used) =>
       chain({
         ...empty,

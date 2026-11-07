@@ -119,14 +119,14 @@ The file is `{ "slices": [...] }`, validated by `ts/schema/eventmodeling.schema.
 | `STATE_CHANGE` | screen → command → events | An actor uses an interface to issue a command that records events |
 | `STATE_VIEW` | events → read model | A projection: events build a read model |
 | `STATE_VIEW` | read model → screen | A view: an actor queries a read model, with no state change |
-| `AUTOMATION` | event or to-do read model → processor → command → events | An event, or a list of work, drives a command with no actor |
+| `AUTOMATION` | event or polled read model → processor → command → events | An event, or a list of work, drives a command with no actor |
 | `TRANSLATION` | external event → processor → command → events | An event from outside the system boundary becomes one of ours |
 
 - **Interfaces**: one `SCREEN` per slice with an actor, titled with the real entry point, and the actors in the slice's `actors`. The command's `apiEndpoint` says the same; `service` names an RPC service.
 - **Streams**: each event's `aggregate`. One lane per aggregate.
 - **Chapters**: each slice's `context`.
 - **External events**: `"context": "EXTERNAL"`, with `service` naming the system they come from. They have no `aggregate`; we never store them. A command's outbound event that is external is a call to that system.
-- **What a handler reads**: a read model with an `OUTBOUND` dependency on the command. One pointing at the processor is the automation's to-do list.
+- **What a handler reads**: a read model with an `OUTBOUND` dependency on the command. One pointing at the processor is the read model the automation polls for its work.
 - **Key columns**: `"idAttribute": true`. A list: `"cardinality": "List"`.
 - **Mapping**: a field filled by a renamed source gives the source field's name in `mapping`; `= 0` is a constant, and `"generated": true` a value the handler assigns, such as an id or a clock.
 - **Specifications**: `given`, `when` and `then` steps, each with one example in `examples`. A refusal is a `SPEC_ERROR` step titled with the reason. A view's `when` is a `SPEC_COMMAND` step titled with its screen, holding the query's values; its `then`, `SPEC_READMODEL` rows.
@@ -225,9 +225,9 @@ An automation issues a command with no actor. One of two things drives it.
 | Form | Spec JSON | TypeScript | Use it when |
 |---|---|---|---|
 | event-driven | the event points at the processor | `.trigger(Event, Command, Event)` | One event is enough to decide, and the work is quick and safe to repeat |
-| todo list | the read model points at the processor | `.todoList(ReadModel, Command, Event)` | The work is slow, can fail, calls another system, or must not run twice |
+| polled read model | the read model points at the processor | `.trigger(ReadModel, Command, Event)` | The work is slow, can fail, calls another system, or must not run twice |
 
-A todo list is a read model of the work to do. A projection adds a row when the work becomes due and marks it done when the event that finishes it arrives. The processor reads the list on its own schedule and issues the command for each open row. This buys three things:
+The polled read model lists the work to do. A projection adds a row when the work becomes due and marks it done when the event that finishes it arrives. The processor reads the list on its own schedule and issues the command for each open row. This buys three things:
 
 - **Idempotence** — a row marked done is not processed again, so a retry or a restart is safe.
 - **Consistency** — the list is built from events, not from the processor's memory, so it is right after a crash.
@@ -393,7 +393,7 @@ Each slice type (state change, state view, automation) follows a known pattern. 
 - **View-only slices show read model consumption** — a read model and a screen without command or events, drawn with an arrow from the read model up to the interface.
 - **Actor swimlanes show real interfaces** — REST endpoints, RPC methods — NEVER made-up screen names
 - **Aggregate swimlanes contain commands and events** — grouped by DDD aggregate / event stream
-- **Automations are driven by events or TODO lists** — never standalone; the event or the TODO-list read model points at the processor (see "Automations: two forms")
+- **Automations are driven by events or read models** — never standalone; the event or the polled read model points at the processor (see "Automations: two forms")
 - **Every state change appears on the timeline** — no hidden triggers or side effects
 - **Names are CamelCase** — no spaces, e.g. `PlaceOrder` not `Place Order`
 - **GWT uses concrete data** — real IDs, real numbers, real outcomes
@@ -413,7 +413,7 @@ Each slice type (state change, state view, automation) follows a known pattern. 
 - command: "something we want to happen in the system"
 - read model: "making sense of what happened in the system"
 - interface: "the real entry point where actors interact with the system" — a REST endpoint, RPC method, or cron job
-- automation: "side effect of what happens in the system" — always driven by an event or TODO list, always issues a command
+- automation: "side effect of what happens in the system" — always driven by an event or a polled read model, always issues a command
 
 ## Antipatterns
 

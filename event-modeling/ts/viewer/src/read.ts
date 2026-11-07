@@ -112,14 +112,14 @@ function parts(s: SpecSlice) {
     ? (events.find((e) => points(e, "AUTOMATION")) ??
       (s.sliceType === "TRANSLATION" ? events.find(external) : undefined))
     : undefined
-  const todoList = automated ? readmodels.find((r) => points(r, "AUTOMATION")) : undefined
+  const polled = automated ? readmodels.find((r) => points(r, "AUTOMATION")) : undefined
   const view = s.sliceType === "STATE_VIEW"
   const heard = view ? events : trigger ? [trigger] : []
   const recorded = view ? [] : events.filter((e) => e !== trigger)
   const projection = view && events.length > 0 ? readmodels[0] : undefined
   const shows = view && !projection ? readmodels : []
-  const reads = view ? [] : readmodels.filter((r) => r !== todoList)
-  return { command, trigger, todoList, heard, recorded, projection, shows, reads }
+  const reads = view ? [] : readmodels.filter((r) => r !== polled)
+  return { command, trigger, polled, heard, recorded, projection, shows, reads }
 }
 
 export function read(feed: Feed): Board {
@@ -157,7 +157,7 @@ export function read(feed: Feed): Board {
   }
 
   const boardSlice = (s: SpecSlice): BoardSlice => {
-    const { command, trigger, todoList, heard, recorded, projection, shows, reads } = parts(s)
+    const { command, trigger, polled, heard, recorded, projection, shows, reads } = parts(s)
     for (const el of [
       ...(s.commands ?? []),
       ...(s.events ?? []),
@@ -169,7 +169,7 @@ export function read(feed: Feed): Board {
     // an automation or a projection: its actor is the machine of ours that runs it.
     const screen = s.screens?.[0]
     const people = (s.actors ?? []).filter((a) => actorType(a) !== "external")
-    const runs = Boolean(trigger || todoList || projection)
+    const runs = Boolean(trigger || polled || projection)
     const runner = runs ? people[0] : undefined
     const seers = runs
       ? []
@@ -197,7 +197,7 @@ export function read(feed: Feed): Board {
     }
     if (outside) out.external_event = element(outside)
     if (outside && runner) out.runner = person(runner)
-    if ((trigger && !outside) || todoList) out.automation = s.title
+    if ((trigger && !outside) || polled) out.automation = s.title
     if (trigger && !outside) out.trigger = element(trigger)
     if (projection) out.trigger = heard.map(element)
     if (command) out.command = element(command)
@@ -213,7 +213,7 @@ export function read(feed: Feed): Board {
     if (projection) out.read_models = [element(projection)]
     if (shows.length > 0 && screen && (screen.fields ?? []).length > 0)
       out.query = screen.fields.map((f) => f.name)
-    if (todoList) out.polls = todoList.title
+    if (polled) out.polls = polled.title
     const note = s.storylines?.[0]?.title
     if (note !== undefined) out.note = note
 

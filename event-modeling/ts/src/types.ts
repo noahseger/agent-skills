@@ -177,12 +177,12 @@ export interface SliceData {
   query?: Fields
   /** The read models a view shows. */
   shows: DeclData[]
-  /** What starts an automation: an event, or a to-do list it works through. */
+  /** What starts an automation: an event, or a read model it polls for work. */
   trigger?: DeclData
-  todoList?: DeclData
+  polls?: DeclData
   /** The read model a state view builds from `events`. */
   projection?: DeclData
-  /** In an automation, mapped from the trigger or the to-do row. */
+  /** In an automation, mapped from the trigger event or the polled row. */
   command?: Flow
   /** What the command's handler reads. */
   readModels: DeclData[]

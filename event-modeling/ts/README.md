@@ -65,7 +65,7 @@ slice's source, so the editor knows its fields. The editor offers only the calls
 |---|---|---|---|
 | state change | the command | `.command(Command, Event)` | An actor issues a command and events are recorded. |
 | view | the read model | `.view(ReadModel)` | An actor reads a read model. |
-| automation | the trigger event, or a to-do list | `.trigger(Event, Command, Event)` or `.todoList(ReadModel, Command, Event)` | An event, or a list of work, causes a command. No actor is involved. |
+| automation | the trigger: an event, or a read model it polls | `.trigger(Event, Command, Event)` or `.trigger(ReadModel, Command, Event)` | An event, or a row of work, causes a command. No actor is involved. |
 | state view | the read model | `.projection(ReadModel, Event)` | Our events build a read model. |
 
 The first call is the whole pattern, and leaving out any of its arguments is an error where the slice
@@ -346,13 +346,15 @@ m.slice()
 
 Every event a slice handles or produces is in one of its specifications: each event a command lists
 in some `then`, external events included, and each event a projection names, or an automation's
-trigger, in some `given`. A `.todoList()` automation has no trigger event, so it needs none. Every
+trigger event, in some `given`. An automation a read model starts has no trigger event, so it needs none. Every
 view has a specification. Until then the model is unfinished. A `given` may also hold other events,
 the history that shaped the state.
 
 A specification must agree with its slice's wiring. A value copied or mapped from the command, the
-trigger or a given event must equal the value there; a constant the mapping sets, the constant. A
-`generate()` field, and any field of an external event, may be anything. A disagreement names the spec, the field and both values.
+trigger event, the polled row or a given event must equal the value there; a constant the mapping sets, the constant. A
+`generate()` field, and any field of an external event, may be anything. The polled row is the one
+`given` builds whose key columns hold what the command copied from them. A disagreement names the
+spec, the field and both values.
 
 A view's `given` builds the rows through the projection of each read model it shows. Each row in
 `then` must be one of them, matched by its key columns, with the values they have. A row built and
@@ -384,14 +386,15 @@ whose argument is the event: `.trigger(NoteCreated, ClassifyNote((e) => ({ noteI
 headed by a gear as well as its command, so it is the one slice that usually takes a name. Name it
 for what it does.
 
-The second form works through a list. From a hotel model:
+The second form polls a read model of the work to do. From a hotel model:
 
 ```ts
 m.slice("PaymentProcessor")
-  .todoList(PaymentsToProcess, ProcessPayment, PaymentSucceeded)
+  .trigger(PaymentsToProcess, ProcessPayment, PaymentSucceeded)
 ```
 
-`.todoList()` runs on the processor's own schedule, and the command's fields come from the row. No event and no service method starts it. The
+A read model as the trigger runs on the processor's own schedule, and the command's fields come
+from the row, or from a function whose argument is the row. No event and no service method starts it. The
 projection that builds `PaymentsToProcess` marks the row done when it sees `PaymentSucceeded`.
 
 ### 7. Events from outside
@@ -427,8 +430,8 @@ not carry them:
 export const Shop = m.external()
 export const CartUpdated = m.event({ added: z.array(Item), unavailable: z.array(Item) }).external(Shop)
 
-m.slice().todoList(GroceriesToOrder, AddGroceriesToCart, CartUpdated)   // the call
-m.slice().trigger(CartUpdated, RecordOrder, OrderUpdated)               // we keep what came back
+m.slice().trigger(GroceriesToOrder, AddGroceriesToCart, CartUpdated)   // the call
+m.slice().trigger(CartUpdated, RecordOrder, OrderUpdated)              // we keep what came back
 ```
 
 ### 8. Streams
@@ -500,11 +503,11 @@ The compiler catches:
 |---|---|
 | any reference | An unknown actor, event, command, read model, screen or service cannot be written, because references are values, not strings. |
 | the chain | Only a legal chain compiles; each start offers only its own steps. A slice missing part of its pattern is an error where it is written: `Expected 2 arguments, but got 1`, beside which the editor names the missing argument, such as `event`. |
-| a function | Its argument is the slice's source: the command for a handler's event, the trigger event or the to-do row for an automation's command, the event in a projection. Its result must be fields of the target, with matching types. Its second argument holds `generate`, except for an automation's command. |
+| a function | Its argument is the slice's source: the command for a handler's event, the trigger event or the polled row for an automation's command, the event in a projection. Its result must be fields of the target, with matching types. Its second argument holds `generate`, except for an automation's command. |
 | a command's event | Every event field the command lacks must be set by the function, or marked `generate()`, unless it is optional. The error names the fields. |
 | a projection's event | An external event is refused, because it isn't stored. The error says to translate it first. |
 | a function outside a slice | A mapper only works inside a slice: `.event(...)`, `.command(...)` or a projection. The error says so. |
-| an automation's command | Every command field the trigger, or the to-do row, lacks must be set by the function, unless it is optional. The error names the fields. |
+| an automation's command | Every command field the trigger event, or the polled row, lacks must be set by the function, unless it is optional. The error names the fields. |
 | `.service()` on a view | It names the method. |
 | `.test()` | `when` is the slice's command, or a view's query values. `then` is its events, its read model, or the rows of the read models a view shows; `reject` replaces `then`, and a projection or view has none. Zod checks the values. |
 
@@ -541,7 +544,7 @@ Naming is yours: the conventions above are not checked.
 
 | Ours | The spec's |
 |---|---|
-| a slice | a `Slice`, in story order, with `index`. A state change is `STATE_CHANGE`; a `.trigger()` or `.todoList()` is `AUTOMATION`, or `TRANSLATION` when its trigger is an external event; a projection and a view are both `STATE_VIEW`, the spec's pattern of events in, read model out: a projection is its events-in half, a view its screen-out half |
+| a slice | a `Slice`, in story order, with `index`. A state change is `STATE_CHANGE`; a `.trigger()` is `AUTOMATION`, or `TRANSLATION` when its trigger is an external event; a projection and a view are both `STATE_VIEW`, the spec's pattern of events in, read model out: a projection is its events-in half, a view its screen-out half |
 | a chapter | the slice's `context`. A slice in no chapter has none |
 | a command, event, read model | an `Element` of type `COMMAND`, `EVENT`, `READMODEL`, in each slice that uses it, with `fields` and `dependencies` along the slice's arrows |
 | an automation's gear | an `AUTOMATION` element in `processors`, named after the slice: what starts it points at it, it points at the command |
@@ -564,7 +567,7 @@ written by hand can do the same, and the viewer draws it.
 | a system we do not own | its events have `context: "EXTERNAL"`, and `service` names the system. No `aggregate`: we never store them |
 | a call to one | the external event among the command's outbound events |
 | outcomes that are alternatives | no field: a command's outbound events are what it can record, and each specification's `then` says which it did |
-| what a handler reads | a read model pointing at the command; one pointing at the processor is the automation's to-do list |
+| what a handler reads | a read model pointing at the command; one pointing at the processor is the read model the automation polls |
 | a slice's note | a `storylines` entry titled with it, with no elements |
 
 The top level holds only `slices`, so the rest travels beside the JSON, only to the viewer: the

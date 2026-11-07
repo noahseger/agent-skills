@@ -80,7 +80,7 @@ const slices = [
     .query({ orderId: z.string() })
     .actor(Clerk)
     .service(Shop, "ListUnpaid"),
-  m.slice("Charger").todoList(Unpaid, ChargeCard, CardCharged).chapter(Sales),
+  m.slice("Charger").trigger(Unpaid, ChargeCard, CardCharged).chapter(Sales),
   m
     .slice()
     .trigger(
@@ -221,7 +221,7 @@ test("an automation: a processor between what starts it and its command", () => 
   assert.deepEqual(
     todo?.dependencies.map((d) => [d.type, d.elementType]),
     [["OUTBOUND", "AUTOMATION"]],
-    "a to-do list feeds the processor",
+    "the polled read model feeds the processor",
   )
   const trigger = refund?.events[0]
   assert.deepEqual(

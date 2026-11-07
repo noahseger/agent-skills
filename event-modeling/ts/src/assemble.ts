@@ -136,7 +136,7 @@ function firstSystem(declared: Declaration[]): ActorData | undefined {
 /** An automation or a projection that names no machine of ours is run by `system`, or else by System. */
 function runBy(system: ActorData | undefined, drafts: SliceData[]): SliceData[] {
   return drafts.map((s) =>
-    system && !s.system && (s.trigger || s.todoList || s.projection) ? { ...s, system } : s,
+    system && !s.system && (s.trigger || s.polls || s.projection) ? { ...s, system } : s,
   )
 }
 
@@ -317,10 +317,10 @@ function check(
 
 /** What a slice's first call left out. `em json` runs the model without the compiler. */
 function missingCore(slice: SliceData): string | undefined {
-  const { command, trigger, todoList, projection, shows, events } = slice
-  if (!command && !trigger && !todoList && !projection && shows.length === 0)
+  const { command, trigger, polls, projection, shows, events } = slice
+  if (!command && !trigger && !polls && !projection && shows.length === 0)
     return "this slice is empty. Give its first call what starts it."
-  if ((trigger || todoList) && !command)
+  if ((trigger || polls) && !command)
     return "this slice has no command yet. Add it to the slice's first call."
   if ((command || projection) && events.length === 0)
     return "this slice has no event yet. Add it to the slice's first call."
@@ -352,7 +352,7 @@ function heading(slice: SliceData): string | undefined {
     slice.name ??
     slice.command?.decl.name ??
     slice.projection?.name ??
-    slice.todoList?.name ??
+    slice.polls?.name ??
     slice.service?.method ??
     slice.shows[0]?.name
   )
@@ -400,7 +400,7 @@ function used(slice: SliceData): [keyof typeof KIND_LABEL, { name?: string }][] 
   const readModels = [
     ...slice.readModels,
     ...slice.shows,
-    slice.todoList,
+    slice.polls,
     slice.projection,
     ...flows(slice).flatMap(generatedFrom),
   ]
@@ -494,7 +494,7 @@ function checkFilled({ slice, where }: Located, fail: Fail): void {
     }
   }
   const { command, projection } = slice
-  const from = slice.trigger ?? slice.todoList
+  const from = slice.trigger ?? slice.polls
   if (command && from)
     check(
       command.decl,
@@ -528,7 +528,7 @@ function checkFilledSomewhere(located: Located[], fail: Fail): void {
   for (const { slice } of located) {
     const { command, projection } = slice
     if (!command || projection) continue
-    const from = slice.trigger ?? slice.todoList
+    const from = slice.trigger ?? slice.polls
     add(command.decl, from ? filled(command, from) : Object.keys(command.decl.fields))
     for (const flow of slice.events)
       add(flow.decl, flow.decl.external ? optional(flow.decl) : filled(flow, command.decl))
@@ -576,8 +576,8 @@ function checkStored({ slice, where }: Located, fail: Fail): void {
 /**
  * Every event a slice handles or produces is in one of its specifications: a command's events are
  * alternatives, and only a specification says when each happens; an automation's trigger, and a
- * projection's events, are in a given. A to-do list automation has no trigger event. A view's
- * specifications say what the screen shows.
+ * projection's events, are in a given. An automation that polls a read model has no trigger
+ * event. A view's specifications say what the screen shows.
  */
 function checkCovered({ slice, where }: Located, fail: Fail): void {
   if (slice.shows.length > 0 && slice.tests.length === 0) {
@@ -672,6 +672,24 @@ function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
         compare(t.when, "when", (f) =>
           source(command, f, trigger, `${trigger.decl.name} in given has`),
         )
+      const { polls } = slice
+      if (t.when && polls) {
+        const row = polledRow(
+          command,
+          t.when,
+          polls,
+          project(polls, built.get(polls) ?? [], t.given),
+        )
+        if (row)
+          compare(t.when, "when", (f) =>
+            source(
+              command,
+              f,
+              { decl: polls, data: row },
+              `the ${polls.name} row given builds has`,
+            ),
+          )
+      }
       const when = t.when
       for (const c of t.then) {
         if (!("decl" in c) || c.decl.external || !when) continue
@@ -690,6 +708,26 @@ function rowsLike<R extends { values: Record<string, Expected> }>(
 ): R[] {
   const keys = readModel.keys.filter((k) => data[k] !== undefined)
   return rows.filter((r) => keys.every((k) => isDeepStrictEqual(r.values[k]?.value, data[k])))
+}
+
+/**
+ * The row a polled command was issued for: the one whose key columns hold what the command copied
+ * from them. Undefined unless exactly one row matches.
+ */
+function polledRow(
+  command: Flow,
+  when: ExampleData,
+  readModel: DeclData,
+  rows: { values: Record<string, Expected> }[],
+): Record<string, unknown> | undefined {
+  const keyed: Record<string, unknown> = {}
+  for (const field of Object.keys(command.decl.fields)) {
+    const s = command.mapping[field] ?? { from: field }
+    if ("from" in s && readModel.keys.includes(s.from)) keyed[s.from] = when.data[field]
+  }
+  const matched = rowsLike(rows, readModel, keyed)
+  if (Object.keys(keyed).length === 0 || matched.length !== 1) return undefined
+  return Object.fromEntries(Object.entries(matched[0]?.values ?? {}).map(([k, e]) => [k, e.value]))
 }
 
 /** A row by its keys, or by every value when the read model has none. */
@@ -785,7 +823,7 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
     for (const e of recorded(slice)) emitted.add(e)
     for (const e of heard(slice)) add(reacting, e, at)
     for (const t of slice.tests) for (const g of t.given) add(assuming, g.decl, at)
-    for (const r of [...slice.readModels, ...slice.shows, slice.todoList]) if (r) read.add(r)
+    for (const r of [...slice.readModels, ...slice.shows, slice.polls]) if (r) read.add(r)
   }
   const consumed = new Set([...reacting.keys(), ...assuming.keys()])
   for (const { slice, where } of located) {
@@ -839,10 +877,10 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
       fail(
         about(
           slice.projection,
-          `${where}: nothing reads ${slice.projection.name} yet. Add .readModel(${slice.projection.name}), .view(${slice.projection.name}) or .todoList(${slice.projection.name}) where it's needed.`,
+          `${where}: nothing reads ${slice.projection.name} yet. Add .readModel(${slice.projection.name}), .view(${slice.projection.name}) or .trigger(${slice.projection.name}) where it's needed.`,
         ),
       )
-    for (const r of [...slice.readModels, ...slice.shows, slice.todoList]) {
+    for (const r of [...slice.readModels, ...slice.shows, slice.polls]) {
       if (r && !built.has(r))
         fail(
           about(
