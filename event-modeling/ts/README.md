@@ -10,7 +10,7 @@ and the `em` command that works on it. You get:
 - the model as [event-modeling-spec](https://github.com/dilgerma/event-modeling-spec) JSON, which
   the diagram also draws when the model was written by hand or extracted from a running system.
 
-It runs wherever node 22 or later runs.
+It runs wherever node 22.6 or later runs.
 
 ```ts
 import { m, z } from "@noahseger/event-modeling"
@@ -54,10 +54,11 @@ diagram shows them as words. Any declaration accepts `.note("...")`.
 the same way. Zod types the example data in specifications and the generated messages.
 
 **Slices connect declarations.** A slice is a chain of calls. The first takes the slice's whole
-pattern, starting with what starts it, so an incomplete slice does not compile; the rest add to it. When a slice connects two declarations, fields with the same name
-flow from one to the other. When the names differ, or a value has to be computed, call the
-declaration with a function: `ItemAdded((c) => ({ title: c.text }))`. The function's argument is the
-slice's source, so the editor knows its fields. The editor offers only the calls that can come next.
+pattern, starting with what starts it, so an incomplete slice does not compile; the rest add to it.
+When a slice connects two declarations, fields with the same name flow from one to the other. When
+the names differ, or a value has to be computed, call the declaration with a function:
+`ItemAdded((c) => ({ title: c.text }))`. The function's argument is the slice's source, so the
+editor knows its fields. The editor offers only the calls that can come next.
 
 ## The slice patterns
 
@@ -77,14 +78,23 @@ view takes `.actor()` for the system actor that runs it.
 
 ## Quickstart
 
-The model is a directory of TypeScript modules. Write it top to bottom as the story of the system,
-declaring each thing where the story first needs it.
+### 1. See a diagram
 
-### 1. Set up
+The repository is public, so the worked example draws with no sign-in:
 
-You need node 22 or later. The package is on GitHub Packages, not npmjs, so npm has to be told
-where `@noahseger` packages live and how to sign in. Once per project, put this in `.npmrc` next
-to your `package.json`:
+```bash
+git clone https://github.com/noahseger/agent-skills.git
+cd agent-skills/event-modeling/ts
+npm ci && npm run build
+npm run view -- examples/todo-app
+```
+
+It opens the browser. Click a card for its notes and specifications. Stop it with Ctrl-C.
+
+### 2. Install
+
+You need node 22.6 or later. The package is on GitHub Packages, which needs a token even to read.
+Once per project, put this in `.npmrc` next to your `package.json`:
 
 ```ini
 @noahseger:registry=https://npm.pkg.github.com
@@ -92,74 +102,221 @@ to your `package.json`:
 ```
 
 Then put a GitHub personal access token (classic) with the `read:packages` scope in the
-`GITHUB_TOKEN` environment variable. The file names the variable, so it is safe to commit. Now
-install and scaffold:
+`GITHUB_TOKEN` environment variable. The file names the variable, so it is safe to commit.
 
 ```bash
 npm install @noahseger/event-modeling
 npx em init model
-```
-
-`init` writes `model/index.ts`, a `tsconfig.json` that lets node run the model with no build step,
-and a `package.json` that marks the directory as ES modules. Start the diagram in a second
-terminal and leave it running:
-
-```bash
 npx em view model
 ```
 
-It opens the browser and redraws on every save, until you stop it with Ctrl-C. If `npm install`
-answers `401` or `404`, the token is missing or lacks `read:packages`.
+If `npm install` answers `401` or `404`, the token is missing or lacks `read:packages`. `init`
+writes `model/index.ts`, a `tsconfig.json` that lets node run the model with no build step, and a
+`package.json` that marks the directory as ES modules. Leave `view` running in its own terminal: it
+redraws on every save and lists above the picture what is left to do.
 
-### 2. Actors and the service
+### 3. Write the model
+
+Replace `model/index.ts` with the blocks below, in order. The model is a todo list app. Save after
+each block and watch the diagram grow; until the last block, it lists what is left to do.
 
 ```ts
-export const User        = m.actor()
+import { m, z } from "@noahseger/event-modeling"
+
+export default m.model("Todo List Application")
+
+export const User = m.actor()
 export const TodoService = m.service("todo.v1")
+
+export const Lists = m.stream()
+export const Items = m.stream()
+
+export const ListManagement = m.chapter()
+export const Views = m.chapter()
 ```
 
-`m.actor()` is a person. Pass `{ icon: "admin" }` for one with authority, like an arbiter, and
-`{ icon: "system" }` for a machine of ours. `m.service()` takes the
-protobuf package; the service itself is named after the export.
+`m.service()` takes the protobuf package. A stream is a lane of events and a chapter a heading on
+the timeline; once a model declares a stream, every event must join one.
 
-Automations and projections are drawn in the lane of the system actor that runs them. A model need
-not declare one: they are then under the built-in System. Once it does, the first system actor
-declared runs every automation and projection that names none, and `.actor(Syncer)` names another.
-
-### 3. The first slices
+A state change slice: a user creates a list.
 
 ```ts
-export const ListManagement = m.chapter()
+export const CreateList = m.command({ userId: z.string(), listId: z.string(), name: z.string() })
+export const ListCreated = m
+  .event({ userId: z.string(), listId: z.string(), name: z.string() })
+  .stream(Lists)
 
-// A user creates a named list.
-export const CreateList  = m.command({ userId: z.string(), listId: z.string(), name: z.string() })
-export const ListCreated = m.event({ listId: z.string(), userId: z.string(), name: z.string() })
-  .note("Names are unique per user.")
+const groceries = ListCreated({ userId: "u-1", listId: "list-1", name: "Groceries" })
 
 m.slice()
   .command(CreateList, ListCreated)
   .chapter(ListManagement)
   .actor(User)
   .service(TodoService)
+  .test("A user creates a list", {
+    when: CreateList({ userId: "u-1", listId: "list-1", name: "Groceries" }),
+    then: groceries,
+  })
+  .test("A second list with the same name is refused", {
+    given: groceries,
+    when: CreateList({ userId: "u-1", listId: "list-2", name: "Groceries" }),
+    reject: "list name already exists",
+  })
+```
 
-// A user adds an item to a list.
-export const AddItem   = m.command({ listId: z.string(), itemId: z.string(), text: z.string() })
-export const ItemAdded = m.event({ listId: z.string(), itemId: z.string(), title: z.string() })
+Every field of `ListCreated` has a namesake in `CreateList`, so it flows on its own. Called with
+data, a declaration is an example; `groceries` is one, reused below. Each `.test()` is a
+[specification](#specifications): `then` is what is recorded, or `reject` why the command is refused.
+
+A user adds an item. The command says `text` and the event says `title`, so the event is called
+with a function that maps the field that does not match:
+
+```ts
+export const AddItem = m.command({
+  userId: z.string(),
+  listId: z.string(),
+  itemId: z.string(),
+  text: z.string(),
+})
+export const ItemAdded = m
+  .event({ userId: z.string(), listId: z.string(), itemId: z.string(), title: z.string() })
+  .stream(Items)
+
+const milk = ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-1", title: "Milk" })
 
 m.slice()
-  .command(AddItem, ItemAdded(c => ({ title: c.text })))
+  .command(AddItem, ItemAdded((c) => ({ title: c.text })))
   .chapter(ListManagement)
   .actor(User)
   .service(TodoService)
+  .test("A user adds an item", {
+    given: groceries,
+    when: AddItem({ userId: "u-1", listId: "list-1", itemId: "item-1", text: "Milk" }),
+    then: milk,
+  })
 ```
 
-A chapter is declared once, `m.chapter()`, and each slice joins it where the slice is written.
-Step 9 says how chapters and their slices are ordered.
+A read model is a table, and `m.key` marks the columns that identify a row. A projection builds it
+from events:
 
-In the first slice, every field of `ListCreated` has a namesake in `CreateList`, so nothing more is
-needed. In the second, the command says `text` and the event says `title`, so the event is called
-with a function that supplies the field that does not match. Its argument is the command. Fields that
-do match still flow on their own.
+```ts
+export const TodoList = m.readModel({
+  userId: m.key(z.string()),
+  listId: m.key(z.string()),
+  name: z.string(),
+  itemCount: z.number().int(),
+})
+
+m.slice()
+  .projection(TodoList, ListCreated(() => ({ itemCount: 0 })))
+  .chapter(Views)
+  .event(ItemAdded((e, { generate }) => ({ itemCount: generate(e) })))
+  .test("Each item added counts", {
+    given: [groceries, milk],
+    then: TodoList({ userId: "u-1", listId: "list-1", name: "Groceries", itemCount: 1 }),
+  })
+```
+
+`ListCreated` fills `userId`, `listId` and `name`; the function sets `itemCount`. `generate(e)` says
+the count is made from the `ItemAdded` events seen for the row. An event finds its row by the key
+columns, so each event a projection names must carry every one: `ItemAdded` carries `userId` for
+that reason.
+
+A view slice: the user reads their lists.
+
+```ts
+m.slice()
+  .view(TodoList)
+  .chapter(Views)
+  .query({ userId: z.string() })
+  .actor(User)
+  .service(TodoService, "ListTodoLists")
+  .test("A user sees only their own lists", {
+    given: [groceries, ListCreated({ userId: "u-2", listId: "list-2", name: "Hardware" })],
+    when: { userId: "u-1" },
+    then: TodoList({ userId: "u-1", listId: "list-1", name: "Groceries", itemCount: 0 }),
+  })
+```
+
+`.query()` declares the request. A view has no command to name its method after, so `.service()`
+names it.
+
+### 4. Generate the API
+
+The diagram now lists nothing left to do. Write the protobuf:
+
+```bash
+npx em proto model -o proto
+```
+
+It writes `proto/todo/v1/todo_service.proto`:
+
+```proto
+syntax = "proto3";
+
+package todo.v1;
+
+service TodoService {
+  rpc CreateList(CreateListRequest) returns (CreateListResponse);
+  rpc AddItem(AddItemRequest) returns (AddItemResponse);
+  rpc ListTodoLists(ListTodoListsRequest) returns (ListTodoListsResponse);
+}
+
+message CreateListRequest {
+  string user_id = 1;
+  string list_id = 2;
+  string name = 3;
+}
+
+message CreateListResponse {}
+
+message AddItemRequest {
+  string user_id = 1;
+  string list_id = 2;
+  string item_id = 3;
+  string text = 4;
+}
+
+message AddItemResponse {}
+
+message ListTodoListsRequest {
+  string user_id = 1;
+}
+
+message TodoList {
+  string user_id = 1;
+  string list_id = 2;
+  string name = 3;
+  int32 item_count = 4;
+}
+
+message ListTodoListsResponse {
+  repeated TodoList todo_list = 1;
+}
+```
+
+`test/readme.test.ts` runs this quickstart, so it stays true. The full todo app, with automations
+and more slices, is `examples/todo-app/`.
+
+You do not have to finish first. `view` draws a model as far as it goes: an event in no slice yet
+stands on its own in its lane, a slice in no chapter yet is drawn after the story, and what is left
+to do is listed above the picture. So the first thing to write is the events, each in its stream.
+
+## Writing a model
+
+The model is a directory of TypeScript modules. Write it top to bottom as the story of the system,
+declaring each thing where the story first needs it.
+
+### Actors
+
+`m.actor()` is a person. Pass `{ icon: "admin" }` for one with authority, like an arbiter, and
+`{ icon: "system" }` for a machine of ours.
+
+Automations and projections are drawn in the lane of the system actor that runs them. A model need
+not declare one: they are then under the built-in System. Once it does, the first system actor
+declared runs every automation and projection that names none, and `.actor(Syncer)` names another.
+
+### Fields and mappings
 
 A field declared `.optional()` may go unfilled in a slice, as long as another slice fills it:
 
@@ -171,12 +328,12 @@ m.slice().command(ShareImage, NoteShared)   // ShareImage carries it
 ```
 
 An optional field no slice fills is left to do. The same holds for an automation's command. Write
-no default in a mapping, such as `c.imageUri ?? ""`: the model cannot see it. Make the field optional
-instead.
+no default in a mapping, such as `c.imageUri ?? ""`: the model cannot see it. Make the field
+optional instead.
 
-A value the handler makes has no field to copy. Say what it is made from with `generate()`, which the
-function gets as its second argument: the command's fields, and any read model the handler looks it
-up in, which the slice names with `.readModel()`. From nothing, it is an id or a clock. A
+A value the handler makes has no field to copy. Say what it is made from with `generate()`, which
+the function gets as its second argument: the command's fields, and any read model the handler
+looks it up in, which the slice names with `.readModel()`. From nothing, it is an id or a clock. A
 specification may give it any value.
 
 ```ts
@@ -190,6 +347,12 @@ field put into a string, such as `` `${c.title}!` ``, or into arithmetic, such a
 is drawn as generated from that field and left to do, with the fix: `generate(c.title)`. The
 compiler cannot see it, because a string built from a string is a string.
 
+The events a command lists, `.command(AddItem, ItemAdded).event(ListFull)`, are what it can
+produce, not a sequence; the diagram draws them side by side. Each specification's `then` says
+which happened.
+
+### Screens, services and headings
+
 `.actor()` takes any number of actors, and each is drawn with a screen. Without one the slice has
 no screen; without `.service()` it has no service method. When the handler reads a read model to
 decide, name it: `.command(FileNote, NoteFiled).readModel(Inbox)`.
@@ -200,161 +363,48 @@ it: `.screen(LockScreen)`. The card is then titled with the screen's name, and s
 share one. A screen is seen by the slice's actors, so a slice with a screen and no actor is left to
 do, and so is a screen no slice names; neither is drawn.
 
-A slice does not need a chapter to be drawn. Without `.chapter()` it is drawn after the story under
-"Not in a chapter yet", and is left to do until it joins one.
-
 A slice's column is headed by its command; by its read model when it projects one; by its service
 method when it is a view, or its read model when the view has no service. Pass a name,
-`m.slice("StartList")`, only when that heading would say the wrong thing. The service method is also
-named after the command, so the first slice becomes `rpc CreateList`; to use another method name,
-pass it: `.service(TodoService, "StartList")`.
+`m.slice("StartList")`, only when that heading would say the wrong thing. The service method is
+also named after the command; to use another method name, pass it:
+`.service(TodoService, "StartList")`.
 
-### 4. Read models
+### Read models
 
-A read model is a table. `m.key` marks the columns that identify a row. A projection is a state view
-slice: it starts with the read model, then names each event that writes it.
-
-```ts
-// A user's lists, one row per list.
-export const TodoList = m.readModel({
-  userId:    m.key(z.string()),
-  listId:    m.key(z.string()),
-  name:      z.string(),
-  itemCount: z.number().int(),
-  status:    z.enum(["open", "completed", "deleted"]),
-})
-
-export const Views = m.chapter()
-
-m.slice()
-  .projection(TodoList, ListCreated(() => ({ itemCount: 0, status: "open" })))
-  .chapter(Views)
-  .event(ItemAdded((e, { generate }) => ({ itemCount: generate(e) })))
-  .event(ListCompleted(() => ({ status: "completed" })))
-  .event(ListDeleted(() => ({ status: "deleted" })))
-
-m.slice()
-  .view(TodoList)
-  .chapter(Views)
-  .query({ userId: z.string() })
-  .actor(User)
-  .service(TodoService, "ListTodoLists")
-```
-
-`ListCreated` carries `userId`, `listId` and `name`, so those columns fill themselves. The function
-sets the two it does not carry; in a projection its argument is the event. `generate(e)`, from the
-function's second argument, says the count is made from the `ItemAdded` events seen for the row.
-
-An event finds its row by the key columns it carries. `ItemAdded` carries `listId` and not `userId`,
-so this projection fails at assembly. Add `userId` to the event, or make `listId` the only key.
-
-A view slice starts with the read models it shows, `.view(TodoList)`, or several:
-`.view(GameState, MoveList)`. `.query()` declares the request fields; without it the request is
-empty. A view given a service names its method, because it has no command to take a name from.
-
-The same events can build a second table for a different question:
-
-```ts
-// Every item in every list, searchable by title.
-export const ItemSearch = m.readModel({
-  itemId: m.key(z.string()),
-  listId: z.string(),
-  title:  z.string(),
-  done:   z.boolean(),
-})
-
-m.slice()
-  .projection(ItemSearch, ItemAdded(() => ({ done: false })))
-  .chapter(Views)
-  .event(ItemCompleted(() => ({ done: true })))
-
-m.slice()
-  .view(ItemSearch)
-  .chapter(Views)
-  .query({ text: z.string() })
-  .actor(User)
-  .service(TodoService, "SearchItems")
-```
+The same events can build a second table for a different question. A view slice can show several
+read models: `.view(GameState, MoveList)`. Without `.query()` its request is empty.
 
 A read model has one state view slice, so a later chapter can extend a table next to the event
 that changes it. Every `.projection()` of it adds its events, mappings and specifications to that
-slice, which is drawn where the first one is, in its chapter. A later call's `.chapter()` is ignored.
+slice, which is drawn where the first one is, in its chapter. A later call that names another
+chapter is left to do.
 
 ```ts
 m.slice().projection(Inbox, NoteCreated(() => ({ status: "inbox" }))).chapter(Capture)
 // further down the file: adds NoteFiled to the Inbox slice in Capture
-m.slice().projection(Inbox, NoteFiled(() => ({ status: "filed" }))).chapter(Filing)
+m.slice().projection(Inbox, NoteFiled(() => ({ status: "filed" }))).chapter(Capture)
 ```
 
-### 5. Specifications
+### Specifications
 
-A specification is a Given, When, Then example attached to a slice with `.test()`.
-
-```ts
-m.slice()
-  .command(CreateList, ListCreated).chapter(ListManagement).actor(User).service(TodoService)
-  .test("User creates a new list", {
-    when: CreateList({ userId: "u-1", listId: "list-1", name: "Groceries" }),
-    then: ListCreated({ listId: "list-1", userId: "u-1", name: "Groceries" }),
-  })
-  .test("Duplicate list name rejected", {
-    given:  ListCreated({ listId: "list-1", userId: "u-1", name: "Groceries" }),
-    when:   CreateList({ userId: "u-1", listId: "list-2", name: "Groceries" }),
-    reject: "list name already exists",
-  })
-```
-
-Calling a declaration builds an example of it from its fields, and Zod checks the values. `given`
-and `then` accept one example or a list. A specification has `then`, the events recorded, or
-`reject`, why the command is refused; never both. Called with data, a declaration is an example;
-called with a function, it is a use in a slice.
-
-The events a command lists, `.command(AddItem, ItemAdded).event(ListFull)`, are what it can
-produce, not a sequence; the diagram draws them side by side. A specification says which happens:
-its `then` lists the events recorded in that case, one, or several when the command records them
-together.
-
-A projection is specified the same way, without `when` or `reject`, because a read model cannot
-reject an event:
-
-```ts
-m.slice()
-  .projection(TodoList, ListCreated(() => ({ itemCount: 0, status: "open" })))
-  .chapter(Views)
-  .test("A new list shows with no items", {
-    given: ListCreated({ listId: "list-1", userId: "u-1", name: "Groceries" }),
-    then:  TodoList({ userId: "u-1", listId: "list-1", name: "Groceries", itemCount: 0, status: "open" }),
-  })
-```
-
-A view's specification has `when`, the values its query is asked with, and `then`, the rows the
-screen shows. A view with no `.query()` has no `when`.
-
-```ts
-m.slice()
-  .view(TodoList)
-  .chapter(Views)
-  .query({ userId: z.string() })
-  .actor(User)
-  .service(TodoService, "ListTodoLists")
-  .test("A user sees only their own lists", {
-    given: [groceries, ListCreated({ listId: "list-2", userId: "u-2", name: "Hardware" })],
-    when:  { userId: "u-1" },
-    then:  TodoList({ userId: "u-1", listId: "list-1", name: "Groceries", itemCount: 0, status: "open" }),
-  })
-```
+A specification is a Given, When, Then example attached to a slice with `.test()`. Calling a
+declaration with data builds an example of it, and Zod checks the values. `given` and `then` accept
+one example or a list. A state change's specification has `then`, the events recorded, or
+`reject`, why the command is refused; never both. A projection's has no `when` or `reject`, because
+a read model cannot reject an event. A view's has `when`, the values its query is asked with, and
+`then`, the rows the screen shows; a view with no `.query()` has no `when`.
 
 Every event a slice handles or produces is in one of its specifications: each event a command lists
 in some `then`, external events included, and each event a projection names, or an automation's
-trigger event, in some `given`. An automation a read model starts has no trigger event, so it needs none. Every
-view has a specification. Until then the model is unfinished. A `given` may also hold other events,
-the history that shaped the state.
+trigger event, in some `given`. An automation a read model starts has no trigger event, so it needs
+none. Every view has a specification. Until then the model is unfinished. A `given` may also hold
+other events, the history that shaped the state.
 
 A specification must agree with its slice's wiring. A value copied or mapped from the command, the
-trigger event, the polled row or a given event must equal the value there; a constant the mapping sets, the constant. A
-`generate()` field, and any field of an external event, may be anything. The polled row is the one
-`given` builds whose key columns hold what the command copied from them. A disagreement names the
-spec, the field and both values.
+trigger event, the polled row or a given event must equal the value there; a constant the mapping
+sets, the constant. A `generate()` field, and any field of an external event, may be anything. The
+polled row is the one `given` builds whose key columns hold what the command copied from them. A
+disagreement names the spec, the field and both values.
 
 A view's `given` builds the rows through the projection of each read model it shows. Each row in
 `then` must be one of them, matched by its key columns, with the values they have. A row built and
@@ -362,29 +412,23 @@ left out of `then` must be one the query excludes: a query field filters by equa
 column of the same name. A query field with no such column, such as a search's `text`, excludes
 nothing, so its specification lists every row built.
 
-### 6. Automations
+### Automations
 
 An automation issues a command with no actor. It has two forms.
 
 ```ts
 // When the last item is done, the list completes.
-export const CompleteList  = m.command({ listId: z.string() })
-export const ListCompleted = m.event({ listId: z.string() })
-
-export const Automations = m.chapter()
-
 m.slice("ListCompleter")
   .trigger(ItemCompleted, CompleteList, ListCompleted)
-  .chapter(Automations)
-  .readModel(ItemSearch)
+  .readModel(OpenItems)
 ```
 
-`.trigger()` starts the slice when the event occurs, and `listId` flows from the event into the
-command. A command field the event does not carry is set by calling the command with a function,
-whose argument is the event: `.trigger(NoteCreated, ClassifyNote((e) => ({ noteId: e.id })), NoteClassified)`.
-`.readModel()` names what the handler looks at, once per read model. An automation's column is
-headed by a gear as well as its command, so it is the one slice that usually takes a name. Name it
-for what it does.
+`.trigger()` with an event starts the slice when the event occurs, and fields flow from the event
+into the command. A command field the event does not carry is set by calling the command with a
+function whose argument is the event:
+`.trigger(NoteCreated, ClassifyNote((e) => ({ noteId: e.id })), NoteClassified)`. `.readModel()`
+names what the handler looks at, once per read model. An automation's column is headed by a gear as
+well as its command, so it is the one slice that usually takes a name. Name it for what it does.
 
 The second form polls a read model of the work to do. From a hotel model:
 
@@ -394,30 +438,29 @@ m.slice("PaymentProcessor")
 ```
 
 A read model as the trigger runs on the processor's own schedule, and the command's fields come
-from the row, or from a function whose argument is the row. No event and no service method starts it. The
-projection that builds `PaymentsToProcess` marks the row done when it sees `PaymentSucceeded`.
+from the row, or from a function whose argument is the row. No event and no service method starts
+it. The projection that builds `PaymentsToProcess` marks the row done when it sees
+`PaymentSucceeded`.
 
-### 7. Events from outside
+### Events from outside
 
 ```ts
 // The calendar pushes a scheduled task in, and we translate it into an item.
 export const Calendar = m.external()
 
 export const TaskScheduled = m
-  .event({ listId: z.string(), itemId: z.string(), text: z.string() })
+  .event({ userId: z.string(), listId: z.string(), itemId: z.string(), text: z.string() })
   .external(Calendar)
 
-export const Integrations = m.chapter()
-
 m.slice()
-  .trigger(TaskScheduled, AddItem, ItemAdded(c => ({ title: c.text })))
+  .trigger(TaskScheduled, AddItem, ItemAdded((c) => ({ title: c.text })))
   .chapter(Integrations)
 ```
 
 A system you do not own is a lane, declared once with `m.external()` and named by its export, like
-a stream. An event joins it where the event is declared, with `.external()`. We translate its events
-and never store them, so an event is in a stream or a system, not both. A system no event has joined
-yet is drawn empty, and two modules may export one under the same name.
+a stream. An event joins it where the event is declared, with `.external()`. We translate its
+events and never store them, so an event is in a stream or a system, not both. A system no event
+has joined yet is drawn empty, and two modules may export one under the same name.
 
 An external event builds no read model: it isn't stored, so the read model would be empty after a
 replay. Translate it into an event of ours with `.trigger()`, as above, and project that.
@@ -434,63 +477,34 @@ m.slice().trigger(GroceriesToOrder, AddGroceriesToCart, CartUpdated)   // the ca
 m.slice().trigger(CartUpdated, RecordOrder, OrderUpdated)              // we keep what came back
 ```
 
-### 8. Streams
+### Streams
 
-A stream is a lane in the diagram, named by its export. An event joins it where it is declared. The
-todo app keeps items and lists apart:
-
-```ts
-export const Items = m.stream()
-export const Lists = m.stream()
-
-export const ItemCompleted = m.event({ listId: z.string(), itemId: z.string() }).stream(Items)
-export const ListDeleted = m.event({ listId: z.string() }).stream(Lists)
-```
+A stream is a lane in the diagram, declared once with `m.stream()` and named by its export. An
+event joins it where it is declared, with `.stream()`. Once a model declares a stream, every event
+must join one; an external event joins its system instead. A model that declares no stream has one
+lane, called Events.
 
 `.stream()` takes the stream, not its name, so a typo does not compile. A slice is drawn in the lane
 of the events it records, and its command with them. Lanes come in the order the streams are
-declared; one no event has joined yet is drawn empty. Two modules may export a stream under the same
-name; the CLI merges them into one lane. A model that declares no stream has one lane, called
-Events.
+declared; one no event has joined yet is drawn empty. Two modules may export a stream under the
+same name; the CLI merges them into one lane.
 
-### 9. Chapters and the model
+### Chapters and order
 
-```ts
-// index.ts
-export default m.model("Todo List Application", {
-  description: "Users manage personal todo lists.",
-})
-```
-
-The model lists nothing. The CLI finds every declaration, and every slice, by walking the
-directory. The worked example is `examples/todo-app/`.
+The model, `export default m.model("Name", { description })`, lists nothing. The CLI finds every
+declaration, and every slice, by walking the directory.
 
 A chapter is a heading on the timeline, declared once with `m.chapter()` and named by its export,
 like a stream. A slice joins it with `.chapter()`, anywhere after its first call, and joins at most
 one. `.chapter()` takes the chapter, not its name, so a typo does not compile. A chapter no slice
-has joined yet is drawn as a title with no columns, and is left to do. Two modules may export a
-chapter under the same name; the CLI merges them into one.
+has joined yet is drawn as a title with no columns, and is left to do. A slice in no chapter is
+drawn after the story under "Not in a chapter yet", and is left to do until it joins one. Two
+modules may export a chapter under the same name; the CLI merges them into one.
 
 Chapters come in the order they are declared, and a chapter's slices in the order they are written.
 In one file that is top to bottom. Across files it is the order node runs them: the CLI imports the
 model's files one at a time, by path, and a module runs after the modules it imports. So a file that
 imports an earlier chapter's file comes after it.
-
-### 10. Look at it
-
-The diagram from step 1 has followed every save. Click a card for its notes and specifications.
-Now generate the API:
-
-```bash
-npx em proto model -o proto
-```
-
-`proto` writes one `.proto` file per service. `export` writes the viewer and the model into one HTML
-file to share. `json` prints the model as event-modeling-spec JSON.
-
-You do not have to finish first. `view` draws a model as far as it goes: an event in no slice yet
-stands on its own in its lane, a slice in no chapter yet is drawn after the story, and what is left
-to do is listed above the picture. So the first thing to write is the events, each in its stream, and look.
 
 ## Validation
 
@@ -519,7 +533,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | Two modules exporting one name, such as `ListCreated` | Each module is compiled on its own. |
 | A column no event of the read model's `.projection()` calls writes | The calls can be in several modules. |
 | An optional field no slice fills | Same. |
-| An event that carries none of the read model's key columns | Declarations are anonymous, so two events with the same fields are one type. |
+| A projection's event that lacks one of the read model's key columns | Declarations are anonymous, so two events with the same fields are one type. |
 | An event nothing consumes: no `.trigger()`, no projection, no `given` | Same. |
 | An event no slice records; a read model nothing reads or projects | Same. |
 | A field with no value, in a model the compiler did not check | `em json` runs the model without `tsc`. |
@@ -528,7 +542,8 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | A slice joining two chapters | `.chapter()` can be called again further down the chain. |
 | A read model built from an external event | `em json` runs the model without `tsc`, and `Event(map)` does not say whose event it is. |
 | An event in both a stream and an external system | `.stream()` and `.external()` can be called on it in separate statements. |
-| An event a command lists that no specification's `then` shows, an event a projection names or an automation's trigger that no specification's `given` has, or a view with no specification | Each `.test()` is checked on its own, not against the slice's other specifications. |
+| An event of ours in no stream, once the model declares one | Whether a value is used is not a type. |
+| A slice's event or view that no specification covers, as [Specifications](#specifications) says | Each `.test()` is checked on its own, not against the slice's other specifications. |
 | A specification value that is not what flows in: from `when`, the trigger in `given`, or the events that build the row | Example values are data, not types. |
 | A view's row that `given` does not build, or a built row `then` leaves out and the query does not exclude | Same. |
 | A source field put into a string or arithmetic in a mapping | A string built from a string is a string, and a number from a number a number. |
@@ -571,10 +586,10 @@ written by hand can do the same, and the viewer draws it.
 | a slice's note | a `storylines` entry titled with it, with no elements |
 
 The top level holds only `slices`, so the rest travels beside the JSON, only to the viewer: the
-model's name and description, the chapters, streams and actors in the order declared, with a
-chapter's note, and, while the model is unfinished, the declarations in no slice and what is left
-to do. That is what `em json --partial` prints. Notes on actors, services and external systems have
-no place in either.
+model's name and description; the chapters, with their notes, and the streams, in the order
+declared; the actors no slice names and every external system; and, while the model is unfinished,
+the declarations in no slice and what is left to do. That is what `em json --partial` prints. Notes
+on actors, services and external systems have no place in either.
 
 ## Protobuf
 
@@ -594,45 +609,7 @@ and `proto` exits 1.
 
 Every command and read model becomes a `message`. Field numbers follow declaration order, so
 appending a field is compatible and reordering one is not; `buf breaking` reports which you did.
-
-The quickstart produces:
-
-```proto
-syntax = "proto3";
-
-package todo.v1;
-
-service TodoService {
-  rpc CreateList(CreateListRequest) returns (CreateListResponse);
-  rpc AddItem(AddItemRequest) returns (AddItemResponse);
-  rpc ListTodoLists(ListTodoListsRequest) returns (ListTodoListsResponse);
-  rpc SearchItems(SearchItemsRequest) returns (SearchItemsResponse);
-}
-
-message CreateListRequest {
-  string user_id = 1;
-  string list_id = 2;
-  string name = 3;
-}
-
-message CreateListResponse {}
-
-message ListTodoListsRequest {
-  string user_id = 1;
-}
-
-message TodoList {
-  string user_id = 1;
-  string list_id = 2;
-  string name = 3;
-  int32 item_count = 4;
-  string status = 5;
-}
-
-message ListTodoListsResponse {
-  repeated TodoList todo_list = 1;
-}
-```
+[Step 4 of the quickstart](#4-generate-the-api) shows a whole file.
 
 | Zod | proto |
 |---|---|
@@ -645,8 +622,8 @@ message ListTodoListsResponse {
 | `z.record(z.string(), T)` | `map<string, T>`, never `optional` |
 | `.optional()` | `optional` |
 
-Any other Zod type is an error that names the declaration and the field. The example's output is
-`examples/proto`.
+Any other Zod type is an error that names the declaration and the field. The todo example's output
+is `examples/proto`.
 
 ## CLI
 
@@ -660,21 +637,25 @@ npx em json   model/ --partial       # what the viewer draws of an unfinished mo
 npx em proto  model/ -o proto        # one .proto per service
 ```
 
-Every command also accepts a single self-contained file. `json` assembles the model and stops at
-the first error. With `--partial` it goes on past dead ends and prints what the viewer reads: the
-spec JSON as `model`, beside it what the spec has no place for, and the dead ends as `warnings`;
-`view` and `export` assemble that way.
+Every command also accepts a single self-contained file.
+
+`json` assembles the model and stops at the first error. With `--partial` it goes on past dead ends
+and prints what the viewer reads: the spec JSON as `model`, beside it what the spec has no place
+for, and the dead ends as `warnings`. `view` and `export` assemble that way.
+
+`view` type-checks the model on every save, with the `tsconfig.json` that `init` wrote. It logs
+each compiler error as `file:line`, with what assembly left to do, in the terminal and above the
+picture. Names used above their declarations are one line per file, listing what to move up.
 
 `view` and `export` also draw a model written as spec JSON, by hand or extracted from a running
-system. It is drawn as far as it goes, and each place it breaks the schema is listed as left to
-do, as `model.json/slices/0/sliceType must be equal to one of the allowed values ...`. The file
-has only what the spec has, so lanes and chapters come in the order its slices first name them,
-and a screen no actor is said to see is a User's.
-`view` also type-checks the model on every save, with the `tsconfig.json` that `init` wrote, and
-logs each compiler error as `file:line` with what assembly left to do, in the terminal and above the
-picture. Names used above their declarations are one line per file, listing what to move up. Node runs the TypeScript directly with `--experimental-strip-types`. The package carries
-`zod` and exports it as `z`, so the model and the package read schemas with one copy. It carries
-`typescript` too, so the model needs no other dependency.
+system. It is drawn as far as it goes, and each place it breaks the schema is listed as left to do,
+as `model.json/slices/0/sliceType must be equal to one of the allowed values ...`. The file has only
+what the spec has, so lanes and chapters come in the order its slices first name them, and a screen
+no actor is said to see is a User's.
+
+Node runs the TypeScript directly with `--experimental-strip-types`. The package carries `zod` and
+exports it as `z`, so the model and the package read schemas with one copy. It carries `typescript`
+too, so the model needs no other dependency.
 
 ## Developing
 
@@ -702,8 +683,8 @@ npm install ../agent-skills/event-modeling/ts
 npx em init model
 ```
 
-From there the quickstart applies unchanged: `npx em view model` in a second terminal, then write
-`model/index.ts`. `npm pack` writes the tarball a release publishes, and the tests install it.
+From there the quickstart applies from `npx em view model`. `npm pack` writes the tarball a release
+publishes, and the tests install it.
 
 To release, raise `version` in `package.json`, commit, and push a tag with the same number:
 
