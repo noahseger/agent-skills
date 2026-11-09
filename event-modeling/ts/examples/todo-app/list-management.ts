@@ -39,16 +39,22 @@ export const ItemAdded = m
   .stream(Items)
 
 // A user marks an item done.
-export const CompleteItem = m.command({ listId: z.string(), itemId: z.string() })
-export const ItemCompleted = m.event({ listId: z.string(), itemId: z.string() }).stream(Items)
+export const CompleteItem = m.command({
+  userId: z.string(),
+  listId: z.string(),
+  itemId: z.string(),
+})
+export const ItemCompleted = m
+  .event({ userId: z.string(), listId: z.string(), itemId: z.string() })
+  .stream(Items)
 
 // A user removes an item from a list.
 export const DeleteItem = m.command({ listId: z.string(), itemId: z.string() })
 export const ItemDeleted = m.event({ listId: z.string(), itemId: z.string() }).stream(Items)
 
 // A user deletes a whole list, items included.
-export const DeleteList = m.command({ listId: z.string() })
-export const ListDeleted = m.event({ listId: z.string() }).stream(Lists)
+export const DeleteList = m.command({ userId: z.string(), listId: z.string() })
+export const ListDeleted = m.event({ userId: z.string(), listId: z.string() }).stream(Lists)
 
 const groceries = ListCreated({ listId: "list-1", userId: "u-1", name: "Groceries" })
 const milk = ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-1", title: "Milk" })
@@ -102,8 +108,8 @@ m.slice()
   .service(TodoService)
   .test("User completes an item", {
     given: milk,
-    when: CompleteItem({ listId: "list-1", itemId: "item-1" }),
-    then: ItemCompleted({ listId: "list-1", itemId: "item-1" }),
+    when: CompleteItem({ userId: "u-1", listId: "list-1", itemId: "item-1" }),
+    then: ItemCompleted({ userId: "u-1", listId: "list-1", itemId: "item-1" }),
   })
 
 m.slice()
@@ -125,6 +131,6 @@ m.slice()
   .service(TodoService)
   .test("User deletes a list", {
     given: groceries,
-    when: DeleteList({ listId: "list-1" }),
-    then: ListDeleted({ listId: "list-1" }),
+    when: DeleteList({ userId: "u-1", listId: "list-1" }),
+    then: ListDeleted({ userId: "u-1", listId: "list-1" }),
   })

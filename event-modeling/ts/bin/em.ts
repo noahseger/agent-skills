@@ -133,14 +133,22 @@ async function reload(path: string, types: Checker, cause = "Started"): Promise<
   const started = Date.now()
   const [run, errors] = await Promise.all([
     assembleFresh(path),
-    types.check().catch((e: unknown) => [`The type check stopped: ${String(e)}`]),
+    types
+      .check()
+      .catch((e: unknown): Warning[] => [
+        { message: `The type check stopped: ${String(e)}`, element: "" },
+      ]),
   ])
   if (run.ok) {
     const feed = JSON.parse(run.stdout) as Feed
     return report(cause, started, { ...feed, warnings: mergeFindings(errors, feed.warnings ?? []) })
   }
   // A compiler error says where and why; the JavaScript error it caused only says what broke.
-  return failed(cause, started, errors.length > 0 ? errors.join("\n") : run.stderr || run.stdout)
+  return failed(
+    cause,
+    started,
+    errors.length > 0 ? errors.map((e) => e.message).join("\n") : run.stderr || run.stdout,
+  )
 }
 
 /** A spec JSON file is drawn as it is; where it breaks the schema is left to do. */
@@ -183,22 +191,19 @@ function failed(cause: string, started: number, error: string): Snapshot {
 }
 
 /**
- * The compiler and assembly both report an event field with no value. Keep the
- * compiler's line, which says where to type, and the element assembly marks.
+ * The compiler and assembly both report a field with no value. Keep the compiler's
+ * line, which says where to type, and the slice assembly marks.
  */
-function mergeFindings(errors: readonly string[], found: readonly Warning[]): Warning[] {
-  const compiled: Warning[] = errors.map((message) => ({ message, element: "" }))
+function mergeFindings(compiled: readonly Warning[], found: readonly Warning[]): Warning[] {
+  const merged = compiled.map((c) => ({ ...c }))
   const rest = found.filter((w) => {
-    const field = /(\w+)\.(\w+) has no value\. Add \2 to /.exec(w.message)
-    const same = field
-      ? compiled.find(
-          (c) => c.message.includes(field[1] ?? "") && c.message.includes(` ${field[2]}`),
-        )
-      : undefined
-    if (same) Object.assign(same, { element: w.element, slice: w.slice })
+    const same = merged.find(
+      (c) => c.element === w.element && w.fields?.every((f) => c.fields?.includes(f)),
+    )
+    if (same && w.slice !== undefined) same.slice = w.slice
     return !same
   })
-  return [...compiled, ...rest]
+  return [...merged, ...rest]
 }
 
 const isSpec = (path: string) => extname(path) === ".json"

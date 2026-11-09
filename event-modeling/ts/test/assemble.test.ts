@@ -318,7 +318,34 @@ test("an event that carries none of the read model's key columns", () => {
   const projection = m.slice().projection(f.Table, f.Created).event(Renamed)
   assert.throws(
     () => assembled({ ...f, Rename, Renamed }, [create(f), rename, projection, view(f)]),
-    /Ch › Table: Renamed doesn't say which Table row it changes\. Give it a key field \(id\), or set one in its mapping\./,
+    /Ch › Table: Renamed doesn't say which Table row it changes\. Give it id, or set it in its mapping\./,
+  )
+})
+
+test("an event that carries only some of the read model's key columns", () => {
+  const f = fixture()
+  const Table = m.readModel({ id: m.key(z.string()), owner: m.key(z.string()), name: z.string() })
+  const Create = m.command({ id: z.string(), owner: z.string(), name: z.string() })
+  const Created = m.event({ id: z.string(), owner: z.string(), name: z.string() })
+  const Renamed = m.event({ id: z.string(), name: z.string() })
+  const row = { ...list, owner: "u-1" }
+  const create = m
+    .slice()
+    .command(Create, Created)
+    .event(Renamed)
+    .actor(f.User)
+    .service(f.Svc)
+    .test("A list is created", { when: Create(row), then: Created(row) })
+    .test("A list is renamed", { when: Create(row), then: Renamed(list) })
+  const projection = m
+    .slice()
+    .projection(Table, Created)
+    .event(Renamed)
+    .test("A list is a row", { given: [Created(row), Renamed(list)], then: Table(row) })
+  const g = { ...f, Table, Create, Created, Renamed }
+  assert.throws(
+    () => assembled(g, [create, projection, view(g)]),
+    /Ch › Table: Renamed doesn't say which Table row it changes\. Give it owner, or set it in its mapping\./,
   )
 })
 
@@ -903,6 +930,7 @@ test("a .trigger() automation polls the read model", () => {
     .slice("Processor")
     .trigger(f.Table, Process, Processed)
     .test("A listed row is processed", {
+      given: f.Created(list),
       when: Process({ id: "list-1" }),
       then: Processed({ id: "list-1" }),
     })
@@ -942,6 +970,37 @@ test("a polled command's when matches the row given builds", () => {
   assert.throws(() => model("Milk"), {
     message: `Ch › Processor › "A listed row is processed": when has label "Milk", but the Table row given builds has name "Groceries".`,
   })
+})
+
+test("a polled command's when whose row given builds none of, or several of, is a to-do", () => {
+  const f = fixture()
+  const Table = m.readModel({ id: m.key(z.string()), owner: m.key(z.string()), name: z.string() })
+  const Created = m.event({ id: z.string(), owner: z.string(), name: z.string() })
+  const Process = m.command({ id: z.string() })
+  const Processed = m.event({ id: z.string() })
+  const mine = { ...list, owner: "u-1" }
+  const theirs = { ...list, owner: "u-2" }
+  const processor = m
+    .slice("Processor")
+    .trigger(Table, Process, Processed)
+    .test("none", {
+      given: Created(mine),
+      when: Process({ id: "list-2" }),
+      then: Processed({ id: "list-2" }),
+    })
+    .test("several", {
+      given: [Created(mine), Created(theirs)],
+      when: Process({ id: "list-1" }),
+      then: Processed({ id: "list-1" }),
+    })
+  const projection = m.slice().projection(Table, Created)
+  assert.deepEqual(
+    disagreements({ ...f, Table, Created, Process, Processed }, [processor, projection]),
+    [
+      'Ch › Processor › "none": when is for the Table row {"id":"list-2"}, but given builds no such row. Add the event that does.',
+      'Ch › Processor › "several": when is for the Table row {"id":"list-1"}, but given builds 2 such rows. Copy every key column into Process.',
+    ],
+  )
 })
 
 test("same-named streams from two modules are one lane", () => {
@@ -1042,40 +1101,34 @@ test("every .projection() of a read model is one slice, drawn where the first is
       when: Archive({ id: "list-1" }),
       then: Archived({ id: "list-1" }),
     })
+  const story = chapters({
+    Capture: [
+      create(f),
+      m
+        .slice()
+        .projection(
+          Table,
+          f.Created(() => ({ status: "open" })),
+        )
+        .test("A new list is open", {
+          given: f.Created(list),
+          then: Table({ ...list, status: "open" }),
+        }),
+    ],
+    Tidy: [archive, view({ ...f, Table })],
+  })
+  m.slice()
+    .projection(
+      Table,
+      Archived(() => ({ status: "archived" })),
+    )
+    .test("An archived list is archived", {
+      given: [f.Created(list), Archived({ id: "list-1" })],
+      then: Table({ ...list, status: "archived" }),
+    })
   const feed = feedOf([
     { ...f, Table, Archive, Archived },
-    {
-      ...chapters({
-        Capture: [
-          create(f),
-          m
-            .slice()
-            .projection(
-              Table,
-              f.Created(() => ({ status: "open" })),
-            )
-            .test("A new list is open", {
-              given: f.Created(list),
-              then: Table({ ...list, status: "open" }),
-            }),
-        ],
-        Tidy: [
-          archive,
-          m
-            .slice()
-            .projection(
-              Table,
-              Archived(() => ({ status: "archived" })),
-            )
-            .test("An archived list is archived", {
-              given: [f.Created(list), Archived({ id: "list-1" })],
-              then: Table({ ...list, status: "archived" }),
-            }),
-          view({ ...f, Table }),
-        ],
-      }),
-      default: m.model("x"),
-    },
+    { ...story, default: m.model("x") },
   ])
   assert.deepEqual(
     drawn(feed).chapters.map((c) => c.slices.map((s) => s.name)),
@@ -1092,6 +1145,30 @@ test("every .projection() of a read model is one slice, drawn where the first is
       s.specifications.map((t) => t.title),
     ]),
     [["Capture", ["Created", "Archived"], ["A new list is open", "An archived list is archived"]]],
+  )
+})
+
+test("a later .projection() that says where or how to draw the slice is a to-do", () => {
+  const f = fixture()
+  const Runner = m.actor({ icon: "system" })
+  const story = chapters({ Capture: [create(f), project(f)], Tidy: [view(f)] })
+  m.slice("Other")
+    .projection(f.Table, f.Created)
+    .chapter(story.Tidy as Chapter)
+    .actor(Runner)
+    .note("Rebuilt nightly.")
+  const exports = { ...f, Runner, ...story, default: m.model("x") }
+  const drawnAs = (rest: string) =>
+    `Table: this .projection() ${rest}, where it is first written. Remove it, or move the first.`
+  const expected = [
+    drawnAs("names chapter Tidy, but Table is drawn in Capture"),
+    drawnAs('names the slice "Other", but Table is drawn as "Table"'),
+    drawnAs("names actor Runner, but Table is run by the default system"),
+    drawnAs('has the note "Rebuilt nightly.", but Table is drawn with no note'),
+  ]
+  assert.deepEqual(
+    feedOf([exports], { partial: true }).warnings?.map((w) => w.message),
+    expected,
   )
 })
 

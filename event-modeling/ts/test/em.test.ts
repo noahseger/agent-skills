@@ -283,6 +283,53 @@ export default m.model("Chess")
   }
 })
 
+test("view pairs each compiler error with what assembly found about the same event's fields", async () => {
+  const dir = mkdtempSync(here("../tmp-pair-"))
+  writeFileSync(
+    join(dir, "index.ts"),
+    `import { z } from "zod"
+import { m } from "#em"
+
+export const User = m.actor()
+export const Chess = m.service("chess.v1")
+export const StartGame = m.command({ gameId: z.string() })
+export const GameStarted = m.event({ gameId: z.string(), white: z.string() })
+export const Begin = m.command({ gameId: z.string() })
+export const Started = m.event({ gameId: z.string(), white: z.string() })
+export const Play = m.chapter()
+m.slice().command(StartGame, GameStarted).actor(User).service(Chess).chapter(Play)
+m.slice().command(Begin, Started).actor(User).service(Chess).chapter(Play)
+export default m.model("Chess")
+`,
+  )
+  const server = await view(dir)
+  try {
+    const { warnings = [] } = (await (await fetch(`${server.url}/model.json`)).json()) as {
+      warnings?: { message: string; element: string; slice?: string }[]
+    }
+    assert.deepEqual(
+      warnings
+        .filter((w) => w.message.includes("white"))
+        .map((w) => [w.message, w.element, w.slice]),
+      [
+        [
+          "index.ts:11  GameStarted: add white to the command or set it in the mapping",
+          "GameStarted",
+          "StartGame",
+        ],
+        [
+          "index.ts:12  Started: add white to the command or set it in the mapping",
+          "Started",
+          "Begin",
+        ],
+      ],
+    )
+  } finally {
+    server.close()
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test("a model that doesn't load shows the compiler's errors, not the JavaScript one", async () => {
   const dir = mkdtempSync(here("../tmp-load-"))
   writeFileSync(

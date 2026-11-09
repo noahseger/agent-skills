@@ -72,7 +72,6 @@ export function loadModules(
   const written = [...DRAFTS]
   DRAFTS.clear()
   const { model, streams, chapters, externals, declared, fileOf } = nameExports(modules, files)
-  const drafts = runBy(firstSystem(declared), oneSlicePerReadModel(written))
   const warnings: Warning[] = []
   const unfinished = new Map<SliceData, string[]>()
   const note = (slice: SliceData, message: string) =>
@@ -81,6 +80,7 @@ export function loadModules(
     warnings.push(warning)
     if (of) note(of, warning.message)
   }
+  const drafts = runBy(firstSystem(declared), oneSlicePerReadModel(written, fail))
   const unchaptered: SliceData[] = []
   for (const s of drafts) {
     const name = chapterOf(s)
@@ -113,9 +113,10 @@ export function loadModules(
 
 /**
  * Every `.projection()` of a read model is one slice: the first, where it is drawn and which chapter
- * it joins, built from the events of all of them and specified by all their specifications.
+ * it joins, built from the events of all of them and specified by all their specifications. What a
+ * later call says about where or how it is drawn would be lost, so it is reported.
  */
-function oneSlicePerReadModel(drafts: SliceData[]): SliceData[] {
+function oneSlicePerReadModel(drafts: SliceData[], fail: Fail): SliceData[] {
   const calls = new Map<DeclData, SliceData[]>()
   for (const s of drafts)
     if (s.projection) calls.set(s.projection, [...(calls.get(s.projection) ?? []), s])
@@ -123,8 +124,44 @@ function oneSlicePerReadModel(drafts: SliceData[]): SliceData[] {
     const all = s.projection && calls.get(s.projection)
     if (!all) return [s]
     if (all[0] !== s) return []
-    return [{ ...s, events: all.flatMap((c) => c.events), tests: all.flatMap((c) => c.tests) }]
+    const merged = {
+      ...s,
+      events: all.flatMap((c) => c.events),
+      tests: all.flatMap((c) => c.tests),
+    }
+    for (const later of all.slice(1)) for (const w of drawnElsewhere(s, later)) fail(w, merged)
+    return [merged]
   })
+}
+
+/** What a later `.projection()` of the first's read model says differently about drawing it. */
+function drawnElsewhere(first: SliceData, later: SliceData): Warning[] {
+  const rm = first.projection?.name ?? ""
+  const chapter = (s: SliceData) => s.chapters.map((c) => c.name).join(" and ") || undefined
+  const quoted = (text: string | undefined) => (text === undefined ? undefined : show(text))
+  const differs: [string | undefined, string | undefined, string, string, string][] = [
+    [chapter(later), chapter(first), "names chapter", "drawn in", "drawn in no chapter"],
+    [quoted(later.name), quoted(first.name ?? rm), "names the slice", "drawn as", ""],
+    [later.system?.name, first.system?.name, "names actor", "run by", "run by the default system"],
+    [
+      quoted(later.note),
+      quoted(first.note),
+      "has the note",
+      "drawn with the note",
+      "drawn with no note",
+    ],
+  ]
+  return differs.flatMap(([said, kept, names, is, none]) =>
+    said === undefined || said === kept
+      ? []
+      : [
+          {
+            message: `${rm}: this .projection() ${names} ${said}, but ${rm} is ${kept === undefined ? none : `${is} ${kept}`}, where it is first written. Remove it, or move the first.`,
+            element: rm,
+            slice: first.name ?? rm,
+          },
+        ],
+  )
 }
 
 /** The machine of ours declared first, if any. */
@@ -490,6 +527,7 @@ function checkFilled({ slice, where }: Located, fail: Fail): void {
           message: `${where}: ${target.name}.${field} has no value. ${fix(field)}`,
           element: target.name ?? "",
           slice: slice.name ?? "",
+          fields: [field],
         })
     }
   }
@@ -543,16 +581,17 @@ function checkFilledSomewhere(located: Located[], fail: Fail): void {
   }
 }
 
-/** An event finds its row by the key columns it carries. */
+/** An event finds its row by the key columns it carries, so it carries every one. */
 function checkKeys({ slice, where }: Located, fail: Fail): void {
   if (!slice.projection || slice.projection.keys.length === 0) return
   for (const flow of slice.events) {
     const carried = filled(flow, flow.decl)
-    if (!slice.projection.keys.some((k) => carried.includes(k))) {
+    const missing = slice.projection.keys.filter((k) => !carried.includes(k))
+    if (missing.length > 0) {
       fail({
         message:
           `${where}: ${flow.decl.name} doesn't say which ${slice.projection.name} row it changes. ` +
-          `Give it a key field (${slice.projection.keys.join(", ")}), or set one in its mapping.`,
+          `Give it ${missing.join(" and ")}, or set ${missing.length > 1 ? "them" : "it"} in its mapping.`,
         element: flow.decl.name ?? "",
         slice: slice.name ?? "",
       })
@@ -673,22 +712,25 @@ function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
           source(command, f, trigger, `${trigger.decl.name} in given has`),
         )
       const { polls } = slice
-      if (t.when && polls) {
-        const row = polledRow(
-          command,
-          t.when,
-          polls,
-          project(polls, built.get(polls) ?? [], t.given),
-        )
-        if (row)
-          compare(t.when, "when", (f) =>
-            source(
-              command,
-              f,
-              { decl: polls, data: row },
-              `the ${polls.name} row given builds has`,
-            ),
+      // A command that copies no key column names no row, so there is none to look for.
+      const keyed = t.when && polls ? polledKey(command, t.when, polls) : {}
+      if (t.when && polls && Object.keys(keyed).length > 0) {
+        const rows = rowsLike(project(polls, built.get(polls) ?? [], t.given), polls, keyed)
+        const row = rows[0]
+        const picks = `${where} › "${t.name}": when is for the ${polls.name} row ${rowName(polls, keyed)}`
+        const said = (message: string) =>
+          fail({ message, element: polls.name ?? "", slice: slice.name ?? "" })
+        if (!row) said(`${picks}, but given builds no such row. Add the event that does.`)
+        else if (rows.length > 1)
+          said(
+            `${picks}, but given builds ${rows.length} such rows. Copy every key column into ${command.decl.name}.`,
           )
+        else {
+          const data = Object.fromEntries(Object.entries(row.values).map(([k, e]) => [k, e.value]))
+          compare(t.when, "when", (f) =>
+            source(command, f, { decl: polls, data }, `the ${polls.name} row given builds has`),
+          )
+        }
       }
       const when = t.when
       for (const c of t.then) {
@@ -710,24 +752,14 @@ function rowsLike<R extends { values: Record<string, Expected> }>(
   return rows.filter((r) => keys.every((k) => isDeepStrictEqual(r.values[k]?.value, data[k])))
 }
 
-/**
- * The row a polled command was issued for: the one whose key columns hold what the command copied
- * from them. Undefined unless exactly one row matches.
- */
-function polledRow(
-  command: Flow,
-  when: ExampleData,
-  readModel: DeclData,
-  rows: { values: Record<string, Expected> }[],
-): Record<string, unknown> | undefined {
+/** The key columns of the polled row a command was issued for, with what the command copied from them. */
+function polledKey(command: Flow, when: ExampleData, readModel: DeclData): Record<string, unknown> {
   const keyed: Record<string, unknown> = {}
   for (const field of Object.keys(command.decl.fields)) {
     const s = command.mapping[field] ?? { from: field }
     if ("from" in s && readModel.keys.includes(s.from)) keyed[s.from] = when.data[field]
   }
-  const matched = rowsLike(rows, readModel, keyed)
-  if (Object.keys(keyed).length === 0 || matched.length !== 1) return undefined
-  return Object.fromEntries(Object.entries(matched[0]?.values ?? {}).map(([k, e]) => [k, e.value]))
+  return keyed
 }
 
 /** A row by its keys, or by every value when the read model has none. */

@@ -111,6 +111,8 @@ export interface Warning {
   message: string
   element: string
   slice?: string
+  /** The fields of `element` that have no value, when that is the dead end. */
+  fields?: string[]
 }
 
 /**

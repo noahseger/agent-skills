@@ -3,9 +3,11 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
 import { API, type Diagnostic, DiagnosticCategory, type Snapshot } from "typescript/unstable/async"
 
+import type { Warning } from "./types.ts"
+
 export interface Checker {
   /** Every compiler error in the model, one line each. */
-  check(): Promise<string[]>
+  check(): Promise<Warning[]>
 }
 
 /**
@@ -66,7 +68,7 @@ export function checker(path: string): Checker {
       seen = now
       const program = snapshot.getProject(config)?.program
       if (!program) return []
-      const lines: string[] = []
+      const lines: Warning[] = []
       for (const file of files) {
         const found = [
           ...(await program.getSyntacticDiagnostics(file)),
@@ -76,9 +78,10 @@ export function checker(path: string): Checker {
         const errors = found.filter((d) => d.category === DiagnosticCategory.Error)
         const early = [...new Set(errors.flatMap(usedEarly))]
         if (early.length > 0)
-          lines.push(
-            `${relative(root, file)}: declare ${early.join(", ")} above where ${early.length > 1 ? "they are" : "it is"} used.`,
-          )
+          lines.push({
+            message: `${relative(root, file)}: declare ${early.join(", ")} above where ${early.length > 1 ? "they are" : "it is"} used.`,
+            element: "",
+          })
         for (const d of errors)
           if (usedEarly(d).length === 0) lines.push(describe(d, text, relative(root, file)))
       }
@@ -114,32 +117,40 @@ const UNSET = /Property '(\w+)' is missing in type '.*' but required in type 'Pi
 const LAST_OVERLOAD = "The last overload gave the following error."
 
 /** `file:line  message`. The package's own type errors become the instruction they carry. */
-function describe(d: Diagnostic, text: string, file: string): string {
+function describe(d: Diagnostic, text: string, file: string): Warning {
+  const said = (message: string): Warning => ({ message, element: "" })
   const at = (pos: number) => `${file}:${text.slice(0, pos).split("\n").length}  `
   const lines = messages(d)
   // The deepest line lists every field; the ones above it may elide some.
   const missing = lines.map((l) => l.match(MISSING)).findLast((found) => found !== null)
   if (missing?.[1] && missing[2]) {
-    const fields = [...missing[2].matchAll(/"(\w+)"/g)].map((f) => f[1])
-    return `${at(d.pos)}${text.slice(d.pos, d.end)}: add ${fields.join(", ")} to the ${missing[1]} or set it in the mapping`
+    const fields = [...missing[2].matchAll(/"(\w+)"/g)].flatMap((f) => (f[1] ? [f[1]] : []))
+    const target = text.slice(d.pos, d.end)
+    return {
+      message: `${at(d.pos)}${target}: add ${fields.join(", ")} to the ${missing[1]} or set it in the mapping`,
+      element: target.match(/\w+$/)?.[0] ?? "",
+      fields,
+    }
   }
   const outside = lines.map((l) => l.match(OUTSIDE)?.[1]).find((m) => m !== undefined)
-  if (outside) return `${at(d.pos)}${outside}`
+  if (outside) return said(`${at(d.pos)}${outside}`)
   const unset = lines.map((l) => l.match(UNSET)?.[1]).find((f) => f !== undefined)
-  if (unset) return `${at(d.pos)}the mapping must set ${unset}`
+  if (unset) return said(`${at(d.pos)}the mapping must set ${unset}`)
   // Two events in one call: `.event(A, B)`.
   const first = text.slice(0, d.pos).match(/\.event\(\s*[\w.]+\s*,\s*$/)
   const second = text.slice(d.pos).match(/^([\w.]+)\s*\)/)?.[1]
   if (first && second)
-    return `${at(d.pos)}.event() takes one event. To record ${second} too, chain .event(${second}).`
+    return said(
+      `${at(d.pos)}.event() takes one event. To record ${second} too, chain .event(${second}).`,
+    )
   // A missing argument: the compiler names its parameter, such as 'event', beside the message.
   const unsupplied = d.relatedInformation
     ?.map((r) => r.text)
     .find((t) => t.startsWith("An argument for"))
-  if (unsupplied) return `${at(d.pos)}${d.text} ${unsupplied}`
+  if (unsupplied) return said(`${at(d.pos)}${d.text} ${unsupplied}`)
   // A failed overload call heads a chain; the last overload's reason is the line after it.
   const last = lines.indexOf(LAST_OVERLOAD)
-  return `${at(d.pos)}${(last >= 0 ? lines[last + 1] : lines[0]) ?? ""}`
+  return said(`${at(d.pos)}${(last >= 0 ? lines[last + 1] : lines[0]) ?? ""}`)
 }
 
 function messages(d: Diagnostic): string[] {

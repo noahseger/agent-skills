@@ -31,8 +31,9 @@ message AddItemRequest {
 message AddItemResponse {}
 
 message CompleteItemRequest {
-  string list_id = 1;
-  string item_id = 2;
+  string user_id = 1;
+  string list_id = 2;
+  string item_id = 3;
 }
 
 message CompleteItemResponse {}
@@ -45,7 +46,8 @@ message DeleteItemRequest {
 message DeleteItemResponse {}
 
 message DeleteListRequest {
-  string list_id = 1;
+  string user_id = 1;
+  string list_id = 2;
 }
 
 message DeleteListResponse {}

@@ -456,6 +456,10 @@
           "type": "COMMAND",
           "fields": [
             {
+              "name": "userId",
+              "type": "String"
+            },
+            {
               "name": "listId",
               "type": "String"
             },
@@ -489,6 +493,10 @@
           "type": "EVENT",
           "fields": [
             {
+              "name": "userId",
+              "type": "String"
+            },
+            {
               "name": "listId",
               "type": "String"
             },
@@ -515,6 +523,10 @@
           "title": "ListScreen",
           "type": "SCREEN",
           "fields": [
+            {
+              "name": "userId",
+              "type": "String"
+            },
             {
               "name": "listId",
               "type": "String"
@@ -563,6 +575,7 @@
               "type": "SPEC_COMMAND",
               "examples": [
                 {
+                  "userId": "u-1",
                   "listId": "list-1",
                   "itemId": "item-1"
                 }
@@ -576,6 +589,7 @@
               "type": "SPEC_EVENT",
               "examples": [
                 {
+                  "userId": "u-1",
                   "listId": "list-1",
                   "itemId": "item-1"
                 }
@@ -760,6 +774,10 @@
           "type": "COMMAND",
           "fields": [
             {
+              "name": "userId",
+              "type": "String"
+            },
+            {
               "name": "listId",
               "type": "String"
             }
@@ -789,6 +807,10 @@
           "type": "EVENT",
           "fields": [
             {
+              "name": "userId",
+              "type": "String"
+            },
+            {
               "name": "listId",
               "type": "String"
             }
@@ -811,6 +833,10 @@
           "title": "DeleteList",
           "type": "SCREEN",
           "fields": [
+            {
+              "name": "userId",
+              "type": "String"
+            },
             {
               "name": "listId",
               "type": "String"
@@ -854,6 +880,7 @@
               "type": "SPEC_COMMAND",
               "examples": [
                 {
+                  "userId": "u-1",
                   "listId": "list-1"
                 }
               ]
@@ -866,6 +893,7 @@
               "type": "SPEC_EVENT",
               "examples": [
                 {
+                  "userId": "u-1",
                   "listId": "list-1"
                 }
               ]
@@ -959,6 +987,10 @@
           "type": "EVENT",
           "fields": [
             {
+              "name": "userId",
+              "type": "String"
+            },
+            {
               "name": "listId",
               "type": "String"
             }
@@ -978,6 +1010,10 @@
           "title": "ListDeleted",
           "type": "EVENT",
           "fields": [
+            {
+              "name": "userId",
+              "type": "String"
+            },
             {
               "name": "listId",
               "type": "String"
@@ -1180,6 +1216,7 @@
               "type": "SPEC_EVENT",
               "examples": [
                 {
+                  "userId": "u-1",
                   "listId": "list-1"
                 }
               ]
@@ -1227,6 +1264,7 @@
               "type": "SPEC_EVENT",
               "examples": [
                 {
+                  "userId": "u-1",
                   "listId": "list-1"
                 }
               ]
@@ -1440,6 +1478,10 @@
           "type": "EVENT",
           "fields": [
             {
+              "name": "userId",
+              "type": "String"
+            },
+            {
               "name": "listId",
               "type": "String"
             },
@@ -1563,6 +1605,7 @@
               "type": "SPEC_EVENT",
               "examples": [
                 {
+                  "userId": "u-1",
                   "listId": "list-1",
                   "itemId": "item-1"
                 }
@@ -1954,6 +1997,7 @@
               "type": "SPEC_EVENT",
               "examples": [
                 {
+                  "userId": "u-1",
                   "listId": "list-1",
                   "itemId": "item-1"
                 }
@@ -2011,6 +2055,10 @@
           "type": "COMMAND",
           "fields": [
             {
+              "name": "userId",
+              "type": "String"
+            },
+            {
               "name": "listId",
               "type": "String"
             }
@@ -2044,6 +2092,10 @@
           "type": "EVENT",
           "fields": [
             {
+              "name": "userId",
+              "type": "String"
+            },
+            {
               "name": "listId",
               "type": "String"
             },
@@ -2067,6 +2119,10 @@
           "title": "ListCompleted",
           "type": "EVENT",
           "fields": [
+            {
+              "name": "userId",
+              "type": "String"
+            },
             {
               "name": "listId",
               "type": "String"
@@ -2170,6 +2226,7 @@
               "type": "SPEC_EVENT",
               "examples": [
                 {
+                  "userId": "u-1",
                   "listId": "list-1",
                   "itemId": "item-1"
                 }
@@ -2183,6 +2240,7 @@
               "type": "SPEC_COMMAND",
               "examples": [
                 {
+                  "userId": "u-1",
                   "listId": "list-1"
                 }
               ]
@@ -2195,6 +2253,7 @@
               "type": "SPEC_EVENT",
               "examples": [
                 {
+                  "userId": "u-1",
                   "listId": "list-1"
                 }
               ]

@@ -16,8 +16,8 @@ import {
 } from "./list-management.ts"
 
 // When the last item is done, the list completes.
-export const CompleteList = m.command({ listId: z.string() })
-export const ListCompleted = m.event({ listId: z.string() }).stream(Lists)
+export const CompleteList = m.command({ userId: z.string(), listId: z.string() })
+export const ListCompleted = m.event({ userId: z.string(), listId: z.string() }).stream(Lists)
 
 // A user's lists, one row per list.
 export const TodoList = m.readModel({
@@ -39,7 +39,7 @@ export const ItemSearch = m.readModel({
 
 const groceries = ListCreated({ listId: "list-1", userId: "u-1", name: "Groceries" })
 const milk = ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-1", title: "Milk" })
-const milkDone = ItemCompleted({ listId: "list-1", itemId: "item-1" })
+const milkDone = ItemCompleted({ userId: "u-1", listId: "list-1", itemId: "item-1" })
 const eggs = ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-2", title: "Eggs" })
 
 export const Views = m.chapter()
@@ -74,7 +74,7 @@ m.slice()
     }),
   })
   .test("A completed list shows as completed", {
-    given: [groceries, ListCompleted({ listId: "list-1" })],
+    given: [groceries, ListCompleted({ userId: "u-1", listId: "list-1" })],
     then: TodoList({
       userId: "u-1",
       listId: "list-1",
@@ -84,7 +84,7 @@ m.slice()
     }),
   })
   .test("A deleted list shows as deleted", {
-    given: [groceries, ListDeleted({ listId: "list-1" })],
+    given: [groceries, ListDeleted({ userId: "u-1", listId: "list-1" })],
     then: TodoList({
       userId: "u-1",
       listId: "list-1",
@@ -210,8 +210,8 @@ m.slice("ListCompleter")
   .readModel(ItemSearch)
   .test("List completes when every item is done", {
     given: [milk, milkDone],
-    when: CompleteList({ listId: "list-1" }),
-    then: ListCompleted({ listId: "list-1" }),
+    when: CompleteList({ userId: "u-1", listId: "list-1" }),
+    then: ListCompleted({ userId: "u-1", listId: "list-1" }),
   })
 
 // The calendar pushes a scheduled task in, and we translate it into an item.

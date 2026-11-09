@@ -59,7 +59,6 @@ m.slice()
     Inbox,
     NoteFiled(() => ({ status: "filed" })),
   )
-  .chapter(Filing)
   .test("A filed note leaves the inbox", {
     given: [
       NoteCreated({ noteId: "note-1", text: "Call the plumber" }),
