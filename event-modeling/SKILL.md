@@ -15,9 +15,7 @@ The visualization uses two kinds of swim lanes:
 
 ## Why Event Modeling
 
-Most software projects suffer from **feature explosion** — each new feature adds coupling, and coupling makes the next feature more expensive. The cost curve steepens until deadlines slip, budgets explode, and teams build the wrong thing because of **bad communication**, **wrong assumptions**, and **misunderstood requirements**. Building the wrong thing is the most expensive mistake in any project.
-
-The root cause is never technology. No amount of architectural refinement fixes a communication problem. Event modeling solves this by providing a **shared language** that engineers, business experts, and AI agents all understand — five elements, four patterns, read left to right. One model, one truth, readable by anyone.
+Review workflows and concrete examples together before implementation. Use the examples as acceptance criteria.
 
 ## When to Use
 
@@ -54,7 +52,7 @@ The V shape is the heartbeat of the system. Read model feeds the UI, UI triggers
 
 ## Information Completeness
 
-**You cannot start implementation until the model is information complete.** Information completeness is checked **within each slice** — every field must be traceable to a data source that exists inside that slice.
+**You cannot start implementation until the model is information complete.** Fields may be copied, mapped, constant, or generated. An optional field may be absent from one slice if another fills it. External event fields come from outside.
 
 Two directions, both required:
 
@@ -227,11 +225,7 @@ An automation issues a command with no actor. One of two things drives it.
 | event-driven | the event points at the processor | `.trigger(Event, Command, Event)` | One event is enough to decide, and the work is quick and safe to repeat |
 | polled read model | the read model points at the processor | `.trigger(ReadModel, Command, Event)` | The work is slow, can fail, calls another system, or must not run twice |
 
-The polled read model lists the work to do. A projection adds a row when the work becomes due and marks it done when the event that finishes it arrives. The processor reads the list on its own schedule and issues the command for each open row. This buys three things:
-
-- **Idempotence** — a row marked done is not processed again, so a retry or a restart is safe.
-- **Consistency** — the list is built from events, not from the processor's memory, so it is right after a crash.
-- **A state you can reason about** — the list shows what is pending, what is done, and what is stuck.
+The polled read model lists the work to do. A projection adds a row when the work becomes due and marks it done when the event that finishes it arrives. The processor reads the list on its own schedule and issues the command for each open row. The read model records pending and completed work. The implementation must make retries safe.
 
 An event-driven automation has none of this. If the handler fails after the event, the work is lost unless the transport replays it.
 
@@ -361,25 +355,6 @@ Event models are living documents. When production reveals gaps:
 3. Look at it again in `em view` to verify the model still tells a coherent story
 4. Treat the updated model as the specification for the fix
 
-## Slices as Work Items
-
-Each slice in the event model is a **natural work item** — independently buildable, testable, and assignable. The event model IS the backlog. Detailed Jira tickets are unnecessary when every slice already captures the interface, command, events, read models, and GWT acceptance criteria.
-
-Slices follow a simple status progression: **planned → in progress → done**. Pick the next planned slice, implement it, verify the GWT tests pass, mark it done. The model tracks what's been built and what remains.
-
-Because slices are independent — **events are the only contract between them** — multiple developers or agents can work on different slices in parallel without conflicts. Adding more people to the project makes it faster, not slower.
-
-## AI Agent Integration
-
-Event models are the perfect input for AI code generation. Each slice is **exactly the right level of abstraction** for an AI agent — small enough to fit in context, specific enough to produce correct code, and testable via GWT.
-
-The combination works like this:
-- **Static code generation** handles the repeatable boilerplate — every slice produces the same predictable structure (route, command handler, event, projection, test file)
-- **AI agents** handle the business logic — the part that varies between slices, guided by GWT tests as guardrails
-- **GWT tests are executable specifications** — defined collaboratively with business experts, they become the acceptance criteria that verify the agent built what was specified
-
-Each slice type (state change, state view, automation) follows a known pattern. Agents don't need to invent architecture — they fill in the business-specific details within a well-defined structure.
-
 ## Key Invariants
 
 - **Events are immutable facts** in past tense — never update, only append
@@ -420,7 +395,6 @@ Each slice type (state change, state view, automation) follows a known pattern. 
 - **Using a screen for external events** — if a Kafka consumer or webhook receives data from another system, use an external event, not a screen. The lane and the arrow are different.
 - **One command always producing multiple events simultaneously** (suggests the events should be combined into one). Note: alternative outcomes from one command (success/failure) are NOT an antipattern — list each as an event the command can record, and let each GWT `then` show which one happened.
 - One slice with multiple commands
-- Many events updating the same read model
 - Events with arrows into other events (events don't cause each other)
 - Read models at the bottom of the diagram (they feed interfaces, put them near the top)
 - Swim lanes for element types (Commands/Events/ReadModels) instead of streams

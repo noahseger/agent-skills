@@ -1,14 +1,6 @@
 # event-modeling
 
-An [event model](https://eventmodeling.org/posts/what-is-event-modeling/) written in TypeScript,
-and the `em` command that works on it. You get:
-
-- a typed way to write the model, so a wrong slice does not compile;
-- a live diagram in the browser that redraws on every save;
-- a check of the whole model, where each error names the slice it found the problem in;
-- one `.proto` file per service the model describes;
-- the model as [event-modeling-spec](https://github.com/dilgerma/event-modeling-spec) JSON, which
-  the diagram also draws when the model was written by hand or extracted from a running system.
+Describe a system’s commands, events, and read models in TypeScript. The `em` command draws a live diagram, checks the model, and exports JSON and protobuf service definitions. Use it to find missing data sources and inconsistent examples before implementation.
 
 It runs wherever node 22.6 or later runs.
 
@@ -604,7 +596,7 @@ and `proto` exits 1.
 | Slice | Generates |
 |---|---|
 | state change | `rpc Command(CommandRequest) returns (CommandResponse)`. The request is the command's fields. The response is empty, because events are internal. |
-| view | `rpc Method(MethodRequest) returns (MethodResponse)`. The request is the `.query()` fields. The response repeats each read model it shows. |
+| view | `rpc Method(MethodRequest) returns (MethodResponse)`. The request is the `.query()` fields. The response returns one row when the query names every key column; otherwise, a list. |
 | automation, state view, or a slice without `.service()` | Nothing. They have no service method. |
 
 Every command and read model becomes a `message`. Field numbers follow declaration order, so
@@ -639,7 +631,7 @@ npx em proto  model/ -o proto        # one .proto per service
 
 Every command also accepts a single self-contained file.
 
-`json` assembles the model and stops at the first error. With `--partial` it goes on past dead ends
+`json` assembles the model and fails when assembly reports errors. With `--partial` it goes on past dead ends
 and prints what the viewer reads: the spec JSON as `model`, beside it what the spec has no place
 for, and the dead ends as `warnings`. `view` and `export` assemble that way.
 

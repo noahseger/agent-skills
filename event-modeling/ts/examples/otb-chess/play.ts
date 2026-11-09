@@ -85,8 +85,6 @@ export const ClockState = m.readModel({
 })
 
 // The arbiter's ruling is declared here, in the chapter where the board first reads it.
-// A projection names every event that writes it in one chain, so the ruling cannot wait for
-// the Arbiter Rulings chapter that emits it.
 export const RuleIllegalMove = m.command({
   gameId: z.string(),
   ply: z.number().int(),
