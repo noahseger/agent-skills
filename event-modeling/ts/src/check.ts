@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
 import { API, type Diagnostic, DiagnosticCategory, type Snapshot } from "typescript/unstable/async"
 
+import { NO_COMMAND, NO_EVENT } from "./assemble.ts"
 import type { Warning } from "./types.ts"
 
 export interface Checker {
@@ -114,6 +115,13 @@ function usedEarly(d: Diagnostic): string[] {
 const MISSING = /"add to the ([\w -]+) or set in the mapping": ("\w+"(?: \| "\w+")*)/
 const OUTSIDE = /"(a mapper only works inside a slice[^"]*)"/
 const UNSET = /Property '(\w+)' is missing in type '.*' but required in type 'Pick</
+/** A slice's first call and the parameter it was not given, as `em json` words what that leaves out. */
+const UNSUPPLIED: Record<string, string> = {
+  "command event": NO_EVENT,
+  "projection event": NO_EVENT,
+  "trigger event": NO_EVENT,
+  "trigger command": NO_COMMAND,
+}
 const LAST_OVERLOAD = "The last overload gave the following error."
 
 /** `file:line  message`. The package's own type errors become the instruction they carry. */
@@ -147,6 +155,10 @@ function describe(d: Diagnostic, text: string, file: string): Warning {
   const unsupplied = d.relatedInformation
     ?.map((r) => r.text)
     .find((t) => t.startsWith("An argument for"))
+  // Named after its command or read model, as `em json` names the slice.
+  const core = UNSUPPLIED[`${text.slice(d.pos, d.end)} ${unsupplied?.match(/'(\w+)'/)?.[1]}`]
+  const args = text.slice(d.end).match(/^\s*\(\s*([\w.]+)\s*(?:,\s*([\w.]+))?/)
+  if (core && args) return said(`${at(d.pos)}${args[2] ?? args[1]}: ${core}`)
   if (unsupplied) return said(`${at(d.pos)}${d.text} ${unsupplied}`)
   // A failed overload call heads a chain; the last overload's reason is the line after it.
   const last = lines.indexOf(LAST_OVERLOAD)

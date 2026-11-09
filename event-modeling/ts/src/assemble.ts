@@ -373,15 +373,17 @@ function check(
   checkMethods(located, conflict)
 }
 
+/** `em view` words the compiler's error for the same slice the same way. */
+export const NO_COMMAND = "this slice has no command yet. Add it to the slice's first call."
+export const NO_EVENT = "this slice has no event yet. Add it to the slice's first call."
+
 /** What a slice's first call left out. `em json` runs the model without the compiler. */
 function missingCore(slice: SliceData): string | undefined {
   const { command, trigger, polls, projection, shows, events } = slice
   if (!command && !trigger && !polls && !projection && shows.length === 0)
     return "this slice is empty. Give its first call what starts it."
-  if ((trigger || polls) && !command)
-    return "this slice has no command yet. Add it to the slice's first call."
-  if ((command || projection) && events.length === 0)
-    return "this slice has no event yet. Add it to the slice's first call."
+  if ((trigger || polls) && !command) return NO_COMMAND
+  if ((command || projection) && events.length === 0) return NO_EVENT
   return undefined
 }
 
