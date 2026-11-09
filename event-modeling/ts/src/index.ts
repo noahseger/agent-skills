@@ -51,17 +51,20 @@ type Needed<T extends Fields> = {
 type Unfilled<S extends Fields, T extends Fields> = Exclude<Needed<T>, keyof S> & string
 
 /**
- * Puts the fields the source lacks into the editor's error, so the fix is in front of you. Spelled
- * out rather than `Unfilled`, which the error would print by name and hide the fields.
+ * The declaration `A`, or, where `S` lacks a field it needs, the instruction to fix that: the editor
+ * says the parameter's type is the sentence. `From` names `S` in it. An external event's fields come
+ * from outside, so it always passes. `Use` is the mapped form; a mapping is typed against it while
+ * `A` is still being inferred, which is what types the mapping's arguments.
  */
-type FilledBy<S extends Fields, T extends Fields, From extends string> = [Unfilled<S, T>] extends [
-  never,
-]
-  ? unknown
-  : {
-      readonly [K in `add to the ${From} or set in the mapping`]: Exclude<Needed<T>, keyof S> &
-        string
-    }
+type FilledBy<S extends Fields, A, From extends string, Use> = [A] extends [never]
+  ? Use
+  : A extends ExternalEventDecl
+    ? A
+    : A extends Decl<DeclKind, infer T>
+      ? [Unfilled<S, T>] extends [never]
+        ? A
+        : `add ${Unfilled<S, T>} to the ${From} or set it in the mapping`
+      : Use
 
 /** A use where a handler fills the declaration from `S`'s fields. */
 export interface Into<S extends Fields, H> {
@@ -140,12 +143,8 @@ export interface EventDecl<F extends Fields = Fields> extends Decl<"event", F> {
 export type CommandDecl<F extends Fields = Fields> = Decl<"command", F>
 export type ReadModelDecl<F extends Fields = Fields> = Decl<"readModel", F>
 
-/**
- * An event of a system we do not own, as `.external()` returns it. Its fields come from outside,
- * so it passes the check that the command carries them: `never` fills any list of missing fields.
- */
+/** An event of a system we do not own, as `.external()` returns it. */
 export interface ExternalEventDecl<F extends Fields = Fields> extends EventDecl<F> {
-  readonly "add to the command or set in the mapping": never
   /** A projection refuses an event with this key, so the editor's error names the fix. */
   readonly "isn't stored: translate it into an event of ours, then project that": true
 }
@@ -435,14 +434,25 @@ export type ViewSpec<Q extends Fields, Rows> = {
 type Actors = [Actor, ...Actor[]]
 
 /** An event command `C` records: `Event`, or `Event(map)` to fill what `C` does not carry. */
-type Outcome<C extends Fields, E extends Fields> =
-  | (EventDecl<E> & FilledBy<C, E, "command">)
-  | Mapped<"event", E, Into<C, Helpers>>
+type Outcome<C extends Fields, A> = FilledBy<
+  C,
+  A,
+  "command",
+  Mapped<"event", Fields, Into<C, Helpers>>
+>
 
-/** An automation's command, filled from `S`: `Command`, or `Command(map)`. `From` names `S` in the editor's error. */
-type Issue<S extends Fields, C extends Fields, From extends string> =
-  | (CommandDecl<C> & FilledBy<S, C, From>)
-  | Mapped<"command", C, Into<S, NoHelpers>>
+/** An automation's command, filled from its trigger `T`: `Command`, or `Command(map)`. */
+type Issue<T extends Fields, A> = FilledBy<
+  T,
+  A,
+  "trigger",
+  Mapped<"command", Fields, Into<T, NoHelpers>>
+>
+
+// biome-ignore lint/suspicious/noExplicitAny: any event's fields
+type AnyEvent = EventDecl<any> | Mapped<"event", any, Place>
+// biome-ignore lint/suspicious/noExplicitAny: any command's fields
+type AnyCommand = CommandDecl<any> | Mapped<"command", any, Place>
 
 /** An event of ours, `Event`, or `Event(map)` to fill columns the event does not carry by name. */
 type ProjectedEvent<R extends Fields, E extends Fields> =
@@ -454,10 +464,10 @@ type ProjectedEvent<R extends Fields, E extends Fields> =
 /** A slice starts with its whole pattern, so an incomplete one does not compile where it is written. */
 export interface SliceStart {
   /** State change: the command an actor issues, and an event it records. */
-  command<C extends Fields, E extends Fields>(
+  command<C extends Fields, A extends AnyEvent>(
     command: CommandDecl<C>,
-    event: Outcome<C, E>,
-  ): StateChange<C, E>
+    event: Outcome<C, A>,
+  ): StateChange<C, A["__fields"]>
   /** View: the read models it shows. */
   view<Shown extends [ReadModelDecl, ...ReadModelDecl[]]>(
     ...readModels: Shown
@@ -466,11 +476,11 @@ export interface SliceStart {
    * Automation: what starts it, the command it issues, and an event that records. An event starts it
    * as it happens; a read model, polled on the automation's own schedule, starts it once per row.
    */
-  trigger<T extends Fields, C extends Fields, E extends Fields>(
+  trigger<T extends Fields, I extends AnyCommand, A extends AnyEvent>(
     trigger: EventDecl<T> | ReadModelDecl<T>,
-    command: Issue<T, C, "trigger">,
-    event: Outcome<C, E>,
-  ): Automation<C, E>
+    command: Issue<T, I>,
+    event: Outcome<I["__fields"], A>,
+  ): Automation<I["__fields"], A["__fields"]>
   /** State view: the read model, and an event that builds it. */
   projection<R extends Fields, E extends Fields>(
     readModel: ReadModelDecl<R>,
@@ -494,7 +504,7 @@ export interface StateChange<C extends Fields, Em extends Fields> extends Slice 
   /** What the handler reads to decide; once per read model. */
   readModel(readModel: ReadModelDecl): StateChange<C, Em>
   /** Another event the command can record instead. */
-  event<E extends Fields>(event: Outcome<C, E>): StateChange<C, Em | E>
+  event<A extends AnyEvent>(event: Outcome<C, A>): StateChange<C, Em | A["__fields"]>
   actor(...actors: Actors): StateChange<C, Em>
   /** Where the actors see it; without one, the command's form is drawn as their screen. */
   screen(screen: Screen): StateChange<C, Em>
@@ -508,7 +518,7 @@ export interface Automation<C extends Fields, Em extends Fields> extends Slice {
   /** What the handler reads to decide; once per read model. */
   readModel(readModel: ReadModelDecl): Automation<C, Em>
   /** Another event the command can record instead. */
-  event<E extends Fields>(event: Outcome<C, E>): Automation<C, Em | E>
+  event<A extends AnyEvent>(event: Outcome<C, A>): Automation<C, Em | A["__fields"]>
   /** The machine of ours that runs it; without one, the first declared, or else System. */
   actor(actor: SystemActor): Automation<C, Em>
   test(name: string, spec: Spec<C, Em>): Automation<C, Em>

@@ -112,7 +112,7 @@ function usedEarly(d: Diagnostic): string[] {
   return name === undefined ? [] : [name]
 }
 
-const MISSING = /"add to the ([\w -]+) or set in the mapping": ("\w+"(?: \| "\w+")*)/
+const MISSING = /"add (\w+) to the ([\w -]+) or set it in the mapping"/g
 const OUTSIDE = /"(a mapper only works inside a slice[^"]*)"/
 const UNSET = /Property '(\w+)' is missing in type '.*' but required in type 'Pick</
 /** A slice's first call and the parameter it was not given, as `em json` words what that leaves out. */
@@ -129,13 +129,13 @@ function describe(d: Diagnostic, text: string, file: string): Warning {
   const said = (message: string): Warning => ({ message, element: "" })
   const at = (pos: number) => `${file}:${text.slice(0, pos).split("\n").length}  `
   const lines = messages(d)
-  // The deepest line lists every field; the ones above it may elide some.
-  const missing = lines.map((l) => l.match(MISSING)).findLast((found) => found !== null)
-  if (missing?.[1] && missing[2]) {
-    const fields = [...missing[2].matchAll(/"(\w+)"/g)].flatMap((f) => (f[1] ? [f[1]] : []))
+  // One sentence per field the source lacks.
+  const missing = [...d.text.matchAll(MISSING)]
+  if (missing[0]) {
+    const fields = missing.flatMap((f) => (f[1] ? [f[1]] : []))
     const target = text.slice(d.pos, d.end)
     return {
-      message: `${at(d.pos)}${target}: add ${fields.join(", ")} to the ${missing[1]} or set it in the mapping`,
+      message: `${at(d.pos)}${target}: add ${fields.join(", ")} to the ${missing[0][2]} or set it in the mapping`,
       element: target.match(/\w+$/)?.[0] ?? "",
       fields,
     }

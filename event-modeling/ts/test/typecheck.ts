@@ -2,7 +2,7 @@
 // error stops happening, so this file is the test: a check is only real while
 // its line refuses to compile. No formatter may touch this file: a directive
 // binds to the next line, and moving a call off that line disarms the check.
-import { m } from "#em"
+import { m, type SliceStart } from "#em"
 import { z } from "zod"
 
 const User = m.actor()
@@ -147,6 +147,9 @@ m.slice().command(AddItem, ItemAdded((c) => ({ nope: c.text })))
 
 // @ts-expect-error AddItem has no title, so ItemAdded.title has no value
 m.slice().command(AddItem, ItemAdded)
+// The editor's error is the instruction: the parameter's type is the sentence.
+declare const start: SliceStart
+const said: Parameters<typeof start.command<typeof AddItem.__fields, typeof ItemAdded>>[1] = "add title to the command or set it in the mapping"
 
 // @ts-expect-error a later outcome is checked the same
 m.slice().command(AddItem, ItemAdded((c) => ({ title: c.text }))).event(ItemAdded)
