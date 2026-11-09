@@ -122,11 +122,52 @@ function parts(s: SpecSlice) {
   return { command, trigger, polled, heard, recorded, projection, shows, reads }
 }
 
-export function read(feed: Feed): Board {
-  // A file that breaks the schema is drawn as far as its slices go.
-  const written: unknown = feed.model?.slices
-  const slices = (Array.isArray(written) ? (written as SpecSlice[]) : [])
-    .filter((s) => typeof s === "object" && s !== null)
+/** The objects in what should be a list of them; anything else in a file that breaks the schema is skipped. */
+function list<T>(written: unknown): T[] {
+  return Array.isArray(written)
+    ? written.filter((x): x is T => typeof x === "object" && x !== null)
+    : []
+}
+
+const elements = (written: unknown): SpecElement[] =>
+  list<SpecElement>(written).map((el) => ({
+    ...el,
+    fields: list(el.fields),
+    dependencies: list(el.dependencies),
+  }))
+
+/** A slice with only the lists, and the objects in them, the reading below expects. */
+function usable(s: SpecSlice): SpecSlice {
+  return {
+    ...s,
+    commands: elements(s.commands),
+    events: elements(s.events),
+    readmodels: elements(s.readmodels),
+    screens: elements(s.screens),
+    actors: list(s.actors),
+    storylines: list(s.storylines),
+    specifications: list<SpecSlice["specifications"][number]>(s.specifications).map((spec) => ({
+      ...spec,
+      given: list(spec.given),
+      when: list(spec.when),
+      then: list(spec.then),
+    })),
+  }
+}
+
+export function read(written: Feed): Board {
+  // A file that breaks the schema is drawn as far as its lists go.
+  const feed: Feed = {
+    ...written,
+    ...(written.chapters !== undefined && { chapters: list(written.chapters) }),
+    ...(written.streams !== undefined && {
+      streams: Array.isArray(written.streams) ? written.streams.map(String) : [],
+    }),
+    ...(written.actors !== undefined && { actors: list(written.actors) }),
+    ...(written.loose !== undefined && { loose: elements(written.loose) }),
+  }
+  const slices = list<SpecSlice>(written.model?.slices)
+    .map(usable)
     .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
 
   // Lanes in the order declared, then as the slices first name them. Without any, one: Events.

@@ -71,7 +71,6 @@ export function loadModules(
 ): Assembled {
   const written = [...DRAFTS]
   DRAFTS.clear()
-  const { model, streams, chapters, externals, declared, fileOf } = nameExports(modules, files)
   const warnings: Warning[] = []
   const unfinished = new Map<SliceData, string[]>()
   const note = (slice: SliceData, message: string) =>
@@ -80,15 +79,26 @@ export function loadModules(
     warnings.push(warning)
     if (of) note(of, warning.message)
   }
+  // Two things claiming one name, chapter or method: a partial assembly keeps the first and draws on.
+  const conflict: Fail = options.partial
+    ? fail
+    : (warning) => {
+        throw new Error(warning.message)
+      }
+  const { model, streams, chapters, externals, declared, fileOf } = nameExports(
+    modules,
+    files,
+    conflict,
+  )
   const drafts = runBy(firstSystem(declared), oneSlicePerReadModel(written, fail))
   const unchaptered: SliceData[] = []
   for (const s of drafts) {
-    const name = chapterOf(s)
+    const name = chapterOf(s, conflict)
     const chapter = chapters.find((c) => c.name === name)
     if (chapter) chapter.slices.push(s)
     else unchaptered.push(s)
   }
-  check(chapters, unchaptered, declared, fileOf, fail, options.partial ? note : undefined)
+  check(chapters, unchaptered, declared, fileOf, fail, conflict, options.partial ? note : undefined)
   for (const s of unchaptered) {
     const name = s.name ?? "A slice"
     fail({ message: `${name} isn't in a chapter yet.`, element: "", slice: s.name ?? "" }, s)
@@ -210,6 +220,7 @@ function exported(value: unknown): Exported | undefined {
 function nameExports(
   modules: readonly object[],
   files: readonly string[],
+  conflict: Fail,
 ): {
   model: ModelData
   streams: Map<string, DeclData[]>
@@ -238,7 +249,10 @@ function nameExports(
         data.name = key
         if (!externals.includes(key)) externals.push(key)
       } else if (data.name !== undefined && data.name !== key) {
-        throw new Error(`${data.name} is exported twice, also as ${key}. Keep one.`)
+        conflict({
+          message: `${data.name} is exported twice, also as ${key}. Keep one.`,
+          element: data.name,
+        })
       } else if (data.kind === "chapter") {
         data.name = key
         if (!headings.includes(data)) headings.push(data)
@@ -256,10 +270,16 @@ function nameExports(
     streams.set(key, [...new Set([...(streams.get(key) ?? []), ...data.members])])
   for (const [key, members] of streams)
     for (const e of members)
-      if (e.external)
-        throw new Error(
-          `${e.name} is in the ${key} stream and the ${e.external.name} system. Keep one: .stream() for ours, .external() for theirs.`,
+      if (e.external) {
+        conflict({
+          message: `${e.name} is in the ${key} stream and the ${e.external.name} system. Keep one: .stream() for ours, .external() for theirs.`,
+          element: e.name ?? "",
+        })
+        streams.set(
+          key,
+          members.filter((d) => d !== e),
         )
+      }
   const chapters: Assembled["chapters"] = []
   for (const { name = "", note } of headings.sort((a, b) => a.order - b.order)) {
     const merged = chapters.find((c) => c.name === name)
@@ -269,16 +289,16 @@ function nameExports(
   return { model, streams, chapters, externals, declared, fileOf }
 }
 
-/** The name of the chapter a slice joined, if it joined one. */
-function chapterOf(slice: SliceData): string | undefined {
-  const names = [...new Set(slice.chapters.map((c) => c.name))]
+/** The name of the chapter a slice joined, if it joined one; of several, the first. */
+function chapterOf(slice: SliceData, conflict: Fail): string | undefined {
+  const all = [...new Set(slice.chapters.map((c) => c.name))]
+  const names = all.filter((n) => n !== undefined)
   const where = heading(slice) ?? "A slice"
-  if (names.includes(undefined))
-    throw new Error(
-      `${where}: this slice joins a chapter that isn't exported. Export it to give it a name.`,
-    )
-  if (names.length > 1)
-    throw new Error(`${where}: this slice joins ${names.join(" and ")}. Keep one .chapter().`)
+  const about = (message: string) =>
+    conflict({ message: `${where}: ${message}`, element: "", slice: where }, slice)
+  if (names.length < all.length)
+    about("this slice joins a chapter that isn't exported. Export it to give it a name.")
+  if (names.length > 1) about(`this slice joins ${names.join(" and ")}. Keep one .chapter().`)
   return names[0]
 }
 
@@ -320,6 +340,7 @@ function check(
   declared: Declaration[],
   fileOf: Map<object, string>,
   fail: Fail,
+  conflict: Fail,
   /** Only a partial assembly passes it. */
   note?: (slice: SliceData, message: string) => void,
 ): void {
@@ -335,7 +356,7 @@ function check(
     if (!note) throw new Error(`${where}: ${missing}`)
     note(slice, `${where}: ${missing}`)
   }
-  checkDeclaredOnce(located, declared, fileOf)
+  checkDeclaredOnce(located, declared, fileOf, conflict)
   const built = builtOf(located)
   for (const at of located) {
     const own: Fail = (warning) => fail(warning, at.slice)
@@ -349,7 +370,7 @@ function check(
   }
   checkFilledSomewhere(located, fail)
   checkConnected(located, built, fail)
-  checkMethods(located)
+  checkMethods(located, conflict)
 }
 
 /** What a slice's first call left out. `em json` runs the model without the compiler. */
@@ -400,6 +421,7 @@ function checkDeclaredOnce(
   located: Located[],
   declared: Declaration[],
   fileOf: Map<object, string>,
+  conflict: Fail,
 ): void {
   const byName = new Map<string, object>()
   const all = [
@@ -411,15 +433,17 @@ function checkDeclaredOnce(
   for (const d of all) {
     if (d.name === undefined) continue
     const first = byName.get(d.name)
-    if (first !== undefined && first !== d) {
+    if (first === undefined) byName.set(d.name, d)
+    else if (first !== d) {
       const [a, b] = [fileOf.get(first), fileOf.get(d)]
-      throw new Error(
-        a && b && a !== b
-          ? `${d.name} is declared in both ${a} and ${b}. Keep one and import it in the other.`
-          : `${d.name} is declared twice. Keep one and use it in both places.`,
-      )
+      conflict({
+        message:
+          a && b && a !== b
+            ? `${d.name} is declared in both ${a} and ${b}. Keep one and import it in the other.`
+            : `${d.name} is declared twice. Keep one and use it in both places.`,
+        element: d.name,
+      })
     }
-    byName.set(d.name, d)
   }
 }
 
@@ -656,6 +680,8 @@ interface Expected {
 function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
   const { command, projection } = slice
   for (const t of slice.tests) {
+    const said = (message: string, element: string) =>
+      fail({ message: `${where} › "${t.name}": ${message}`, element, slice: slice.name ?? "" })
     const compare = (
       example: ExampleData,
       clause: "when" | "then",
@@ -678,15 +704,24 @@ function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
         if (!("decl" in c) || c.decl !== projection) continue
         const matched = rowsLike(rows, projection, c.data)
         if (matched.length === 1) compare(c, "then", (f) => matched[0]?.values[f])
+        else if (matched.length === 0)
+          said(
+            `then has ${projection.name} ${rowName(projection, c.data)}, but given builds no such row.`,
+            projection.name ?? "",
+          )
       }
     } else if (slice.shows.length > 0) {
-      const said = (message: string, element: string) =>
-        fail({ message: `${where} › "${t.name}": ${message}`, element, slice: slice.name ?? "" })
       for (const shown of slice.shows) {
         const rows = project(shown, built.get(shown) ?? [], t.given)
         const then = t.then.flatMap((c) => ("decl" in c && c.decl === shown ? [c] : []))
         for (const c of then) {
           const matched = rowsLike(rows, shown, c.data)
+          const built = matched.length === 1 && matched[0] ? valuesOf(matched[0]) : {}
+          if (excluded({ ...built, ...c.data }, t.query ?? {}))
+            said(
+              `then has ${shown.name} ${rowName(shown, c.data)}, but when excludes it. Remove it from then.`,
+              shown.name ?? "",
+            )
           if (matched.length === 1) compare(c, "then", (f) => matched[0]?.values[f])
           else if (matched.length === 0)
             said(
@@ -695,7 +730,7 @@ function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
             )
         }
         for (const row of rows) {
-          const data = Object.fromEntries(Object.entries(row.values).map(([k, e]) => [k, e.value]))
+          const data = valuesOf(row)
           if (then.some((c) => rowsLike([row], shown, c.data).length > 0)) continue
           if (excluded(data, t.query ?? {})) continue
           const unless = t.query ? " and when does not exclude it" : ""
@@ -726,7 +761,7 @@ function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
             `${picks}, but given builds ${rows.length} such rows. Copy every key column into ${command.decl.name}.`,
           )
         else {
-          const data = Object.fromEntries(Object.entries(row.values).map(([k, e]) => [k, e.value]))
+          const data = valuesOf(row)
           compare(t.when, "when", (f) =>
             source(command, f, { decl: polls, data }, `the ${polls.name} row given builds has`),
           )
@@ -740,6 +775,11 @@ function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
       }
     }
   }
+}
+
+/** A built row's values, without where each came from. */
+function valuesOf(row: { values: Record<string, Expected> }): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(row.values).map(([k, e]) => [k, e.value]))
 }
 
 /** The rows with the key values `data` has. */
@@ -935,17 +975,22 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
 }
 
 /** Types cannot count duplicates, so this runs at assembly. A slice with no service has no method. */
-function checkMethods(located: Located[]): void {
+function checkMethods(located: Located[], conflict: Fail): void {
   const claimed = new Map<string, string>()
   for (const { slice, where } of located) {
     const name = slice.service?.method ?? slice.command?.decl.name
     if (!slice.service || name === undefined) continue
     const method = `${slice.service.service.name}/${name}`
     const first = claimed.get(method)
-    if (first !== undefined)
-      throw new Error(
-        `${where}: ${method} is already used by ${first}. Name this one with .service(Service, "Name").`,
+    if (first === undefined) claimed.set(method, where)
+    else
+      conflict(
+        {
+          message: `${where}: ${method} is already used by ${first}. Name this one with .service(Service, "Name").`,
+          element: slice.service.service.name ?? "",
+          slice: slice.name ?? "",
+        },
+        slice,
       )
-    claimed.set(method, where)
   }
 }

@@ -642,6 +642,42 @@ test("a view's row given does not build, or with another value, is named", () =>
   ])
 })
 
+test("a projection's row given does not build is named", () => {
+  const f = fixture()
+  // A field an example leaves out is not compared, so the second row is the one given builds.
+  const missing = () =>
+    unspecifiedProjection(f).test("A new list is a row", {
+      given: f.Created(list),
+      then: [f.Table({ ...list, id: "missing" }), f.Table({ id: "list-1" })],
+    })
+  const model = () => ({
+    ...f,
+    ...chapters({ Ch: [create(f), missing(), view(f)] }),
+    default: m.model("x"),
+  })
+  const message =
+    'Ch › Table › "A new list is a row": then has Table {"id":"missing"}, but given builds no such row.'
+  assert.deepEqual(
+    feedOf([model()], { partial: true }).warnings?.map((w) => w.message),
+    [message],
+  )
+  assert.throws(() => feedOf([model()]), { message })
+})
+
+test("a view's row its query excludes is named", () => {
+  const f = fixture()
+  const byName = unspecifiedView(f)
+    .query({ name: z.string() })
+    .test("Only Hardware shows", {
+      given: [f.Created(list), f.Created(hardware)],
+      when: { name: "Hardware" },
+      then: [f.Table(hardware), f.Table({ id: "list-1" })],
+    })
+  assert.deepEqual(viewed(f, byName), [
+    'Ch › Get › "Only Hardware shows": then has Table {"id":"list-1"}, but when excludes it. Remove it from then.',
+  ])
+})
+
 test("a row given builds that then leaves out is named, unless the query excludes it", () => {
   const f = fixture()
   const search = unspecifiedView(f)
@@ -717,9 +753,23 @@ test("two slices claiming one service method", () => {
     .service(f.Svc, "Create")
     .test("A list is renamed", { when: Rename(list), then: Renamed(list) })
   const projection = m.slice().projection(f.Table, f.Created).event(Renamed)
+  const slices = [create(f), rename, projection, view(f)]
   assert.throws(
-    () => assembled({ ...f, Rename, Renamed }, [create(f), rename, projection, view(f)]),
+    () => assembled({ ...f, Rename, Renamed }, slices),
     /Ch › Rename: Svc\/Create is already used by Ch › Create\. Name this one/,
+  )
+  const partial = feedOf(
+    [{ ...f, Rename, Renamed, ...chapters({ Ch: slices }), default: m.model("x") }],
+    {
+      partial: true,
+    },
+  )
+  assert.equal(drawn(partial).chapters[0]?.slices.length, 4)
+  assert.deepEqual(
+    partial.warnings?.filter((w) => w.slice === "Rename").map((w) => w.message),
+    [
+      'Ch › Rename: Svc/Create is already used by Ch › Create. Name this one with .service(Service, "Name").',
+    ],
   )
 })
 
@@ -1299,10 +1349,10 @@ test("an actor in no slice is still one of the model's actors", () => {
 
 test("an external event is drawn in its system's lane", () => {
   const Calendar = m.external()
-  const Authenticated = m.event({ accessToken: z.string() }).external(Calendar)
+  const Authenticated = m.event({ accountId: z.string() }).external(Calendar)
   const TaskMoved = m.event({ taskId: z.string() }).external(Calendar)
-  const Connect = m.command({ accessToken: z.string() })
-  const Connected = m.event({ accessToken: z.string() })
+  const Connect = m.command({ accountId: z.string() })
+  const Connected = m.event({ accountId: z.string() })
   const Ch = [m.slice().trigger(Authenticated, Connect, Connected)]
   const json = assembleModules(
     [
@@ -1318,7 +1368,7 @@ test("an external event is drawn in its system's lane", () => {
     ],
     { partial: true },
   )
-  assert.equal(json.chapters[0]?.slices[0]?.external_event, "Authenticated(accessToken)")
+  assert.equal(json.chapters[0]?.slices[0]?.external_event, "Authenticated(accountId)")
   assert.deepEqual(json.loose, [
     { kind: "external", element: "TaskMoved(taskId)", aggregate: "events", actor: "calendar" },
   ])
@@ -1368,6 +1418,26 @@ test("a slice joins one chapter", () => {
   assert.throws(
     () => assembleModules([{ ...f, A, B, default: m.model("x") }]),
     /^Error: Create: this slice joins A and B\. Keep one \.chapter\(\)\.$/,
+  )
+})
+
+test("a partial assembly draws a slice in two chapters in the first, and lists it", () => {
+  const f = fixture()
+  const [A, B] = [m.chapter(), m.chapter()]
+  for (const s of [create(f), project(f), view(f)]) s.chapter(A)
+  m.slice().command(f.Create, f.Created).chapter(A).chapter(B)
+  const json = assembleModules([{ ...f, A, B, default: m.model("x") }], { partial: true })
+  assert.deepEqual(
+    json.chapters.map((c) => [c.name, c.slices.length]),
+    [
+      ["A", 4],
+      ["B", 0],
+    ],
+  )
+  assert.ok(
+    json.warnings?.some(
+      (w) => w.message === "Create: this slice joins A and B. Keep one .chapter().",
+    ),
   )
 })
 
@@ -1461,6 +1531,8 @@ test("a name declared twice", () => {
     () => assembleModules([{ ...f, default: m.model("x") }, { Created }]),
     /Created is declared twice\. Keep one and use it in both places\./,
   )
+  const json = assembleModules([{ ...f, default: m.model("x") }, { Created }], { partial: true })
+  assert.ok(json.warnings?.some((w) => w.message.startsWith("Created is declared twice.")))
 })
 
 test("an external system declared in two modules is one lane", async () => {

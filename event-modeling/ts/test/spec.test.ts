@@ -32,7 +32,7 @@ const PaymentRecorded = m.event({ orderId: z.string(), paid: z.number().int() })
 const Unpaid = m.readModel({
   orderId: m.key(z.string()),
   product: z.string(),
-  lines: z.array(z.object({ sku: z.string() })),
+  lines: z.array(z.object({ sku: z.string(), gift: z.boolean().optional() })),
   payments: z.number().int(),
   status: z.string(),
 })
@@ -179,7 +179,10 @@ test("a mapping says where each field comes from: a field, generated, or = a val
   assert.deepEqual(columns.lines, {
     name: "lines",
     type: "Custom",
-    subfields: [{ name: "sku", type: "String" }],
+    subfields: [
+      { name: "sku", type: "String" },
+      { name: "gift", type: "Boolean", optional: true },
+    ],
     cardinality: "List",
     mapping: "OrderPlaced: = []\nOrderRefused: = []",
   })
@@ -330,4 +333,22 @@ test("a model from elsewhere draws from the spec alone", () => {
     ["user", "Order", "Cart", ["Ordered(id)"]],
     "a screen nobody is said to see is a User's",
   )
+})
+
+test("a file that breaks the schema below its slices is drawn as far as its lists go", () => {
+  const warnings = [{ message: "x.json/slices/0/events/0 must be object", element: "" }]
+  const board = read({
+    name: "x",
+    model: JSON.parse(
+      '{"slices":[null,{"title":"x","events":[null],"commands":"c","specifications":[null,{"title":"t","given":null}]}]}',
+    ),
+    chapters: JSON.parse("[null]"),
+    loose: JSON.parse("[null]"),
+    warnings,
+  })
+  assert.deepEqual(
+    board.chapters.flatMap((c) => c.slices.map((s) => [s.name, s.tests])),
+    [["x", [{ name: "t", given: [], when: "", then: [] }]]],
+  )
+  assert.deepEqual(board.warnings, warnings)
 })

@@ -142,6 +142,7 @@ interface JsonSchema {
   format?: string
   items?: JsonSchema
   properties?: Record<string, JsonSchema>
+  required?: string[]
 }
 
 function fieldType(schema: JsonSchema): FieldType {
@@ -158,7 +159,9 @@ function fieldType(schema: JsonSchema): FieldType {
 function specField(name: string, schema: JsonSchema, optional: boolean): SpecField {
   const list = schema.type === "array"
   const leaf = (list ? schema.items : schema) ?? {}
-  const sub = Object.entries(leaf.properties ?? {}).map(([n, s]) => specField(n, s, false))
+  const sub = Object.entries(leaf.properties ?? {}).map(([n, s]) =>
+    specField(n, s, !(leaf.required ?? []).includes(n)),
+  )
   return {
     name,
     type: fieldType(leaf),
