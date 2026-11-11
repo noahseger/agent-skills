@@ -217,12 +217,12 @@ The file is `{ "slices": [...] }`, validated by `ts/schema/eventmodeling.schema.
 
 ### Automations: two forms
 
-An automation issues a command with no actor. One of two things drives it.
+An automation issues a command with no actor. One of two things drives it. An external event is neither: `.translation(ExternalEvent, Command, Event)` turns it into an event of ours, and is a `TRANSLATION`.
 
 | Form | Spec JSON | TypeScript | Use it when |
 |---|---|---|---|
-| event-driven | the event points at the processor | `.trigger(Event, Command, Event)` | One event is enough to decide, and the work is quick and safe to repeat |
-| polled read model | the read model points at the processor | `.trigger(ReadModel, Command, Event)` | The work is slow, can fail, calls another system, or must not run twice |
+| event-driven | the event points at the processor | `.automation(Event, Command, Event)` | One event is enough to decide, and the work is quick and safe to repeat |
+| polled read model | the read model points at the processor | `.automation(ReadModel, Command, Event)` | The work is slow, can fail, calls another system, or must not run twice |
 
 The polled read model lists the work to do. A projection adds a row when the work becomes due and marks it done when the event that finishes it arrives. The processor reads the list on its own schedule and issues the command for each open row. The read model records pending and completed work. The implementation must make retries safe.
 
@@ -280,7 +280,7 @@ This phase is optional when extracting from code (Phase 1 covers discovery throu
 | Cron/scheduled job | `CronJob: daily-cleanup` | Scheduler configs, job classes |
 | Query endpoint | `GET /v1/orders/{orderId}` | Read-only controllers (view-only slices) |
 
-**External events** (`"context": "EXTERNAL"`, starting a `TRANSLATION`) — events arriving from outside the system boundary:
+**External events** (`"context": "EXTERNAL"`, starting a `TRANSLATION` with `.translation()`) — events arriving from outside the system boundary:
 
 | Source | Example | What to Look For |
 |--------|---------|-----------------|
@@ -373,7 +373,7 @@ Event models are living documents. When production reveals gaps:
 - **Business language only** — no "DAO persisted" or "saga timed out"
 - **Each slice is independently buildable and testable** — events are the only contract between slices. No slice depends on another slice's internals. This independence enables parallel work by multiple developers or AI agents.
 - **One command per slice** — if there are 2 commands, break it into 2 slices
-- **Every event connects forward** — each event feeds a read model (projection), triggers an automation, or appears in a specification's `given`. Assembly reports any event nothing uses; there is no exception.
+- **Every event connects forward** — each event feeds a read model (projection), triggers an automation, or appears in a specification's `given`. An external event connects forward only through a translation; a `given` is not enough. Assembly reports any event nothing uses; there is no exception.
 - **State connects forward too** — a read model that tracks a condition the domain acts on (a threshold, status, or deadline) must have a slice that consumes it. A tally that reaches a process-ending count with nothing acting on it is a gap, exactly like a dead-end event.
 - **Finish the model — don't put domain truths to a vote** — when the domain determines something and it traces to a source, capture it. Modeling is the cheap phase to close gaps; a rule you noticed but shelved as "optional" resurfaces during implementation, the most expensive place to find it. Reserve questions for genuine forks, not for work you can already do.
 - **Read models grow progressively** — a single read model can accumulate fields as more events project into it. Don't invent separate read models per phase when one growing projection captures the domain.

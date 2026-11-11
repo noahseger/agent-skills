@@ -61,7 +61,7 @@ m.slice().view(ListCreated, ListCreated)
 m.slice().view(TodoList, TodoList)
 
 // @ts-expect-error a command starts no automation: an event or a read model does
-m.slice().trigger(CreateList, NameList, ListCreated)
+m.slice().automation(CreateList, NameList, ListCreated)
 
 // --- the chain: a slice starts with its whole pattern -------------------------
 
@@ -83,10 +83,10 @@ m.slice().service(TodoService)
 m.slice().command(CreateList)
 
 // @ts-expect-error an automation issues a command
-m.slice().trigger(ListCreated)
+m.slice().automation(ListCreated)
 
 // @ts-expect-error an automation's command records an event
-m.slice().trigger(ListCreated, NameList)
+m.slice().automation(ListCreated, NameList)
 
 // @ts-expect-error a view is built by an event
 m.slice().view(TodoList)
@@ -100,16 +100,16 @@ m.slice().chapter(Ch)
 // Each start offers only its own next steps.
 
 // @ts-expect-error a machine of ours runs an automation, not a person
-m.slice().trigger(ListCreated, NameList, ListCreated).actor(User)
+m.slice().automation(ListCreated, NameList, ListCreated).actor(User)
 
 // @ts-expect-error an automation polls a read model without a service
-m.slice().trigger(TodoList, NameList, ListCreated).service(TodoService)
+m.slice().automation(TodoList, NameList, ListCreated).service(TodoService)
 
 // @ts-expect-error a view issues no command
 m.slice().view(TodoList, ListCreated).command(CreateList, ListCreated)
 
 // @ts-expect-error an automation has no screen: no one sees it
-m.slice().trigger(ListCreated, NameList, ListCreated).screen(Lock)
+m.slice().automation(ListCreated, NameList, ListCreated).screen(Lock)
 
 // @ts-expect-error a state change has no query
 m.slice().command(CreateList, ListCreated).query({ listId: z.string() })
@@ -124,9 +124,9 @@ m.slice().command(CreateList, ListCreated).actor(User).screen(Lock).service(Todo
 m.slice().view(TodoList, ListCreated).chapter(Ch)
 m.slice().view(TodoList, ListCreated).chapter(Ch).event(ItemAdded).query({ listId: z.string() }).actor(User)
 m.slice().view(TodoList, ListCreated).actor(User).screen(Lock).service(TodoService, "GetList")
-m.slice().trigger(ListCreated, NameList, ListCreated).chapter(Ch).readModel(TodoList)
-m.slice().trigger(TodoList, NameList, ListCreated).readModel(TodoList).chapter(Ch)
-m.slice().trigger(ListCreated, NameList, ListCreated).actor(Syncer)
+m.slice().automation(ListCreated, NameList, ListCreated).chapter(Ch).readModel(TodoList)
+m.slice().automation(TodoList, NameList, ListCreated).readModel(TodoList).chapter(Ch)
+m.slice().automation(ListCreated, NameList, ListCreated).actor(Syncer)
 m.model("x", { description: "A model lists no chapters." })
 
 // @ts-expect-error a view names its method: it has no command to take one from
@@ -183,30 +183,30 @@ m.slice().command(AddItem, ItemAdded, (c: { text: string }) => ({ title: c.text 
 // An automation's command: every field its trigger event, or polled row, lacks is set by the mapping.
 
 // @ts-expect-error ListCreated has no text, so AddItem.text has no value
-m.slice().trigger(ListCreated, AddItem, ItemAdded((c) => ({ title: c.text })))
+m.slice().automation(ListCreated, AddItem, ItemAdded((c) => ({ title: c.text })))
 
 // @ts-expect-error the mapping must set text, which ListCreated lacks
-m.slice().trigger(ListCreated, AddItem((e) => ({ listId: e.listId })), ItemAdded((c) => ({ title: c.text })))
+m.slice().automation(ListCreated, AddItem((e) => ({ listId: e.listId })), ItemAdded((c) => ({ title: c.text })))
 
 // @ts-expect-error the argument is the trigger's fields, and ListCreated has no title
-m.slice().trigger(ListCreated, AddItem((e) => ({ text: e.title })), ItemAdded((c) => ({ title: c.text })))
+m.slice().automation(ListCreated, AddItem((e) => ({ text: e.title })), ItemAdded((c) => ({ title: c.text })))
 
 // @ts-expect-error the polled row has no text, so AddItem.text has no value
-m.slice().trigger(TodoList, AddItem, ItemAdded((c) => ({ title: c.text })))
+m.slice().automation(TodoList, AddItem, ItemAdded((c) => ({ title: c.text })))
 
 // @ts-expect-error the argument is the polled row, and TodoList has no title
-m.slice().trigger(TodoList, AddItem((row) => ({ text: row.title })), ItemAdded((c) => ({ title: c.text })))
+m.slice().automation(TodoList, AddItem((row) => ({ text: row.title })), ItemAdded((c) => ({ title: c.text })))
 
 // @ts-expect-error an automation's command gets no helpers
-m.slice().trigger(ListCreated, AddItem((e, { generate }) => ({ text: generate() })), ItemAdded((c) => ({ title: c.text })))
+m.slice().automation(ListCreated, AddItem((e, { generate }) => ({ text: generate() })), ItemAdded((c) => ({ title: c.text })))
 
 // @ts-expect-error the automation's event is filled from its command, and AddItem has no title
-m.slice().trigger(ListCreated, AddItem((e) => ({ text: e.name })), ItemAdded)
+m.slice().automation(ListCreated, AddItem((e) => ({ text: e.name })), ItemAdded)
 
-m.slice().trigger(ListCreated, AddItem((e) => ({ text: e.name })), ItemAdded((c) => ({ title: c.text })))
+m.slice().automation(ListCreated, AddItem((e) => ({ text: e.name })), ItemAdded((c) => ({ title: c.text })))
 // An automation's optional command field may go unfilled too.
-m.slice().trigger(ListCreated, m.command({ listId: z.string(), text: z.string().optional() }), ItemShared)
-m.slice().trigger(TodoList, AddItem((row) => ({ text: row.name })), ListCreated((c) => ({ name: c.text })))
+m.slice().automation(ListCreated, m.command({ listId: z.string(), text: z.string().optional() }), ItemShared)
+m.slice().automation(TodoList, AddItem((row) => ({ text: row.name })), ListCreated((c) => ({ name: c.text })))
 
 // --- a call ends in the external event that brings the data back -------------
 
@@ -221,7 +221,16 @@ m.external({ CartUpdated: m.event({ listId: z.string() }) })
 // An external event's fields come from outside, so the command need not carry them.
 const CartUpdated = m.event({ listId: z.string(), unavailable: z.array(z.string()) }).external(Shop)
 m.slice().command(AddItem, CartUpdated).actor(User)
-m.slice().trigger(CartUpdated, NameList((e) => ({ name: "" })), ListCreated)
+m.slice().translation(CartUpdated, NameList((e) => ({ name: "" })), ListCreated)
+
+// @ts-expect-error an external event starts a translation, not an automation
+m.slice().automation(CartUpdated, NameList((e) => ({ name: "" })), ListCreated)
+
+// @ts-expect-error a translation starts with an external event
+m.slice().translation(ListCreated, NameList, ListCreated)
+
+// @ts-expect-error nor does a read model start one
+m.slice().translation(TodoList, NameList, ListCreated)
 
 // @ts-expect-error ItemAdded is ours, so AddItem must still carry its title
 m.slice().command(AddItem, CartUpdated).event(ItemAdded)
@@ -244,7 +253,7 @@ m.slice().command(CreateList, "ListNamed", { name: z.string() })
 m.slice().command(CreateList, ListCreated).event("ListNamed", { name: z.string() })
 
 // @ts-expect-error an automation's command is not declared in place
-m.slice().trigger(ListCreated, "Archive", { listId: z.string() })
+m.slice().automation(ListCreated, "Archive", { listId: z.string() })
 
 // --- a view: its function reads the event and sets columns --------------------
 
@@ -324,7 +333,7 @@ CreateList.with({ listId: "l-1" })
 // The legal forms of the same calls, so a check that fires too widely also fails.
 create.test("x", { given: ListCreated({ listId: "l-1" }), when: CreateList({ listId: "l-2" }), then: [ListCreated({ listId: "l-2" })] })
 create.test("x", { given: [ListCreated({ listId: "l-1" })], when: CreateList({ listId: "l-1" }), reject: "nope" })
-m.slice().trigger(ListCreated, NameList, ListCreated).test("x", { given: ListCreated({ listId: "l-1" }), when: NameList({ listId: "l-1" }), then: ListCreated({ listId: "l-1" }) })
+m.slice().automation(ListCreated, NameList, ListCreated).test("x", { given: ListCreated({ listId: "l-1" }), when: NameList({ listId: "l-1" }), then: ListCreated({ listId: "l-1" }) })
 m.slice().view(TodoList, ListCreated(() => ({ itemCount: 0 }))).event(ItemAdded((e, { generate }) => ({ itemCount: generate(e), name: e.title })))
 inbox.test("x", { given: [ListCreated({ listId: "l-1", name: "a" }), ItemAdded({ listId: "l-1" })], when: { name: "a" }, then: [TodoList({ listId: "l-1" })] })
 m.slice().view(TodoList, ListCreated).test("x", { given: ListCreated({ listId: "l-1" }), then: TodoList({ listId: "l-1" }) })

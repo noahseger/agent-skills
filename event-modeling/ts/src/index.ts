@@ -145,8 +145,9 @@ export type ReadModelDecl<F extends Fields = Fields> = Decl<"readModel", F>
 
 /** An event of a system we do not own, as `.external()` returns it. */
 export interface ExternalEventDecl<F extends Fields = Fields> extends EventDecl<F> {
-  /** A view refuses an event with this key, so the editor's error names the fix. */
+  /** A view and an automation refuse an event with these keys, so the editor's error names the fix. */
   readonly "isn't stored: translate it into an event of ours, then project that": true
+  readonly "comes from outside: start its slice with .translation()": true
 }
 
 function decl<K extends DeclKind, F extends Fields>(kind: K, fields: F): Decl<K, F> {
@@ -452,6 +453,22 @@ type ViewedEvent<R extends Fields, E extends Fields> =
     })
   | Mapped<"event", E, Onto<R>>
 
+/** What starts an automation: an event of ours, or a read model it polls. */
+type Started<T extends Fields> =
+  | (EventDecl<T> & {
+      readonly "comes from outside: start its slice with .translation()"?: never
+    })
+  | ReadModelDecl<T>
+
+/** A translation's start: an external event, or, for anything else, the instruction to fix it. */
+type Translated<E> = E extends {
+  readonly "comes from outside: start its slice with .translation()": true
+}
+  ? E
+  : E extends { readonly __kind: "readModel" }
+    ? "is a read model: poll it with .automation()"
+    : "is ours: start its slice with .automation()"
+
 /** A slice starts with its whole pattern, so an incomplete one does not compile where it is written. */
 export interface SliceStart {
   /** State change: the command an actor issues, and an event it records. */
@@ -468,9 +485,15 @@ export interface SliceStart {
    * Automation: what starts it, the command it issues, and an event that records. An event starts it
    * as it happens; a read model, polled on the automation's own schedule, starts it once per row.
    */
-  trigger<T extends Fields, I extends AnyCommand, A extends AnyEvent>(
-    trigger: EventDecl<T> | ReadModelDecl<T>,
+  automation<T extends Fields, I extends AnyCommand, A extends AnyEvent>(
+    trigger: Started<T>,
     command: Issue<T, I>,
+    event: Outcome<I["__fields"], A>,
+  ): Automation<I["__fields"], A["__fields"]>
+  /** Translation: an external event, the command it becomes, and an event of ours that records it. */
+  translation<E extends { readonly __fields: Fields }, I extends AnyCommand, A extends AnyEvent>(
+    external: Translated<E>,
+    command: Issue<E["__fields"], I>,
     event: Outcome<I["__fields"], A>,
   ): Automation<I["__fields"], A["__fields"]>
 }
@@ -608,7 +631,7 @@ function slice(name?: string): SliceStart {
         ...(readModel && { view: readModel[META] }),
         events: event ? [flow(event)] : [],
       }),
-    trigger: (trigger?: EventDecl | ReadModelDecl, command?: Used, event?: Used) =>
+    automation: (trigger?: EventDecl | ReadModelDecl, command?: Used, event?: Used) =>
       handled(
         trigger
           ? { [trigger[META].kind === "readModel" ? "polls" : "trigger"]: trigger[META] }
@@ -617,6 +640,8 @@ function slice(name?: string): SliceStart {
         event,
         trigger?.[META],
       ),
+    translation: (external?: EventDecl, command?: Used, event?: Used) =>
+      handled(external ? { trigger: external[META] } : {}, command, event, external?.[META]),
   }
   return start as unknown as SliceStart
 }

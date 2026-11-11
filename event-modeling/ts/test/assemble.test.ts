@@ -337,7 +337,7 @@ test("an event nothing consumes", () => {
   const f = fixture()
   assert.throws(
     () => assembled(f, [create(f)]),
-    /Ch › Create: nothing uses Created yet\. Add \.trigger\(Created\) or a view's \.event\(Created\) where something reacts to it\./,
+    /Ch › Create: nothing uses Created yet\. Add \.automation\(Created\) or a view's \.event\(Created\) where something reacts to it\./,
   )
 })
 
@@ -356,7 +356,7 @@ test("an event no slice emits is one line, at the slices that react to it", () =
   const Processed = m.event({ id: z.string() })
   const processor = m
     .slice("Processor")
-    .trigger(f.Created, Process, Processed)
+    .automation(f.Created, Process, Processed)
     .test("one", { given: created, when: Process({ id: "1" }), then: Processed({ id: "1" }) })
     .test("two", { given: created, when: Process({ id: "1" }), then: Processed({ id: "1" }) })
   const Rename = m.command({ id: z.string() })
@@ -401,7 +401,7 @@ test("a read model nothing reads", () => {
     .test("A new list is a row", { given: f.Created(list), then: f.Table(list) })
   assert.throws(
     () => assembled(f, [create(f), unseen]),
-    /Ch › Table: nothing reads Table yet\. Add \.actor\(\) for who sees it, or \.readModel\(Table\) or \.trigger\(Table\) where it's needed\./,
+    /Ch › Table: nothing reads Table yet\. Add \.actor\(\) for who sees it, or \.readModel\(Table\) or \.automation\(Table\) where it's needed\./,
   )
 })
 
@@ -447,7 +447,7 @@ test("a call ends in the external event, whose fields come from outside", () => 
   const { f, Remote, Answered, Ask, specified } = specifiedCall()
   const keep = m
     .slice()
-    .trigger(Answered, f.Create, f.Created)
+    .translation(Answered, f.Create, f.Created)
     .test("The answer is kept", {
       given: Answered({ ...list, detail: "Two aisles over" }),
       when: f.Create(list),
@@ -494,7 +494,7 @@ test("a view refuses an external event, which isn't stored", () => {
   assert.throws(() => feedOf(modules()), { message })
 })
 
-test("an external event a call ends in that nothing triggers on", () => {
+test("an external event a call ends in that nothing translates", () => {
   const { f, Remote, Answered, Ask, specified } = specifiedCall()
   const json = assembleModules(
     [
@@ -513,11 +513,39 @@ test("an external event a call ends in that nothing triggers on", () => {
   assert.deepEqual(json.warnings, [
     {
       message:
-        "Ch › Ask: nothing uses Answered yet. Add .trigger(Answered) where we translate it into an event of ours.",
+        "Ch › Ask: nothing translates Answered yet. Add .translation(Answered) to make it an event of ours.",
       element: "Answered",
       slice: "Ask",
     },
   ])
+})
+
+test("an external event only a given has is still left to translate", () => {
+  const { f, Remote, Answered, Ask, specified } = specifiedCall()
+  const after = create(f).test("A list is created after an answer", {
+    given: Answered({ ...list, detail: "Two aisles over" }),
+    when: f.Create(list),
+    then: f.Created(list),
+  })
+  const json = assembleModules(
+    [
+      {
+        ...f,
+        Remote,
+        Answered,
+        Ask,
+        ...chapters({ Ch: [specified, after, view(f)] }),
+        default: m.model("x"),
+      },
+    ],
+    { partial: true },
+  )
+  assert.deepEqual(
+    json.warnings?.map((w) => w.message),
+    [
+      "Ch › Ask: nothing translates Answered yet. Add .translation(Answered) to make it an event of ours.",
+    ],
+  )
 })
 
 // A command's events are alternatives; a specification says when each happens.
@@ -771,7 +799,7 @@ test("an automation's command field its trigger does not carry", () => {
   const Process = m.command({ id: z.string(), label: z.string() })
   const Processed = m.event({ id: z.string() })
   // @ts-expect-error the compiler refuses it too; assembly holds for a model run unchecked
-  const processor = m.slice("Processor").trigger(f.Created, Process, Processed)
+  const processor = m.slice("Processor").automation(f.Created, Process, Processed)
   assert.throws(
     () => assembled({ ...f, Process, Processed }, [create(f), processor]),
     /Ch › Processor: Process\.label has no value\. Add label to Created, or set it in the mapping\./,
@@ -794,7 +822,7 @@ test("an automation's trigger no specification's given has is left to do, and an
   const model = () => {
     const triggered = m
       .slice("Processor")
-      .trigger(f.Created, Process, Processed)
+      .automation(f.Created, Process, Processed)
       .test("A list is processed", {
         when: Process({ id: "list-1" }),
         then: Processed({ id: "list-1" }),
@@ -815,7 +843,7 @@ test("an automation's mapping fills its command from the trigger", () => {
   const Processed = m.event({ id: z.string() })
   const processor = m
     .slice("Processor")
-    .trigger(
+    .automation(
       f.Created,
       Process((e) => ({ label: e.name })),
       Processed,
@@ -845,9 +873,9 @@ test("the first system actor declared runs what names none, and .actor() names a
   const Answered = m.event({ id: z.string() }).external(Remote)
   const Ch = [
     create(f),
-    m.slice("Processor").trigger(f.Created, Process, Processed),
-    m.slice("Notifier").trigger(f.Created, Mail, Mailed).actor(Mailer),
-    m.slice("Translator").trigger(Answered, Mail, Mailed).actor(Mailer),
+    m.slice("Processor").automation(f.Created, Process, Processed),
+    m.slice("Notifier").automation(f.Created, Mail, Mailed).actor(Mailer),
+    m.slice("Translator").translation(Answered, Mail, Mailed).actor(Mailer),
     m.slice().view(f.Table, f.Created),
   ]
   const feed = feedOf(
@@ -949,13 +977,13 @@ test("a slice with several actors draws a screen in each one's lane", () => {
 
 // --- What the viewer draws: polls, lanes, screens ------------------------------
 
-test("a .trigger() automation polls the read model", () => {
+test("a .automation() automation polls the read model", () => {
   const f = fixture()
   const Process = m.command({ id: z.string() })
   const Processed = m.event({ id: z.string() })
   const processor = m
     .slice("Processor")
-    .trigger(f.Table, Process, Processed)
+    .automation(f.Table, Process, Processed)
     .test("A listed row is processed", {
       given: f.Created(list),
       when: Process({ id: "list-1" }),
@@ -979,7 +1007,7 @@ test("a polled command's when matches the row given builds", () => {
   const processor = (label: string) =>
     m
       .slice("Processor")
-      .trigger(
+      .automation(
         f.Table,
         Process((row) => ({ label: row.name })),
         Processed,
@@ -1011,7 +1039,7 @@ test("a polled command's when whose row given builds none of, or several of, is 
   const theirs = { ...list, owner: "u-2" }
   const processor = m
     .slice("Processor")
-    .trigger(Table, Process, Processed)
+    .automation(Table, Process, Processed)
     .test("none", {
       given: Created(mine),
       when: Process({ id: "list-2" }),
@@ -1284,7 +1312,7 @@ test("a partial assembly lists the dead ends and keeps the loose declarations in
   assert.deepEqual(json.warnings, [
     {
       message:
-        "Ch › Create: nothing uses Created yet. Add .trigger(Created) or a view's .event(Created) where something reacts to it.",
+        "Ch › Create: nothing uses Created yet. Add .automation(Created) or a view's .event(Created) where something reacts to it.",
       element: "Created",
       slice: "Create",
     },
@@ -1323,7 +1351,7 @@ test("an external event is drawn in its system's lane", () => {
   const TaskMoved = m.event({ taskId: z.string() }).external(Calendar)
   const Connect = m.command({ accountId: z.string() })
   const Connected = m.event({ accountId: z.string() })
-  const Ch = [m.slice().trigger(Authenticated, Connect, Connected)]
+  const Ch = [m.slice().translation(Authenticated, Connect, Connected)]
   const json = assembleModules(
     [
       {
@@ -1539,7 +1567,7 @@ test("a trigger nothing emits yet is drawn on its own", () => {
   const f = fixture()
   const Process = m.command({ id: z.string() })
   const Processed = m.event({ id: z.string() })
-  const Ch = [m.slice("Processor").trigger(f.Created, Process, Processed)]
+  const Ch = [m.slice("Processor").automation(f.Created, Process, Processed)]
   const json = assembleModules(
     [{ ...f, Process, Processed, ...chapters({ Ch }), default: m.model("x") }],
     { partial: true },
@@ -1669,7 +1697,7 @@ test("an automation's when has what its trigger in given carries and its mapping
   const Processed = m.event({ id: z.string() })
   const processor = m
     .slice("Processor")
-    .trigger(
+    .automation(
       f.Created,
       Process((e) => ({ label: e.name, by: "processor" })),
       Processed,

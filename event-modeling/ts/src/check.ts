@@ -119,8 +119,10 @@ const UNSET = /Property '(\w+)' is missing in type '.*' but required in type 'Pi
 const UNSUPPLIED: Record<string, string> = {
   "command event": NO_EVENT,
   "view event": NO_EVENT,
-  "trigger event": NO_EVENT,
-  "trigger command": NO_COMMAND,
+  "automation event": NO_EVENT,
+  "automation command": NO_COMMAND,
+  "translation event": NO_EVENT,
+  "translation command": NO_COMMAND,
 }
 const LAST_OVERLOAD = "The last overload gave the following error."
 

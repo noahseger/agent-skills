@@ -229,7 +229,7 @@ m.slice()
 export const Automations = m.chapter()
 
 m.slice("ListCompleter")
-  .trigger(ItemCompleted, CompleteList, ListCompleted)
+  .automation(ItemCompleted, CompleteList, ListCompleted)
   .chapter(Automations)
   .readModel(ListItems)
   .test("List completes when every item is done", {
@@ -253,7 +253,7 @@ export const TaskScheduled = m
 export const Integrations = m.chapter()
 
 m.slice()
-  .trigger(
+  .translation(
     TaskScheduled,
     AddItem,
     ItemAdded((c) => ({ title: c.text })),

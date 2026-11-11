@@ -179,7 +179,7 @@ m.slice()
   })
 
 m.slice("OutcomeAdjudicator")
-  .trigger(
+  .automation(
     GameEnded,
     AdjudicateOutcome((e) => ({ termination: e.ending })),
     BoardOutcomeAdjudicated((c, { generate }) => ({ result: generate(c.termination, GameState) })),
@@ -241,7 +241,7 @@ m.slice("OutcomeAdjudicator")
   })
 
 m.slice("IllegalMoveForfeiter")
-  .trigger(
+  .automation(
     SecondIllegalMoveRuled,
     ForfeitGame,
     IllegalMoveForfeited((c, { generate }) => ({

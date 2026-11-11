@@ -76,16 +76,16 @@ const slices = [
     .query({ orderId: z.string() })
     .actor(Clerk)
     .service(Shop, "ListUnpaid"),
-  m.slice("Charger").trigger(Unpaid, ChargeCard, CardCharged).chapter(Sales),
+  m.slice("Charger").automation(Unpaid, ChargeCard, CardCharged).chapter(Sales),
   m
     .slice()
-    .trigger(
+    .translation(
       CardCharged,
       RecordPayment((e) => ({ paid: e.amount })),
       PaymentRecorded,
     )
     .readModel(Unpaid),
-  m.slice("Refunder").trigger(PaymentRecorded, Refund, OrderRefused).chapter(Sales),
+  m.slice("Refunder").automation(PaymentRecorded, Refund, OrderRefused).chapter(Sales),
 ]
 const exports = {
   ...{ Clerk, Boss, Shop, Till, Orders, Payments, Bank, Sales, Loose },

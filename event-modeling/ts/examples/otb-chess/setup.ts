@@ -117,7 +117,7 @@ export const gameStarted = GameStarted({
 export const GameSetup = m.chapter()
 
 m.slice("ReceivePairing")
-  .trigger(
+  .translation(
     PairingPublished,
     StartGame,
     GameStarted(() => ({ fen: START_FEN, sideToMove: "white", ply: 0 })),
@@ -154,7 +154,7 @@ m.slice()
   })
 
 m.slice("ClockStarter")
-  .trigger(
+  .automation(
     GameStarted,
     StartClock,
     ClockStarted((c, { generate }) => ({

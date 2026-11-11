@@ -58,14 +58,15 @@ editor knows its fields. The editor offers only the calls that can come next.
 |---|---|---|---|
 | state change | the command | `.command(Command, Event)` | An actor issues a command and events are recorded. |
 | state view | the read model | `.view(ReadModel, Event)` | Our events build a read model, and an actor reads it. |
-| automation | the trigger: an event, or a read model it polls | `.trigger(Event, Command, Event)` or `.trigger(ReadModel, Command, Event)` | An event, or a row of work, causes a command. No actor is involved. |
+| automation | the trigger: an event of ours, or a read model it polls | `.automation(Event, Command, Event)` or `.automation(ReadModel, Command, Event)` | An event, or a row of work, causes a command. No actor is involved. |
+| translation | the external event | `.translation(ExternalEvent, Command, Event)` | An event from outside becomes an event of ours. No actor is involved. |
 
 The first call is the whole pattern, and leaving out any of its arguments is an error where the slice
 is written. Every later step is optional: `.event()` adds another event, `.readModel()` names what
 the handler reads, once per read model, `.query()` gives a view its request fields, `.test()`
 adds a specification, and `.chapter()` puts the slice in a chapter. A state change or a view also
-takes `.actor()`, `.screen()` and `.service()`, and needs none of them. An automation takes
-`.actor()` for the system actor that runs it.
+takes `.actor()`, `.screen()` and `.service()`, and needs none of them. An automation or a
+translation takes `.actor()` for the system actor that runs it.
 
 ## Quickstart
 
@@ -406,14 +407,14 @@ An automation issues a command with no actor. It has two forms.
 ```ts
 // When the last item is done, the list completes.
 m.slice("ListCompleter")
-  .trigger(ItemCompleted, CompleteList, ListCompleted)
+  .automation(ItemCompleted, CompleteList, ListCompleted)
   .readModel(OpenItems)
 ```
 
-`.trigger()` with an event starts the slice when the event occurs, and fields flow from the event
+`.automation()` with an event starts the slice when the event occurs, and fields flow from the event
 into the command. A command field the event does not carry is set by calling the command with a
 function whose argument is the event:
-`.trigger(NoteCreated, ClassifyNote((e) => ({ noteId: e.id })), NoteClassified)`. `.readModel()`
+`.automation(NoteCreated, ClassifyNote((e) => ({ noteId: e.id })), NoteClassified)`. `.readModel()`
 names what the handler looks at, once per read model. An automation's column is headed by a gear as
 well as its command, so it is the one slice that usually takes a name. Name it for what it does.
 
@@ -421,7 +422,7 @@ The second form polls a read model of the work to do. From a hotel model:
 
 ```ts
 m.slice("PaymentProcessor")
-  .trigger(PaymentsToProcess, ProcessPayment, PaymentSucceeded)
+  .automation(PaymentsToProcess, ProcessPayment, PaymentSucceeded)
 ```
 
 A read model as the trigger runs on the processor's own schedule, and the command's fields come
@@ -440,7 +441,7 @@ export const TaskScheduled = m
   .external(Calendar)
 
 m.slice()
-  .trigger(TaskScheduled, AddItem, ItemAdded((c) => ({ title: c.text })))
+  .translation(TaskScheduled, AddItem, ItemAdded((c) => ({ title: c.text })))
   .chapter(Integrations)
 ```
 
@@ -450,7 +451,10 @@ events and never store them, so an event is in a stream or a system, not both. A
 has joined yet is drawn empty, and two modules may export one under the same name.
 
 An external event builds no read model: it isn't stored, so the read model would be empty after a
-replay. Translate it into an event of ours with `.trigger()`, as above, and project that.
+replay. Translate it into an event of ours with `.translation()`, as above, and project that.
+`.translation()` takes only an external event, and `.automation()` refuses one; fields flow and
+map as in an automation an event starts. An external event no `.translation()` reads is left to
+do, even if a specification's `given` has it.
 
 The model says that data arrives, not how. A call to such a system is our command followed by the
 event that brings its data back, and that event's fields come from outside, so the command need
@@ -460,8 +464,8 @@ not carry them:
 export const Shop = m.external()
 export const CartUpdated = m.event({ added: z.array(Item), unavailable: z.array(Item) }).external(Shop)
 
-m.slice().trigger(GroceriesToOrder, AddGroceriesToCart, CartUpdated)   // the call
-m.slice().trigger(CartUpdated, RecordOrder, OrderUpdated)              // we keep what came back
+m.slice().automation(GroceriesToOrder, AddGroceriesToCart, CartUpdated)   // the call
+m.slice().translation(CartUpdated, RecordOrder, OrderUpdated)             // we keep what came back
 ```
 
 ### Streams
@@ -507,6 +511,7 @@ The compiler catches:
 | a function | Its argument is the slice's source: the command for a handler's event, the trigger event or the polled row for an automation's command, the event in a view. Its result must be fields of the target, with matching types. Its second argument holds `generate`, except for an automation's command. |
 | a command's event | Every event field the command lacks must be set by the function, or marked `generate()`, unless it is optional. The error names the fields. |
 | a view's event | An external event is refused, because it isn't stored. The error says to translate it first. |
+| what starts an automation or a translation | `.automation()` refuses an external event, and the error says to use `.translation()`; `.translation()` takes nothing else. |
 | a function outside a slice | A mapper only works inside a slice: `.event(...)`, `.command(...)` or `.view(...)`. The error says so. |
 | an automation's command | Every command field the trigger event, or the polled row, lacks must be set by the function, unless it is optional. The error names the fields. |
 | `.service()` on a view | It names the method. |
@@ -521,7 +526,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | A column no event of the read model's `.view()` calls writes | The calls can be in several modules. |
 | An optional field no slice fills | Same. |
 | A view's event that lacks one of the read model's key columns | Declarations are anonymous, so two events with the same fields are one type. |
-| An event nothing consumes: no `.trigger()`, no view, no `given` | Same. |
+| An event nothing consumes: no `.automation()`, no view, no `given`; for an external event, no `.translation()` | Same. |
 | An event no slice records; a read model nothing reads or builds | Same. |
 | A field with no value, in a model the compiler did not check | `em json` runs the model without `tsc`. |
 | Two slices claiming one service method; a slice without a service claims none | A union of literal types dedupes rather than counts. |
@@ -546,7 +551,7 @@ Naming is yours: the conventions above are not checked.
 
 | Ours | The spec's |
 |---|---|
-| a slice | a `Slice`, in story order, with `index`. A state change is `STATE_CHANGE`; a `.trigger()` is `AUTOMATION`, or `TRANSLATION` when its trigger is an external event; a view is `STATE_VIEW`, the spec's pattern of events in, read model out, to the screen |
+| a slice | a `Slice`, in story order, with `index`. A state change is `STATE_CHANGE`; an `.automation()` is `AUTOMATION`; a `.translation()` is `TRANSLATION`; a view is `STATE_VIEW`, the spec's pattern of events in, read model out, to the screen |
 | a chapter | the slice's `context`. A slice in no chapter has none |
 | a command, event, read model | an `Element` of type `COMMAND`, `EVENT`, `READMODEL`, in each slice that uses it, with `fields` and `dependencies` along the slice's arrows |
 | an automation's gear | an `AUTOMATION` element in `processors`, named after the slice: what starts it points at it, it points at the command |
