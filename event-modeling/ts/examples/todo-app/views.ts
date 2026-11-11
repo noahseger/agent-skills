@@ -20,31 +20,37 @@ export const CompleteList = m.command({ userId: z.string(), listId: z.string() }
 export const ListCompleted = m.event({ userId: z.string(), listId: z.string() }).stream(Lists)
 
 // A user's lists, one row per list.
-export const TodoList = m.readModel({
-  userId: m.key(z.string()),
-  listId: m.key(z.string()),
-  name: z.string(),
-  itemCount: z.number().int(),
-  status: z.enum(["open", "completed", "deleted"]),
-})
+export const TodoList = m
+  .readModel({
+    userId: z.string(),
+    listId: z.string(),
+    name: z.string(),
+    itemCount: z.number().int(),
+    status: z.enum(["open", "completed", "deleted"]),
+  })
+  .key("userId", "listId")
 
 // The items of each list.
-export const ListItems = m.readModel({
-  listId: m.key(z.string()),
-  itemId: m.key(z.string()),
-  title: z.string(),
-  done: z.boolean(),
-  deleted: z.boolean(),
-})
+export const ListItems = m
+  .readModel({
+    listId: z.string(),
+    itemId: z.string(),
+    title: z.string(),
+    done: z.boolean(),
+    deleted: z.boolean(),
+  })
+  .key("listId", "itemId")
 
 // Every item in every list, searchable by title.
-export const ItemSearch = m.readModel({
-  itemId: m.key(z.string()),
-  listId: z.string(),
-  title: z.string(),
-  done: z.boolean(),
-  deleted: z.boolean(),
-})
+export const ItemSearch = m
+  .readModel({
+    itemId: z.string(),
+    listId: z.string(),
+    title: z.string(),
+    done: z.boolean(),
+    deleted: z.boolean(),
+  })
+  .key("itemId")
 
 const groceries = ListCreated({ listId: "list-1", userId: "u-1", name: "Groceries" })
 const milk = ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-1", title: "Milk" })

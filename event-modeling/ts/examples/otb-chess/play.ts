@@ -54,12 +54,14 @@ export const GameEnded = m
   .stream(Game)
 
 // The position on the board right now.
-export const GameState = m.readModel({
-  gameId: m.key(z.string()),
-  ply: z.number().int(),
-  sideToMove: z.enum(["white", "black"]),
-  fen: z.string(),
-})
+export const GameState = m
+  .readModel({
+    gameId: z.string(),
+    ply: z.number().int(),
+    sideToMove: z.enum(["white", "black"]),
+    fen: z.string(),
+  })
+  .key("gameId")
 
 // A player presses the clock. FIDE 6.2.1: the increment is added on the press.
 export const PressClock = m.command({
@@ -78,12 +80,14 @@ export const ClockPressed = m
   .stream(Clock)
 
 // Whose clock runs, and how much time each side has left.
-export const ClockState = m.readModel({
-  gameId: m.key(z.string()),
-  whiteTimeMs: z.number().int(),
-  blackTimeMs: z.number().int(),
-  runningSide: z.enum(["white", "black"]),
-})
+export const ClockState = m
+  .readModel({
+    gameId: z.string(),
+    whiteTimeMs: z.number().int(),
+    blackTimeMs: z.number().int(),
+    runningSide: z.enum(["white", "black"]),
+  })
+  .key("gameId")
 
 // The arbiter's ruling is declared here, in the chapter where the board first reads it.
 export const RuleIllegalMove = m.command({
@@ -110,15 +114,17 @@ export const IllegalMoveRuled = m
   .stream(Game)
 
 // The scoresheet: one row per ply. A struck move stays on the sheet, marked.
-export const MoveList = m.readModel({
-  gameId: m.key(z.string()),
-  ply: m.key(z.number().int()),
-  san: z.string(),
-  sideToMove: z.enum(["white", "black"]),
-  isCheck: z.boolean(),
-  isCapture: z.boolean(),
-  status: z.enum(["recorded", "struck"]),
-})
+export const MoveList = m
+  .readModel({
+    gameId: z.string(),
+    ply: z.number().int(),
+    san: z.string(),
+    sideToMove: z.enum(["white", "black"]),
+    isCheck: z.boolean(),
+    isCapture: z.boolean(),
+    status: z.enum(["recorded", "struck"]),
+  })
+  .key("gameId", "ply")
 
 const OPENING_FEN = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
 export const MATE_FEN = "r1bqkb1r/pppp1Qpp/2n2n2/8/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 4"

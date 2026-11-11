@@ -62,13 +62,15 @@ export const GameStarted = m
   .stream(Game)
 
 // Who is playing whom, on which board, in which round.
-export const GamePairing = m.readModel({
-  gameId: m.key(z.string()),
-  round: z.number().int(),
-  boardNumber: z.number().int(),
-  whitePlayerId: z.string(),
-  blackPlayerId: z.string(),
-})
+export const GamePairing = m
+  .readModel({
+    gameId: z.string(),
+    round: z.number().int(),
+    boardNumber: z.number().int(),
+    whitePlayerId: z.string(),
+    blackPlayerId: z.string(),
+  })
+  .key("gameId")
 
 // The arbiter starts White's clock. FIDE 6.7.1: the clock runs from the start signal.
 export const StartClock = m.command({

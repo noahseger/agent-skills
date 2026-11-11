@@ -52,7 +52,7 @@ function fixture() {
   const Svc = m.service("t.v1")
   const Create = m.command({ id: z.string(), name: z.string() })
   const Created = m.event({ id: z.string(), name: z.string() })
-  const Table = m.readModel({ id: m.key(z.string()), name: z.string() })
+  const Table = m.readModel({ id: z.string(), name: z.string() }).key("id")
   return { User, Svc, Create, Created, Table }
 }
 type Fixture = ReturnType<typeof fixture>
@@ -279,7 +279,7 @@ test("a mapper that builds a value is drawn, and is left to do until generate() 
 
 test("a column no .event() writes", () => {
   const f = fixture()
-  const Table = m.readModel({ id: m.key(z.string()), name: z.string(), count: z.number() })
+  const Table = m.readModel({ id: z.string(), name: z.string(), count: z.number() }).key("id")
   assert.throws(
     () => assembled({ ...f, Table }, [create(f), view({ ...f, Table })]),
     /Ch › Table: Table\.count has no value\. Add \.event\(\) for an event that carries count, or set it in a mapping\./,
@@ -307,7 +307,9 @@ test("an event that carries none of the read model's key columns", () => {
 
 test("an event that carries only some of the read model's key columns", () => {
   const f = fixture()
-  const Table = m.readModel({ id: m.key(z.string()), owner: m.key(z.string()), name: z.string() })
+  const Table = m
+    .readModel({ id: z.string(), owner: z.string(), name: z.string() })
+    .key("id", "owner")
   const Create = m.command({ id: z.string(), owner: z.string(), name: z.string() })
   const Created = m.event({ id: z.string(), owner: z.string(), name: z.string() })
   const Renamed = m.event({ id: z.string(), name: z.string() })
@@ -1019,7 +1021,9 @@ test("a polled command's when matches the row given builds", () => {
 
 test("a polled command's when whose row given builds none of, or several of, is a to-do", () => {
   const f = fixture()
-  const Table = m.readModel({ id: m.key(z.string()), owner: m.key(z.string()), name: z.string() })
+  const Table = m
+    .readModel({ id: z.string(), owner: z.string(), name: z.string() })
+    .key("id", "owner")
   const Created = m.event({ id: z.string(), owner: z.string(), name: z.string() })
   const Process = m.command({ id: z.string() })
   const Processed = m.event({ id: z.string() })
@@ -1134,7 +1138,7 @@ test("a screen no one sees, and one no slice names, are left to do", () => {
 
 test("every .view() of a read model is one slice: its events in, its screen out, drawn where the first is", () => {
   const f = fixture()
-  const Table = m.readModel({ id: m.key(z.string()), name: z.string(), status: z.string() })
+  const Table = m.readModel({ id: z.string(), name: z.string(), status: z.string() }).key("id")
   const Archive = m.command({ id: z.string() })
   const Archived = m.event({ id: z.string() })
   const archive = m
@@ -1240,7 +1244,7 @@ test("a later .view() that says where or how to draw the slice is a to-do", () =
 
 test("a column no .view() of the read model writes is reported once", () => {
   const f = fixture()
-  const Table = m.readModel({ id: m.key(z.string()), name: z.string(), status: z.string() })
+  const Table = m.readModel({ id: z.string(), name: z.string(), status: z.string() }).key("id")
   const Ch = [create(f), view({ ...f, Table }), view({ ...f, Table })]
   const json = assembleModules([{ ...f, Table, ...chapters({ Ch }), default: m.model("x") }], {
     partial: true,
@@ -1715,14 +1719,16 @@ test("an automation's when has what its trigger in given carries and its mapping
 })
 
 test("a view's rows have what given builds, matched by key", () => {
-  const ids = { userId: m.key(z.string()), listId: m.key(z.string()) }
-  const Lists = m.readModel({
-    ...ids,
-    name: z.string(),
-    title: z.string(),
-    items: z.number().int(),
-    status: z.string(),
-  })
+  const Lists = m
+    .readModel({
+      userId: z.string(),
+      listId: z.string(),
+      name: z.string(),
+      title: z.string(),
+      items: z.number().int(),
+      status: z.string(),
+    })
+    .key("userId", "listId")
   const ListCreated = m.event({ userId: z.string(), listId: z.string(), name: z.string() })
   const ItemAdded = m.event({ userId: z.string(), listId: z.string() })
   const ListClosed = m.event({ userId: z.string(), listId: z.string() })

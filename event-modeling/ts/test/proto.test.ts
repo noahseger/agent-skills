@@ -112,7 +112,7 @@ test("a type outside the table stops its service, naming the declaration and the
     source(modelOf({ Create }, stateChange(Create))),
     /^Create\.when can't become protobuf/,
   )
-  const Table = m.readModel({ id: m.key(z.string()), amount: z.bigint() })
+  const Table = m.readModel({ id: z.string(), amount: z.bigint() }).key("id")
   assert.match(
     source(modelOf({ Table }, m.slice().view(Table, Created).actor(User).service(Svc, "Get"))),
     /^Table\.amount can't become protobuf/,
@@ -120,7 +120,7 @@ test("a type outside the table stops its service, naming the declaration and the
 })
 
 test("a view with no .query() has an empty request", () => {
-  const Table = m.readModel({ id: m.key(z.string()) })
+  const Table = m.readModel({ id: z.string() }).key("id")
   const proto = source(
     modelOf({ Table }, m.slice().view(Table, Created).actor(User).service(Svc, "Get")),
   )
@@ -132,12 +132,12 @@ test("a view with no .query() has an empty request", () => {
 })
 
 test("a service with no procedures produces no file", () => {
-  const Table = m.readModel({ id: m.key(z.string()) })
+  const Table = m.readModel({ id: z.string() }).key("id")
   assert.deepEqual(generateProto(modelOf({ Table }, m.slice().view(Table, Created))), [])
 })
 
 test("a slice without a service has no procedure", () => {
-  const Table = m.readModel({ id: m.key(z.string()) })
+  const Table = m.readModel({ id: z.string() }).key("id")
   const Create = m.command({ id: z.string() })
   const slices = [
     m.slice().view(Table, Created).actor(User),
@@ -147,8 +147,8 @@ test("a slice without a service has no procedure", () => {
 })
 
 test("two views on one screen are two methods, each returning its own read model", () => {
-  const Lists = m.readModel({ id: m.key(z.string()) })
-  const Items = m.readModel({ id: m.key(z.string()), listId: z.string() })
+  const Lists = m.readModel({ id: z.string() }).key("id")
+  const Items = m.readModel({ id: z.string(), listId: z.string() }).key("id")
   const Board = m.screen()
   const view = (readModel: typeof Lists, method: string) =>
     m
@@ -170,8 +170,11 @@ test("two views on one screen are two methods, each returning its own read model
 })
 
 test("a query that names every key column returns one row, not a list", () => {
-  const fields = { userId: m.key(z.string()), id: m.key(z.string()), name: z.string() }
-  const [Table, Rows] = [m.readModel(fields), m.readModel(fields)]
+  const fields = { userId: z.string(), id: z.string(), name: z.string() }
+  const [Table, Rows] = [
+    m.readModel(fields).key("userId", "id"),
+    m.readModel(fields).key("userId", "id"),
+  ]
   const one = m
     .slice()
     .view(Table, Created)

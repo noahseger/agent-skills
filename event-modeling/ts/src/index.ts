@@ -141,7 +141,10 @@ export interface EventDecl<F extends Fields = Fields> extends Decl<"event", F> {
   external(system: External): ExternalEventDecl<F>
 }
 export type CommandDecl<F extends Fields = Fields> = Decl<"command", F>
-export type ReadModelDecl<F extends Fields = Fields> = Decl<"readModel", F>
+export interface ReadModelDecl<F extends Fields = Fields> extends Decl<"readModel", F> {
+  /** The columns that identify a row. */
+  key(...columns: (keyof F & string)[]): this
+}
 
 /** An event of a system we do not own, as `.external()` returns it. */
 export interface ExternalEventDecl<F extends Fields = Fields> extends EventDecl<F> {
@@ -151,8 +154,7 @@ export interface ExternalEventDecl<F extends Fields = Fields> extends EventDecl<
 }
 
 function decl<K extends DeclKind, F extends Fields>(kind: K, fields: F): Decl<K, F> {
-  const keys = Object.keys(fields).filter((f) => fields[f]?.meta()?.key === true)
-  const data: DeclData = { kind, fields, keys }
+  const data: DeclData = { kind, fields, keys: [] }
   const schema = z.object(fields).partial()
   // A function makes a use for a slice; anything else is an example.
   const call = (arg: object): object =>
@@ -163,7 +165,7 @@ function decl<K extends DeclKind, F extends Fields>(kind: K, fields: F): Decl<K,
     [META]: data,
     __kind: kind,
     __fields: fields,
-    // Mutating is safe: .note() is called on the declaration before anything else holds it.
+    // Mutating is safe: .note() and .key() are called on the declaration before anything else holds it.
     note(text: string) {
       data.note = text
       return declared
@@ -191,12 +193,13 @@ function command<F extends Fields>(fields: F): CommandDecl<F> {
 }
 
 function readModel<F extends Fields>(fields: F): ReadModelDecl<F> {
-  return decl("readModel", fields)
-}
-
-/** Marks a read model column as part of the row's identity. */
-function key<S extends z.ZodType>(schema: S): S {
-  return schema.meta({ key: true })
+  const declared = decl("readModel", fields)
+  return Object.assign(declared, {
+    key(...columns: string[]) {
+      declared[META].keys = columns
+      return declared
+    },
+  }) as ReadModelDecl<F>
 }
 
 export interface Actor {
@@ -665,7 +668,6 @@ export const m = {
   event,
   command,
   readModel,
-  key,
   external,
   stream,
   chapter,

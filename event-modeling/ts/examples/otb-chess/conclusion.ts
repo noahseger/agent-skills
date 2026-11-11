@@ -64,11 +64,13 @@ export const IllegalMoveForfeited = m
   .stream(Game)
 
 // How this game finished, whichever way it finished.
-export const GameResult = m.readModel({
-  gameId: m.key(z.string()),
-  result: Result,
-  termination: Termination,
-})
+export const GameResult = m
+  .readModel({
+    gameId: z.string(),
+    result: Result,
+    termination: Termination,
+  })
+  .key("gameId")
 
 // The arbiter signs the scoresheet and the result goes on the pairing sheet.
 export const RecordResult = m.command({
@@ -93,15 +95,17 @@ export const ResultRecorded = m
   .stream(Game)
 
 // The finished game as the crosstable shows it.
-export const GameRecord = m.readModel({
-  gameId: m.key(z.string()),
-  round: z.number().int(),
-  boardNumber: z.number().int(),
-  whitePlayerId: z.string(),
-  blackPlayerId: z.string(),
-  result: Result,
-  termination: Termination,
-})
+export const GameRecord = m
+  .readModel({
+    gameId: z.string(),
+    round: z.number().int(),
+    boardNumber: z.number().int(),
+    whitePlayerId: z.string(),
+    blackPlayerId: z.string(),
+    result: Result,
+    termination: Termination,
+  })
+  .key("gameId")
 
 const STALEMATE_FEN = "7k/5Q2/6K1/8/8/8/8/8 b - - 0 52"
 const BARE_KINGS_FEN = "8/8/4k3/8/8/4K3/8/8 w - - 0 45"

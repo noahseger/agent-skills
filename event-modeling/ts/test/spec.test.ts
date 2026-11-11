@@ -29,13 +29,15 @@ const CardCharged = m.event({ orderId: z.string(), amount: z.number().int() }).e
 const Refund = m.command({ orderId: z.string() })
 const RecordPayment = m.command({ orderId: z.string(), paid: z.number().int() })
 const PaymentRecorded = m.event({ orderId: z.string(), paid: z.number().int() }).stream(Payments)
-const Unpaid = m.readModel({
-  orderId: m.key(z.string()),
-  product: z.string(),
-  lines: z.array(z.object({ sku: z.string(), gift: z.boolean().optional() })),
-  payments: z.number().int(),
-  status: z.string(),
-})
+const Unpaid = m
+  .readModel({
+    orderId: z.string(),
+    product: z.string(),
+    lines: z.array(z.object({ sku: z.string(), gift: z.boolean().optional() })),
+    payments: z.number().int(),
+    status: z.string(),
+  })
+  .key("orderId")
 const Loose = m.event({ id: z.string() }).stream(Orders)
 
 const Sales = m.chapter().note("Where money comes in.")

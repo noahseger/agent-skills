@@ -105,7 +105,7 @@ import { m } from "#em"
 
 export const Start = m.command({ id: z.string() })
 export const Started = m.event({ id: z.string() })
-export const Table = m.readModel({ id: m.key(z.string()) })
+export const Table = m.readModel({ id: z.string() }).key("id")
 export const User = m.actor()
 export const Ch = m.chapter()
 m.slice().command(Start, Started).chapter(Ch).test("starts", { when: Start({ id: "1" }), then: [Started({ id: "1" })] })
@@ -132,7 +132,7 @@ import { m } from "#em"
 export const Api = m.service("api.v1")
 export const Start = m.command({ id: z.string() })
 export const Started = m.event({ id: z.string() })
-export const Table = m.readModel({ id: m.key(z.string()) })
+export const Table = m.readModel({ id: z.string() }).key("id")
 export const Loose = m.event({ id: z.string() })
 export const Ch = m.chapter()
 m.slice().command(Start, Started).service(Api).chapter(Ch).test("starts", { when: Start({ id: "1" }), then: [Started({ id: "1" })] })
@@ -163,7 +163,7 @@ test("proto writes a finished service whatever is left to do elsewhere", () => {
 test("proto skips a service with an unfinished slice, says why, and exits 1", () => {
   const { run, api, board } = protoOf(
     `${API_DONE}export const Board = m.service("board.v1")
-export const Listing = m.readModel({ id: m.key(z.string()) })
+export const Listing = m.readModel({ id: z.string() }).key("id")
 m.slice().view(Listing, Started).service(Board, "List").chapter(Ch)
 `,
   )

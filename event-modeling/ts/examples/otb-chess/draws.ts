@@ -31,12 +31,14 @@ export const DrawOffered = m
   .stream(Game)
 
 // The offer standing on the opponent. One offer at a time, and only the latest counts.
-export const PendingDrawOffer = m.readModel({
-  gameId: m.key(z.string()),
-  offeringSide: z.enum(["white", "black"]),
-  ply: z.number().int(),
-  status: z.enum(["pending", "declined", "accepted"]),
-})
+export const PendingDrawOffer = m
+  .readModel({
+    gameId: z.string(),
+    offeringSide: z.enum(["white", "black"]),
+    ply: z.number().int(),
+    status: z.enum(["pending", "declined", "accepted"]),
+  })
+  .key("gameId")
 
 // FIDE 9.1.2.3: the offer stands until the opponent accepts it, moves, or claims a draw.
 export const AcceptDraw = m.command({

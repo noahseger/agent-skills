@@ -188,16 +188,18 @@ m.slice()
   })
 ```
 
-A read model is a table, and `m.key` marks the columns that identify a row. A view slice builds it
+A read model is a table, and `.key()` names the columns that identify a row. A view slice builds it
 from events, and the user reads their lists in it:
 
 ```ts
-export const TodoList = m.readModel({
-  userId: m.key(z.string()),
-  listId: m.key(z.string()),
-  name: z.string(),
-  itemCount: z.number().int(),
-})
+export const TodoList = m
+  .readModel({
+    userId: z.string(),
+    listId: z.string(),
+    name: z.string(),
+    itemCount: z.number().int(),
+  })
+  .key("userId", "listId")
 
 m.slice()
   .view(TodoList, ListCreated(() => ({ itemCount: 0 })))
@@ -515,6 +517,7 @@ The compiler catches:
 | what starts an automation or a translation | `.automation()` refuses an external event, and the error says to use `.translation()`; `.translation()` takes nothing else. |
 | a function outside a slice | A mapper only works inside a slice: `.event(...)`, `.command(...)` or `.view(...)`. The error says so. |
 | an automation's command | Every command field the trigger event, or the polled row, lacks must be set by the function, unless it is optional. The error names the fields. |
+| `.key()` | It names columns of the read model. |
 | `.service()` on a view | It names the method. |
 | `.test()` | `when` is the slice's command, or a view's query values. `then` is its events, or the rows of the read model a view shows; `reject` replaces `then`, and a view has none. Zod checks the values. |
 
@@ -560,7 +563,7 @@ Naming is yours: the conventions above are not checked.
 | `.service()` | `service` and `apiEndpoint` on the command, or on the read model a view shows |
 | a stream | each event's `aggregate`, and the slice's `aggregates`: the streams it records into. A slice that records nothing names none |
 | an actor | the slice's `actors`. An admin is tagged `admin`, a machine of ours `system`. An automation's, or a view's no one sees, is the system actor that runs it |
-| `m.key` | `idAttribute: true` |
+| `.key()` | `idAttribute: true` on each column it names |
 | `.optional()`, `z.array()`, `z.object()` | `optional`, `cardinality: "List"`, `subfields` |
 | a note | an element's `description` |
 | a specification | a `Specification`: `given`, `when` and `then` steps, each an example in `examples`. A `reject` is a `SPEC_ERROR` step titled with the reason. A view's query values are a `SPEC_COMMAND` step titled with its screen, the request it is asked from, as a command is sent from one |

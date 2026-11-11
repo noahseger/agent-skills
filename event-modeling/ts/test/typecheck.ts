@@ -13,7 +13,7 @@ const CreateList = m.command({ listId: z.string(), name: z.string() })
 const ListCreated = m.event({ listId: z.string(), name: z.string() })
 const AddItem = m.command({ listId: z.string(), text: z.string() })
 const ItemAdded = m.event({ listId: z.string(), title: z.string() })
-const TodoList = m.readModel({ listId: m.key(z.string()), name: z.string(), itemCount: z.number().int() })
+const TodoList = m.readModel({ listId: z.string(), name: z.string(), itemCount: z.number().int() }).key("listId")
 const NameList = m.command({ listId: z.string(), name: z.string() })
 const Lock = m.screen()
 const Ch = m.chapter().note("A run of slices.")
@@ -292,7 +292,7 @@ m.reject
 m.slice().view(TodoList, ListCreated).test("x", { given: ListCreated({ listId: "l-1" }), when: CreateList({}), then: TodoList({}) })
 
 // A view's when is its query's values; its then, rows of the read model it shows.
-const Shelf = m.readModel({ shelfId: m.key(z.string()) })
+const Shelf = m.readModel({ shelfId: z.string() }).key("shelfId")
 const inbox = m.slice().view(TodoList, ListCreated).query({ name: z.string() })
 
 // @ts-expect-error name is a string
@@ -329,6 +329,12 @@ CreateList({ listId: 42 })
 
 // @ts-expect-error a declaration is called for an example; there is no .with()
 CreateList.with({ listId: "l-1" })
+
+// @ts-expect-error a key is one of the read model's columns
+m.readModel({ shelfId: z.string() }).key("nope")
+
+// @ts-expect-error a key is named on the read model with .key(), not marked on m
+m.key
 
 // The legal forms of the same calls, so a check that fires too widely also fails.
 create.test("x", { given: ListCreated({ listId: "l-1" }), when: CreateList({ listId: "l-2" }), then: [ListCreated({ listId: "l-2" })] })
