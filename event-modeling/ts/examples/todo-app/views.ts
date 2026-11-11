@@ -28,6 +28,15 @@ export const TodoList = m.readModel({
   status: z.enum(["open", "completed", "deleted"]),
 })
 
+// The items of each list.
+export const ListItems = m.readModel({
+  listId: m.key(z.string()),
+  itemId: m.key(z.string()),
+  title: z.string(),
+  done: z.boolean(),
+  deleted: z.boolean(),
+})
+
 // Every item in every list, searchable by title.
 export const ItemSearch = m.readModel({
   itemId: m.key(z.string()),
@@ -45,7 +54,7 @@ const eggs = ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-2", titl
 export const Views = m.chapter()
 
 m.slice()
-  .projection(
+  .view(
     TodoList,
     ListCreated(() => ({ itemCount: 0, status: "open" })),
   )
@@ -53,8 +62,12 @@ m.slice()
   .event(ItemAdded((e, { generate }) => ({ itemCount: generate(e) })))
   .event(ListCompleted(() => ({ status: "completed" })))
   .event(ListDeleted(() => ({ status: "deleted" })))
+  .query({ userId: z.string() })
+  .actor(User)
+  .service(TodoService, "ListTodoLists")
   .test("A new list shows with no items", {
     given: groceries,
+    when: { userId: "u-1" },
     then: TodoList({
       userId: "u-1",
       listId: "list-1",
@@ -65,6 +78,7 @@ m.slice()
   })
   .test("Items are counted as they are added", {
     given: [groceries, milk, eggs],
+    when: { userId: "u-1" },
     then: TodoList({
       userId: "u-1",
       listId: "list-1",
@@ -75,6 +89,7 @@ m.slice()
   })
   .test("A completed list shows as completed", {
     given: [groceries, ListCompleted({ userId: "u-1", listId: "list-1" })],
+    when: { userId: "u-1" },
     then: TodoList({
       userId: "u-1",
       listId: "list-1",
@@ -85,6 +100,7 @@ m.slice()
   })
   .test("A deleted list shows as deleted", {
     given: [groceries, ListDeleted({ userId: "u-1", listId: "list-1" })],
+    when: { userId: "u-1" },
     then: TodoList({
       userId: "u-1",
       listId: "list-1",
@@ -93,13 +109,6 @@ m.slice()
       status: "deleted",
     }),
   })
-
-m.slice()
-  .view(TodoList)
-  .chapter(Views)
-  .query({ userId: z.string() })
-  .actor(User)
-  .service(TodoService, "ListTodoLists")
   .test("A user sees only their own lists", {
     given: [groceries, ListCreated({ listId: "list-2", userId: "u-2", name: "Hardware" })],
     when: { userId: "u-1" },
@@ -113,51 +122,39 @@ m.slice()
   })
 
 m.slice()
-  .projection(
-    ItemSearch,
+  .view(
+    ListItems,
     ItemAdded(() => ({ done: false, deleted: false })),
   )
   .chapter(Views)
   .event(ItemCompleted(() => ({ done: true })))
   .event(ItemDeleted(() => ({ deleted: true })))
+  .query({ listId: z.string() })
+  .actor(User)
+  .screen(ListScreen)
+  .service(TodoService, "GetList")
   .test("A completed item shows as done", {
     given: [milk, milkDone],
-    then: ItemSearch({
-      itemId: "item-1",
+    when: { listId: "list-1" },
+    then: ListItems({
       listId: "list-1",
+      itemId: "item-1",
       title: "Milk",
       done: true,
       deleted: false,
     }),
   })
-  .test("An added item shows as not done", {
-    given: milk,
-    then: ItemSearch({
-      itemId: "item-1",
-      listId: "list-1",
-      title: "Milk",
-      done: false,
-      deleted: false,
-    }),
-  })
   .test("A deleted item shows as deleted", {
     given: [milk, ItemDeleted({ listId: "list-1", itemId: "item-1" })],
-    then: ItemSearch({
-      itemId: "item-1",
+    when: { listId: "list-1" },
+    then: ListItems({
       listId: "list-1",
+      itemId: "item-1",
       title: "Milk",
       done: false,
       deleted: true,
     }),
   })
-
-m.slice()
-  .view(ItemSearch)
-  .chapter(Views)
-  .query({ listId: z.string() })
-  .actor(User)
-  .screen(ListScreen)
-  .service(TodoService, "GetList")
   .test("A list shows its own items", {
     given: [
       groceries,
@@ -167,16 +164,16 @@ m.slice()
     ],
     when: { listId: "list-1" },
     then: [
-      ItemSearch({
-        itemId: "item-1",
+      ListItems({
         listId: "list-1",
+        itemId: "item-1",
         title: "Milk",
         done: false,
         deleted: false,
       }),
-      ItemSearch({
-        itemId: "item-2",
+      ListItems({
         listId: "list-1",
+        itemId: "item-2",
         title: "Eggs",
         done: false,
         deleted: false,
@@ -185,11 +182,38 @@ m.slice()
   })
 
 m.slice()
-  .view(ItemSearch)
+  .view(
+    ItemSearch,
+    ItemAdded(() => ({ done: false, deleted: false })),
+  )
   .chapter(Views)
+  .event(ItemCompleted(() => ({ done: true })))
+  .event(ItemDeleted(() => ({ deleted: true })))
   .query({ text: z.string() })
   .actor(User)
   .service(TodoService, "SearchItems")
+  .test("An added item shows as not done", {
+    given: milk,
+    when: { text: "Milk" },
+    then: ItemSearch({
+      itemId: "item-1",
+      listId: "list-1",
+      title: "Milk",
+      done: false,
+      deleted: false,
+    }),
+  })
+  .test("A search finds a deleted item as deleted", {
+    given: [milk, ItemDeleted({ listId: "list-1", itemId: "item-1" })],
+    when: { text: "Milk" },
+    then: ItemSearch({
+      itemId: "item-1",
+      listId: "list-1",
+      title: "Milk",
+      done: false,
+      deleted: true,
+    }),
+  })
   .test("A search finds a done item by its title", {
     given: [milk, milkDone],
     when: { text: "Milk" },
@@ -207,7 +231,7 @@ export const Automations = m.chapter()
 m.slice("ListCompleter")
   .trigger(ItemCompleted, CompleteList, ListCompleted)
   .chapter(Automations)
-  .readModel(ItemSearch)
+  .readModel(ListItems)
   .test("List completes when every item is done", {
     given: [milk, milkDone],
     when: CompleteList({ userId: "u-1", listId: "list-1" }),

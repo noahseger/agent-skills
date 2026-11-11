@@ -62,17 +62,12 @@ const unspecified = (f: Fixture) =>
   m.slice().command(f.Create, f.Created).actor(f.User).service(f.Svc)
 const create = (f: Fixture) =>
   unspecified(f).test("A list is created", { when: f.Create(list), then: f.Created(list) })
-const unspecifiedProjection = (f: Fixture) => m.slice().projection(f.Table, f.Created)
-const project = (f: Fixture) =>
-  unspecifiedProjection(f).test("A new list is a row", {
-    given: f.Created(list),
-    then: f.Table(list),
-  })
-const projectTable = project
-const unspecifiedView = (f: Fixture) => m.slice().view(f.Table).actor(f.User).service(f.Svc, "Get")
+const unspecifiedView = (f: Fixture) =>
+  m.slice().view(f.Table, f.Created).actor(f.User).service(f.Svc, "Get")
+const view = (f: Fixture) =>
+  unspecifiedView(f).test("A new list is a row", { given: f.Created(list), then: f.Table(list) })
 /** A view's specification that needs no event. */
 const nothing = ["No list shows before one is created", { then: [] }] as const
-const view = (f: Fixture) => unspecifiedView(f).test(...nothing)
 
 /** A chapter per key, declared in key order, that its slices join in array order. */
 function chapters(story: Record<string, readonly Slice[]>): Record<string, Chapter> {
@@ -92,10 +87,10 @@ function assembled(exports: Record<string, unknown>, slices: readonly Slice[]) {
 
 test("a well-formed model assembles", () => {
   const f = fixture()
-  const json = assembled(f, [create(f), project(f), view(f)])
+  const json = assembled(f, [create(f), view(f)])
   assert.deepEqual(
     json.chapters[0]?.slices.map((s) => s.name),
-    ["Create", "Table", "Get"],
+    ["Create", "Table"],
   )
   assert.deepEqual(json.aggregates, [{ id: "events", name: "Events" }])
 })
@@ -103,12 +98,7 @@ test("a well-formed model assembles", () => {
 test("a declaration used in a slice that no module exports", () => {
   const { Created, ...f } = fixture()
   assert.throws(
-    () =>
-      assembled(f, [
-        create({ ...f, Created }),
-        project({ ...f, Created }),
-        view({ ...f, Created }),
-      ]),
+    () => assembled(f, [create({ ...f, Created }), view({ ...f, Created })]),
     /Ch › slice 1: this slice uses an event that isn't exported\. Export it to give it a name\./,
   )
 })
@@ -116,7 +106,7 @@ test("a declaration used in a slice that no module exports", () => {
 test("a declaration exported under two names", () => {
   const f = fixture()
   assert.throws(
-    () => assembled({ ...f, Also: f.Created }, [create(f), project(f), view(f)]),
+    () => assembled({ ...f, Also: f.Created }, [create(f), view(f)]),
     /Created is exported twice, also as Also\. Keep one\./,
   )
 })
@@ -125,12 +115,7 @@ test("an event field the command does not carry", () => {
   const f = fixture()
   const Created = m.event({ id: z.string(), name: z.string(), extra: z.string() })
   assert.throws(
-    () =>
-      assembled({ ...f, Created }, [
-        unspecified({ ...f, Created }),
-        project({ ...f, Created }),
-        view(f),
-      ]),
+    () => assembled({ ...f, Created }, [unspecified({ ...f, Created }), view({ ...f, Created })]),
     /Ch › Create: Created\.extra has no value\. Add extra to Create, or set it in the mapping\./,
   )
 })
@@ -160,8 +145,7 @@ test("an optional field one slice leaves unfilled, another fills", () => {
         when: CreateWith(withExtra),
         then: Created(withExtra),
       }),
-    project({ ...f, Created }),
-    view(f),
+    view({ ...f, Created }),
   ])
   assert.equal(json.warnings, undefined)
 })
@@ -170,7 +154,7 @@ test("an optional field no slice fills", () => {
   const f = fixture()
   const Created = m.event({ id: z.string(), name: z.string(), extra: z.string().optional() })
   const exports = { ...f, Created }
-  const slices = () => [create(exports), project(exports), view(f)]
+  const slices = () => [create(exports), view(exports)]
   const message =
     "Created.extra is never filled by any slice. Add extra to a command that records Created, or set it in a mapping."
   assert.throws(() => assembled(exports, slices()), { message })
@@ -198,7 +182,7 @@ test("a mapping function fills what the command does not carry", () => {
       when: f.Create(list),
       then: Created({ ...list, extra: "Groceries" }),
     })
-  const json = assembled({ ...f, Created }, [slice, project({ ...f, Created }), view(f)])
+  const json = assembled({ ...f, Created }, [slice, view({ ...f, Created })])
   assert.deepEqual(json.chapters[0]?.slices[0]?.mapping, { Created: { extra: { from: "name" } } })
   assert.equal(json.chapters[0]?.slices[0]?.command, "Create(id, name)")
 })
@@ -220,7 +204,7 @@ test("generate() records what a value is made from, and a specification gives it
       then: Created({ id: "id-1", name: "Groceries", at: "2026-01-01T00:00:00Z" }),
     })
   const exports = { ...f, Created }
-  const story = chapters({ Ch: [slice, project(exports), view(f)] })
+  const story = chapters({ Ch: [slice, view(exports)] })
   const feed = feedOf([{ ...exports, ...story, default: m.model("x") }])
   assert.deepEqual(
     feed.model.slices[0]?.events[0]?.fields.find((field) => field.name === "at"),
@@ -242,7 +226,7 @@ test("a read model a value is generated from, which the slice does not read", ()
     )
     .test("Create", { when: f.Create(list), then: Created({ ...list, at: "noon" }) })
   assert.throws(
-    () => assembled({ ...f, Created }, [slice, project({ ...f, Created }), view(f)]),
+    () => assembled({ ...f, Created }, [slice, view({ ...f, Created })]),
     /Ch › Create: Created\.at is generated from Table, which this slice doesn't read yet\. Add \.readModel\(Table\)\./,
   )
 })
@@ -264,7 +248,7 @@ test("a mapper that builds a value is drawn, and is left to do until generate() 
         when: Create({ ...list, n: 1 }),
         then: Created({ ...list, label: "x", size: 2 }),
       })
-    const story = chapters({ Ch: [slice, project(exports), view(f)] })
+    const story = chapters({ Ch: [slice, view(exports)] })
     return [{ ...exports, ...story, default: m.model("x") }]
   }
   const label =
@@ -297,7 +281,7 @@ test("a column no .event() writes", () => {
   const f = fixture()
   const Table = m.readModel({ id: m.key(z.string()), name: z.string(), count: z.number() })
   assert.throws(
-    () => assembled({ ...f, Table }, [create(f), project({ ...f, Table }), view({ ...f, Table })]),
+    () => assembled({ ...f, Table }, [create(f), view({ ...f, Table })]),
     /Ch › Table: Table\.count has no value\. Add \.event\(\) for an event that carries count, or set it in a mapping\./,
   )
 })
@@ -315,9 +299,8 @@ test("an event that carries none of the read model's key columns", () => {
       when: Rename({ name: "Chores" }),
       then: Renamed({ name: "Chores" }),
     })
-  const projection = m.slice().projection(f.Table, f.Created).event(Renamed)
   assert.throws(
-    () => assembled({ ...f, Rename, Renamed }, [create(f), rename, projection, view(f)]),
+    () => assembled({ ...f, Rename, Renamed }, [create(f), rename, view(f).event(Renamed)]),
     /Ch › Table: Renamed doesn't say which Table row it changes\. Give it id, or set it in its mapping\./,
   )
 })
@@ -337,14 +320,15 @@ test("an event that carries only some of the read model's key columns", () => {
     .service(f.Svc)
     .test("A list is created", { when: Create(row), then: Created(row) })
     .test("A list is renamed", { when: Create(row), then: Renamed(list) })
-  const projection = m
+  const shown = m
     .slice()
-    .projection(Table, Created)
+    .view(Table, Created)
     .event(Renamed)
+    .actor(f.User)
     .test("A list is a row", { given: [Created(row), Renamed(list)], then: Table(row) })
   const g = { ...f, Table, Create, Created, Renamed }
   assert.throws(
-    () => assembled(g, [create, projection, view(g)]),
+    () => assembled(g, [create, shown]),
     /Ch › Table: Renamed doesn't say which Table row it changes\. Give it owner, or set it in its mapping\./,
   )
 })
@@ -353,14 +337,14 @@ test("an event nothing consumes", () => {
   const f = fixture()
   assert.throws(
     () => assembled(f, [create(f)]),
-    /Ch › Create: nothing uses Created yet\. Add \.trigger\(Created\) or a projection's \.event\(Created\) where something reacts to it\./,
+    /Ch › Create: nothing uses Created yet\. Add \.trigger\(Created\) or a view's \.event\(Created\) where something reacts to it\./,
   )
 })
 
 test("an event no slice emits", () => {
   const f = fixture()
   assert.throws(
-    () => assembled(f, [project(f), view(f)]),
+    () => assembled(f, [view(f)]),
     /Ch › Table: nothing emits Created yet\. Add \.event\(Created\) to the slice that causes it\./,
   )
 })
@@ -390,7 +374,7 @@ test("an event no slice emits is one line, at the slices that react to it", () =
         Processed,
         Rename,
         Renamed,
-        ...chapters({ Ch: [processor, project(f), view(f)], Other: [assumes] }),
+        ...chapters({ Ch: [processor, view(f)], Other: [assumes] }),
         default: m.model("x"),
       },
     ],
@@ -411,23 +395,29 @@ test("an event no slice emits is one line, at the slices that react to it", () =
 
 test("a read model nothing reads", () => {
   const f = fixture()
+  const unseen = m
+    .slice()
+    .view(f.Table, f.Created)
+    .test("A new list is a row", { given: f.Created(list), then: f.Table(list) })
   assert.throws(
-    () => assembled(f, [create(f), project(f)]),
-    /Ch › Table: nothing reads Table yet\. Add \.readModel\(Table\), \.view\(Table\) or \.trigger\(Table\) where it's needed\./,
+    () => assembled(f, [create(f), unseen]),
+    /Ch › Table: nothing reads Table yet\. Add \.actor\(\) for who sees it, or \.readModel\(Table\) or \.trigger\(Table\) where it's needed\./,
   )
 })
 
 test("a read model nothing projects", () => {
   const f = fixture()
   const created = f.Created({ id: "1", name: "n" })
-  const slice = create(f).test("t", {
-    given: created,
-    when: f.Create({ id: "1", name: "n" }),
-    then: created,
-  })
+  const slice = create(f)
+    .readModel(f.Table)
+    .test("t", {
+      given: created,
+      when: f.Create({ id: "1", name: "n" }),
+      then: created,
+    })
   assert.throws(
-    () => assembled(f, [slice, view(f)]),
-    /Ch › Get: nothing fills Table yet\. Add a slice with \.projection\(Table\)\./,
+    () => assembled(f, [slice]),
+    /Ch › Create: nothing fills Table yet\. Add a slice with \.view\(Table\)\./,
   )
 })
 
@@ -463,20 +453,21 @@ test("a call ends in the external event, whose fields come from outside", () => 
       when: f.Create(list),
       then: f.Created(list),
     })
-  const json = assembled({ ...f, Remote, Answered, Ask }, [specified, keep, project(f), view(f)])
+  const json = assembled({ ...f, Remote, Answered, Ask }, [specified, keep, view(f)])
   const [asked] = json.chapters[0]?.slices ?? []
   assert.deepEqual(asked?.calls, [{ actor: "remote", event: "Answered(id, name, detail)" }])
   assert.equal(asked?.events, undefined)
 })
 
-test("a projection refuses an external event, which isn't stored", () => {
+test("a view refuses an external event, which isn't stored", () => {
   const { f, Remote, Answered, Ask, specified } = specifiedCall()
   const projected = m
     .slice()
-    .projection(
+    .view(
       f.Table,
       Answered((e) => ({ id: e.id })),
     )
+    .actor(f.User)
     .test("The answer is a row", {
       given: Answered({ ...list, detail: "Two aisles over" }),
       then: f.Table(list),
@@ -490,7 +481,7 @@ test("a projection refuses an external event, which isn't stored", () => {
       Remote,
       Answered,
       Ask,
-      ...chapters({ Ch: [specified, projected, view(f)] }),
+      ...chapters({ Ch: [specified, projected] }),
       default: m.model("x"),
     },
   ]
@@ -535,9 +526,7 @@ function outcomes() {
   const Refused = m.event({ id: z.string() })
   const slice = m.slice().command(f.Create, f.Created).event(Refused).actor(f.User).service(f.Svc)
   const created = slice.test("A list is created", { when: f.Create(list), then: f.Created(list) })
-  const project = m
-    .slice()
-    .projection(f.Table, f.Created)
+  const shown = unspecifiedView(f)
     .event(Refused)
     .test("A refused list stays as it was", {
       given: [f.Created(list), Refused({ id: "list-1" })],
@@ -546,7 +535,7 @@ function outcomes() {
   const model = (create: Slice) => ({
     ...f,
     Refused,
-    ...chapters({ Ch: [create, project, view(f)] }),
+    ...chapters({ Ch: [create, shown] }),
     default: m.model("x"),
   })
   return { f, Refused, created, model }
@@ -571,11 +560,11 @@ test("a specification whose then has the outcome finishes it", () => {
   assembleModules([model(refused)])
 })
 
-test("an event a projection handles that no specification's given has is left to do, and an error when strict", () => {
+test("an event a view handles that no specification's given has is left to do, and an error when strict", () => {
   const f = fixture()
   const model = () => ({
     ...f,
-    ...chapters({ Ch: [create(f), unspecifiedProjection(f), view(f)] }),
+    ...chapters({ Ch: [create(f), unspecifiedView(f).test(...nothing)] }),
     default: m.model("x"),
   })
   const message =
@@ -589,13 +578,13 @@ test("a view with no specification is left to do, and an error when strict", () 
   const f = fixture()
   const model = () => ({
     ...f,
-    ...chapters({ Ch: [create(f), project(f), unspecifiedView(f)] }),
+    ...chapters({ Ch: [create(f), unspecifiedView(f)] }),
     default: m.model("x"),
   })
   const message =
-    "Ch › Get: no specification shows this view yet. Add a .test whose then has the Table rows it shows."
+    "Ch › Table: no specification shows this view yet. Add a .test whose then has the Table rows it shows."
   const json = assembleModules([model()], { partial: true })
-  assert.deepEqual(json.warnings, [{ message, element: "Table", slice: "Get" }])
+  assert.deepEqual(json.warnings, [{ message, element: "Table", slice: "Table" }])
   assert.throws(() => assembleModules([model()]), { message })
 })
 
@@ -603,7 +592,7 @@ const hardware = { id: "list-2", name: "Hardware" }
 
 /** What is left to do in a model whose view is `view`. */
 const viewed = (f: Fixture, view: Slice) =>
-  feedOf([{ ...f, ...chapters({ Ch: [create(f), project(f), view] }), default: m.model("x") }], {
+  feedOf([{ ...f, ...chapters({ Ch: [create(f), view] }), default: m.model("x") }], {
     partial: true,
   }).warnings?.map((w) => w.message)
 
@@ -616,12 +605,10 @@ test("a view's specification shows the rows given builds that its query asks for
       when: { name: "Groceries" },
       then: f.Table(list),
     })
-  const feed = feedOf([
-    { ...f, ...chapters({ Ch: [create(f), project(f), byName] }), default: m.model("x") },
-  ])
-  assert.deepEqual(feed.model.slices[2]?.specifications[0]?.when, [
+  const feed = feedOf([{ ...f, ...chapters({ Ch: [create(f), byName] }), default: m.model("x") }])
+  assert.deepEqual(feed.model.slices[1]?.specifications[0]?.when, [
     {
-      id: "get:spec:0:when:0",
+      id: "table:spec:0:when:0",
       title: "Get",
       type: "SPEC_COMMAND",
       examples: [{ name: "Groceries" }],
@@ -637,22 +624,22 @@ test("a view's row given does not build, or with another value, is named", () =>
     then: [f.Table({ ...list, name: "Hardware" }), f.Table({ id: "list-9", name: "Nails" })],
   })
   assert.deepEqual(viewed(f, wrong), [
-    'Ch › Get › "Groceries shows": then has name "Hardware", but Created in given has "Groceries".',
-    'Ch › Get › "Groceries shows": then has Table {"id":"list-9"}, but given builds no such row.',
+    'Ch › Table › "Groceries shows": then has name "Hardware", but Created in given has "Groceries".',
+    'Ch › Table › "Groceries shows": then has Table {"id":"list-9"}, but given builds no such row.',
   ])
 })
 
-test("a projection's row given does not build is named", () => {
+test("a row given does not build is an error when strict", () => {
   const f = fixture()
   // A field an example leaves out is not compared, so the second row is the one given builds.
   const missing = () =>
-    unspecifiedProjection(f).test("A new list is a row", {
+    unspecifiedView(f).test("A new list is a row", {
       given: f.Created(list),
       then: [f.Table({ ...list, id: "missing" }), f.Table({ id: "list-1" })],
     })
   const model = () => ({
     ...f,
-    ...chapters({ Ch: [create(f), missing(), view(f)] }),
+    ...chapters({ Ch: [create(f), missing()] }),
     default: m.model("x"),
   })
   const message =
@@ -674,7 +661,7 @@ test("a view's row its query excludes is named", () => {
       then: [f.Table(hardware), f.Table({ id: "list-1" })],
     })
   assert.deepEqual(viewed(f, byName), [
-    'Ch › Get › "Only Hardware shows": then has Table {"id":"list-1"}, but when excludes it. Remove it from then.',
+    'Ch › Table › "Only Hardware shows": then has Table {"id":"list-1"}, but when excludes it. Remove it from then.',
   ])
 })
 
@@ -688,7 +675,7 @@ test("a row given builds that then leaves out is named, unless the query exclude
       then: f.Table(list),
     })
   assert.deepEqual(viewed(f, search), [
-    'Ch › Get › "A search finds Groceries": given builds Table {"id":"list-2"}, but then leaves it out and when does not exclude it. Add it to then.',
+    'Ch › Table › "A search finds Groceries": given builds Table {"id":"list-2"}, but then leaves it out and when does not exclude it. Add it to then.',
   ])
 })
 
@@ -708,15 +695,11 @@ test("a specification's given may hold events its slice does not handle", () => 
       then: Refused({ id: "list-1" }),
     })
   const history = [f.Created(list), Refused({ id: "list-1" })]
-  const project = unspecifiedProjection(f).test("A refusal leaves the row", {
-    given: history,
-    then: f.Table(list),
-  })
   const shown = unspecifiedView(f).test("The list shows after a refusal", {
     given: history,
     then: f.Table(list),
   })
-  assembled({ ...f, Refused }, [create, project, shown])
+  assembled({ ...f, Refused }, [create, shown])
 })
 
 test("an external event a call ends in is an outcome", () => {
@@ -752,8 +735,7 @@ test("two slices claiming one service method", () => {
     .actor(f.User)
     .service(f.Svc, "Create")
     .test("A list is renamed", { when: Rename(list), then: Renamed(list) })
-  const projection = m.slice().projection(f.Table, f.Created).event(Renamed)
-  const slices = [create(f), rename, projection, view(f)]
+  const slices = [create(f), rename, view(f).event(Renamed)]
   assert.throws(
     () => assembled({ ...f, Rename, Renamed }, slices),
     /Ch › Rename: Svc\/Create is already used by Ch › Create\. Name this one/,
@@ -764,7 +746,7 @@ test("two slices claiming one service method", () => {
       partial: true,
     },
   )
-  assert.equal(drawn(partial).chapters[0]?.slices.length, 4)
+  assert.equal(drawn(partial).chapters[0]?.slices.length, 3)
   assert.deepEqual(
     partial.warnings?.filter((w) => w.slice === "Rename").map((w) => w.message),
     [
@@ -780,7 +762,7 @@ test("slices without a service claim no method", () => {
     .command(f.Create, f.Created)
     .actor(f.User)
     .test("A list is created again", { when: f.Create(list), then: f.Created(list) })
-  const json = assembled(f, [create(f), again, project(f), view(f)])
+  const json = assembled(f, [create(f), again, view(f)])
   assert.equal(json.chapters[0]?.slices[1]?.ui, "Create")
 })
 
@@ -797,10 +779,8 @@ test("an automation's command field its trigger does not carry", () => {
 })
 
 /** The table a created list is a row of, and stays one once processed. */
-const processedProjection = (f: Fixture, Processed: EventDecl<{ id: z.ZodString }>) =>
-  m
-    .slice()
-    .projection(f.Table, f.Created)
+const processedView = (f: Fixture, Processed: EventDecl<{ id: z.ZodString }>) =>
+  unspecifiedView(f)
     .event(Processed)
     .test("A processed list stays as it was", {
       given: [f.Created(list), Processed({ id: "list-1" })],
@@ -819,7 +799,7 @@ test("an automation's trigger no specification's given has is left to do, and an
         when: Process({ id: "list-1" }),
         then: Processed({ id: "list-1" }),
       })
-    const Ch = [create(f), triggered, processedProjection(f, Processed), view(f)]
+    const Ch = [create(f), triggered, processedView(f, Processed)]
     return { ...f, Process, Processed, ...chapters({ Ch }), default: m.model("x") }
   }
   const message =
@@ -845,8 +825,11 @@ test("an automation's mapping fills its command from the trigger", () => {
       when: Process({ id: "list-1", label: "Groceries" }),
       then: Processed({ id: "list-1" }),
     })
-  const projection = processedProjection(f, Processed)
-  const json = assembled({ ...f, Process, Processed }, [create(f), processor, projection, view(f)])
+  const json = assembled({ ...f, Process, Processed }, [
+    create(f),
+    processor,
+    processedView(f, Processed),
+  ])
   assert.deepEqual(json.chapters[0]?.slices[1]?.mapping, { Process: { label: { from: "name" } } })
 })
 
@@ -865,7 +848,7 @@ test("the first system actor declared runs what names none, and .actor() names a
     m.slice("Processor").trigger(f.Created, Process, Processed),
     m.slice("Notifier").trigger(f.Created, Mail, Mailed).actor(Mailer),
     m.slice("Translator").trigger(Answered, Mail, Mailed).actor(Mailer),
-    project(f),
+    m.slice().view(f.Table, f.Created),
   ]
   const feed = feedOf(
     [
@@ -915,17 +898,13 @@ test("the first system actor declared runs what names none, and .actor() names a
 
 test("a view without a service is named by its read model and has a screen", () => {
   const f = fixture()
-  const Ch = [
-    create(f),
-    project(f),
-    m
-      .slice()
-      .view(f.Table)
-      .actor(f.User)
-      .test(...nothing),
-  ]
-  const json = assembled(f, Ch)
-  const slice = json.chapters[0]?.slices[2]
+  const unserved = m
+    .slice()
+    .view(f.Table, f.Created)
+    .actor(f.User)
+    .test("A new list is a row", { given: f.Created(list), then: f.Table(list) })
+  const json = assembled(f, [create(f), unserved])
+  const slice = json.chapters[0]?.slices[1]
   assert.deepEqual([slice?.name, slice?.ui], ["Table", "Table"])
 })
 
@@ -935,18 +914,16 @@ test("a slice with no actor has no screen", () => {
     .slice()
     .command(f.Create, f.Created)
     .test("A list is created", { when: f.Create(list), then: f.Created(list) })
-  const Ch = [
-    create,
-    project(f),
-    m
-      .slice()
-      .view(f.Table)
-      .test(...nothing),
-  ]
-  const json = assembled({ Create: f.Create, Created: f.Created, Table: f.Table }, Ch)
+  const unseen = m
+    .slice()
+    .view(f.Table, f.Created)
+    .service(f.Svc, "Get")
+    .test("A new list is a row", { given: f.Created(list), then: f.Table(list) })
+  const Ch = [create, unseen]
+  const json = assembled({ Create: f.Create, Created: f.Created, Table: f.Table, Svc: f.Svc }, Ch)
   assert.deepEqual(
     json.chapters[0]?.slices.map((s) => s.ui),
-    [undefined, undefined, undefined],
+    [undefined, undefined],
   )
   assert.deepEqual(json.warnings, undefined)
 })
@@ -960,7 +937,7 @@ test("a slice with several actors draws a screen in each one's lane", () => {
     .actor(f.User, Admin)
     .service(f.Svc)
     .test("A list is created", { when: f.Create(list), then: f.Created(list) })
-  const json = assembled({ ...f, Admin }, [both, project(f), view(f)])
+  const json = assembled({ ...f, Admin }, [both, view(f)])
   const slice = json.chapters[0]?.slices[0]
   assert.deepEqual([slice?.actor, slice?.actors], ["user", ["user", "admin"]])
   const { boxes, rows } = layout(json)
@@ -984,8 +961,11 @@ test("a .trigger() automation polls the read model", () => {
       when: Process({ id: "list-1" }),
       then: Processed({ id: "list-1" }),
     })
-  const projection = processedProjection(f, Processed)
-  const json = assembled({ ...f, Process, Processed }, [create(f), processor, projection])
+  const json = assembled({ ...f, Process, Processed }, [
+    create(f),
+    processor,
+    processedView(f, Processed),
+  ])
   const slice = json.chapters[0]?.slices[1]
   assert.equal(slice?.automation, "Processor")
   assert.equal(slice?.trigger, undefined)
@@ -1012,9 +992,8 @@ test("a polled command's when matches the row given builds", () => {
   const model = (label: string) =>
     assembled({ ...f, Process, Processed }, [
       create(f),
-      project(f),
       processor(label),
-      processedProjection(f, Processed),
+      processedView(f, Processed),
     ])
   model("Groceries")
   assert.throws(() => model("Milk"), {
@@ -1043,7 +1022,7 @@ test("a polled command's when whose row given builds none of, or several of, is 
       when: Process({ id: "list-1" }),
       then: Processed({ id: "list-1" }),
     })
-  const projection = m.slice().projection(Table, Created)
+  const projection = m.slice().view(Table, Created)
   assert.deepEqual(
     disagreements({ ...f, Table, Created, Process, Processed }, [processor, projection]),
     [
@@ -1058,7 +1037,7 @@ test("same-named streams from two modules are one lane", () => {
   const [Inventory, Stock] = [m.stream(), m.stream()]
   f.Created.stream(Inventory)
   const Recounted = m.event({ id: z.string() }).stream(Stock)
-  const Ch = [create(f), project(f), view(f)]
+  const Ch = [create(f), view(f)]
   const json = assembleModules(
     [
       { ...f, ...chapters({ Ch }), default: m.model("x") },
@@ -1076,14 +1055,14 @@ test("a stream no event joins is an empty lane", () => {
   const f = fixture()
   const Inventory = m.stream()
   f.Created.stream(Inventory)
-  const json = assembled({ ...f, Inventory, Returns: m.stream() }, [create(f), project(f), view(f)])
+  const json = assembled({ ...f, Inventory, Returns: m.stream() }, [create(f), view(f)])
   assert.deepEqual(json.aggregates, [
     { id: "inventory", name: "Inventory" },
     { id: "returns", name: "Returns" },
   ])
   assert.deepEqual(
     json.chapters[0]?.slices.map((s) => s.aggregate),
-    ["inventory", "inventory", "inventory"],
+    ["inventory", "inventory"],
   )
   const rows = layout(json).rows.filter((r) => r.kind === "stream")
   assert.deepEqual(
@@ -1095,10 +1074,10 @@ test("a stream no event joins is an empty lane", () => {
 test("slices on one screen draw it, titled with its name, in the actor's lane", () => {
   const f = fixture()
   const Lock = m.screen()
-  const json = assembled({ ...f, Lock }, [create(f).screen(Lock), project(f), view(f).screen(Lock)])
+  const json = assembled({ ...f, Lock }, [create(f).screen(Lock), view(f).screen(Lock)])
   assert.deepEqual(
     json.chapters[0]?.slices.map((s) => s.screen),
-    ["Lock", undefined, "Lock"],
+    ["Lock", "Lock"],
   )
   const screens = layout(json).boxes.filter((b) => b.kind === "ui")
   assert.deepEqual(
@@ -1121,7 +1100,7 @@ test("a screen no one sees, and one no slice names, are left to do", () => {
         ...f,
         Lock,
         Home,
-        ...chapters({ Ch: [unseen, project(f), view(f)] }),
+        ...chapters({ Ch: [unseen, view(f)] }),
         default: m.model("x"),
       },
     ],
@@ -1137,7 +1116,7 @@ test("a screen no one sees, and one no slice names, are left to do", () => {
   ])
 })
 
-test("every .projection() of a read model is one slice, drawn where the first is", () => {
+test("every .view() of a read model is one slice: its events in, its screen out, drawn where the first is", () => {
   const f = fixture()
   const Table = m.readModel({ id: m.key(z.string()), name: z.string(), status: z.string() })
   const Archive = m.command({ id: z.string() })
@@ -1156,22 +1135,26 @@ test("every .projection() of a read model is one slice, drawn where the first is
       create(f),
       m
         .slice()
-        .projection(
+        .view(
           Table,
           f.Created(() => ({ status: "open" })),
         )
+        .actor(f.User)
+        .service(f.Svc, "Get")
         .test("A new list is open", {
           given: f.Created(list),
           then: Table({ ...list, status: "open" }),
         }),
     ],
-    Tidy: [archive, view({ ...f, Table })],
+    Tidy: [archive],
   })
   m.slice()
-    .projection(
+    .view(
       Table,
       Archived(() => ({ status: "archived" })),
     )
+    .actor(f.User)
+    .service(f.Svc, "Get")
     .test("An archived list is archived", {
       given: [f.Created(list), Archived({ id: "list-1" })],
       then: Table({ ...list, status: "archived" }),
@@ -1182,39 +1165,56 @@ test("every .projection() of a read model is one slice, drawn where the first is
   ])
   assert.deepEqual(
     drawn(feed).chapters.map((c) => c.slices.map((s) => s.name)),
-    [
-      ["Create", "Table"],
-      ["Archive", "Get"],
-    ],
+    [["Create", "Table"], ["Archive"]],
   )
-  const table = feed.model.slices.filter((s) => s.sliceType === "STATE_VIEW" && s.title === "Table")
+  const table = feed.model.slices.filter((s) => s.sliceType === "STATE_VIEW")
   assert.deepEqual(
     table.map((s) => [
       s.context,
       s.events.map((e) => e.title),
+      s.readmodels.map((r) => `${r.service}/${r.apiEndpoint}`),
+      s.screens.map((e) => e.title),
       s.specifications.map((t) => t.title),
     ]),
-    [["Capture", ["Created", "Archived"], ["A new list is open", "An archived list is archived"]]],
+    [
+      [
+        "Capture",
+        ["Created", "Archived"],
+        ["Svc/Get"],
+        ["Get"],
+        ["A new list is open", "An archived list is archived"],
+      ],
+    ],
   )
 })
 
-test("a later .projection() that says where or how to draw the slice is a to-do", () => {
+test("a later .view() that says where or how to draw the slice is a to-do", () => {
   const f = fixture()
-  const Runner = m.actor({ icon: "system" })
-  const story = chapters({ Capture: [create(f), project(f)], Tidy: [view(f)] })
+  const Admin = m.actor({ icon: "admin" })
+  const Lock = m.screen()
+  const story = chapters({ Capture: [create(f), view(f)], Tidy: [] })
   m.slice("Other")
-    .projection(f.Table, f.Created)
+    .view(f.Table, f.Created)
     .chapter(story.Tidy as Chapter)
-    .actor(Runner)
+    .query({ name: z.string() })
+    .actor(Admin)
+    .screen(Lock)
+    .service(f.Svc, "List")
     .note("Rebuilt nightly.")
-  const exports = { ...f, Runner, ...story, default: m.model("x") }
+  const exports = { ...f, Admin, Lock, ...story, default: m.model("x") }
   const drawnAs = (rest: string) =>
-    `Table: this .projection() ${rest}, where it is first written. Remove it, or move the first.`
+    `Table: this .view() ${rest}, where it is first written. Remove it, or move the first.`
   const expected = [
     drawnAs("names chapter Tidy, but Table is drawn in Capture"),
     drawnAs('names the slice "Other", but Table is drawn as "Table"'),
-    drawnAs("names actor Runner, but Table is run by the default system"),
+    drawnAs("names actor Admin, but Table is seen by User"),
+    drawnAs("names screen Lock, but Table is shown on no screen"),
+    drawnAs("names method Svc/List, but Table is served by Svc/Get"),
+    drawnAs("asks with name, but Table is asked with nothing"),
     drawnAs('has the note "Rebuilt nightly.", but Table is drawn with no note'),
+    "Tidy has no slices yet.",
+    "Admin isn't in a slice yet.",
+    "Lock isn't in a slice yet.",
   ]
   assert.deepEqual(
     feedOf([exports], { partial: true }).warnings?.map((w) => w.message),
@@ -1222,10 +1222,10 @@ test("a later .projection() that says where or how to draw the slice is a to-do"
   )
 })
 
-test("a column no .projection() of the read model writes is reported once", () => {
+test("a column no .view() of the read model writes is reported once", () => {
   const f = fixture()
   const Table = m.readModel({ id: m.key(z.string()), name: z.string(), status: z.string() })
-  const Ch = [create(f), project({ ...f, Table }), project({ ...f, Table })]
+  const Ch = [create(f), view({ ...f, Table }), view({ ...f, Table })]
   const json = assembleModules([{ ...f, Table, ...chapters({ Ch }), default: m.model("x") }], {
     partial: true,
   })
@@ -1233,7 +1233,6 @@ test("a column no .projection() of the read model writes is reported once", () =
     json.warnings?.map((w) => w.message),
     [
       "Ch › Table: Table.status has no value. Add .event() for an event that carries status, or set it in a mapping.",
-      "Ch › Table: nothing reads Table yet. Add .readModel(Table), .view(Table) or .trigger(Table) where it's needed.",
     ],
   )
 })
@@ -1248,35 +1247,6 @@ test("a single file written top to bottom extends an earlier read model in a lat
   )
 })
 
-test("a view may show more than one read model", () => {
-  const f = fixture()
-  const Other = m.readModel({ id: m.key(z.string()), count: z.number() })
-  const view = m
-    .slice()
-    .view(f.Table, Other)
-    .actor(f.User)
-    .service(f.Svc, "Both")
-    .test("A new list shows in both", {
-      given: f.Created(list),
-      then: [f.Table(list), Other({ id: "list-1", count: 0 })],
-    })
-  const project = m
-    .slice()
-    .projection(
-      Other,
-      f.Created(() => ({ count: 0 })),
-    )
-    .test("A new list counts nothing", {
-      given: f.Created(list),
-      then: Other({ id: "list-1", count: 0 }),
-    })
-  const json = assembled({ ...f, Other }, [create(f), projectTable(f), project, view])
-  assert.deepEqual(
-    json.chapters[0]?.slices.at(-1)?.read_models?.map((r) => r.match(/^\w+/)?.[0]),
-    ["Table", "Other"],
-  )
-})
-
 test("a read model in given is named as one", () => {
   const f = fixture()
   const row = f.Table({ id: "1", name: "n" })
@@ -1287,7 +1257,7 @@ test("a read model in given is named as one", () => {
     then: f.Created({ id: "1", name: "n" }),
   })
   assert.throws(
-    () => assembled(f, [slice, project(f), view(f)]),
+    () => assembled(f, [slice, view(f)]),
     /Ch › Create: Table in given is a read model\. given lists events that already happened\./,
   )
 })
@@ -1296,7 +1266,7 @@ test("a declaration in no slice is an error", () => {
   const f = fixture()
   const Loose = m.event({ id: z.string() })
   assert.throws(
-    () => assembled({ ...f, Loose }, [create(f), project(f), view(f)]),
+    () => assembled({ ...f, Loose }, [create(f), view(f)]),
     /Loose isn't in a slice yet\./,
   )
 })
@@ -1314,7 +1284,7 @@ test("a partial assembly lists the dead ends and keeps the loose declarations in
   assert.deepEqual(json.warnings, [
     {
       message:
-        "Ch › Create: nothing uses Created yet. Add .trigger(Created) or a projection's .event(Created) where something reacts to it.",
+        "Ch › Create: nothing uses Created yet. Add .trigger(Created) or a view's .event(Created) where something reacts to it.",
       element: "Created",
       slice: "Create",
     },
@@ -1384,13 +1354,16 @@ test("chapters come in the order declared, each with its slices in the order wri
   const Again = m.chapter()
   view(f).chapter(Again)
   create(f).chapter(Second)
-  project(f).chapter(First)
+  m.slice("Recreate")
+    .command(f.Create, f.Created)
+    .test("A list is created", { when: f.Create(list), then: f.Created(list) })
+    .chapter(First)
   const json = assembleModules([{ ...f, Second, First, default: m.model("x") }, { Second: Again }])
   assert.deepEqual(
     json.chapters.map((c) => [c.name, c.slices.map((s) => s.name)]),
     [
-      ["Second", ["Get", "Create"]],
-      ["First", ["Table"]],
+      ["Second", ["Table", "Create"]],
+      ["First", ["Recreate"]],
     ],
   )
   assert.equal(json.notes.First, "Where it starts.")
@@ -1399,7 +1372,7 @@ test("chapters come in the order declared, each with its slices in the order wri
 
 test("a chapter no slice joins is drawn empty, as a to-do", () => {
   const f = fixture()
-  const story = chapters({ Ch: [create(f), project(f), view(f)] })
+  const story = chapters({ Ch: [create(f), view(f)] })
   const Later = m.chapter()
   const json = assembleModules([{ ...f, ...story, Later, default: m.model("x") }], {
     partial: true,
@@ -1412,7 +1385,6 @@ test("a chapter no slice joins is drawn empty, as a to-do", () => {
 test("a slice joins one chapter", () => {
   const f = fixture()
   const [A, B] = [m.chapter(), m.chapter()]
-  project(f).chapter(A)
   view(f).chapter(A)
   create(f).chapter(A).chapter(B)
   assert.throws(
@@ -1424,13 +1396,13 @@ test("a slice joins one chapter", () => {
 test("a partial assembly draws a slice in two chapters in the first, and lists it", () => {
   const f = fixture()
   const [A, B] = [m.chapter(), m.chapter()]
-  for (const s of [create(f), project(f), view(f)]) s.chapter(A)
+  for (const s of [create(f), view(f)]) s.chapter(A)
   m.slice().command(f.Create, f.Created).chapter(A).chapter(B)
   const json = assembleModules([{ ...f, A, B, default: m.model("x") }], { partial: true })
   assert.deepEqual(
     json.chapters.map((c) => [c.name, c.slices.length]),
     [
-      ["A", 4],
+      ["A", 3],
       ["B", 0],
     ],
   )
@@ -1458,7 +1430,7 @@ test("a slice in no chapter is drawn after the story", () => {
   const base = m.slice().command(f.Create, f.Created)
   base.actor(f.User)
   base.event(Renamed).service(f.Svc)
-  m.slice().projection(f.Table, f.Created)
+  m.slice().view(f.Table, f.Created)
   const json = assembleModules([{ ...f, Renamed, default: m.model("x") }], { partial: true })
   // The shared prefix is not a slice of its own.
   assert.deepEqual(
@@ -1479,7 +1451,7 @@ test("a slice missing part of its core is drawn with the rest; strict assembly r
   const f = fixture()
   // @ts-expect-error the compiler reports the missing event where the slice is written
   const incomplete = m.slice().command(f.Create).actor(f.User)
-  const slices = [create(f), incomplete, project(f), view(f)]
+  const slices = [create(f), incomplete, view(f)]
   const json = assembleModules([{ ...f, ...chapters({ Ch: slices }), default: m.model("x") }], {
     partial: true,
   })
@@ -1489,7 +1461,6 @@ test("a slice missing part of its core is drawn with the rest; strict assembly r
       ["Create", "Create(id, name)", ["Created(id, name)"]],
       ["Create", "Create(id, name)", undefined],
       ["Table", undefined, undefined],
-      ["Get", undefined, undefined],
     ],
   )
   assert.ok(layout(json).boxes.length > 0)
@@ -1502,7 +1473,7 @@ test("a slice missing part of its core is drawn with the rest; strict assembly r
 test("a slice in no chapter is an error", () => {
   const f = fixture()
   view(f)
-  assert.throws(() => assembled(f, [create(f), project(f)]), /Get isn't in a chapter yet\./)
+  assert.throws(() => assembled(f, [create(f)]), /Table isn't in a chapter yet\./)
 })
 
 test("an assembly sees only the slices written since the last one", () => {
@@ -1549,7 +1520,7 @@ test("an external system declared in two modules is one lane", async () => {
 
 test("an external system no event joins is an empty lane", () => {
   const f = fixture()
-  const json = assembled({ ...f, Mail: m.external() }, [create(f), project(f), view(f)])
+  const json = assembled({ ...f, Mail: m.external() }, [create(f), view(f)])
   assert.deepEqual(json.actors.at(-1), { id: "mail", name: "Mail", type: "external" })
   assert.ok(layout(json).rows.some((r) => r.id === "actor:mail"))
 })
@@ -1559,7 +1530,7 @@ test("an event in a stream and an external system", () => {
   const [Lists, Mail] = [m.stream(), m.external()]
   f.Created.stream(Lists).external(Mail)
   assert.throws(
-    () => assembled({ ...f, Lists, Mail }, [create(f), project(f), view(f)]),
+    () => assembled({ ...f, Lists, Mail }, [create(f), view(f)]),
     /^Error: Created is in the Lists stream and the Mail system\. Keep one: \.stream\(\) for ours, \.external\(\) for theirs\.$/,
   )
 })
@@ -1727,7 +1698,7 @@ test("an automation's when has what its trigger in given carries and its mapping
   ])
 })
 
-test("a projection's rows have what given builds, matched by key", () => {
+test("a view's rows have what given builds, matched by key", () => {
   const ids = { userId: m.key(z.string()), listId: m.key(z.string()) }
   const Lists = m.readModel({
     ...ids,
@@ -1743,7 +1714,7 @@ test("a projection's rows have what given builds, matched by key", () => {
   const chores = { userId: "u-1", listId: "l-2" }
   const projection = m
     .slice()
-    .projection(
+    .view(
       Lists,
       ListCreated((e) => ({ title: e.name, items: 0, status: "open" })),
     )

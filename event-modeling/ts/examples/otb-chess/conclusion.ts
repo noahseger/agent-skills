@@ -4,7 +4,15 @@ import { m, z } from "#em"
 import { DrawAgreed, drawAgreed, GameResigned, gameResigned, Result, Termination } from "./draws.ts"
 import { ClockPressed, ClockState, GameEnded, GameState, MATE_FEN, mated } from "./play.ts"
 import { IllegalMoveTally, SecondIllegalMoveRuled, secondOffence } from "./rulings.ts"
-import { Arbiter, ChessService, Game, GamePairing, gameStarted, Player } from "./setup.ts"
+import {
+  Arbiter,
+  ChessService,
+  Game,
+  GamePairing,
+  gameStarted,
+  Player,
+  Spectator,
+} from "./setup.ts"
 
 // FIDE 6.8: a flag has fallen when the arbiter or a player observes it.
 export const ClaimFlagFall = m.command({
@@ -121,7 +129,7 @@ const illegalMoveForfeited = IllegalMoveForfeited({
   termination: "illegal_move_forfeit",
 })
 
-export const resultRecorded = ResultRecorded({
+const resultRecorded = ResultRecorded({
   gameId: "otb-2024-ct-r5-b1",
   round: 5,
   boardNumber: 1,
@@ -254,7 +262,7 @@ m.slice("IllegalMoveForfeiter")
   })
 
 m.slice()
-  .projection(GameResult, GameResigned)
+  .view(GameResult, GameResigned)
   .chapter(Conclusion)
   .event(DrawAgreed)
   .event(BoardOutcomeAdjudicated)
@@ -324,10 +332,15 @@ m.slice()
   })
 
 m.slice()
-  .projection(GameRecord, ResultRecorded)
+  .view(GameRecord, ResultRecorded)
   .chapter(Conclusion)
+  .query({ round: z.number().int() })
+  .actor(Spectator)
+  .service(ChessService, "GetCrosstable")
+  .note("The finished games of a round.")
   .test("The recorded game enters the crosstable", {
     given: resultRecorded,
+    when: { round: 5 },
     then: GameRecord({
       gameId: "otb-2024-ct-r5-b1",
       round: 5,

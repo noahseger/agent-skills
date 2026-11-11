@@ -30,7 +30,7 @@ import {
 type Infer<F extends Fields> = { [P in keyof F]: z.infer<F[P]> }
 type OneOrMany<T> = T | readonly T[]
 
-/** What a function gets as its second argument where a handler fills an event or a projection a row. */
+/** What a function gets as its second argument where a handler fills an event or a view a row. */
 export interface Helpers {
   /**
    * A value the handler makes: from the source, such as `generate(e)` for a count, its fields, such
@@ -72,7 +72,7 @@ export interface Into<S extends Fields, H> {
   readonly helpers: H
 }
 
-/** A use in a projection, where the event fills `R`'s columns. */
+/** A use in a view, where the event fills `R`'s columns. */
 export interface Onto<R extends Fields> {
   readonly readModel: R
 }
@@ -81,7 +81,7 @@ export type Place = Into<Fields, unknown> | Onto<Fields>
 
 /**
  * The function a declaration with fields `F` is called with, typed by where the slice uses it. A
- * handler's must set every field its source lacks; a projection's sets any columns.
+ * handler's must set every field its source lacks; a view's sets any columns.
  */
 export type Mapper<F extends Fields, P> =
   P extends Onto<infer R>
@@ -98,7 +98,7 @@ type SliceMapper = (
   source: Record<string, unknown>,
   helpers: Helpers,
 ) => {
-  readonly "a mapper only works inside a slice: .event(...), .command(...) or a projection": never
+  readonly "a mapper only works inside a slice: .event(...), .command(...) or .view(...)": never
 }
 
 // ---------------------------------------------------------------------------
@@ -145,7 +145,7 @@ export type ReadModelDecl<F extends Fields = Fields> = Decl<"readModel", F>
 
 /** An event of a system we do not own, as `.external()` returns it. */
 export interface ExternalEventDecl<F extends Fields = Fields> extends EventDecl<F> {
-  /** A projection refuses an event with this key, so the editor's error names the fix. */
+  /** A view refuses an event with this key, so the editor's error names the fix. */
   readonly "isn't stored: translate it into an event of ours, then project that": true
 }
 
@@ -203,7 +203,7 @@ export interface Actor {
   note(text: string): this
 }
 
-/** A machine of ours, which can run automations and projections. */
+/** A machine of ours, which can run automations and views. */
 export interface SystemActor extends Actor {
   readonly __system: true
 }
@@ -413,22 +413,13 @@ export type Spec<C extends Fields, Em extends Fields> = {
   when: Example<"command", C>
 } & ({ then: OneOrMany<Example<"event", Em>>; reject?: never } | { reject: string; then?: never })
 
-/** A read model cannot reject an event, so a projection's example has no `when`. */
-export interface ProjectionSpec<R extends Fields> {
-  given: OneOrMany<Example<"event">>
-  then: OneOrMany<Example<"readModel", R>>
-}
-
-/** A row of a read model `D`. */
-type Row<D> = D extends ReadModelDecl<infer R> ? Example<"readModel", R> : never
-
 /**
- * A view's example: `when` holds the query's values, and `then` the rows the screen shows. A view
- * with no query has no `when`.
+ * A view's example: `given` builds the rows, `when` holds the query's values, and `then` the rows
+ * the screen shows. A view with no query has no `when`, and a read model cannot reject an event.
  */
-export type ViewSpec<Q extends Fields, Rows> = {
+export type ViewSpec<Q extends Fields, R extends Fields> = {
   given?: OneOrMany<Example<"event">>
-  then: OneOrMany<Rows>
+  then: OneOrMany<Example<"readModel", R>>
 } & ([keyof Q] extends [never] ? { when?: never } : { when: z.input<z.ZodObject<Q>> })
 
 type Actors = [Actor, ...Actor[]]
@@ -455,7 +446,7 @@ type AnyEvent = EventDecl<any> | Mapped<"event", any, Place>
 type AnyCommand = CommandDecl<any> | Mapped<"command", any, Place>
 
 /** An event of ours, `Event`, or `Event(map)` to fill columns the event does not carry by name. */
-type ProjectedEvent<R extends Fields, E extends Fields> =
+type ViewedEvent<R extends Fields, E extends Fields> =
   | (EventDecl<E> & {
       readonly "isn't stored: translate it into an event of ours, then project that"?: never
     })
@@ -468,10 +459,11 @@ export interface SliceStart {
     command: CommandDecl<C>,
     event: Outcome<C, A>,
   ): StateChange<C, A["__fields"]>
-  /** View: the read models it shows. */
-  view<Shown extends [ReadModelDecl, ...ReadModelDecl[]]>(
-    ...readModels: Shown
-  ): View<Record<never, never>, Row<Shown[number]>>
+  /** State view: the read model, and an event that builds it. */
+  view<R extends Fields, E extends Fields>(
+    readModel: ReadModelDecl<R>,
+    event: ViewedEvent<R, E>,
+  ): View<Record<never, never>, R>
   /**
    * Automation: what starts it, the command it issues, and an event that records. An event starts it
    * as it happens; a read model, polled on the automation's own schedule, starts it once per row.
@@ -481,23 +473,20 @@ export interface SliceStart {
     command: Issue<T, I>,
     event: Outcome<I["__fields"], A>,
   ): Automation<I["__fields"], A["__fields"]>
-  /** State view: the read model, and an event that builds it. */
-  projection<R extends Fields, E extends Fields>(
-    readModel: ReadModelDecl<R>,
-    event: ProjectedEvent<R, E>,
-  ): Projection<R>
 }
 
-export interface View<Q extends Fields, Rows> extends Slice {
+export interface View<Q extends Fields, R extends Fields> extends Slice {
+  /** Another event that writes the read model. */
+  event<E extends Fields>(event: ViewedEvent<R, E>): View<Q, R>
   /** The request fields; without them the request is empty. */
-  query<F extends Fields>(fields: F): View<F, Rows>
-  actor(...actors: Actors): View<Q, Rows>
+  query<F extends Fields>(fields: F): View<F, R>
+  actor(...actors: Actors): View<Q, R>
   /** Where the actors see it; without one, the read model's table is drawn as their screen. */
-  screen(screen: Screen): View<Q, Rows>
+  screen(screen: Screen): View<Q, R>
   /** A view has no command to name its method after. */
-  service(service: Service, method: string): View<Q, Rows>
-  test(name: string, spec: ViewSpec<Q, Rows>): View<Q, Rows>
-  note(text: string): View<Q, Rows>
+  service(service: Service, method: string): View<Q, R>
+  test(name: string, spec: ViewSpec<Q, R>): View<Q, R>
+  note(text: string): View<Q, R>
 }
 
 export interface StateChange<C extends Fields, Em extends Fields> extends Slice {
@@ -523,15 +512,6 @@ export interface Automation<C extends Fields, Em extends Fields> extends Slice {
   actor(actor: SystemActor): Automation<C, Em>
   test(name: string, spec: Spec<C, Em>): Automation<C, Em>
   note(text: string): Automation<C, Em>
-}
-
-export interface Projection<R extends Fields> extends Slice {
-  /** Another event that writes the read model. */
-  event<E extends Fields>(event: ProjectedEvent<R, E>): Projection<R>
-  /** The machine of ours that runs it; without one, the first declared, or else System. */
-  actor(actor: SystemActor): Projection<R>
-  test(name: string, spec: ProjectionSpec<R>): Projection<R>
-  note(text: string): Projection<R>
 }
 
 function many<T>(clauses: OneOrMany<T> | undefined): T[] {
@@ -575,16 +555,16 @@ function chain(data: SliceData) {
     [META]: data,
     readModel: (readModel: ReadModelDecl) =>
       next({ readModels: [...data.readModels, readModel[META]] }),
-    // A projection's event is its own source; a handler's source is the command.
+    // A view's event is its own source; a handler's source is the command.
     event: (event: Used) =>
       next({
-        events: [...data.events, flow(event, data.projection ? undefined : data.command?.decl)],
+        events: [...data.events, flow(event, data.view ? undefined : data.command?.decl)],
       }),
     query: (fields: Fields) => next({ query: fields }),
-    // An automation or a projection is run by one machine of ours, and no one sees it.
+    // An automation is run by one machine of ours, and no one sees it.
     actor: (first: Actor, ...rest: Actor[]) =>
       next(
-        data.trigger || data.polls || data.projection
+        data.trigger || data.polls
           ? { system: first[META] }
           : { actors: [...data.actors, ...[first, ...rest].map((a) => a[META])] },
       ),
@@ -596,7 +576,7 @@ function chain(data: SliceData) {
       }),
     test: (name: string, spec: AnySpec) =>
       next({
-        tests: [...data.tests, testData(name, spec, data.shows.length > 0 ? data : undefined)],
+        tests: [...data.tests, testData(name, spec, data.view ? data : undefined)],
       }),
     note: (text: string) => next({ note: text }),
     chapter: (chapter: Chapter) => next({ chapters: [...data.chapters, chapter[META]] }),
@@ -607,7 +587,6 @@ function chain(data: SliceData) {
 function slice(name?: string): SliceStart {
   const empty: SliceData = {
     actors: [],
-    shows: [],
     readModels: [],
     events: [],
     tests: [],
@@ -623,8 +602,12 @@ function slice(name?: string): SliceStart {
   }
   const start = {
     command: (command?: Used, event?: Used) => handled({}, command, event),
-    view: (...readModels: ReadModelDecl[]) =>
-      chain({ ...empty, shows: readModels.map((r) => r[META]) }),
+    view: (readModel?: ReadModelDecl, event?: Used) =>
+      chain({
+        ...empty,
+        ...(readModel && { view: readModel[META] }),
+        events: event ? [flow(event)] : [],
+      }),
     trigger: (trigger?: EventDecl | ReadModelDecl, command?: Used, event?: Used) =>
       handled(
         trigger
@@ -634,12 +617,6 @@ function slice(name?: string): SliceStart {
         event,
         trigger?.[META],
       ),
-    projection: (readModel?: ReadModelDecl, event?: Used) =>
-      chain({
-        ...empty,
-        ...(readModel && { projection: readModel[META] }),
-        events: event ? [flow(event)] : [],
-      }),
   }
   return start as unknown as SliceStart
 }

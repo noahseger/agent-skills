@@ -172,37 +172,35 @@ export interface SliceData {
   actors: ActorData[]
   /** Where the actors see it. */
   screen?: ScreenData
-  /** The machine of ours that runs an automation or a projection. */
+  /** The machine of ours that runs an automation, or a view no one sees. */
   system?: ActorData
   service?: { service: ServiceData; method?: string }
   /** A view's request fields. */
   query?: Fields
-  /** The read models a view shows. */
-  shows: DeclData[]
   /** What starts an automation: an event, or a read model it polls for work. */
   trigger?: DeclData
   polls?: DeclData
-  /** The read model a state view builds from `events`. */
-  projection?: DeclData
+  /** The read model a view builds from `events` and shows. */
+  view?: DeclData
   /** In an automation, mapped from the trigger event or the polled row. */
   command?: Flow
   /** What the command's handler reads. */
   readModels: DeclData[]
-  /** What the command records; in a projection, what builds the read model. */
+  /** What the command records; in a view, what builds the read model. */
   events: Flow[]
   tests: TestData[]
   /** The chapters it joined; assembly allows one. */
   chapters: ChapterData[]
 }
 
-/** The events a slice records. A projection records none. */
+/** The events a slice records. A view records none. */
 export function recorded(slice: SliceData): DeclData[] {
-  return slice.projection ? [] : slice.events.map((f) => f.decl)
+  return slice.view ? [] : slice.events.map((f) => f.decl)
 }
 
-/** The events a slice reacts to: its trigger, or what builds its projection. */
+/** The events a slice reacts to: its trigger, or what builds its view. */
 export function heard(slice: SliceData): DeclData[] {
-  if (slice.projection) return slice.events.map((f) => f.decl)
+  if (slice.view) return slice.events.map((f) => f.decl)
   return slice.trigger ? [slice.trigger] : []
 }
 

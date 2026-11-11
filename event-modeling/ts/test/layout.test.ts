@@ -173,7 +173,7 @@ test("an automation is in its actor's lane, and reads are drawn back from the re
     "no reference card when the read model is drawn in full",
   )
   const search = out.boxes.find(
-    (b) => b.name === "ItemSearch" && b.kind === "readModel" && !b.compact,
+    (b) => b.name === "ListItems" && b.kind === "readModel" && !b.compact,
   )
   assert.ok(search)
   const reads = out.edges.find((e) => e.from === search.id && e.to === gear.id)
@@ -195,8 +195,8 @@ test("an automation is in its actor's lane, and reads are drawn back from the re
 test("a read model nothing draws in full still gets a reference card", () => {
   const copy: Board = JSON.parse(JSON.stringify(model))
   for (const c of copy.chapters)
-    c.slices = c.slices.filter((s) => !s.read_models?.some((r) => r.startsWith("ItemSearch")))
-  const ref = layout(copy).boxes.find((b) => b.name === "ItemSearch")
+    c.slices = c.slices.filter((s) => !s.read_models?.some((r) => r.startsWith("ListItems")))
+  const ref = layout(copy).boxes.find((b) => b.name === "ListItems")
   assert.ok(ref?.compact && ref.canonical === undefined)
 })
 
@@ -276,17 +276,13 @@ test("a path starts at one box's edge and ends at the other's", () => {
 })
 
 test("a later appearance of an element is collapsed and points at the first", () => {
-  const todoLists = out.boxes.filter((b) => b.name === "TodoList")
-  assert.ok(todoLists.length > 1)
-  const [full, ...later] = todoLists
+  const [full, ...later] = out.boxes.filter((b) => b.name === "ItemAdded" && b.kind === "event")
+  assert.equal(later.length, 1)
   assert.ok(full && !full.compact && full.canonical === undefined)
   for (const b of later) {
     assert.ok(b.compact)
     assert.equal(b.canonical, full.id)
   }
-  const added = out.boxes.filter((b) => b.name === "ItemAdded" && b.kind === "event")
-  assert.equal(added.length, 2)
-  assert.equal(added[1]?.canonical, added[0]?.id)
 })
 
 test("a note marks the card and the slice", () => {
@@ -315,8 +311,8 @@ test("specifications sit under their slice, one card per clause with a line per 
 })
 
 test("a view's specification asks its screen in when, and shows rows in then", () => {
-  const column = out.columns.find((c) => c.label === "ListTodoLists")
-  const spec = out.specs.find((s) => s.column === column?.index)
+  const column = out.columns.find((c) => c.label === "TodoList")
+  const spec = out.specs.filter((s) => s.column === column?.index).at(-1)
   const kinds = spec?.steps.map((st) => [st.word, st.cards.map((c) => c.kind)])
   assert.deepEqual(kinds, [
     ["given", ["event", "event"]],
@@ -332,7 +328,7 @@ test("the picture shows names as words", () => {
   assert.equal(words("FIDEGame"), "FIDE Game")
   assert.equal(words("TodoService"), "Todo Service")
   assert.equal(out.chapters[0]?.title, "List Management")
-  assert.equal(out.columns.find((c) => c.label === "ListTodoLists")?.title, "List Todo Lists")
+  assert.equal(out.columns.find((c) => c.label === "ListItems")?.title, "List Items")
 })
 
 test("a translation gets an automation of ours between the outside event and the command", () => {

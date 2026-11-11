@@ -80,7 +80,7 @@ m.slice()
   })
 
 m.slice()
-  .projection(
+  .view(
     IllegalMoveTally,
     IllegalMoveRuled((e, { generate }) => ({ illegalMoveCount: generate(e) })),
   )

@@ -72,20 +72,28 @@ message GetListRequest {
   string list_id = 1;
 }
 
-message ItemSearch {
-  string item_id = 1;
-  string list_id = 2;
+message ListItems {
+  string list_id = 1;
+  string item_id = 2;
   string title = 3;
   bool done = 4;
   bool deleted = 5;
 }
 
 message GetListResponse {
-  repeated ItemSearch item_search = 1;
+  repeated ListItems list_items = 1;
 }
 
 message SearchItemsRequest {
   string text = 1;
+}
+
+message ItemSearch {
+  string item_id = 1;
+  string list_id = 2;
+  string title = 3;
+  bool done = 4;
+  bool deleted = 5;
 }
 
 message SearchItemsResponse {

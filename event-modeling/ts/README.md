@@ -57,16 +57,15 @@ editor knows its fields. The editor offers only the calls that can come next.
 | Pattern | Starts with | Chain | Meaning |
 |---|---|---|---|
 | state change | the command | `.command(Command, Event)` | An actor issues a command and events are recorded. |
-| view | the read model | `.view(ReadModel)` | An actor reads a read model. |
+| state view | the read model | `.view(ReadModel, Event)` | Our events build a read model, and an actor reads it. |
 | automation | the trigger: an event, or a read model it polls | `.trigger(Event, Command, Event)` or `.trigger(ReadModel, Command, Event)` | An event, or a row of work, causes a command. No actor is involved. |
-| state view | the read model | `.projection(ReadModel, Event)` | Our events build a read model. |
 
 The first call is the whole pattern, and leaving out any of its arguments is an error where the slice
 is written. Every later step is optional: `.event()` adds another event, `.readModel()` names what
 the handler reads, once per read model, `.query()` gives a view its request fields, `.test()`
 adds a specification, and `.chapter()` puts the slice in a chapter. A state change or a view also
-takes `.actor()`, `.screen()` and `.service()`, and needs none of them. An automation or a state
-view takes `.actor()` for the system actor that runs it.
+takes `.actor()`, `.screen()` and `.service()`, and needs none of them. An automation takes
+`.actor()` for the system actor that runs it.
 
 ## Quickstart
 
@@ -188,8 +187,8 @@ m.slice()
   })
 ```
 
-A read model is a table, and `m.key` marks the columns that identify a row. A projection builds it
-from events:
+A read model is a table, and `m.key` marks the columns that identify a row. A view slice builds it
+from events, and the user reads their lists in it:
 
 ```ts
 export const TodoList = m.readModel({
@@ -200,35 +199,28 @@ export const TodoList = m.readModel({
 })
 
 m.slice()
-  .projection(TodoList, ListCreated(() => ({ itemCount: 0 })))
+  .view(TodoList, ListCreated(() => ({ itemCount: 0 })))
   .chapter(Views)
   .event(ItemAdded((e, { generate }) => ({ itemCount: generate(e) })))
-  .test("Each item added counts", {
-    given: [groceries, milk],
-    then: TodoList({ userId: "u-1", listId: "list-1", name: "Groceries", itemCount: 1 }),
-  })
-```
-
-`ListCreated` fills `userId`, `listId` and `name`; the function sets `itemCount`. `generate(e)` says
-the count is made from the `ItemAdded` events seen for the row. An event finds its row by the key
-columns, so each event a projection names must carry every one: `ItemAdded` carries `userId` for
-that reason.
-
-A view slice: the user reads their lists.
-
-```ts
-m.slice()
-  .view(TodoList)
-  .chapter(Views)
   .query({ userId: z.string() })
   .actor(User)
   .service(TodoService, "ListTodoLists")
+  .test("Each item added counts", {
+    given: [groceries, milk],
+    when: { userId: "u-1" },
+    then: TodoList({ userId: "u-1", listId: "list-1", name: "Groceries", itemCount: 1 }),
+  })
   .test("A user sees only their own lists", {
     given: [groceries, ListCreated({ userId: "u-2", listId: "list-2", name: "Hardware" })],
     when: { userId: "u-1" },
     then: TodoList({ userId: "u-1", listId: "list-1", name: "Groceries", itemCount: 0 }),
   })
 ```
+
+`ListCreated` fills `userId`, `listId` and `name`; the function sets `itemCount`. `generate(e)` says
+the count is made from the `ItemAdded` events seen for the row. An event finds its row by the key
+columns, so each event a view names must carry every one: `ItemAdded` carries `userId` for that
+reason.
 
 `.query()` declares the request. A view has no command to name its method after, so `.service()`
 names it.
@@ -304,9 +296,9 @@ declaring each thing where the story first needs it.
 `m.actor()` is a person. Pass `{ icon: "admin" }` for one with authority, like an arbiter, and
 `{ icon: "system" }` for a machine of ours.
 
-Automations and projections are drawn in the lane of the system actor that runs them. A model need
-not declare one: they are then under the built-in System. Once it does, the first system actor
-declared runs every automation and projection that names none, and `.actor(Syncer)` names another.
+Automations, and views no one sees, are drawn in the lane of the system actor that runs them. A
+model need not declare one: they are then under the built-in System. Once it does, the first system
+actor declared runs them all, and an automation's `.actor(Syncer)` names another.
 
 ### Fields and mappings
 
@@ -355,39 +347,42 @@ it: `.screen(LockScreen)`. The card is then titled with the screen's name, and s
 share one. A screen is seen by the slice's actors, so a slice with a screen and no actor is left to
 do, and so is a screen no slice names; neither is drawn.
 
-A slice's column is headed by its command; by its read model when it projects one; by its service
-method when it is a view, or its read model when the view has no service. Pass a name,
+A slice's column is headed by its command, or a view's by its read model. Pass a name,
 `m.slice("StartList")`, only when that heading would say the wrong thing. The service method is
 also named after the command; to use another method name, pass it:
 `.service(TodoService, "StartList")`.
 
 ### Read models
 
-The same events can build a second table for a different question. A view slice can show several
-read models: `.view(GameState, MoveList)`. Without `.query()` its request is empty.
+The same events can build a second table for a different question. A view shows one read model;
+to show two side by side, write two views that name one screen. Without `.query()` its request is
+empty.
 
-A read model has one state view slice, so a later chapter can extend a table next to the event
-that changes it. Every `.projection()` of it adds its events, mappings and specifications to that
-slice, which is drawn where the first one is, in its chapter. A later call that names another
-chapter is left to do.
+A read model has one view slice, so a later chapter can extend a table next to the event that
+changes it. Every `.view()` of it adds its events, mappings and specifications to that slice, which
+is drawn where the first one is: in its chapter, seen by its actors on its screen, served by its
+method. A later call that names another of those is left to do.
 
 ```ts
-m.slice().projection(Inbox, NoteCreated(() => ({ status: "inbox" }))).chapter(Capture)
+m.slice().view(Inbox, NoteCreated(() => ({ status: "inbox" }))).chapter(Capture)
 // further down the file: adds NoteFiled to the Inbox slice in Capture
-m.slice().projection(Inbox, NoteFiled(() => ({ status: "filed" }))).chapter(Capture)
+m.slice().view(Inbox, NoteFiled(() => ({ status: "filed" }))).chapter(Capture)
 ```
+
+A read model an automation polls, or a handler reads, is built by a view like any other, which then
+needs no screen, actor or service.
 
 ### Specifications
 
 A specification is a Given, When, Then example attached to a slice with `.test()`. Calling a
 declaration with data builds an example of it, and Zod checks the values. `given` and `then` accept
 one example or a list. A state change's specification has `then`, the events recorded, or
-`reject`, why the command is refused; never both. A projection's has no `when` or `reject`, because
-a read model cannot reject an event. A view's has `when`, the values its query is asked with, and
-`then`, the rows the screen shows; a view with no `.query()` has no `when`.
+`reject`, why the command is refused; never both. A view's has `given`, the events that build the
+rows; `when`, the values its query is asked with, only once it has a `.query()`; and `then`, the
+rows the screen shows. It has no `reject`, because a read model cannot reject an event.
 
 Every event a slice handles or produces is in one of its specifications: each event a command lists
-in some `then`, external events included, and each event a projection names, or an automation's
+in some `then`, external events included, and each event a view names, or an automation's
 trigger event, in some `given`. An automation a read model starts has no trigger event, so it needs
 none. Every view has a specification. Until then the model is unfinished. A `given` may also hold
 other events, the history that shaped the state.
@@ -398,7 +393,7 @@ sets, the constant. A `generate()` field, and any field of an external event, ma
 polled row is the one `given` builds whose key columns hold what the command copied from them. A
 disagreement names the spec, the field and both values.
 
-A view's `given` builds the rows through the projection of each read model it shows. Each row in
+A view's `given` builds the rows through the view's events. Each row in
 `then` must be one of them, matched by its key columns, with the values they have. A row built and
 left out of `then` must be one the query excludes: a query field filters by equality with the
 column of the same name. A query field with no such column, such as a search's `text`, excludes
@@ -431,7 +426,7 @@ m.slice("PaymentProcessor")
 
 A read model as the trigger runs on the processor's own schedule, and the command's fields come
 from the row, or from a function whose argument is the row. No event and no service method starts
-it. The projection that builds `PaymentsToProcess` marks the row done when it sees
+it. The view that builds `PaymentsToProcess` marks the row done when it sees
 `PaymentSucceeded`.
 
 ### Events from outside
@@ -509,13 +504,13 @@ The compiler catches:
 |---|---|
 | any reference | An unknown actor, event, command, read model, screen or service cannot be written, because references are values, not strings. |
 | the chain | Only a legal chain compiles; each start offers only its own steps. A slice missing part of its pattern is an error where it is written: `Expected 2 arguments, but got 1`, beside which the editor names the missing argument, such as `event`. |
-| a function | Its argument is the slice's source: the command for a handler's event, the trigger event or the polled row for an automation's command, the event in a projection. Its result must be fields of the target, with matching types. Its second argument holds `generate`, except for an automation's command. |
+| a function | Its argument is the slice's source: the command for a handler's event, the trigger event or the polled row for an automation's command, the event in a view. Its result must be fields of the target, with matching types. Its second argument holds `generate`, except for an automation's command. |
 | a command's event | Every event field the command lacks must be set by the function, or marked `generate()`, unless it is optional. The error names the fields. |
-| a projection's event | An external event is refused, because it isn't stored. The error says to translate it first. |
-| a function outside a slice | A mapper only works inside a slice: `.event(...)`, `.command(...)` or a projection. The error says so. |
+| a view's event | An external event is refused, because it isn't stored. The error says to translate it first. |
+| a function outside a slice | A mapper only works inside a slice: `.event(...)`, `.command(...)` or `.view(...)`. The error says so. |
 | an automation's command | Every command field the trigger event, or the polled row, lacks must be set by the function, unless it is optional. The error names the fields. |
 | `.service()` on a view | It names the method. |
-| `.test()` | `when` is the slice's command, or a view's query values. `then` is its events, its read model, or the rows of the read models a view shows; `reject` replaces `then`, and a projection or view has none. Zod checks the values. |
+| `.test()` | `when` is the slice's command, or a view's query values. `then` is its events, or the rows of the read model a view shows; `reject` replaces `then`, and a view has none. Zod checks the values. |
 
 Assembly catches the rest, and each error names the slice it found the problem in:
 
@@ -523,11 +518,11 @@ Assembly catches the rest, and each error names the slice it found the problem i
 |---|---|
 | A declaration used in a slice that no module exports, or one exported under two names | It has no name until it is exported. |
 | Two modules exporting one name, such as `ListCreated` | Each module is compiled on its own. |
-| A column no event of the read model's `.projection()` calls writes | The calls can be in several modules. |
+| A column no event of the read model's `.view()` calls writes | The calls can be in several modules. |
 | An optional field no slice fills | Same. |
-| A projection's event that lacks one of the read model's key columns | Declarations are anonymous, so two events with the same fields are one type. |
-| An event nothing consumes: no `.trigger()`, no projection, no `given` | Same. |
-| An event no slice records; a read model nothing reads or projects | Same. |
+| A view's event that lacks one of the read model's key columns | Declarations are anonymous, so two events with the same fields are one type. |
+| An event nothing consumes: no `.trigger()`, no view, no `given` | Same. |
+| An event no slice records; a read model nothing reads or builds | Same. |
 | A field with no value, in a model the compiler did not check | `em json` runs the model without `tsc`. |
 | Two slices claiming one service method; a slice without a service claims none | A union of literal types dedupes rather than counts. |
 | A declaration in no slice, a slice in no chapter, or a chapter no slice joins | Whether a value is used is not a type. |
@@ -551,14 +546,14 @@ Naming is yours: the conventions above are not checked.
 
 | Ours | The spec's |
 |---|---|
-| a slice | a `Slice`, in story order, with `index`. A state change is `STATE_CHANGE`; a `.trigger()` is `AUTOMATION`, or `TRANSLATION` when its trigger is an external event; a projection and a view are both `STATE_VIEW`, the spec's pattern of events in, read model out: a projection is its events-in half, a view its screen-out half |
+| a slice | a `Slice`, in story order, with `index`. A state change is `STATE_CHANGE`; a `.trigger()` is `AUTOMATION`, or `TRANSLATION` when its trigger is an external event; a view is `STATE_VIEW`, the spec's pattern of events in, read model out, to the screen |
 | a chapter | the slice's `context`. A slice in no chapter has none |
 | a command, event, read model | an `Element` of type `COMMAND`, `EVENT`, `READMODEL`, in each slice that uses it, with `fields` and `dependencies` along the slice's arrows |
 | an automation's gear | an `AUTOMATION` element in `processors`, named after the slice: what starts it points at it, it points at the command |
 | a screen | one `SCREEN` per slice with an actor: the screen's name, or the method's. Its fields are the command's, or a view's `.query()` |
-| `.service()` | `service` and `apiEndpoint` on the command, or on each read model a view shows |
+| `.service()` | `service` and `apiEndpoint` on the command, or on the read model a view shows |
 | a stream | each event's `aggregate`, and the slice's `aggregates`: the streams it records into. A slice that records nothing names none |
-| an actor | the slice's `actors`. An admin is tagged `admin`, a machine of ours `system`. An automation's or a projection's is the system actor that runs it |
+| an actor | the slice's `actors`. An admin is tagged `admin`, a machine of ours `system`. An automation's, or a view's no one sees, is the system actor that runs it |
 | `m.key` | `idAttribute: true` |
 | `.optional()`, `z.array()`, `z.object()` | `optional`, `cardinality: "List"`, `subfields` |
 | a note | an element's `description` |
@@ -597,7 +592,7 @@ and `proto` exits 1.
 |---|---|
 | state change | `rpc Command(CommandRequest) returns (CommandResponse)`. The request is the command's fields. The response is empty, because events are internal. |
 | view | `rpc Method(MethodRequest) returns (MethodResponse)`. The request is the `.query()` fields. The response returns one row when the query names every key column; otherwise, a list. |
-| automation, state view, or a slice without `.service()` | Nothing. They have no service method. |
+| automation, or a slice without `.service()` | Nothing. They have no service method. |
 
 Every command and read model becomes a `message`. Field numbers follow declaration order, so
 appending a field is compatible and reordering one is not; `buf breaking` reports which you did.

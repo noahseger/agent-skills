@@ -135,7 +135,7 @@ m.slice()
   })
 
 m.slice()
-  .projection(
+  .view(
     PendingDrawOffer,
     DrawOffered(() => ({ status: "pending" })),
   )

@@ -140,7 +140,7 @@ m.slice("ReceivePairing")
   })
 
 m.slice()
-  .projection(GamePairing, GameStarted)
+  .view(GamePairing, GameStarted)
   .chapter(GameSetup)
   .test("Pairing identity available after the game starts", {
     given: gameStarted,

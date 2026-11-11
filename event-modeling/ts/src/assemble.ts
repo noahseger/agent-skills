@@ -122,16 +122,15 @@ export function loadModules(
 }
 
 /**
- * Every `.projection()` of a read model is one slice: the first, where it is drawn and which chapter
- * it joins, built from the events of all of them and specified by all their specifications. What a
- * later call says about where or how it is drawn would be lost, so it is reported.
+ * Every `.view()` of a read model is one slice: the first, where it is drawn, which chapter it joins
+ * and who sees it, built from the events of all of them and specified by all their specifications.
+ * What a later call says about where or how it is drawn would be lost, so it is reported.
  */
 function oneSlicePerReadModel(drafts: SliceData[], fail: Fail): SliceData[] {
   const calls = new Map<DeclData, SliceData[]>()
-  for (const s of drafts)
-    if (s.projection) calls.set(s.projection, [...(calls.get(s.projection) ?? []), s])
+  for (const s of drafts) if (s.view) calls.set(s.view, [...(calls.get(s.view) ?? []), s])
   return drafts.flatMap((s) => {
-    const all = s.projection && calls.get(s.projection)
+    const all = s.view && calls.get(s.view)
     if (!all) return [s]
     if (all[0] !== s) return []
     const merged = {
@@ -144,15 +143,21 @@ function oneSlicePerReadModel(drafts: SliceData[], fail: Fail): SliceData[] {
   })
 }
 
-/** What a later `.projection()` of the first's read model says differently about drawing it. */
+/** What a later `.view()` of the first's read model says differently about drawing it. */
 function drawnElsewhere(first: SliceData, later: SliceData): Warning[] {
-  const rm = first.projection?.name ?? ""
+  const rm = first.view?.name ?? ""
   const chapter = (s: SliceData) => s.chapters.map((c) => c.name).join(" and ") || undefined
+  const actors = (s: SliceData) => s.actors.map((a) => a.name).join(" and ") || undefined
+  const method = (s: SliceData) => s.service && `${s.service.service.name}/${s.service.method}`
+  const query = (s: SliceData) => (s.query ? Object.keys(s.query).join(", ") : undefined)
   const quoted = (text: string | undefined) => (text === undefined ? undefined : show(text))
   const differs: [string | undefined, string | undefined, string, string, string][] = [
     [chapter(later), chapter(first), "names chapter", "drawn in", "drawn in no chapter"],
     [quoted(later.name), quoted(first.name ?? rm), "names the slice", "drawn as", ""],
-    [later.system?.name, first.system?.name, "names actor", "run by", "run by the default system"],
+    [actors(later), actors(first), "names actor", "seen by", "seen by no one"],
+    [later.screen?.name, first.screen?.name, "names screen", "shown on", "shown on no screen"],
+    [method(later), method(first), "names method", "served by", "served by no method"],
+    [query(later), query(first), "asks with", "asked with", "asked with nothing"],
     [
       quoted(later.note),
       quoted(first.note),
@@ -166,7 +171,7 @@ function drawnElsewhere(first: SliceData, later: SliceData): Warning[] {
       ? []
       : [
           {
-            message: `${rm}: this .projection() ${names} ${said}, but ${rm} is ${kept === undefined ? none : `${is} ${kept}`}, where it is first written. Remove it, or move the first.`,
+            message: `${rm}: this .view() ${names} ${said}, but ${rm} is ${kept === undefined ? none : `${is} ${kept}`}, where it is first written. Remove it, or move the first.`,
             element: rm,
             slice: first.name ?? rm,
           },
@@ -180,10 +185,15 @@ function firstSystem(declared: Declaration[]): ActorData | undefined {
   return systems.sort((a, b) => a.order - b.order)[0]
 }
 
-/** An automation or a projection that names no machine of ours is run by `system`, or else by System. */
+/**
+ * An automation that names no machine of ours, or a view no one sees, is run by `system`, or else
+ * by System.
+ */
 function runBy(system: ActorData | undefined, drafts: SliceData[]): SliceData[] {
   return drafts.map((s) =>
-    system && !s.system && (s.trigger || s.polls || s.projection) ? { ...s, system } : s,
+    system && !s.system && (s.trigger || s.polls || (s.view && s.actors.length === 0))
+      ? { ...s, system }
+      : s,
   )
 }
 
@@ -379,11 +389,11 @@ export const NO_EVENT = "this slice has no event yet. Add it to the slice's firs
 
 /** What a slice's first call left out. `em json` runs the model without the compiler. */
 function missingCore(slice: SliceData): string | undefined {
-  const { command, trigger, polls, projection, shows, events } = slice
-  if (!command && !trigger && !polls && !projection && shows.length === 0)
+  const { command, trigger, polls, view, events } = slice
+  if (!command && !trigger && !polls && !view)
     return "this slice is empty. Give its first call what starts it."
   if ((trigger || polls) && !command) return NO_COMMAND
-  if ((command || projection) && events.length === 0) return NO_EVENT
+  if ((command || view) && events.length === 0) return NO_EVENT
   return undefined
 }
 
@@ -408,14 +418,7 @@ function locate(chapter: string | undefined, slices: SliceData[]): Located[] {
 
 /** What heads a slice's column: its name, or else what it is named after. */
 function heading(slice: SliceData): string | undefined {
-  return (
-    slice.name ??
-    slice.command?.decl.name ??
-    slice.projection?.name ??
-    slice.polls?.name ??
-    slice.service?.method ??
-    slice.shows[0]?.name
-  )
+  return slice.name ?? slice.command?.decl.name ?? slice.view?.name ?? slice.polls?.name
 }
 
 /** Two modules can export one name, except for a lane, which they share. */
@@ -462,9 +465,8 @@ function used(slice: SliceData): [keyof typeof KIND_LABEL, { name?: string }][] 
   }
   const readModels = [
     ...slice.readModels,
-    ...slice.shows,
     slice.polls,
-    slice.projection,
+    slice.view,
     ...flows(slice).flatMap(generatedFrom),
   ]
   for (const r of readModels) if (r) out.push(["readModel", r])
@@ -532,13 +534,11 @@ function optional(decl: DeclData): string[] {
   return Object.keys(decl.fields).filter((f) => decl.fields[f]?.safeParse(undefined).success)
 }
 
-/** Each read model a slice projects, and the events that build it. */
+/** Each read model a view builds, and the events that build it. */
 type Built = Map<DeclData, Flow[]>
 
 function builtOf(located: Located[]): Built {
-  return new Map(
-    located.flatMap(({ slice }) => (slice.projection ? [[slice.projection, slice.events]] : [])),
-  )
+  return new Map(located.flatMap(({ slice }) => (slice.view ? [[slice.view, slice.events]] : [])))
 }
 
 /**
@@ -557,7 +557,7 @@ function checkFilled({ slice, where }: Located, fail: Fail): void {
         })
     }
   }
-  const { command, projection } = slice
+  const { command, view } = slice
   const from = slice.trigger ?? slice.polls
   if (command && from)
     check(
@@ -566,16 +566,16 @@ function checkFilled({ slice, where }: Located, fail: Fail): void {
       (f) => `Add ${f} to ${from.name}, or set it in the mapping.`,
     )
   // An external event's fields come from outside.
-  if (command && !projection)
+  if (command)
     for (const flow of slice.events.filter((f) => !f.decl.external))
       check(
         flow.decl,
         [...filled(flow, command.decl), ...optional(flow.decl)],
         (f) => `Add ${f} to ${command.decl.name}, or set it in the mapping.`,
       )
-  if (projection)
+  if (view)
     check(
-      projection,
+      view,
       slice.events.flatMap((flow) => filled(flow, flow.decl)),
       (f) => `Add .event() for an event that carries ${f}, or set it in a mapping.`,
     )
@@ -590,8 +590,8 @@ function checkFilledSomewhere(located: Located[], fail: Fail): void {
   const add = (decl: DeclData, fields: string[]) =>
     fills.set(decl, new Set([...(fills.get(decl) ?? []), ...fields]))
   for (const { slice } of located) {
-    const { command, projection } = slice
-    if (!command || projection) continue
+    const { command } = slice
+    if (!command) continue
     const from = slice.trigger ?? slice.polls
     add(command.decl, from ? filled(command, from) : Object.keys(command.decl.fields))
     for (const flow of slice.events)
@@ -609,14 +609,14 @@ function checkFilledSomewhere(located: Located[], fail: Fail): void {
 
 /** An event finds its row by the key columns it carries, so it carries every one. */
 function checkKeys({ slice, where }: Located, fail: Fail): void {
-  if (!slice.projection || slice.projection.keys.length === 0) return
+  if (!slice.view || slice.view.keys.length === 0) return
   for (const flow of slice.events) {
     const carried = filled(flow, flow.decl)
-    const missing = slice.projection.keys.filter((k) => !carried.includes(k))
+    const missing = slice.view.keys.filter((k) => !carried.includes(k))
     if (missing.length > 0) {
       fail({
         message:
-          `${where}: ${flow.decl.name} doesn't say which ${slice.projection.name} row it changes. ` +
+          `${where}: ${flow.decl.name} doesn't say which ${slice.view.name} row it changes. ` +
           `Give it ${missing.join(" and ")}, or set ${missing.length > 1 ? "them" : "it"} in its mapping.`,
         element: flow.decl.name ?? "",
         slice: slice.name ?? "",
@@ -627,12 +627,12 @@ function checkKeys({ slice, where }: Located, fail: Fail): void {
 
 /** External events are not stored, so a read model built from one would be empty after a replay. */
 function checkStored({ slice, where }: Located, fail: Fail): void {
-  const { projection } = slice
-  if (!projection) return
+  const { view } = slice
+  if (!view) return
   for (const { decl } of slice.events)
     if (decl.external)
       fail({
-        message: `${where}: ${projection.name} is built from ${decl.name}, which is ${decl.external.name}'s and isn't stored. Translate it into an event of ours first, then project that.`,
+        message: `${where}: ${view.name} is built from ${decl.name}, which is ${decl.external.name}'s and isn't stored. Translate it into an event of ours first, then project that.`,
         element: decl.name ?? "",
         slice: slice.name ?? "",
       })
@@ -641,17 +641,17 @@ function checkStored({ slice, where }: Located, fail: Fail): void {
 /**
  * Every event a slice handles or produces is in one of its specifications: a command's events are
  * alternatives, and only a specification says when each happens; an automation's trigger, and a
- * projection's events, are in a given. An automation that polls a read model has no trigger
- * event. A view's specifications say what the screen shows.
+ * view's events, are in a given. An automation that polls a read model has no trigger event. A
+ * view's specifications say what the screen shows.
  */
 function checkCovered({ slice, where }: Located, fail: Fail): void {
-  if (slice.shows.length > 0 && slice.tests.length === 0) {
-    const rows = slice.shows.map((r) => r.name).join(" or ")
+  if (slice.view && slice.tests.length === 0) {
     fail({
       slice: slice.name ?? "",
-      element: slice.shows[0]?.name ?? "",
-      message: `${where}: no specification shows this view yet. Add a .test whose then has the ${rows} rows it shows.`,
+      element: slice.view.name ?? "",
+      message: `${where}: no specification shows this view yet. Add a .test whose then has the ${slice.view.name} rows it shows.`,
     })
+    return
   }
   const inClause = (clause: "given" | "then") =>
     new Set(slice.tests.flatMap((t) => t[clause].flatMap((c) => ("decl" in c ? [c.decl] : []))))
@@ -680,7 +680,7 @@ interface Expected {
  * generated field, or an external event's, may be anything.
  */
 function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
-  const { command, projection } = slice
+  const { command, view } = slice
   for (const t of slice.tests) {
     const said = (message: string, element: string) =>
       fail({ message: `${where} › "${t.name}": ${message}`, element, slice: slice.name ?? "" })
@@ -700,47 +700,33 @@ function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
         })
       }
     }
-    if (projection) {
-      const rows = project(projection, slice.events, t.given)
-      for (const c of t.then) {
-        if (!("decl" in c) || c.decl !== projection) continue
-        const matched = rowsLike(rows, projection, c.data)
+    if (view) {
+      const rows = project(view, slice.events, t.given)
+      const then = t.then.flatMap((c) => ("decl" in c && c.decl === view ? [c] : []))
+      for (const c of then) {
+        const matched = rowsLike(rows, view, c.data)
+        const built = matched.length === 1 && matched[0] ? valuesOf(matched[0]) : {}
+        if (excluded({ ...built, ...c.data }, t.query ?? {}))
+          said(
+            `then has ${view.name} ${rowName(view, c.data)}, but when excludes it. Remove it from then.`,
+            view.name ?? "",
+          )
         if (matched.length === 1) compare(c, "then", (f) => matched[0]?.values[f])
         else if (matched.length === 0)
           said(
-            `then has ${projection.name} ${rowName(projection, c.data)}, but given builds no such row.`,
-            projection.name ?? "",
+            `then has ${view.name} ${rowName(view, c.data)}, but given builds no such row.`,
+            view.name ?? "",
           )
       }
-    } else if (slice.shows.length > 0) {
-      for (const shown of slice.shows) {
-        const rows = project(shown, built.get(shown) ?? [], t.given)
-        const then = t.then.flatMap((c) => ("decl" in c && c.decl === shown ? [c] : []))
-        for (const c of then) {
-          const matched = rowsLike(rows, shown, c.data)
-          const built = matched.length === 1 && matched[0] ? valuesOf(matched[0]) : {}
-          if (excluded({ ...built, ...c.data }, t.query ?? {}))
-            said(
-              `then has ${shown.name} ${rowName(shown, c.data)}, but when excludes it. Remove it from then.`,
-              shown.name ?? "",
-            )
-          if (matched.length === 1) compare(c, "then", (f) => matched[0]?.values[f])
-          else if (matched.length === 0)
-            said(
-              `then has ${shown.name} ${rowName(shown, c.data)}, but given builds no such row.`,
-              shown.name ?? "",
-            )
-        }
-        for (const row of rows) {
-          const data = valuesOf(row)
-          if (then.some((c) => rowsLike([row], shown, c.data).length > 0)) continue
-          if (excluded(data, t.query ?? {})) continue
-          const unless = t.query ? " and when does not exclude it" : ""
-          said(
-            `given builds ${shown.name} ${rowName(shown, data)}, but then leaves it out${unless}. Add it to then.`,
-            shown.name ?? "",
-          )
-        }
+      for (const row of rows) {
+        const data = valuesOf(row)
+        if (then.some((c) => rowsLike([row], view, c.data).length > 0)) continue
+        if (excluded(data, t.query ?? {})) continue
+        const unless = t.query ? " and when does not exclude it" : ""
+        said(
+          `given builds ${view.name} ${rowName(view, data)}, but then leaves it out${unless}. Add it to then.`,
+          view.name ?? "",
+        )
       }
     } else if (command) {
       const trigger = t.given.find((g) => g.decl === slice.trigger)
@@ -897,7 +883,9 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
     for (const e of recorded(slice)) emitted.add(e)
     for (const e of heard(slice)) add(reacting, e, at)
     for (const t of slice.tests) for (const g of t.given) add(assuming, g.decl, at)
-    for (const r of [...slice.readModels, ...slice.shows, slice.polls]) if (r) read.add(r)
+    // A view someone sees, or that serves a method, is read there.
+    if (slice.view && (slice.actors.length > 0 || slice.service)) read.add(slice.view)
+    for (const r of [...slice.readModels, slice.polls]) if (r) read.add(r)
   }
   const consumed = new Set([...reacting.keys(), ...assuming.keys()])
   for (const { slice, where } of located) {
@@ -919,11 +907,11 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
         throw new Error(
           `${where}: ${t.when.decl.name} in when is ${KIND_LABEL[t.when.decl.kind]}. when is this slice's command.`,
         )
-      if (slice.shows.length > 0) {
+      if (slice.view) {
         for (const c of t.then) {
-          if ("decl" in c && !slice.shows.includes(c.decl))
+          if ("decl" in c && c.decl !== slice.view)
             throw new Error(
-              `${where}: ${c.decl.name} in then is not what this view shows. then lists rows of ${slice.shows.map((r) => r.name).join(" or ")}.`,
+              `${where}: ${c.decl.name} in then is not what this view shows. then lists rows of ${slice.view.name}.`,
             )
         }
       }
@@ -943,25 +931,21 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
             e,
             e.external
               ? `${where}: nothing uses ${e.name} yet. Add .trigger(${e.name}) where we translate it into an event of ours.`
-              : `${where}: nothing uses ${e.name} yet. Add .trigger(${e.name}) or a projection's .event(${e.name}) where something reacts to it.`,
+              : `${where}: nothing uses ${e.name} yet. Add .trigger(${e.name}) or a view's .event(${e.name}) where something reacts to it.`,
           ),
         )
     }
-    if (slice.projection && !read.has(slice.projection))
+    const { view } = slice
+    if (view && !read.has(view))
       fail(
         about(
-          slice.projection,
-          `${where}: nothing reads ${slice.projection.name} yet. Add .readModel(${slice.projection.name}), .view(${slice.projection.name}) or .trigger(${slice.projection.name}) where it's needed.`,
+          view,
+          `${where}: nothing reads ${view.name} yet. Add .actor() for who sees it, or .readModel(${view.name}) or .trigger(${view.name}) where it's needed.`,
         ),
       )
-    for (const r of [...slice.readModels, ...slice.shows, slice.polls]) {
+    for (const r of [...slice.readModels, slice.polls]) {
       if (r && !built.has(r))
-        fail(
-          about(
-            r,
-            `${where}: nothing fills ${r.name} yet. Add a slice with .projection(${r.name}).`,
-          ),
-        )
+        fail(about(r, `${where}: nothing fills ${r.name} yet. Add a slice with .view(${r.name}).`))
     }
   }
   // One line per event, at the slices that react to it, or else at those that assume it.

@@ -118,7 +118,7 @@ const UNSET = /Property '(\w+)' is missing in type '.*' but required in type 'Pi
 /** A slice's first call and the parameter it was not given, as `em json` words what that leaves out. */
 const UNSUPPLIED: Record<string, string> = {
   "command event": NO_EVENT,
-  "projection event": NO_EVENT,
+  "view event": NO_EVENT,
   "trigger event": NO_EVENT,
   "trigger command": NO_COMMAND,
 }

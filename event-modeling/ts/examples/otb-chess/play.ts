@@ -10,6 +10,7 @@ import {
   GameStarted,
   gameStarted,
   Player,
+  Spectator,
 } from "./setup.ts"
 
 // A player moves. FIDE 1.1: the two players move alternately.
@@ -119,7 +120,7 @@ export const MoveList = m.readModel({
   status: z.enum(["recorded", "struck"]),
 })
 
-export const OPENING_FEN = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
+const OPENING_FEN = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
 export const MATE_FEN = "r1bqkb1r/pppp1Qpp/2n2n2/8/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 4"
 const FORK_FEN = "r1bqk2r/pppp1Qpp/2n2n2/2b1p3/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 7"
 export const STRUCK_FEN = "r4rk1/pp3ppp/2p5/8/8/2P2N2/PP3PPP/R4RK1 w - - 4 17"
@@ -178,6 +179,9 @@ const clockStarted = ClockStarted({
 })
 
 export const Play = m.chapter()
+
+// What a spectator follows: the board and the scoresheet, side by side.
+export const Broadcast = m.screen()
 
 m.slice()
   .command(PlayMove, MovePlayed)
@@ -278,12 +282,18 @@ m.slice()
   })
 
 m.slice()
-  .projection(GameState, GameStarted)
+  .view(GameState, GameStarted)
   .chapter(Play)
   .event(MovePlayed)
   .event(IllegalMoveRuled)
+  .query({ gameId: z.string() })
+  .actor(Spectator)
+  .screen(Broadcast)
+  .service(ChessService, "WatchBoard")
+  .note("The live position, as the broadcast shows it.")
   .test("The board advances after the opening move", {
     given: [gameStarted, e4],
+    when: { gameId: "otb-2024-ct-r5-b1" },
     then: GameState({
       gameId: "otb-2024-ct-r5-b1",
       ply: 1,
@@ -293,6 +303,7 @@ m.slice()
   })
   .test("The board reverts when an illegal move is struck", {
     given: [gameStarted, e4, illegalMoveRuled],
+    when: { gameId: "otb-2024-ct-r5-b1" },
     then: GameState({
       gameId: "otb-2024-ct-r5-b1",
       ply: 32,
@@ -335,7 +346,7 @@ m.slice()
   })
 
 m.slice()
-  .projection(ClockState, ClockStarted)
+  .view(ClockState, ClockStarted)
   .chapter(Play)
   .event(ClockPressed)
   .test("The clock starts with White's time running", {
@@ -366,14 +377,20 @@ m.slice()
   })
 
 m.slice()
-  .projection(
+  .view(
     MoveList,
     MovePlayed(() => ({ status: "recorded" })),
   )
   .chapter(Play)
   .event(IllegalMoveRuled(() => ({ status: "struck" })))
+  .query({ gameId: z.string() })
+  .actor(Spectator)
+  .screen(Broadcast)
+  .service(ChessService, "WatchMoves")
+  .note("The moves so far, as the broadcast shows them.")
   .test("A move is recorded on the scoresheet", {
     given: e4,
+    when: { gameId: "otb-2024-ct-r5-b1" },
     then: MoveList({
       gameId: "otb-2024-ct-r5-b1",
       ply: 1,
@@ -386,6 +403,7 @@ m.slice()
   })
   .test("An illegal move at ply 32 is struck, and stays on the sheet marked", {
     given: [kf1, illegalMoveRuled],
+    when: { gameId: "otb-2024-ct-r5-b1" },
     then: MoveList({
       gameId: "otb-2024-ct-r5-b1",
       ply: 32,

@@ -106,10 +106,10 @@ import { m } from "#em"
 export const Start = m.command({ id: z.string() })
 export const Started = m.event({ id: z.string() })
 export const Table = m.readModel({ id: m.key(z.string()) })
+export const User = m.actor()
 export const Ch = m.chapter()
 m.slice().command(Start, Started).chapter(Ch).test("starts", { when: Start({ id: "1" }), then: [Started({ id: "1" })] })
-m.slice().projection(Table, Started).chapter(Ch).test("a row", { given: Started({ id: "1" }), then: Table({ id: "1" }) })
-m.slice().view(Table).chapter(Ch).test("the row shows", { given: Started({ id: "1" }), then: Table({ id: "1" }) })
+m.slice().view(Table, Started).chapter(Ch).actor(User).test("the row shows", { given: Started({ id: "1" }), then: Table({ id: "1" }) })
 export default m.model("x")
 `,
     )
@@ -125,7 +125,7 @@ export default m.model("x")
   }
 })
 
-/** A finished Api service; the projection has no specification and Loose is in no slice. */
+/** A finished Api service; the view has no specification and Loose is in no slice. */
 const API_DONE = `import { z } from "zod"
 import { m } from "#em"
 
@@ -136,7 +136,7 @@ export const Table = m.readModel({ id: m.key(z.string()) })
 export const Loose = m.event({ id: z.string() })
 export const Ch = m.chapter()
 m.slice().command(Start, Started).service(Api).chapter(Ch).test("starts", { when: Start({ id: "1" }), then: [Started({ id: "1" })] })
-m.slice().projection(Table, Started).chapter(Ch)
+m.slice().view(Table, Started).chapter(Ch)
 export default m.model("x")
 `
 
@@ -163,7 +163,8 @@ test("proto writes a finished service whatever is left to do elsewhere", () => {
 test("proto skips a service with an unfinished slice, says why, and exits 1", () => {
   const { run, api, board } = protoOf(
     `${API_DONE}export const Board = m.service("board.v1")
-m.slice().view(Table).service(Board, "List").chapter(Ch)
+export const Listing = m.readModel({ id: m.key(z.string()) })
+m.slice().view(Listing, Started).service(Board, "List").chapter(Ch)
 `,
   )
   assert.equal(run.status, 1)
@@ -171,7 +172,7 @@ m.slice().view(Table).service(Board, "List").chapter(Ch)
   assert.equal(board, undefined)
   assert.match(
     run.stderr,
-    /Skipped .*board\/v1\/board\.proto\. Its service has left to do:\nCh › List: no specification shows this view yet\./,
+    /Skipped .*board\/v1\/board\.proto\. Its service has left to do:\nCh › Listing: no specification shows this view yet\./,
   )
 })
 
@@ -351,7 +352,7 @@ export const Retried = m.event({ id: z.string() })
 export const Later = m.chapter()
 Synced((e, { generate }) => ({ id: generate(e.id) }))
 export const Pending = m.readModel({ id: z.string() })
-m.slice().projection(Pending)
+m.slice().view(Pending)
 m.slice().trigger(Synced)
 m.slice().trigger(Pending, Sync)
 export default m.model("x")
@@ -368,7 +369,7 @@ export default m.model("x")
         "  index.ts:6  Argument of type 'string' is not assignable to parameter of type 'Stream'.",
         "  index.ts:11  .event() takes one event. To record Failed too, chain .event(Failed).",
         "  index.ts:12  Sync: this slice has no event yet. Add it to the slice's first call.",
-        "  index.ts:16  a mapper only works inside a slice: .event(...), .command(...) or a projection",
+        "  index.ts:16  a mapper only works inside a slice: .event(...), .command(...) or .view(...)",
         "  index.ts:18  Pending: this slice has no event yet. Add it to the slice's first call.",
         "  index.ts:19  Synced: this slice has no command yet. Add it to the slice's first call.",
         "  index.ts:20  Sync: this slice has no event yet. Add it to the slice's first call.",

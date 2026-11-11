@@ -117,7 +117,7 @@ function parts(s: SpecSlice) {
   const heard = view ? events : trigger ? [trigger] : []
   const recorded = view ? [] : events.filter((e) => e !== trigger)
   const projection = view && events.length > 0 ? readmodels[0] : undefined
-  const shows = view && !projection ? readmodels : []
+  const shows = view ? readmodels : []
   const reads = view ? [] : readmodels.filter((r) => r !== polled)
   return { command, trigger, polled, heard, recorded, projection, shows, reads }
 }
@@ -207,10 +207,10 @@ export function read(written: Feed): Board {
     ])
       noted(el)
     // A screen is seen by someone; a model from elsewhere may not say who, so a User. No one sees
-    // an automation or a projection: its actor is the machine of ours that runs it.
+    // an automation, or a view with no screen: its actor is the machine of ours that runs it.
     const screen = s.screens?.[0]
     const people = (s.actors ?? []).filter((a) => actorType(a) !== "external")
-    const runs = Boolean(trigger || polled || projection)
+    const runs = Boolean(trigger || polled || (projection && !screen))
     const runner = runs ? people[0] : undefined
     const seers = runs
       ? []
@@ -251,7 +251,6 @@ export function read(written: Feed): Board {
     if (calls.length > 0) out.calls = calls
     if (reads.length > 0) out.reads = reads.map((r) => r.title)
     if (shows.length > 0) out.read_models = shows.map(element)
-    if (projection) out.read_models = [element(projection)]
     if (shows.length > 0 && screen && (screen.fields ?? []).length > 0)
       out.query = screen.fields.map((f) => f.name)
     if (polled) out.polls = polled.title

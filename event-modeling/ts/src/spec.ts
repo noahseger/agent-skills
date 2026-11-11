@@ -320,34 +320,29 @@ function sliceOf(
     to.dependencies.push(ref(from, "INBOUND"))
   }
 
-  const { trigger, polls, projection, command, service } = slice
-  const sliceType: SliceType = projection
-    ? "STATE_VIEW"
-    : trigger?.external
-      ? "TRANSLATION"
-      : trigger || polls
-        ? "AUTOMATION"
-        : command
-          ? "STATE_CHANGE"
-          : "STATE_VIEW"
+  const { trigger, polls, view, command, service } = slice
+  const sliceType: SliceType = trigger?.external
+    ? "TRANSLATION"
+    : trigger || polls
+      ? "AUTOMATION"
+      : command
+        ? "STATE_CHANGE"
+        : "STATE_VIEW"
 
-  // The endpoint is on what it serves: the command, or the read models a view shows.
-  const method = service?.method ?? command?.decl.name ?? slice.shows[0]?.name ?? ""
+  // The endpoint is on what it serves: the command, or the read model a view shows.
+  const method = service?.method ?? command?.decl.name ?? view?.name ?? ""
   const endpoint = service ? { service: service.service.name ?? "", apiEndpoint: method } : {}
 
   const commandEl = command && element(command.decl, mappedFields(command.decl, command.mapping))
   if (commandEl && !trigger && !polls) Object.assign(commandEl, endpoint)
-  const events = projection
+  const events = view
     ? []
     : slice.events.map((f) => element(f.decl, mappedFields(f.decl, f.mapping)))
-  const heardEvents = projection
-    ? slice.events.map((f) => element(f.decl, fieldsOf(f.decl.fields)))
-    : []
+  const heardEvents = view ? slice.events.map((f) => element(f.decl, fieldsOf(f.decl.fields))) : []
   const triggerEl = trigger && element(trigger, fieldsOf(trigger.fields))
   const reads = slice.readModels.map((r) => element(r, fieldsOf(r.fields, r.keys)))
   const pollsEl = polls && element(polls, fieldsOf(polls.fields, polls.keys))
-  const projectionEl = projection && element(projection, projectedFields(projection, slice.events))
-  const shows = slice.shows.map((r) => element(r, fieldsOf(r.fields, r.keys), endpoint))
+  const viewEl = view && element(view, projectedFields(view, slice.events), endpoint)
   const processor: SpecElement | undefined =
     trigger || polls
       ? {
@@ -378,8 +373,8 @@ function sliceOf(
   link(screen, commandEl)
   for (const r of reads) link(r, commandEl)
   for (const e of events) link(commandEl, e)
-  for (const e of heardEvents) link(e, projectionEl)
-  for (const r of shows) link(r, screen)
+  for (const e of heardEvents) link(e, viewEl)
+  link(viewEl, screen)
 
   const stored = [...new Set(recorded(slice).flatMap((d) => streamOf(d) ?? []))]
   // Who sees the slice, or the machine of ours that runs it.
@@ -392,12 +387,7 @@ function sliceOf(
     sliceType,
     commands: commandEl ? [commandEl] : [],
     events: [...(triggerEl ? [triggerEl] : []), ...heardEvents, ...events],
-    readmodels: [
-      ...(pollsEl ? [pollsEl] : []),
-      ...(projectionEl ? [projectionEl] : []),
-      ...shows,
-      ...reads,
-    ],
+    readmodels: [...(pollsEl ? [pollsEl] : []), ...(viewEl ? [viewEl] : []), ...reads],
     screens: screen ? [screen] : [],
     processors: processor ? [processor] : [],
     tables: [],

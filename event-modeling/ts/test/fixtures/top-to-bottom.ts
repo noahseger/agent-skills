@@ -1,5 +1,5 @@
 // A model in one file, read top to bottom: nothing is used above where it is declared, and a
-// later chapter extends a read model next to the event that changes it.
+// later chapter extends a read model's view next to the event that changes it.
 
 import { z } from "zod"
 import { m } from "#em"
@@ -29,13 +29,17 @@ m.slice()
   })
 
 m.slice()
-  .projection(
+  .view(
     Inbox,
     NoteCreated(() => ({ status: "inbox" })),
   )
   .chapter(Capture)
+  .query({ status: z.string() })
+  .actor(Writer)
+  .service(NoteService, "ListInbox")
   .test("A new note is in the inbox", {
     given: NoteCreated({ noteId: "note-1", text: "Call the plumber" }),
+    when: { status: "inbox" },
     then: Inbox({ noteId: "note-1", text: "Call the plumber", status: "inbox" }),
   })
 
@@ -55,24 +59,19 @@ m.slice()
   })
 
 m.slice()
-  .projection(
+  .view(
     Inbox,
     NoteFiled(() => ({ status: "filed" })),
   )
+  .query({ status: z.string() })
   .test("A filed note leaves the inbox", {
     given: [
       NoteCreated({ noteId: "note-1", text: "Call the plumber" }),
       NoteFiled({ noteId: "note-1" }),
     ],
+    when: { status: "filed" },
     then: Inbox({ noteId: "note-1", text: "Call the plumber", status: "filed" }),
   })
-
-m.slice()
-  .view(Inbox)
-  .chapter(Filing)
-  .query({ status: z.string() })
-  .actor(Writer)
-  .service(NoteService, "ListInbox")
   .test("Only open notes show", {
     given: [
       NoteCreated({ noteId: "note-1", text: "Call the plumber" }),

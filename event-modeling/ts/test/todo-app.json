@@ -1085,11 +1085,39 @@
               "type": "INBOUND",
               "title": "ListDeleted",
               "elementType": "EVENT"
+            },
+            {
+              "id": "todo-list:screen:list-todo-lists",
+              "type": "OUTBOUND",
+              "title": "ListTodoLists",
+              "elementType": "SCREEN"
+            }
+          ],
+          "service": "TodoService",
+          "apiEndpoint": "ListTodoLists"
+        }
+      ],
+      "screens": [
+        {
+          "id": "todo-list:screen:list-todo-lists",
+          "title": "ListTodoLists",
+          "type": "SCREEN",
+          "fields": [
+            {
+              "name": "userId",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "todo-list:readmodel:todo-list",
+              "type": "INBOUND",
+              "title": "TodoList",
+              "elementType": "READMODEL"
             }
           ]
         }
       ],
-      "screens": [],
       "processors": [],
       "tables": [],
       "specifications": [
@@ -1111,7 +1139,18 @@
               ]
             }
           ],
-          "when": [],
+          "when": [
+            {
+              "id": "todo-list:spec:0:when:0",
+              "title": "ListTodoLists",
+              "type": "SPEC_COMMAND",
+              "examples": [
+                {
+                  "userId": "u-1"
+                }
+              ]
+            }
+          ],
           "then": [
             {
               "id": "todo-list:spec:0:then:0",
@@ -1174,7 +1213,18 @@
               ]
             }
           ],
-          "when": [],
+          "when": [
+            {
+              "id": "todo-list:spec:1:when:0",
+              "title": "ListTodoLists",
+              "type": "SPEC_COMMAND",
+              "examples": [
+                {
+                  "userId": "u-1"
+                }
+              ]
+            }
+          ],
           "then": [
             {
               "id": "todo-list:spec:1:then:0",
@@ -1222,7 +1272,18 @@
               ]
             }
           ],
-          "when": [],
+          "when": [
+            {
+              "id": "todo-list:spec:2:when:0",
+              "title": "ListTodoLists",
+              "type": "SPEC_COMMAND",
+              "examples": [
+                {
+                  "userId": "u-1"
+                }
+              ]
+            }
+          ],
           "then": [
             {
               "id": "todo-list:spec:2:then:0",
@@ -1270,7 +1331,18 @@
               ]
             }
           ],
-          "when": [],
+          "when": [
+            {
+              "id": "todo-list:spec:3:when:0",
+              "title": "ListTodoLists",
+              "type": "SPEC_COMMAND",
+              "examples": [
+                {
+                  "userId": "u-1"
+                }
+              ]
+            }
+          ],
           "then": [
             {
               "id": "todo-list:spec:3:then:0",
@@ -1288,89 +1360,14 @@
             }
           ],
           "linkedId": "todo-list"
-        }
-      ]
-    },
-    {
-      "id": "list-todo-lists",
-      "index": 6,
-      "title": "ListTodoLists",
-      "context": "Views",
-      "sliceType": "STATE_VIEW",
-      "commands": [],
-      "events": [],
-      "readmodels": [
+        },
         {
-          "id": "list-todo-lists:readmodel:todo-list",
-          "title": "TodoList",
-          "type": "READMODEL",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String",
-              "idAttribute": true
-            },
-            {
-              "name": "listId",
-              "type": "String",
-              "idAttribute": true
-            },
-            {
-              "name": "name",
-              "type": "String"
-            },
-            {
-              "name": "itemCount",
-              "type": "Int"
-            },
-            {
-              "name": "status",
-              "type": "String"
-            }
-          ],
-          "dependencies": [
-            {
-              "id": "list-todo-lists:screen:list-todo-lists",
-              "type": "OUTBOUND",
-              "title": "ListTodoLists",
-              "elementType": "SCREEN"
-            }
-          ],
-          "service": "TodoService",
-          "apiEndpoint": "ListTodoLists"
-        }
-      ],
-      "screens": [
-        {
-          "id": "list-todo-lists:screen:list-todo-lists",
-          "title": "ListTodoLists",
-          "type": "SCREEN",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
-            }
-          ],
-          "dependencies": [
-            {
-              "id": "list-todo-lists:readmodel:todo-list",
-              "type": "INBOUND",
-              "title": "TodoList",
-              "elementType": "READMODEL"
-            }
-          ]
-        }
-      ],
-      "processors": [],
-      "tables": [],
-      "specifications": [
-        {
-          "id": "list-todo-lists:spec:0",
+          "id": "todo-list:spec:4",
           "title": "A user sees only their own lists",
-          "sliceName": "ListTodoLists",
+          "sliceName": "TodoList",
           "given": [
             {
-              "id": "list-todo-lists:spec:0:given:0",
+              "id": "todo-list:spec:4:given:0",
               "title": "ListCreated",
               "type": "SPEC_EVENT",
               "examples": [
@@ -1382,7 +1379,7 @@
               ]
             },
             {
-              "id": "list-todo-lists:spec:0:given:1",
+              "id": "todo-list:spec:4:given:1",
               "title": "ListCreated",
               "type": "SPEC_EVENT",
               "examples": [
@@ -1396,7 +1393,7 @@
           ],
           "when": [
             {
-              "id": "list-todo-lists:spec:0:when:0",
+              "id": "todo-list:spec:4:when:0",
               "title": "ListTodoLists",
               "type": "SPEC_COMMAND",
               "examples": [
@@ -1408,7 +1405,7 @@
           ],
           "then": [
             {
-              "id": "list-todo-lists:spec:0:then:0",
+              "id": "todo-list:spec:4:then:0",
               "title": "TodoList",
               "type": "SPEC_READMODEL",
               "examples": [
@@ -1422,7 +1419,415 @@
               ]
             }
           ],
-          "linkedId": "list-todo-lists"
+          "linkedId": "todo-list"
+        }
+      ],
+      "actors": [
+        {
+          "name": "User",
+          "authRequired": false
+        }
+      ]
+    },
+    {
+      "id": "list-items",
+      "index": 6,
+      "title": "ListItems",
+      "context": "Views",
+      "sliceType": "STATE_VIEW",
+      "commands": [],
+      "events": [
+        {
+          "id": "list-items:event:item-added",
+          "title": "ItemAdded",
+          "type": "EVENT",
+          "fields": [
+            {
+              "name": "userId",
+              "type": "String"
+            },
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "itemId",
+              "type": "String"
+            },
+            {
+              "name": "title",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "list-items:readmodel:list-items",
+              "type": "OUTBOUND",
+              "title": "ListItems",
+              "elementType": "READMODEL"
+            }
+          ],
+          "aggregate": "Items"
+        },
+        {
+          "id": "list-items:event:item-completed",
+          "title": "ItemCompleted",
+          "type": "EVENT",
+          "fields": [
+            {
+              "name": "userId",
+              "type": "String"
+            },
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "itemId",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "list-items:readmodel:list-items",
+              "type": "OUTBOUND",
+              "title": "ListItems",
+              "elementType": "READMODEL"
+            }
+          ],
+          "aggregate": "Items"
+        },
+        {
+          "id": "list-items:event:item-deleted",
+          "title": "ItemDeleted",
+          "type": "EVENT",
+          "fields": [
+            {
+              "name": "listId",
+              "type": "String"
+            },
+            {
+              "name": "itemId",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "list-items:readmodel:list-items",
+              "type": "OUTBOUND",
+              "title": "ListItems",
+              "elementType": "READMODEL"
+            }
+          ],
+          "aggregate": "Items"
+        }
+      ],
+      "readmodels": [
+        {
+          "id": "list-items:readmodel:list-items",
+          "title": "ListItems",
+          "type": "READMODEL",
+          "fields": [
+            {
+              "name": "listId",
+              "type": "String",
+              "idAttribute": true
+            },
+            {
+              "name": "itemId",
+              "type": "String",
+              "idAttribute": true
+            },
+            {
+              "name": "title",
+              "type": "String"
+            },
+            {
+              "name": "done",
+              "type": "Boolean",
+              "mapping": "ItemAdded: = false\nItemCompleted: = true"
+            },
+            {
+              "name": "deleted",
+              "type": "Boolean",
+              "mapping": "ItemAdded: = false\nItemDeleted: = true"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "list-items:event:item-added",
+              "type": "INBOUND",
+              "title": "ItemAdded",
+              "elementType": "EVENT"
+            },
+            {
+              "id": "list-items:event:item-completed",
+              "type": "INBOUND",
+              "title": "ItemCompleted",
+              "elementType": "EVENT"
+            },
+            {
+              "id": "list-items:event:item-deleted",
+              "type": "INBOUND",
+              "title": "ItemDeleted",
+              "elementType": "EVENT"
+            },
+            {
+              "id": "list-items:screen:list-screen",
+              "type": "OUTBOUND",
+              "title": "ListScreen",
+              "elementType": "SCREEN"
+            }
+          ],
+          "service": "TodoService",
+          "apiEndpoint": "GetList"
+        }
+      ],
+      "screens": [
+        {
+          "id": "list-items:screen:list-screen",
+          "title": "ListScreen",
+          "type": "SCREEN",
+          "fields": [
+            {
+              "name": "listId",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "list-items:readmodel:list-items",
+              "type": "INBOUND",
+              "title": "ListItems",
+              "elementType": "READMODEL"
+            }
+          ]
+        }
+      ],
+      "processors": [],
+      "tables": [],
+      "specifications": [
+        {
+          "id": "list-items:spec:0",
+          "title": "A completed item shows as done",
+          "sliceName": "ListItems",
+          "given": [
+            {
+              "id": "list-items:spec:0:given:0",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-1",
+                  "title": "Milk"
+                }
+              ]
+            },
+            {
+              "id": "list-items:spec:0:given:1",
+              "title": "ItemCompleted",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-1"
+                }
+              ]
+            }
+          ],
+          "when": [
+            {
+              "id": "list-items:spec:0:when:0",
+              "title": "ListScreen",
+              "type": "SPEC_COMMAND",
+              "examples": [
+                {
+                  "listId": "list-1"
+                }
+              ]
+            }
+          ],
+          "then": [
+            {
+              "id": "list-items:spec:0:then:0",
+              "title": "ListItems",
+              "type": "SPEC_READMODEL",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "itemId": "item-1",
+                  "title": "Milk",
+                  "done": true,
+                  "deleted": false
+                }
+              ]
+            }
+          ],
+          "linkedId": "list-items"
+        },
+        {
+          "id": "list-items:spec:1",
+          "title": "A deleted item shows as deleted",
+          "sliceName": "ListItems",
+          "given": [
+            {
+              "id": "list-items:spec:1:given:0",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-1",
+                  "title": "Milk"
+                }
+              ]
+            },
+            {
+              "id": "list-items:spec:1:given:1",
+              "title": "ItemDeleted",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "itemId": "item-1"
+                }
+              ]
+            }
+          ],
+          "when": [
+            {
+              "id": "list-items:spec:1:when:0",
+              "title": "ListScreen",
+              "type": "SPEC_COMMAND",
+              "examples": [
+                {
+                  "listId": "list-1"
+                }
+              ]
+            }
+          ],
+          "then": [
+            {
+              "id": "list-items:spec:1:then:0",
+              "title": "ListItems",
+              "type": "SPEC_READMODEL",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "itemId": "item-1",
+                  "title": "Milk",
+                  "done": false,
+                  "deleted": true
+                }
+              ]
+            }
+          ],
+          "linkedId": "list-items"
+        },
+        {
+          "id": "list-items:spec:2",
+          "title": "A list shows its own items",
+          "sliceName": "ListItems",
+          "given": [
+            {
+              "id": "list-items:spec:2:given:0",
+              "title": "ListCreated",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "userId": "u-1",
+                  "name": "Groceries"
+                }
+              ]
+            },
+            {
+              "id": "list-items:spec:2:given:1",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-1",
+                  "title": "Milk"
+                }
+              ]
+            },
+            {
+              "id": "list-items:spec:2:given:2",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-2",
+                  "title": "Eggs"
+                }
+              ]
+            },
+            {
+              "id": "list-items:spec:2:given:3",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-2",
+                  "itemId": "item-3",
+                  "title": "Nails"
+                }
+              ]
+            }
+          ],
+          "when": [
+            {
+              "id": "list-items:spec:2:when:0",
+              "title": "ListScreen",
+              "type": "SPEC_COMMAND",
+              "examples": [
+                {
+                  "listId": "list-1"
+                }
+              ]
+            }
+          ],
+          "then": [
+            {
+              "id": "list-items:spec:2:then:0",
+              "title": "ListItems",
+              "type": "SPEC_READMODEL",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "itemId": "item-1",
+                  "title": "Milk",
+                  "done": false,
+                  "deleted": false
+                }
+              ]
+            },
+            {
+              "id": "list-items:spec:2:then:1",
+              "title": "ListItems",
+              "type": "SPEC_READMODEL",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "itemId": "item-2",
+                  "title": "Eggs",
+                  "done": false,
+                  "deleted": false
+                }
+              ]
+            }
+          ],
+          "linkedId": "list-items"
         }
       ],
       "actors": [
@@ -1573,17 +1978,45 @@
               "type": "INBOUND",
               "title": "ItemDeleted",
               "elementType": "EVENT"
+            },
+            {
+              "id": "item-search:screen:search-items",
+              "type": "OUTBOUND",
+              "title": "SearchItems",
+              "elementType": "SCREEN"
+            }
+          ],
+          "service": "TodoService",
+          "apiEndpoint": "SearchItems"
+        }
+      ],
+      "screens": [
+        {
+          "id": "item-search:screen:search-items",
+          "title": "SearchItems",
+          "type": "SCREEN",
+          "fields": [
+            {
+              "name": "text",
+              "type": "String"
+            }
+          ],
+          "dependencies": [
+            {
+              "id": "item-search:readmodel:item-search",
+              "type": "INBOUND",
+              "title": "ItemSearch",
+              "elementType": "READMODEL"
             }
           ]
         }
       ],
-      "screens": [],
       "processors": [],
       "tables": [],
       "specifications": [
         {
           "id": "item-search:spec:0",
-          "title": "A completed item shows as done",
+          "title": "An added item shows as not done",
           "sliceName": "ItemSearch",
           "given": [
             {
@@ -1598,62 +2031,23 @@
                   "title": "Milk"
                 }
               ]
-            },
+            }
+          ],
+          "when": [
             {
-              "id": "item-search:spec:0:given:1",
-              "title": "ItemCompleted",
-              "type": "SPEC_EVENT",
+              "id": "item-search:spec:0:when:0",
+              "title": "SearchItems",
+              "type": "SPEC_COMMAND",
               "examples": [
                 {
-                  "userId": "u-1",
-                  "listId": "list-1",
-                  "itemId": "item-1"
+                  "text": "Milk"
                 }
               ]
             }
           ],
-          "when": [],
           "then": [
             {
               "id": "item-search:spec:0:then:0",
-              "title": "ItemSearch",
-              "type": "SPEC_READMODEL",
-              "examples": [
-                {
-                  "itemId": "item-1",
-                  "listId": "list-1",
-                  "title": "Milk",
-                  "done": true,
-                  "deleted": false
-                }
-              ]
-            }
-          ],
-          "linkedId": "item-search"
-        },
-        {
-          "id": "item-search:spec:1",
-          "title": "An added item shows as not done",
-          "sliceName": "ItemSearch",
-          "given": [
-            {
-              "id": "item-search:spec:1:given:0",
-              "title": "ItemAdded",
-              "type": "SPEC_EVENT",
-              "examples": [
-                {
-                  "userId": "u-1",
-                  "listId": "list-1",
-                  "itemId": "item-1",
-                  "title": "Milk"
-                }
-              ]
-            }
-          ],
-          "when": [],
-          "then": [
-            {
-              "id": "item-search:spec:1:then:0",
               "title": "ItemSearch",
               "type": "SPEC_READMODEL",
               "examples": [
@@ -1670,8 +2064,68 @@
           "linkedId": "item-search"
         },
         {
+          "id": "item-search:spec:1",
+          "title": "A search finds a deleted item as deleted",
+          "sliceName": "ItemSearch",
+          "given": [
+            {
+              "id": "item-search:spec:1:given:0",
+              "title": "ItemAdded",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "userId": "u-1",
+                  "listId": "list-1",
+                  "itemId": "item-1",
+                  "title": "Milk"
+                }
+              ]
+            },
+            {
+              "id": "item-search:spec:1:given:1",
+              "title": "ItemDeleted",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "itemId": "item-1"
+                }
+              ]
+            }
+          ],
+          "when": [
+            {
+              "id": "item-search:spec:1:when:0",
+              "title": "SearchItems",
+              "type": "SPEC_COMMAND",
+              "examples": [
+                {
+                  "text": "Milk"
+                }
+              ]
+            }
+          ],
+          "then": [
+            {
+              "id": "item-search:spec:1:then:0",
+              "title": "ItemSearch",
+              "type": "SPEC_READMODEL",
+              "examples": [
+                {
+                  "itemId": "item-1",
+                  "listId": "list-1",
+                  "title": "Milk",
+                  "done": false,
+                  "deleted": true
+                }
+              ]
+            }
+          ],
+          "linkedId": "item-search"
+        },
+        {
           "id": "item-search:spec:2",
-          "title": "A deleted item shows as deleted",
+          "title": "A search finds a done item by its title",
           "sliceName": "ItemSearch",
           "given": [
             {
@@ -1689,310 +2143,6 @@
             },
             {
               "id": "item-search:spec:2:given:1",
-              "title": "ItemDeleted",
-              "type": "SPEC_EVENT",
-              "examples": [
-                {
-                  "listId": "list-1",
-                  "itemId": "item-1"
-                }
-              ]
-            }
-          ],
-          "when": [],
-          "then": [
-            {
-              "id": "item-search:spec:2:then:0",
-              "title": "ItemSearch",
-              "type": "SPEC_READMODEL",
-              "examples": [
-                {
-                  "itemId": "item-1",
-                  "listId": "list-1",
-                  "title": "Milk",
-                  "done": false,
-                  "deleted": true
-                }
-              ]
-            }
-          ],
-          "linkedId": "item-search"
-        }
-      ]
-    },
-    {
-      "id": "get-list",
-      "index": 8,
-      "title": "GetList",
-      "context": "Views",
-      "sliceType": "STATE_VIEW",
-      "commands": [],
-      "events": [],
-      "readmodels": [
-        {
-          "id": "get-list:readmodel:item-search",
-          "title": "ItemSearch",
-          "type": "READMODEL",
-          "fields": [
-            {
-              "name": "itemId",
-              "type": "String",
-              "idAttribute": true
-            },
-            {
-              "name": "listId",
-              "type": "String"
-            },
-            {
-              "name": "title",
-              "type": "String"
-            },
-            {
-              "name": "done",
-              "type": "Boolean"
-            },
-            {
-              "name": "deleted",
-              "type": "Boolean"
-            }
-          ],
-          "dependencies": [
-            {
-              "id": "get-list:screen:list-screen",
-              "type": "OUTBOUND",
-              "title": "ListScreen",
-              "elementType": "SCREEN"
-            }
-          ],
-          "service": "TodoService",
-          "apiEndpoint": "GetList"
-        }
-      ],
-      "screens": [
-        {
-          "id": "get-list:screen:list-screen",
-          "title": "ListScreen",
-          "type": "SCREEN",
-          "fields": [
-            {
-              "name": "listId",
-              "type": "String"
-            }
-          ],
-          "dependencies": [
-            {
-              "id": "get-list:readmodel:item-search",
-              "type": "INBOUND",
-              "title": "ItemSearch",
-              "elementType": "READMODEL"
-            }
-          ]
-        }
-      ],
-      "processors": [],
-      "tables": [],
-      "specifications": [
-        {
-          "id": "get-list:spec:0",
-          "title": "A list shows its own items",
-          "sliceName": "GetList",
-          "given": [
-            {
-              "id": "get-list:spec:0:given:0",
-              "title": "ListCreated",
-              "type": "SPEC_EVENT",
-              "examples": [
-                {
-                  "listId": "list-1",
-                  "userId": "u-1",
-                  "name": "Groceries"
-                }
-              ]
-            },
-            {
-              "id": "get-list:spec:0:given:1",
-              "title": "ItemAdded",
-              "type": "SPEC_EVENT",
-              "examples": [
-                {
-                  "userId": "u-1",
-                  "listId": "list-1",
-                  "itemId": "item-1",
-                  "title": "Milk"
-                }
-              ]
-            },
-            {
-              "id": "get-list:spec:0:given:2",
-              "title": "ItemAdded",
-              "type": "SPEC_EVENT",
-              "examples": [
-                {
-                  "userId": "u-1",
-                  "listId": "list-1",
-                  "itemId": "item-2",
-                  "title": "Eggs"
-                }
-              ]
-            },
-            {
-              "id": "get-list:spec:0:given:3",
-              "title": "ItemAdded",
-              "type": "SPEC_EVENT",
-              "examples": [
-                {
-                  "userId": "u-1",
-                  "listId": "list-2",
-                  "itemId": "item-3",
-                  "title": "Nails"
-                }
-              ]
-            }
-          ],
-          "when": [
-            {
-              "id": "get-list:spec:0:when:0",
-              "title": "ListScreen",
-              "type": "SPEC_COMMAND",
-              "examples": [
-                {
-                  "listId": "list-1"
-                }
-              ]
-            }
-          ],
-          "then": [
-            {
-              "id": "get-list:spec:0:then:0",
-              "title": "ItemSearch",
-              "type": "SPEC_READMODEL",
-              "examples": [
-                {
-                  "itemId": "item-1",
-                  "listId": "list-1",
-                  "title": "Milk",
-                  "done": false,
-                  "deleted": false
-                }
-              ]
-            },
-            {
-              "id": "get-list:spec:0:then:1",
-              "title": "ItemSearch",
-              "type": "SPEC_READMODEL",
-              "examples": [
-                {
-                  "itemId": "item-2",
-                  "listId": "list-1",
-                  "title": "Eggs",
-                  "done": false,
-                  "deleted": false
-                }
-              ]
-            }
-          ],
-          "linkedId": "get-list"
-        }
-      ],
-      "actors": [
-        {
-          "name": "User",
-          "authRequired": false
-        }
-      ]
-    },
-    {
-      "id": "search-items",
-      "index": 9,
-      "title": "SearchItems",
-      "context": "Views",
-      "sliceType": "STATE_VIEW",
-      "commands": [],
-      "events": [],
-      "readmodels": [
-        {
-          "id": "search-items:readmodel:item-search",
-          "title": "ItemSearch",
-          "type": "READMODEL",
-          "fields": [
-            {
-              "name": "itemId",
-              "type": "String",
-              "idAttribute": true
-            },
-            {
-              "name": "listId",
-              "type": "String"
-            },
-            {
-              "name": "title",
-              "type": "String"
-            },
-            {
-              "name": "done",
-              "type": "Boolean"
-            },
-            {
-              "name": "deleted",
-              "type": "Boolean"
-            }
-          ],
-          "dependencies": [
-            {
-              "id": "search-items:screen:search-items",
-              "type": "OUTBOUND",
-              "title": "SearchItems",
-              "elementType": "SCREEN"
-            }
-          ],
-          "service": "TodoService",
-          "apiEndpoint": "SearchItems"
-        }
-      ],
-      "screens": [
-        {
-          "id": "search-items:screen:search-items",
-          "title": "SearchItems",
-          "type": "SCREEN",
-          "fields": [
-            {
-              "name": "text",
-              "type": "String"
-            }
-          ],
-          "dependencies": [
-            {
-              "id": "search-items:readmodel:item-search",
-              "type": "INBOUND",
-              "title": "ItemSearch",
-              "elementType": "READMODEL"
-            }
-          ]
-        }
-      ],
-      "processors": [],
-      "tables": [],
-      "specifications": [
-        {
-          "id": "search-items:spec:0",
-          "title": "A search finds a done item by its title",
-          "sliceName": "SearchItems",
-          "given": [
-            {
-              "id": "search-items:spec:0:given:0",
-              "title": "ItemAdded",
-              "type": "SPEC_EVENT",
-              "examples": [
-                {
-                  "userId": "u-1",
-                  "listId": "list-1",
-                  "itemId": "item-1",
-                  "title": "Milk"
-                }
-              ]
-            },
-            {
-              "id": "search-items:spec:0:given:1",
               "title": "ItemCompleted",
               "type": "SPEC_EVENT",
               "examples": [
@@ -2006,7 +2156,7 @@
           ],
           "when": [
             {
-              "id": "search-items:spec:0:when:0",
+              "id": "item-search:spec:2:when:0",
               "title": "SearchItems",
               "type": "SPEC_COMMAND",
               "examples": [
@@ -2018,7 +2168,7 @@
           ],
           "then": [
             {
-              "id": "search-items:spec:0:then:0",
+              "id": "item-search:spec:2:then:0",
               "title": "ItemSearch",
               "type": "SPEC_READMODEL",
               "examples": [
@@ -2032,7 +2182,7 @@
               ]
             }
           ],
-          "linkedId": "search-items"
+          "linkedId": "item-search"
         }
       ],
       "actors": [
@@ -2044,7 +2194,7 @@
     },
     {
       "id": "list-completer",
-      "index": 10,
+      "index": 8,
       "title": "ListCompleter",
       "context": "Automations",
       "sliceType": "AUTOMATION",
@@ -2071,9 +2221,9 @@
               "elementType": "AUTOMATION"
             },
             {
-              "id": "list-completer:readmodel:item-search",
+              "id": "list-completer:readmodel:list-items",
               "type": "INBOUND",
-              "title": "ItemSearch",
+              "title": "ListItems",
               "elementType": "READMODEL"
             },
             {
@@ -2141,18 +2291,19 @@
       ],
       "readmodels": [
         {
-          "id": "list-completer:readmodel:item-search",
-          "title": "ItemSearch",
+          "id": "list-completer:readmodel:list-items",
+          "title": "ListItems",
           "type": "READMODEL",
           "fields": [
             {
-              "name": "itemId",
+              "name": "listId",
               "type": "String",
               "idAttribute": true
             },
             {
-              "name": "listId",
-              "type": "String"
+              "name": "itemId",
+              "type": "String",
+              "idAttribute": true
             },
             {
               "name": "title",
@@ -2268,7 +2419,7 @@
     },
     {
       "id": "add-item",
-      "index": 11,
+      "index": 9,
       "title": "AddItem",
       "context": "Integrations",
       "sliceType": "TRANSLATION",

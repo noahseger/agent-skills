@@ -60,7 +60,7 @@ const slices = [
     .test("A banned item is refused", { when: PlaceOrder(order), reject: "banned item" }),
   m
     .slice()
-    .projection(
+    .view(
       Unpaid,
       OrderPlaced(() => ({ lines: [], payments: 0, status: "open" })),
     )
@@ -72,11 +72,7 @@ const slices = [
         status: "paid",
       })),
     )
-    .event(OrderRefused(() => ({ product: "", lines: [], payments: 0, status: "refused" }))),
-  m
-    .slice()
-    .view(Unpaid)
-    .chapter(Sales)
+    .event(OrderRefused(() => ({ product: "", lines: [], payments: 0, status: "refused" })))
     .query({ orderId: z.string() })
     .actor(Clerk)
     .service(Shop, "ListUnpaid"),
@@ -99,7 +95,7 @@ const exports = {
 }
 const feed = assembleModules([exports], { partial: true })
 const json = JSON.parse(JSON.stringify(feed.model)) as { slices: SpecSlice[] }
-const [place, project, show, charge, refund, translate] = json.slices
+const [place, view, charge, refund, translate] = json.slices
 const titles = (els: { title: string }[] | undefined) => (els ?? []).map((e) => e.title)
 
 test("the model validates against the vendored schema, and a broken one says where", () => {
@@ -117,10 +113,9 @@ test("each slice has its spec type, in story order, its chapter as its context",
     [
       [0, "PlaceOrder", "STATE_CHANGE", "Sales"],
       [1, "Unpaid", "STATE_VIEW", "Sales"],
-      [2, "ListUnpaid", "STATE_VIEW", "Sales"],
-      [3, "Charger", "AUTOMATION", "Sales"],
-      [4, "Refunder", "AUTOMATION", "Sales"],
-      [5, "RecordPayment", "TRANSLATION", undefined],
+      [2, "Charger", "AUTOMATION", "Sales"],
+      [3, "Refunder", "AUTOMATION", "Sales"],
+      [4, "RecordPayment", "TRANSLATION", undefined],
     ],
   )
 })
@@ -174,7 +169,7 @@ test("a mapping says where each field comes from: a field, generated, or = a val
     mapping: "amount",
   })
   // A read model several events build maps a column once per event.
-  const columns = Object.fromEntries((project?.readmodels[0]?.fields ?? []).map((f) => [f.name, f]))
+  const columns = Object.fromEntries((view?.readmodels[0]?.fields ?? []).map((f) => [f.name, f]))
   assert.deepEqual(columns.orderId, { name: "orderId", type: "String", idAttribute: true })
   assert.deepEqual(columns.lines, {
     name: "lines",
@@ -202,19 +197,30 @@ test("a mapping says where each field comes from: a field, generated, or = a val
   })
 })
 
-test("a projection and a view are both state views: events in, or a screen out", () => {
-  assert.deepEqual(titles(project?.events), ["OrderPlaced", "PaymentRecorded", "OrderRefused"])
-  assert.equal(project?.screens.length, 0)
-  assert.equal(project?.aggregates, undefined, "a slice that stores nothing names no aggregate")
-  assert.deepEqual(show?.events, [])
+test("a view is one state view: events in, its read model, a screen out", () => {
+  assert.deepEqual(titles(view?.events), ["OrderPlaced", "PaymentRecorded", "OrderRefused"])
+  assert.equal(view?.aggregates, undefined, "a slice that stores nothing names no aggregate")
+  const [table] = view?.readmodels ?? []
+  assert.deepEqual([table?.service, table?.apiEndpoint], ["Shop", "ListUnpaid"])
   assert.deepEqual(
-    [show?.readmodels[0]?.service, show?.readmodels[0]?.apiEndpoint],
-    ["Shop", "ListUnpaid"],
+    table?.dependencies.map((d) => [d.type, d.title]),
+    [
+      ["INBOUND", "OrderPlaced"],
+      ["INBOUND", "PaymentRecorded"],
+      ["INBOUND", "OrderRefused"],
+      ["OUTBOUND", "ListUnpaid"],
+    ],
   )
   assert.deepEqual(
-    show?.screens[0]?.fields.map((f) => f.name),
+    view?.screens[0]?.fields.map((f) => f.name),
     ["orderId"],
     "a view's screen asks for the query",
+  )
+  const drawn = read(feed).chapters[0]?.slices[1]
+  assert.deepEqual(
+    [drawn?.actor, drawn?.ui, drawn?.trigger?.length, drawn?.read_models?.length],
+    ["clerk", "Shop/ListUnpaid", 3, 1],
+    "drawn as one column: the events feed the read model, the clerk's screen shows it",
   )
 })
 
@@ -239,9 +245,9 @@ test("an automation: a processor between what starts it and its command", () => 
     ],
   )
   const board = read(feed).chapters.flatMap((c) => c.slices)
-  assert.deepEqual([board[3]?.automation, board[3]?.polls], ["Charger", "Unpaid"])
+  assert.deepEqual([board[2]?.automation, board[2]?.polls], ["Charger", "Unpaid"])
   assert.deepEqual(
-    [board[4]?.automation, board[4]?.trigger],
+    [board[3]?.automation, board[3]?.trigger],
     ["Refunder", "PaymentRecorded(orderId, paid)"],
   )
 })
@@ -257,9 +263,9 @@ test("a system we do not own: its events are EXTERNAL, and their service names i
   assert.deepEqual(titles(translate?.readmodels), ["Unpaid"], "what the handler reads")
   const board = read(feed)
   const slices = board.chapters.flatMap((c) => c.slices)
-  assert.deepEqual(slices[3]?.calls, [{ actor: "bank", event: "CardCharged(orderId, amount)" }])
+  assert.deepEqual(slices[2]?.calls, [{ actor: "bank", event: "CardCharged(orderId, amount)" }])
   assert.deepEqual(
-    [slices[5]?.actor, slices[5]?.external_event],
+    [slices[4]?.actor, slices[4]?.external_event],
     ["bank", "CardCharged(orderId, amount)"],
   )
 })

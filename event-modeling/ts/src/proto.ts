@@ -2,7 +2,7 @@
 // protobuf equivalent is an error, never a guess.
 import { z } from "zod"
 
-import type { Assembled, DeclData, Fields, ServiceData, SliceData } from "./types.ts"
+import type { Assembled, Fields, ServiceData, SliceData } from "./types.ts"
 
 /** A service's file, or what stops it: its slices' own dead ends, or a type with no protobuf equivalent. */
 export type ProtoFile = {
@@ -115,8 +115,8 @@ function toMessage(name: string, fields: Fields, where = name): Message {
 
 const empty = (name: string): Message => ({ name, fields: [], nested: [] })
 
-/** A read model prints once per file, before the first response that repeats it. */
-function methodOf(slice: SliceData, printed: Set<DeclData>): Method {
+/** A view's read model prints before the response that repeats it. */
+function methodOf(slice: SliceData): Method {
   const command = slice.command?.decl
   const name = slice.service?.method ?? command?.name ?? ""
   if (command) {
@@ -124,26 +124,29 @@ function methodOf(slice: SliceData, printed: Set<DeclData>): Method {
     const request = toMessage(`${name}Request`, command.fields, command.name)
     return { name, messages: [request, empty(`${name}Response`)] }
   }
-  const unprinted = slice.shows.filter((r) => !printed.has(r))
-  for (const r of unprinted) printed.add(r)
-  // A query that names every key column of a read model picks one row.
+  const shown = slice.view
+  // A query that names every key column of the read model picks one row.
   const query = new Set(Object.keys(slice.query ?? {}))
-  const one = (r: DeclData) => r.keys.length > 0 && r.keys.every((k) => query.has(k))
+  const one = shown && shown.keys.length > 0 && shown.keys.every((k) => query.has(k))
   const response: Message = {
     name: `${name}Response`,
-    fields: slice.shows.map((r, i) => ({
-      name: snake(r.name ?? ""),
-      type: r.name ?? "",
-      number: i + 1,
-      label: one(r) ? "" : "repeated ",
-    })),
+    fields: shown
+      ? [
+          {
+            name: snake(shown.name ?? ""),
+            type: shown.name ?? "",
+            number: 1,
+            label: one ? "" : "repeated ",
+          },
+        ]
+      : [],
     nested: [],
   }
   return {
     name,
     messages: [
       toMessage(`${name}Request`, slice.query ?? {}),
-      ...unprinted.map((r) => toMessage(r.name ?? "", r.fields)),
+      ...(shown ? [toMessage(shown.name ?? "", shown.fields)] : []),
       response,
     ],
   }
@@ -176,10 +179,9 @@ export function generateProto({
     const path = `${service.pkg.replaceAll(".", "/")}/${snake(name)}.proto`
     const problems = slices.flatMap((s) => unfinished.get(s) ?? [])
     if (problems.length > 0) return { path, problems }
-    const printed = new Set<DeclData>()
     let methods: Method[]
     try {
-      methods = slices.map((s) => methodOf(s, printed))
+      methods = slices.map(methodOf)
     } catch (error) {
       return { path, problems: [error instanceof Error ? error.message : String(error)] }
     }

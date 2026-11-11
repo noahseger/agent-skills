@@ -115,8 +115,7 @@ The file is `{ "slices": [...] }`, validated by `ts/schema/eventmodeling.schema.
 | `sliceType` | Elements | Meaning |
 |---|---|---|
 | `STATE_CHANGE` | screen → command → events | An actor uses an interface to issue a command that records events |
-| `STATE_VIEW` | events → read model | A projection: events build a read model |
-| `STATE_VIEW` | read model → screen | A view: an actor queries a read model, with no state change |
+| `STATE_VIEW` | events → read model → screen | A view: events build a read model, and an actor queries it, with no state change. A read model only a handler or an automation reads has no screen |
 | `AUTOMATION` | event or polled read model → processor → command → events | An event, or a list of work, drives a command with no actor |
 | `TRANSLATION` | external event → processor → command → events | An event from outside the system boundary becomes one of ours |
 
@@ -360,11 +359,11 @@ Event models are living documents. When production reveals gaps:
 - **Events are immutable facts** in past tense — never update, only append
 - **Commands are imperative intents** — each produces one or a small cluster of events
 - **Read models are pure functions of events** — given same events, same view
-- **Projections are State View slices** — each read model projection gets its own State View slice: the events it subscribes to, and the read model it builds. State Change slices produce events; State View slices project events into read models. A read model a slice's handler reads is an input from another slice, and some State View slice must build it.
+- **Each read model has one State View slice** — the events it subscribes to, the read model it builds, and the screen that shows it, if anyone sees it. State Change slices produce events; State View slices project events into read models. A read model a slice's handler reads is an input from another slice, and its State View slice must build it.
 - **Event fields must trace to declared sources** — every field in an event must come from: (1) the command, trigger, or external event, (2) a read model the handler reads, or (3) a mapping that says how it is computed. If a command handler reads external state, that state must be a read model it reads.
 - **Read models feed interfaces** — they belong near the top, close to the entry points they serve
 - **External events represent inbound data from outside the system** — Kafka topics, webhooks, message queues. Use an external event (not a screen) for these, drawn in the system's lane.
-- **View-only slices show read model consumption** — a read model and a screen without command or events, drawn with an arrow from the read model up to the interface.
+- **A view shows one read model** — drawn with arrows from its events into the read model and from the read model up to the interface, with no command. Two read models shown together are two views on one screen.
 - **Actor swimlanes show real interfaces** — REST endpoints, RPC methods — NEVER made-up screen names
 - **Stream swimlanes contain commands and events** — one per stream, named after what we keep track of
 - **Automations are driven by events or read models** — never standalone; the event or the polled read model points at the processor (see "Automations: two forms")
@@ -404,7 +403,7 @@ Event models are living documents. When production reveals gaps:
 - "The thing" — too much business logic in a single slice
 - **Dead-end events** — events that don't feed any read model or trigger any automation
 - **Invented read model names** — read models should use domain terms the team already uses. If you can't name it from the domain vocabulary, it may not be a real concept.
-- **Inline projections** — putting read models as outputs of state change slices instead of giving each projection its own State View slice. Projections are their own slices: a State View with the events it subscribes to and the read model it builds. State Change slices produce events; State View slices project events into read models.
+- **Inline projections** — putting read models as outputs of state change slices instead of giving each read model its own State View slice: the events it subscribes to, the read model it builds, and the screen that shows it. State Change slices produce events; State View slices project events into read models.
 - **Hidden data sources in events** — an event field that doesn't trace to any input within the slice (command, trigger, external event, or a read model the handler reads). Example: `SyncStarted(bucket, path, remoteCount)` where `remoteCount` comes from querying an external system that isn't declared as a consumed read model. Fix: name the read model on the slice and say what the field is made from (`generate(c.pageId, Pages)` with `.readModel(Pages)`), or move the computation to a downstream automation that reads it.
 - **"Design" language** — saying "design the read models" or "architect the commands." Event modeling captures what happens; it doesn't prescribe what should happen.
 - **Dead-end state** — a read model that tracks a condition the domain reacts to (a count nearing a limit, a status, a deadline) with no slice that consumes it. The same defect as a dead-end event, one level up.
