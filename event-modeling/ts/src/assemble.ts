@@ -685,6 +685,7 @@ function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
   for (const t of slice.tests) {
     const said = (message: string, element: string) =>
       fail({ message: `${where} › "${t.name}": ${message}`, element, slice: slice.name ?? "" })
+    for (const { decl, message } of t.invalid ?? []) said(message, decl.name ?? "")
     const compare = (
       example: ExampleData,
       clause: "when" | "then",

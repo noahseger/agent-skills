@@ -162,6 +162,8 @@ export interface TestData {
   /** A state view's `when`: the values its query is asked with. */
   query?: Record<string, unknown>
   then: ClauseData[]
+  /** What Zod refused in an example or the query, with where in it. */
+  invalid?: { decl: DeclData; message: string }[]
 }
 
 export interface SliceData {

@@ -381,8 +381,8 @@ needs no screen, actor or service.
 ### Specifications
 
 A specification is a Given, When, Then example attached to a slice with `.test()`. Calling a
-declaration with data builds an example of it, and Zod checks the values. `given` and `then` accept
-one example or a list. A state change's specification has `then`, the events recorded, or `reject`,
+declaration with data builds an example of it, and Zod checks the values: one it refuses is left to
+do, with where in the example. `given` and `then` accept one example or a list. A state change's specification has `then`, the events recorded, or `reject`,
 why the command is refused; never both. A state view's has `given`, the events that build the rows;
 `when`, the values its query is asked with, only once it has a `.query()`; and `then`, the rows the
 screen shows. It has no `reject`, because a view cannot reject an event.
@@ -399,7 +399,8 @@ sets, the constant. A generated field, and any field of an external event, may b
 polled row is the one `given` builds whose key columns hold what the command copied from them. A
 disagreement names the spec, the field and both values.
 
-A value the specification does not care about, such as an id, is `m.generate()`. Each one is a
+A value the specification does not care about, such as an id, is `m.generate()`, at any depth, such
+as a field of an item in a list. Each one is a
 value of its field's type that no other generated value in the specification has, the same on every
 run, so one used in both `given` and `then` agrees, and two different ones do not. To name one, write
 the specification as a function:

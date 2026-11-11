@@ -298,6 +298,20 @@ m.slice().view(TodoList, ListCreated(() => ({ itemCount: z.literal("0") })))
 // @ts-expect-error a later event is checked the same: itemCount is a number
 m.slice().view(TodoList, ListCreated).event(ItemAdded(() => ({ itemCount: z.literal("0") })))
 
+// A field that flows by name into a column must fit it.
+const Basket = m.view({ listId: z.uuid(), name: z.string() })
+
+// @ts-expect-error ListCreated's listId is a string, and Basket's a uuid
+m.slice().view(Basket, ListCreated)
+const unfit: Parameters<typeof start.view<typeof Basket.__fields, typeof ListCreated>>[1] = "the event's listId does not fit: set it in the mapping"
+
+// @ts-expect-error after the start too
+m.slice().view(Basket, ListCreated(() => ({ listId: m.generate() }))).event(ListCreated)
+
+// @ts-expect-error a mapping that leaves it to flow must set it
+m.slice().view(Basket, ListCreated(() => ({ name: z.literal("x") })))
+m.slice().view(Basket, ListCreated(() => ({ listId: m.generate() }))).event(ItemAdded(() => ({ listId: m.generate() })))
+
 // --- .test() -----------------------------------------------------------------
 
 const create = m.slice().command(CreateList, ListCreated).actor(User).service(TodoService)

@@ -262,6 +262,65 @@ test("m.generate() in a specification is one value of its field's type wherever 
   assert.deepEqual(feedOf([model()], { partial: true }).model, feed.model)
 })
 
+test("m.generate() nested in a list is one value of its field's type, as at the top", () => {
+  const f = fixture()
+  const Item = z.object({ itemId: z.uuid(), price: z.number() })
+  const Added = m.event({ id: z.string(), itemId: z.uuid(), price: z.number() })
+  const Cart = m.view({ id: z.string(), items: z.array(Item) }).key("id")
+  const shown = m
+    .slice()
+    .view(
+      Cart,
+      Added((e) => ({ items: m.generate(e) })),
+    )
+    .actor(f.User)
+    .test("lists", () => {
+      const itemId = m.generate()
+      return {
+        given: Added({ id: "c-1", itemId, price: 2 }),
+        then: Cart({ id: "c-1", items: [{ itemId, price: 2 }] }),
+      }
+    })
+  const model = { ...f, Added, Cart, ...chapters({ Ch: [shown] }), default: m.model("x") }
+  const feed = feedOf([model], { partial: true })
+  assert.deepEqual(
+    feed.warnings?.filter((w) => w.message.includes('"lists"')),
+    [],
+  )
+  const [spec] = feed.model.slices[0]?.specifications ?? []
+  const given = spec?.given[0]?.examples?.[0] as { itemId: string }
+  const then = spec?.then[0]?.examples?.[0] as { items: { itemId: string }[] }
+  assert.equal(then.items[0]?.itemId, given.itemId)
+  assert.equal(z.uuid().safeParse(given.itemId).success, true)
+})
+
+test("an example Zod refuses is a to-do naming the spec and where in it, and the model still draws", () => {
+  const f = fixture()
+  const Item = z.object({ itemId: z.uuid() })
+  const Cart = m.view({ id: z.string(), items: z.array(Item) }).key("id")
+  const shown = m
+    .slice()
+    .view(Cart, f.Created)
+    .actor(f.User)
+    .test("lists", {
+      given: f.Created(list),
+      then: Cart({ id: "list-1", items: [{ itemId: 7 as never }] }),
+    })
+  const model = { ...f, Cart, ...chapters({ Ch: [shown] }), default: m.model("x") }
+  const feed = feedOf([model], { partial: true })
+  drawn(feed)
+  assert.deepEqual(
+    feed.warnings?.filter((w) => w.message.includes('"lists"')),
+    [
+      {
+        message: `Ch › Cart › "lists": items[0].itemId: Invalid input: expected string, received number`,
+        element: "Cart",
+        slice: "Cart",
+      },
+    ],
+  )
+})
+
 test("a view a value is generated from, which the slice does not read", () => {
   const f = fixture()
   const Created = m.event({ id: z.string(), name: z.string(), at: z.string() })

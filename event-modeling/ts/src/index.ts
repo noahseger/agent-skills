@@ -43,8 +43,13 @@ type Needed<T extends Fields> = {
 type Fit<T extends z.ZodType> =
   T extends z.ZodStringFormat<infer F> ? z.ZodStringFormat<F> : z.ZodType<z.output<T>>
 
-/** A mapping's result: for each target field, a source field, a `z.literal()` or `m.generate()`. */
-type Out<T extends Fields> = { [K in keyof T]?: Fit<T[K]> }
+/**
+ * A mapping's result: for each target field, a source field, a `z.literal()` or `m.generate()`. It
+ * must set the fields in `Set`. One object type, so a result with no target field is refused.
+ */
+type Out<T extends Fields, Set extends keyof T = never> = {
+  [K in keyof (Partial<T> & Pick<T, Set>)]: Fit<T[K]>
+}
 
 /**
  * The fields that would flow by name from `S` but do not fit `T`'s. An optional source field flows
@@ -98,13 +103,13 @@ export type Place = Into<Fields> | Onto<Fields>
  * The function a declaration with fields `F` is called with, typed by where the slice uses it. Its
  * argument is the source's schemas, so each result is a schema the target field takes. A handler's
  * must set every field its source lacks or has in a type that does not fit; a state view's sets any
- * columns.
+ * columns, and must set those its event has in a type that does not fit.
  */
 export type Mapper<F extends Fields, P> =
   P extends Onto<infer R>
-    ? (event: F) => Out<R>
+    ? (event: F) => Out<R, Misfit<F, R>>
     : P extends Into<infer S>
-      ? (source: S) => { [K in Unfilled<S, F>]: Fit<F[K]> } & Out<F>
+      ? (source: S) => Out<F, Unfilled<S, F>>
       : never
 
 /**
@@ -169,22 +174,13 @@ export interface ExternalEventDecl<F extends Fields = Fields> extends EventDecl<
 
 function decl<K extends DeclKind, F extends Fields>(kind: K, fields: F): Decl<K, F> {
   const data: DeclData = { kind, fields, keys: [] }
-  const schema = z.object(fields).partial()
-  // A generated value is filled in by the specification it is in, so Zod checks the rest.
-  const example = (arg: Record<string, unknown>) => {
-    const parsed = schema.parse(
-      Object.fromEntries(Object.entries(arg).map(([f, v]) => [f, isGenerated(v) ? undefined : v])),
-    )
-    return Object.fromEntries(
-      Object.entries(parsed).map(([f, v]) => [f, isGenerated(arg[f]) ? arg[f] : v]),
-    )
-  }
-  // A function makes a use for a slice; anything else is an example.
+  // A function makes a use for a slice; anything else is an example, which Zod checks once the
+  // specification it is in has filled its generated values.
   const call = (arg: object): object =>
     typeof arg === "function"
       ? { [META]: { decl: data, map: arg as MapFn } }
       : {
-          [META]: { decl: data, data: example(arg as Record<string, unknown>) },
+          [META]: { decl: data, data: arg as Record<string, unknown> },
           __kind: kind,
           __fields: fields,
         }
@@ -451,12 +447,19 @@ type AnyEvent = EventDecl<any> | Mapped<"event", any, Place>
 // biome-ignore lint/suspicious/noExplicitAny: any command's fields
 type AnyCommand = CommandDecl<any> | Mapped<"command", any, Place>
 
-/** An event of ours, `Event`, or `Event(map)` to fill columns the event does not carry by name. */
-type ViewedEvent<R extends Fields, E extends Fields> =
-  | (EventDecl<E> & {
-      readonly "isn't stored: translate it into an event of ours, then project that"?: never
-    })
-  | Mapped<"event", E, Onto<R>>
+/**
+ * An event of ours that builds the view `R`: `Event`, or `Event(map)` to fill columns the event does
+ * not carry by name or carries in a type that does not fit. Otherwise, the instruction to fix it.
+ */
+type ViewedEvent<R extends Fields, A> = [A] extends [never]
+  ? Mapped<"event", Fields, Onto<R>>
+  : A extends ExternalEventDecl
+    ? "isn't stored: translate it into an event of ours, then project that"
+    : A extends EventDecl<infer E>
+      ? [Misfit<E, R>] extends [never]
+        ? A
+        : `the event's ${Misfit<E, R>} does not fit: set it in the mapping`
+      : Mapped<"event", Fields, Onto<R>>
 
 /** What starts an automation: an event of ours, or a view it polls. */
 type Started<T extends Fields> =
@@ -482,9 +485,9 @@ export interface SliceStart {
     event: Outcome<C, A>,
   ): StateChange<C, A["__fields"]>
   /** State view: the view, and an event that builds it. */
-  view<R extends Fields, E extends Fields>(
+  view<R extends Fields, A extends AnyEvent>(
     view: ViewDecl<R>,
-    event: ViewedEvent<R, E>,
+    event: ViewedEvent<R, A>,
   ): StateView<Record<never, never>, R>
   /**
    * Automation: what starts it, the command it issues, and an event that records. An event starts it
@@ -505,7 +508,7 @@ export interface SliceStart {
 
 export interface StateView<Q extends Fields, R extends Fields> extends Slice {
   /** Another event that writes the view. */
-  event<E extends Fields>(event: ViewedEvent<R, E>): StateView<Q, R>
+  event<A extends AnyEvent>(event: ViewedEvent<R, A>): StateView<Q, R>
   /** The request fields; without them the request is empty. */
   query<F extends Fields>(fields: F): StateView<F, R>
   actor(...actors: Actors): StateView<Q, R>
@@ -556,34 +559,54 @@ interface AnySpec {
 
 /**
  * A state view's `when` is its query's values, which Zod checks as it checks an example's. Each
- * generated value becomes one value wherever the specification uses it, so the check compares it as
- * any other.
+ * generated value, at any depth, becomes one value wherever the specification uses it, so the check
+ * compares it as any other. A value Zod refuses is kept as written and left to do.
  */
 function testData(name: string, spec: AnySpec, view?: SliceData): TestData {
   const made = new Map<unknown, unknown>()
-  const fill = (fields: Fields, data: Record<string, unknown>) =>
-    Object.fromEntries(
-      Object.entries(data).map(([f, v]) => {
-        if (isGenerated(v) && !made.has(v)) made.set(v, sample(fields[f], `${name}:${made.size}`))
-        return [f, isGenerated(v) ? made.get(v) : v]
-      }),
+  const fill = (schema: z.ZodType | undefined, value: unknown): unknown => {
+    if (isGenerated(value)) {
+      if (!made.has(value)) made.set(value, sample(schema, `${name}:${made.size}`))
+      return made.get(value)
+    }
+    if (Array.isArray(value)) return value.map((v) => fill(inner(schema), v))
+    if (
+      typeof value !== "object" ||
+      value === null ||
+      Object.getPrototypeOf(value) !== Object.prototype
     )
+      return value
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, fill(inner(schema, k), v)]))
+  }
+  const invalid: NonNullable<TestData["invalid"]> = []
+  const check = (decl: DeclData, fields: Fields, data: object) => {
+    const filled = fill(z.object(fields), data)
+    const parsed = z.object(fields).partial().safeParse(filled)
+    for (const issue of parsed.error?.issues ?? [])
+      invalid.push({ decl, message: `${z.core.toDotPath(issue.path)}: ${issue.message}` })
+    return (parsed.data ?? filled) as Record<string, unknown>
+  }
   const example = (c: Example): ExampleData => ({
     decl: c[META].decl,
-    data: fill(c[META].decl.fields, c[META].data),
+    data: check(c[META].decl, c[META].decl.fields, c[META].data),
   })
   const test: TestData = {
     name,
     given: many(spec.given).map(example),
     then: spec.reject === undefined ? many(spec.then).map(example) : [{ message: spec.reject }],
   }
-  if (view && spec.when)
-    test.query = z
-      .object(view.query ?? {})
-      .partial()
-      .parse(fill(view.query ?? {}, spec.when as Record<string, unknown>))
+  if (view?.view && spec.when) test.query = check(view.view, view.query ?? {}, spec.when)
   else if (spec.when) test.when = example(spec.when as Example)
+  if (invalid.length > 0) test.invalid = invalid
   return test
+}
+
+/** The schema of a value inside one of `schema`'s: an array's element, or an object's field `key`. */
+function inner(schema: z.ZodType | undefined, key?: string): z.ZodType | undefined {
+  type Def = { innerType?: z.ZodType; element?: z.ZodType; shape?: Fields }
+  let def = schema?._zod.def as Def | undefined
+  while (def?.innerType) def = def.innerType._zod.def as Def
+  return key === undefined ? def?.element : def?.shape?.[key]
 }
 
 /** A value `schema` accepts, the same on every run for the same seed. */
