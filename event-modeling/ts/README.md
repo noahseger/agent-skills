@@ -453,8 +453,9 @@ has joined yet is drawn empty, and two modules may export one under the same nam
 An external event builds no read model: it isn't stored, so the read model would be empty after a
 replay. Translate it into an event of ours with `.translation()`, as above, and project that.
 `.translation()` takes only an external event, and `.automation()` refuses one; fields flow and
-map as in an automation an event starts. An external event no `.translation()` reads is left to
-do, even if a specification's `given` has it.
+map as in an automation an event starts. An external event a slice of ours produces is published
+and needs no translation; any other no `.translation()` reads is left to do, even if a
+specification's `given` has it.
 
 The model says that data arrives, not how. A call to such a system is our command followed by the
 event that brings its data back, and that event's fields come from outside, so the command need
@@ -526,7 +527,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | A column no event of the read model's `.view()` calls writes | The calls can be in several modules. |
 | An optional field no slice fills | Same. |
 | A view's event that lacks one of the read model's key columns | Declarations are anonymous, so two events with the same fields are one type. |
-| An event nothing consumes: no `.automation()`, no view, no `given`; for an external event, no `.translation()` | Same. |
+| An event nothing consumes: no `.automation()`, no view, no `given`; for an external event no slice produces, no `.translation()` | Same. |
 | An event no slice records; a read model nothing reads or builds | Same. |
 | A field with no value, in a model the compiler did not check | `em json` runs the model without `tsc`. |
 | Two slices claiming one service method; a slice without a service claims none | A union of literal types dedupes rather than counts. |

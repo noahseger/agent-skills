@@ -924,15 +924,13 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
         }
       }
     }
-    // Only a translation uses an external event; a given does not.
+    // An external event we produce is published, and needs no reader of ours.
     for (const e of recorded(slice)) {
-      if (e.external ? !reacting.has(e) : !consumed.has(e))
+      if (!e.external && !consumed.has(e))
         fail(
           about(
             e,
-            e.external
-              ? `${where}: nothing translates ${e.name} yet. Add .translation(${e.name}) to make it an event of ours.`
-              : `${where}: nothing uses ${e.name} yet. Add .automation(${e.name}) or a view's .event(${e.name}) where something reacts to it.`,
+            `${where}: nothing uses ${e.name} yet. Add .automation(${e.name}) or a view's .event(${e.name}) where something reacts to it.`,
           ),
         )
     }
@@ -950,11 +948,15 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
     }
   }
   // One line per event, at the slices that react to it, or else at those that assume it.
+  // An external event comes from outside, and only a translation uses it; a given does not.
   for (const e of consumed) {
-    if (e.external || emitted.has(e)) continue
+    if (emitted.has(e) || (e.external && reacting.has(e))) continue
     const at = [...(reacting.get(e) ?? assuming.get(e) ?? [])]
+    const here = at.map((a) => a.where).join(", ")
     fail({
-      message: `${at.map((a) => a.where).join(", ")}: nothing emits ${e.name} yet. Add .event(${e.name}) to the slice that causes it.`,
+      message: e.external
+        ? `${here}: nothing translates ${e.name} yet. Add .translation(${e.name}) to make it an event of ours.`
+        : `${here}: nothing emits ${e.name} yet. Add .event(${e.name}) to the slice that causes it.`,
       element: e.name ?? "",
       slice: at[0]?.slice.name ?? "",
     })

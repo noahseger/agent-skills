@@ -494,7 +494,7 @@ test("a view refuses an external event, which isn't stored", () => {
   assert.throws(() => feedOf(modules()), { message })
 })
 
-test("an external event a call ends in that nothing translates", () => {
+test("an external event we produce is published, and needs no translation", () => {
   const { f, Remote, Answered, Ask, specified } = specifiedCall()
   const json = assembleModules(
     [
@@ -510,42 +510,30 @@ test("an external event a call ends in that nothing translates", () => {
     ],
     { partial: true },
   )
-  assert.deepEqual(json.warnings, [
-    {
-      message:
-        "Ch › Ask: nothing translates Answered yet. Add .translation(Answered) to make it an event of ours.",
-      element: "Answered",
-      slice: "Ask",
-    },
-  ])
+  assert.equal(json.warnings, undefined)
 })
 
 test("an external event only a given has is still left to translate", () => {
-  const { f, Remote, Answered, Ask, specified } = specifiedCall()
+  const f = fixture()
+  const Remote = m.external()
+  const Answered = m.event({ id: z.string(), detail: z.string() }).external(Remote)
   const after = create(f).test("A list is created after an answer", {
-    given: Answered({ ...list, detail: "Two aisles over" }),
+    given: Answered({ id: "list-1", detail: "Two aisles over" }),
     when: f.Create(list),
     then: f.Created(list),
   })
   const json = assembleModules(
-    [
-      {
-        ...f,
-        Remote,
-        Answered,
-        Ask,
-        ...chapters({ Ch: [specified, after, view(f)] }),
-        default: m.model("x"),
-      },
-    ],
+    [{ ...f, Remote, Answered, ...chapters({ Ch: [after, view(f)] }), default: m.model("x") }],
     { partial: true },
   )
-  assert.deepEqual(
-    json.warnings?.map((w) => w.message),
-    [
-      "Ch › Ask: nothing translates Answered yet. Add .translation(Answered) to make it an event of ours.",
-    ],
-  )
+  assert.deepEqual(json.warnings, [
+    {
+      message:
+        "Ch › Create: nothing translates Answered yet. Add .translation(Answered) to make it an event of ours.",
+      element: "Answered",
+      slice: "Create",
+    },
+  ])
 })
 
 // A command's events are alternatives; a specification says when each happens.
