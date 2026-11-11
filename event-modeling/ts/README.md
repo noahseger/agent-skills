@@ -26,8 +26,8 @@ import { m, z } from "@noahseger/event-modeling"
 
 A slice starts with what starts it. `m.` names what you declare, and every call of a slice's chain
 names the elements it takes, so both are nouns: `m.command`, `.command()`, `.event()`,
-`.readModel()`, `.actor()`. Only a mapping's helper is a verb, because it does something:
-`generate`.
+`.readModel()`, `.actor()`. Only `m.generate()` is a verb, because it does something: it stands
+for a value the handler makes.
 
 Your own names follow the practice: events in the past tense (`NoteCreated`), commands in the
 imperative (`CreateNote`), read models as nouns (`Inbox`). Everything you declare, chapters
@@ -204,7 +204,7 @@ export const TodoList = m
 m.slice()
   .view(TodoList, ListCreated(() => ({ itemCount: 0 })))
   .chapter(Views)
-  .event(ItemAdded((e, { generate }) => ({ itemCount: generate(e) })))
+  .event(ItemAdded((e) => ({ itemCount: m.generate(e) })))
   .query({ userId: z.string() })
   .actor(User)
   .service(TodoService, "ListTodoLists")
@@ -220,7 +220,7 @@ m.slice()
   })
 ```
 
-`ListCreated` fills `userId`, `listId` and `name`; the function sets `itemCount`. `generate(e)` says
+`ListCreated` fills `userId`, `listId` and `name`; the function sets `itemCount`. `m.generate(e)` says
 the count is made from the `ItemAdded` events seen for the row. An event finds its row by the key
 columns, so each event a view names must carry every one: `ItemAdded` carries `userId` for that
 reason.
@@ -318,20 +318,21 @@ An optional field no slice fills is left to do. The same holds for an automation
 no default in a mapping, such as `c.imageUri ?? ""`: the model cannot see it. Make the field
 optional instead.
 
-A value the handler makes has no field to copy. Say what it is made from with `generate()`, which
-the function gets as its second argument: the command's fields, and any read model the handler
-looks it up in, which the slice names with `.readModel()`. From nothing, it is an id or a clock. A
-specification may give it any value.
+A value the handler makes has no field to copy. Say what it is made from with `m.generate()`: the
+command's fields, and any read model the handler looks it up in, which the slice names with
+`.readModel()`. From nothing, it is an id or a clock. A specification may give it any value.
 
 ```ts
-.command(AddNote, NoteAdded((c, { generate }) => ({ noteId: generate(), slug: generate(c.title) })))
-.command(RecordChange, ChangeRecorded((c, { generate }) => ({ noteId: generate(c.pageId, Pages) })))
+.command(AddNote, NoteAdded((c) => ({ noteId: m.generate(), slug: m.generate(c.title) })))
+.command(RecordChange, ChangeRecorded((c) => ({ noteId: m.generate(c.pageId, Pages) })))
   .readModel(Pages)
 ```
 
+An automation's command is filled from what starts it, so a value generated there is left to do.
+
 A mapping only copies, sets constants and says what a value is made from; it computes nothing. A
 field put into a string, such as `` `${c.title}!` ``, or into arithmetic, such as `c.minutes * 60`,
-is drawn as generated from that field and left to do, with the fix: `generate(c.title)`. The
+is drawn as generated from that field and left to do, with the fix: `m.generate(c.title)`. The
 compiler cannot see it, because a string built from a string is a string.
 
 The events a command lists, `.command(AddItem, ItemAdded).event(ListFull)`, are what it can
@@ -392,9 +393,24 @@ other events, the history that shaped the state.
 
 A specification must agree with its slice's wiring. A value copied or mapped from the command, the
 trigger event, the polled row or a given event must equal the value there; a constant the mapping
-sets, the constant. A `generate()` field, and any field of an external event, may be anything. The
+sets, the constant. A generated field, and any field of an external event, may be anything. The
 polled row is the one `given` builds whose key columns hold what the command copied from them. A
 disagreement names the spec, the field and both values.
+
+A value the specification does not care about, such as an id, is `m.generate()`. Each one is a
+value of its field's type that no other generated value in the specification has, the same on every
+run, so one used in both `given` and `then` agrees, and two different ones do not. To name one, write
+the specification as a function:
+
+```ts
+.test("A captured note shows in the inbox", () => {
+  const noteId = m.generate()
+  return {
+    given: NoteCaptured({ noteId, text: "buy milk" }),
+    then: Inbox({ noteId, text: "buy milk" }),
+  }
+})
+```
 
 A view's `given` builds the rows through the view's events. Each row in
 `then` must be one of them, matched by its key columns, with the values they have. A row built and
@@ -511,8 +527,8 @@ The compiler catches:
 |---|---|
 | any reference | An unknown actor, event, command, read model, screen or service cannot be written, because references are values, not strings. |
 | the chain | Only a legal chain compiles; each start offers only its own steps. A slice missing part of its pattern is an error where it is written: `Expected 2 arguments, but got 1`, beside which the editor names the missing argument, such as `event`. |
-| a function | Its argument is the slice's source: the command for a handler's event, the trigger event or the polled row for an automation's command, the event in a view. Its result must be fields of the target, with matching types. Its second argument holds `generate`, except for an automation's command. |
-| a command's event | Every event field the command lacks must be set by the function, or marked `generate()`, unless it is optional. The error names the fields. |
+| a function | Its argument is the slice's source: the command for a handler's event, the trigger event or the polled row for an automation's command, the event in a view. Its result must be fields of the target, with matching types. |
+| a command's event | Every event field the command lacks must be set by the function, or marked `m.generate()`, unless it is optional. The error names the fields. |
 | a view's event | An external event is refused, because it isn't stored. The error says to translate it first. |
 | what starts an automation or a translation | `.automation()` refuses an external event, and the error says to use `.translation()`; `.translation()` takes nothing else. |
 | a function outside a slice | A mapper only works inside a slice: `.event(...)`, `.command(...)` or `.view(...)`. The error says so. |
@@ -543,7 +559,8 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | A specification value that is not what flows in: from `when`, the trigger in `given`, or the events that build the row | Example values are data, not types. |
 | A view's row that `given` does not build, or a built row `then` leaves out and the query does not exclude | Same. |
 | A source field put into a string or arithmetic in a mapping | A string built from a string is a string, and a number from a number a number. |
-| A read model passed to `generate()` that the slice does not name with `.readModel()` | `.readModel()` can be called anywhere down the chain. |
+| `m.generate()` in an automation's command | `m.generate()` is one function, wherever it is called. |
+| A read model passed to `m.generate()` that the slice does not name with `.readModel()` | `.readModel()` can be called anywhere down the chain. |
 
 Naming is yours: the conventions above are not checked.
 

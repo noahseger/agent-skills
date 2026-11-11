@@ -65,7 +65,7 @@ m.slice()
     ListCreated(() => ({ itemCount: 0, status: "open" })),
   )
   .chapter(Views)
-  .event(ItemAdded((e, { generate }) => ({ itemCount: generate(e) })))
+  .event(ItemAdded((e) => ({ itemCount: m.generate(e) })))
   .event(ListCompleted(() => ({ status: "completed" })))
   .event(ListDeleted(() => ({ status: "deleted" })))
   .query({ userId: z.string() })

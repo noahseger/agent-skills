@@ -136,7 +136,7 @@ export interface Flow {
 }
 
 /** A function that fills a declaration's fields; run once on probe values. */
-export type MapFn = (source: never, helpers: never) => object
+export type MapFn = (source: never) => object
 
 /** A declaration called with a function, before a slice knows its source. */
 export interface MappedData {

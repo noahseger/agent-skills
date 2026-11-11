@@ -494,17 +494,27 @@ const generatedFrom = (flow: Flow): DeclData[] =>
 /**
  * A mapping copies a field, sets a constant or says what a value is made from. One that computes a
  * value is drawn as generated and left to do: what it computes is the handler's, not the model's. A
- * read model a value is made from is one the handler reads.
+ * read model a value is made from is one the handler reads. An automation's command makes nothing:
+ * it is filled from what starts it.
  */
 function checkGenerated({ slice, where }: Located, fail: Fail): void {
+  const from = slice.trigger ?? slice.polls
   for (const flow of flows(slice)) {
     for (const [field, s] of Object.entries(flow.mapping)) {
       const target = `${flow.decl.name}.${field}`
+      if (from && flow === slice.command && "generate" in s) {
+        fail({
+          message: `${where}: ${target} is generated, but an automation's command is filled from ${from.name}. Add ${field} to ${from.name}, or generate it in an event ${flow.decl.name} records.`,
+          element: flow.decl.name ?? "",
+          slice: slice.name ?? "",
+        })
+        continue
+      }
       if ("built" in s && s.built !== undefined) {
         const fields = s.generate.join(", ")
         const builds = s.built === "string" ? "builds a string" : "computes a number"
         fail({
-          message: `${where}: ${target} ${builds} from ${fields}. Write generate() with ${fields} instead, to say what it is made from.`,
+          message: `${where}: ${target} ${builds} from ${fields}. Write m.generate() with ${fields} instead, to say what it is made from.`,
           element: flow.decl.name ?? "",
           slice: slice.name ?? "",
         })

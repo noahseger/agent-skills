@@ -153,23 +153,20 @@ m.slice().command(AddItem, ItemAdded((c) => ({ title: c.text })))
 // An optional field may go unfilled in one slice; assembly checks that another fills it.
 const ItemShared = m.event({ listId: z.string(), title: z.string().optional() })
 m.slice().command(CreateList, ItemShared)
-// generate() fills the field the command lacks.
-m.slice().command(AddItem, ItemAdded((c, { generate }) => ({ title: generate() })))
+// m.generate() fills the field the command lacks.
+m.slice().command(AddItem, ItemAdded(() => ({ title: m.generate() })))
 // generate() says what the value is made from: the command's fields, and the read models the slice reads.
-m.slice().command(AddItem, ItemAdded((c, { generate }) => ({ title: generate(c.text, TodoList) }))).readModel(TodoList)
+m.slice().command(AddItem, ItemAdded((c) => ({ title: m.generate(c.text, TodoList) }))).readModel(TodoList)
 
 // @ts-expect-error a mapper only works inside a slice
-ItemAdded((c, { generate }) => ({ title: generate(c.text) }))
+ItemAdded((c) => ({ title: m.generate(c.text) }))
 
 // @ts-expect-error a mapper only works inside a slice, for a view's event too
 ItemAdded(() => ({ itemCount: 0 }))
 m.slice().command(CreateList, ListCreated).event(ItemAdded((c) => ({ title: c.name })))
 
-// @ts-expect-error count is gone: a count is generate(e)
-m.slice().view(TodoList, ListCreated((e, { count }) => ({ itemCount: count(e) })))
-
-// @ts-expect-error a mapping's helpers are its second argument, not on m
-m.generate
+// @ts-expect-error a mapping takes one argument: generate is m.generate
+m.slice().command(AddItem, ItemAdded((c, { generate }) => ({ title: generate() })))
 
 // @ts-expect-error title is a string
 m.slice().command(AddItem, ItemAdded((c) => ({ title: 42 })))
@@ -197,8 +194,8 @@ m.slice().automation(TodoList, AddItem, ItemAdded((c) => ({ title: c.text })))
 // @ts-expect-error the argument is the polled row, and TodoList has no title
 m.slice().automation(TodoList, AddItem((row) => ({ text: row.title })), ItemAdded((c) => ({ title: c.text })))
 
-// @ts-expect-error an automation's command gets no helpers
-m.slice().automation(ListCreated, AddItem((e, { generate }) => ({ text: generate() })), ItemAdded((c) => ({ title: c.text })))
+// m.generate() in an automation's command compiles; assembly leaves it to do.
+m.slice().automation(ListCreated, AddItem(() => ({ text: m.generate() })), ItemAdded((c) => ({ title: c.text })))
 
 // @ts-expect-error the automation's event is filled from its command, and AddItem has no title
 m.slice().automation(ListCreated, AddItem((e) => ({ text: e.name })), ItemAdded)
@@ -340,7 +337,10 @@ m.key
 create.test("x", { given: ListCreated({ listId: "l-1" }), when: CreateList({ listId: "l-2" }), then: [ListCreated({ listId: "l-2" })] })
 create.test("x", { given: [ListCreated({ listId: "l-1" })], when: CreateList({ listId: "l-1" }), reject: "nope" })
 m.slice().automation(ListCreated, NameList, ListCreated).test("x", { given: ListCreated({ listId: "l-1" }), when: NameList({ listId: "l-1" }), then: ListCreated({ listId: "l-1" }) })
-m.slice().view(TodoList, ListCreated(() => ({ itemCount: 0 }))).event(ItemAdded((e, { generate }) => ({ itemCount: generate(e), name: e.title })))
+m.slice().view(TodoList, ListCreated(() => ({ itemCount: 0 }))).event(ItemAdded((e) => ({ itemCount: m.generate(e), name: e.title })))
 inbox.test("x", { given: [ListCreated({ listId: "l-1", name: "a" }), ItemAdded({ listId: "l-1" })], when: { name: "a" }, then: [TodoList({ listId: "l-1" })] })
 m.slice().view(TodoList, ListCreated).test("x", { given: ListCreated({ listId: "l-1" }), then: TodoList({ listId: "l-1" }) })
 m.event({ noteId: z.string() }).stream(Notes)
+// A specification may be a function, and m.generate() is a value of any field's type.
+create.test("x", () => { const listId = m.generate(); return { when: CreateList({ listId, name: m.generate() }), then: ListCreated({ listId }) } })
+inbox.test("x", { given: ListCreated({ listId: m.generate() }), when: { name: m.generate() }, then: [] })

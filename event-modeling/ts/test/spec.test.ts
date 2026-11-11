@@ -47,7 +47,7 @@ const slices = [
     .slice()
     .command(
       PlaceOrder,
-      OrderPlaced((c, { generate }) => ({ product: c.item, placedAt: generate() })),
+      OrderPlaced((c) => ({ product: c.item, placedAt: m.generate() })),
     )
     .event(OrderRefused)
     .chapter(Sales)
@@ -68,9 +68,9 @@ const slices = [
     )
     .chapter(Sales)
     .event(
-      PaymentRecorded((e, { generate }) => ({
+      PaymentRecorded((e) => ({
         product: "",
-        payments: generate(e),
+        payments: m.generate(e),
         status: "paid",
       })),
     )

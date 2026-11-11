@@ -187,14 +187,14 @@ test("a mapping function fills what the command does not carry", () => {
   assert.equal(json.chapters[0]?.slices[0]?.command, "Create(id, name)")
 })
 
-test("generate() records what a value is made from, and a specification gives it any value", () => {
+test("m.generate() records what a value is made from, and a specification gives it any value", () => {
   const f = fixture()
   const Created = m.event({ id: z.string(), name: z.string(), at: z.string() })
   const slice = m
     .slice()
     .command(
       f.Create,
-      Created((c, { generate }) => ({ at: generate(c.name, f.Table) })),
+      Created((c) => ({ at: m.generate(c.name, f.Table) })),
     )
     .readModel(f.Table)
     .actor(f.User)
@@ -215,6 +215,52 @@ test("generate() records what a value is made from, and a specification gives it
   })
 })
 
+test("m.generate() in a specification is one value of its field's type wherever the test uses it, the same every run", () => {
+  const f = fixture()
+  const fields = {
+    id: z.string(),
+    gameId: z.uuid(),
+    ply: z.number().int(),
+    side: z.enum(["white", "black"]),
+    at: z.iso.datetime(),
+  }
+  const Moved = m.event(fields)
+  const Moves = m.readModel(fields).key("id")
+  const model = () => {
+    const shown = m
+      .slice()
+      .view(Moves, Moved)
+      .actor(f.User)
+      .service(f.Svc, "Get")
+      .test("agrees", () => {
+        const move = {
+          id: m.generate(),
+          gameId: m.generate(),
+          ply: m.generate(),
+          side: m.generate(),
+          at: m.generate(),
+        }
+        return { given: Moved(move), then: Moves(move) }
+      })
+      .test("disagrees", { given: Moved({ id: m.generate() }), then: Moves({ id: m.generate() }) })
+    return { ...f, Moved, Moves, ...chapters({ Ch: [shown] }), default: m.model("x") }
+  }
+  const feed = feedOf([model()], { partial: true })
+  drawn(feed)
+  const said = (name: string) =>
+    (feed.warnings ?? []).filter((w) => w.message.includes(`"${name}"`)).map((w) => w.message)
+  assert.deepEqual(said("agrees"), [])
+  assert.match(
+    said("disagrees")[0] ?? "",
+    /then has Moves \{"id":"[^"]+"\}, but given builds no such row\./,
+  )
+  const [agrees] = feed.model.slices[0]?.specifications ?? []
+  const given = agrees?.given[0]?.examples?.[0]
+  assert.deepEqual(given, agrees?.then[0]?.examples?.[0])
+  assert.equal(z.object(fields).safeParse(given).success, true)
+  assert.deepEqual(feedOf([model()], { partial: true }).model, feed.model)
+})
+
 test("a read model a value is generated from, which the slice does not read", () => {
   const f = fixture()
   const Created = m.event({ id: z.string(), name: z.string(), at: z.string() })
@@ -222,7 +268,7 @@ test("a read model a value is generated from, which the slice does not read", ()
     .slice()
     .command(
       f.Create,
-      Created((c, { generate }) => ({ at: generate(c.id, f.Table) })),
+      Created((c) => ({ at: m.generate(c.id, f.Table) })),
     )
     .test("Create", { when: f.Create(list), then: Created({ ...list, at: "noon" }) })
   assert.throws(
@@ -231,7 +277,7 @@ test("a read model a value is generated from, which the slice does not read", ()
   )
 })
 
-test("a mapper that builds a value is drawn, and is left to do until generate() says what it is made from", () => {
+test("a mapper that builds a value is drawn, and is left to do until m.generate() says what it is made from", () => {
   const f = fixture()
   const Create = m.command({ id: z.string(), name: z.string(), n: z.number() })
   const Created = m.event({ id: z.string(), name: z.string(), label: z.string(), size: z.number() })
@@ -252,9 +298,9 @@ test("a mapper that builds a value is drawn, and is left to do until generate() 
     return [{ ...exports, ...story, default: m.model("x") }]
   }
   const label =
-    "Ch › Create: Created.label builds a string from name, id. Write generate() with name, id instead, to say what it is made from."
+    "Ch › Create: Created.label builds a string from name, id. Write m.generate() with name, id instead, to say what it is made from."
   const size =
-    "Ch › Create: Created.size computes a number from n. Write generate() with n instead, to say what it is made from."
+    "Ch › Create: Created.size computes a number from n. Write m.generate() with n instead, to say what it is made from."
   const partial = feedOf(modules(), { partial: true })
   assert.deepEqual(
     partial.warnings?.filter((w) => w.slice === "Create").map((w) => w.message),
@@ -271,9 +317,9 @@ test("a mapper that builds a value is drawn, and is left to do until generate() 
     () =>
       m.slice().command(
         f.Create,
-        Created((_, { generate }) => ({ label: generate("x"), size: 0 })),
+        Created(() => ({ label: m.generate("x"), size: 0 })),
       ),
-    /generate\(\) takes the source, its fields and read models, such as generate\(e\.pageId, Pages\), not x\./,
+    /m\.generate\(\) takes the source, its fields and read models, such as m\.generate\(e\.pageId, Pages\), not x\./,
   )
 })
 
@@ -851,6 +897,33 @@ test("an automation's mapping fills its command from the trigger", () => {
   assert.deepEqual(json.chapters[0]?.slices[1]?.mapping, { Process: { label: { from: "name" } } })
 })
 
+test("a generated value in an automation's command is left to do, and an error when strict", () => {
+  const f = fixture()
+  const Process = m.command({ id: z.string(), label: z.string() })
+  const Processed = m.event({ id: z.string() })
+  const model = () => {
+    const processor = m
+      .slice("Processor")
+      .automation(
+        f.Created,
+        Process(() => ({ label: m.generate() })),
+        Processed,
+      )
+      .test("A created list is processed", {
+        given: f.Created(list),
+        when: Process({ id: "list-1", label: "x" }),
+        then: Processed({ id: "list-1" }),
+      })
+    const Ch = [create(f), processor, processedView(f, Processed)]
+    return { ...f, Process, Processed, ...chapters({ Ch }), default: m.model("x") }
+  }
+  const message =
+    "Ch › Processor: Process.label is generated, but an automation's command is filled from Created. Add label to Created, or generate it in an event Process records."
+  const json = assembleModules([model()], { partial: true })
+  assert.deepEqual(json.warnings, [{ message, element: "Process", slice: "Processor" }])
+  assert.throws(() => assembleModules([model()]), { message })
+})
+
 test("the first system actor declared runs what names none, and .actor() names another", () => {
   const f = fixture()
   const Syncer = m.actor({ icon: "system" })
@@ -1270,8 +1343,8 @@ test("a single file written top to bottom extends an earlier read model in a lat
 test("a read model in given is named as one", () => {
   const f = fixture()
   const row = f.Table({ id: "1", name: "n" })
+  // @ts-expect-error a read model is not an event, in given
   const slice = create(f).test("t", {
-    // @ts-expect-error a read model is not an event
     given: row,
     when: f.Create({ id: "1", name: "n" }),
     then: f.Created({ id: "1", name: "n" }),
@@ -1625,7 +1698,7 @@ test("a state change's then has what its command sends and its mapping sets", ()
     .slice()
     .command(
       Add,
-      Added((c, { generate }) => ({ title: c.text, status: "open", at: generate() })),
+      Added((c) => ({ title: c.text, status: "open", at: m.generate() })),
     )
     .test("agrees", {
       when: Add({ id: "a-1", text: "buy milk", tags: [{ name: "food" }] }),
@@ -1740,7 +1813,7 @@ test("a view's rows have what given builds, matched by key", () => {
       Lists,
       ListCreated((e) => ({ title: e.name, items: 0, status: "open" })),
     )
-    .event(ItemAdded((e, { generate }) => ({ items: generate(e) })))
+    .event(ItemAdded((e) => ({ items: m.generate(e) })))
     .event(ListClosed(() => ({ status: "closed" })))
   const given = [
     ListCreated({ ...groceries, name: "Groceries" }),

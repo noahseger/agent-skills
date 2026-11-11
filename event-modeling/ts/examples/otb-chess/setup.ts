@@ -159,9 +159,9 @@ m.slice("ClockStarter")
   .automation(
     GameStarted,
     StartClock,
-    ClockStarted((c, { generate }) => ({
-      whiteTimeMs: generate(c.baseMinutes),
-      blackTimeMs: generate(c.baseMinutes),
+    ClockStarted((c) => ({
+      whiteTimeMs: m.generate(c.baseMinutes),
+      blackTimeMs: m.generate(c.baseMinutes),
       runningSide: "white",
     })),
   )

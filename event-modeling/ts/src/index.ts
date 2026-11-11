@@ -1,5 +1,6 @@
 // Everything a model is written with, under `m`.
 // `__kind` and `__fields` exist only for the compiler; assembly reads `META`.
+import { createHash } from "node:crypto"
 import { z } from "zod"
 
 // One copy of Zod for the model and the package.
@@ -30,19 +31,6 @@ import {
 type Infer<F extends Fields> = { [P in keyof F]: z.infer<F[P]> }
 type OneOrMany<T> = T | readonly T[]
 
-/** What a function gets as its second argument where a handler fills an event or a view a row. */
-export interface Helpers {
-  /**
-   * A value the handler makes: from the source, such as `generate(e)` for a count, its fields, such
-   * as `generate(c.title)`, and the read models the slice names with `.readModel()`, such as
-   * `generate(e.pageId, Pages)`; from nothing, `generate()`, it is an id or a clock.
-   */
-  generate<T>(...inputs: unknown[]): T
-}
-
-/** An automation's command is filled from its trigger with no helpers. */
-type NoHelpers = Record<never, never>
-
 /** The fields that must have a value: an optional one may go unfilled in a slice, if another fills it. */
 type Needed<T extends Fields> = {
   [K in keyof T]: undefined extends z.input<T[K]> ? never : K
@@ -67,9 +55,8 @@ type FilledBy<S extends Fields, A, From extends string, Use> = [A] extends [neve
       : Use
 
 /** A use where a handler fills the declaration from `S`'s fields. */
-export interface Into<S extends Fields, H> {
+export interface Into<S extends Fields> {
   readonly source: S
-  readonly helpers: H
 }
 
 /** A use in a view, where the event fills `R`'s columns. */
@@ -77,7 +64,7 @@ export interface Onto<R extends Fields> {
   readonly readModel: R
 }
 
-export type Place = Into<Fields, unknown> | Onto<Fields>
+export type Place = Into<Fields> | Onto<Fields>
 
 /**
  * The function a declaration with fields `F` is called with, typed by where the slice uses it. A
@@ -85,19 +72,16 @@ export type Place = Into<Fields, unknown> | Onto<Fields>
  */
 export type Mapper<F extends Fields, P> =
   P extends Onto<infer R>
-    ? (event: Infer<F>, helpers: Helpers) => Partial<Infer<R>>
-    : P extends Into<infer S, infer H>
-      ? (source: Infer<S>, helpers: H) => Pick<Infer<F>, Unfilled<S, F>> & Partial<Infer<F>>
+    ? (event: Infer<F>) => Partial<Infer<R>>
+    : P extends Into<infer S>
+      ? (source: Infer<S>) => Pick<Infer<F>, Unfilled<S, F>> & Partial<Infer<F>>
       : never
 
 /**
  * A function where an example's data goes is a mapper outside a slice. No result has this key, so
  * the compiler's error names the fix; the parameters are typed, so that error is the only one.
  */
-type SliceMapper = (
-  source: Record<string, unknown>,
-  helpers: Helpers,
-) => {
+type SliceMapper = (source: Record<string, unknown>) => {
   readonly "a mapper only works inside a slice: .event(...), .command(...) or .view(...)": never
 }
 
@@ -156,11 +140,24 @@ export interface ExternalEventDecl<F extends Fields = Fields> extends EventDecl<
 function decl<K extends DeclKind, F extends Fields>(kind: K, fields: F): Decl<K, F> {
   const data: DeclData = { kind, fields, keys: [] }
   const schema = z.object(fields).partial()
+  // A generated value is filled in by the specification it is in, so Zod checks the rest.
+  const example = (arg: Record<string, unknown>) => {
+    const parsed = schema.parse(
+      Object.fromEntries(Object.entries(arg).map(([f, v]) => [f, isGenerated(v) ? undefined : v])),
+    )
+    return Object.fromEntries(
+      Object.entries(parsed).map(([f, v]) => [f, isGenerated(arg[f]) ? arg[f] : v]),
+    )
+  }
   // A function makes a use for a slice; anything else is an example.
   const call = (arg: object): object =>
     typeof arg === "function"
       ? { [META]: { decl: data, map: arg as MapFn } }
-      : { [META]: { decl: data, data: schema.parse(arg) }, __kind: kind, __fields: fields }
+      : {
+          [META]: { decl: data, data: example(arg as Record<string, unknown>) },
+          __kind: kind,
+          __fields: fields,
+        }
   const declared = Object.assign(call as Decl<K, F>, {
     [META]: data,
     __kind: kind,
@@ -337,13 +334,19 @@ function input(value: unknown): string | DeclData {
   const decl = (value as Partial<ReadModelDecl> | undefined)?.[META]
   if (decl?.kind === "readModel") return decl
   throw new Error(
-    `generate() takes the source, its fields and read models, such as generate(e.pageId, Pages), not ${String(value)}.`,
+    `m.generate() takes the source, its fields and read models, such as m.generate(e.pageId, Pages), not ${String(value)}.`,
   )
 }
 
-// Each helper returns its marker, so the probe can tell it from a source field or a constant.
-const helpers = {
-  generate: (...inputs: unknown[]): Generated => ({ [GENERATE]: inputs.map(input) }),
+/**
+ * A value the handler makes: from the source, such as `m.generate(e)` for a count, its fields, such
+ * as `m.generate(c.title)`, and the read models the slice names with `.readModel()`, such as
+ * `m.generate(e.pageId, Pages)`; from nothing, `m.generate()`, it is an id or a clock. In a
+ * specification, `m.generate()` is a value of its field's type that no other generated value has.
+ * It returns a marker, so the probe can tell it from a source field or a constant.
+ */
+function generate<T = never>(...inputs: unknown[]): T {
+  return { [GENERATE]: inputs.map(input) } as T
 }
 
 // Private use, so no text a model writes contains it.
@@ -375,7 +378,7 @@ function probe(from: DeclData, map: MapFn): Record<string, Source> {
   )
   const source = { ...fields, [SOURCE]: from }
   const mapping: Record<string, Source> = {}
-  for (const [field, value] of Object.entries(map(source as never, helpers as never))) {
+  for (const [field, value] of Object.entries(map(source as never))) {
     const spliced =
       typeof value === "string" ? [...value.matchAll(SPLICED)].map((m) => m[1] ?? "") : []
     mapping[field] = isGenerated(value)
@@ -429,20 +432,10 @@ export type ViewSpec<Q extends Fields, R extends Fields> = {
 type Actors = [Actor, ...Actor[]]
 
 /** An event command `C` records: `Event`, or `Event(map)` to fill what `C` does not carry. */
-type Outcome<C extends Fields, A> = FilledBy<
-  C,
-  A,
-  "command",
-  Mapped<"event", Fields, Into<C, Helpers>>
->
+type Outcome<C extends Fields, A> = FilledBy<C, A, "command", Mapped<"event", Fields, Into<C>>>
 
 /** An automation's command, filled from its trigger `T`: `Command`, or `Command(map)`. */
-type Issue<T extends Fields, A> = FilledBy<
-  T,
-  A,
-  "trigger",
-  Mapped<"command", Fields, Into<T, NoHelpers>>
->
+type Issue<T extends Fields, A> = FilledBy<T, A, "trigger", Mapped<"command", Fields, Into<T>>>
 
 // biome-ignore lint/suspicious/noExplicitAny: any event's fields
 type AnyEvent = EventDecl<any> | Mapped<"event", any, Place>
@@ -511,7 +504,7 @@ export interface View<Q extends Fields, R extends Fields> extends Slice {
   screen(screen: Screen): View<Q, R>
   /** A view has no command to name its method after. */
   service(service: Service, method: string): View<Q, R>
-  test(name: string, spec: ViewSpec<Q, R>): View<Q, R>
+  test(name: string, spec: ViewSpec<Q, R> | (() => ViewSpec<Q, R>)): View<Q, R>
   note(text: string): View<Q, R>
 }
 
@@ -525,7 +518,7 @@ export interface StateChange<C extends Fields, Em extends Fields> extends Slice 
   screen(screen: Screen): StateChange<C, Em>
   /** The method is named after the command unless given. */
   service(service: Service, method?: string): StateChange<C, Em>
-  test(name: string, spec: Spec<C, Em>): StateChange<C, Em>
+  test(name: string, spec: Spec<C, Em> | (() => Spec<C, Em>)): StateChange<C, Em>
   note(text: string): StateChange<C, Em>
 }
 
@@ -536,7 +529,7 @@ export interface Automation<C extends Fields, Em extends Fields> extends Slice {
   event<A extends AnyEvent>(event: Outcome<C, A>): Automation<C, Em | A["__fields"]>
   /** The machine of ours that runs it; without one, the first declared, or else System. */
   actor(actor: SystemActor): Automation<C, Em>
-  test(name: string, spec: Spec<C, Em>): Automation<C, Em>
+  test(name: string, spec: Spec<C, Em> | (() => Spec<C, Em>)): Automation<C, Em>
   note(text: string): Automation<C, Em>
 }
 
@@ -552,21 +545,58 @@ interface AnySpec {
   reject?: string
 }
 
-/** A view's `when` is its query's values, which Zod checks as it checks an example's. */
+/**
+ * A view's `when` is its query's values, which Zod checks as it checks an example's. Each generated
+ * value becomes one value wherever the specification uses it, so the check compares it as any other.
+ */
 function testData(name: string, spec: AnySpec, view?: SliceData): TestData {
+  const made = new Map<unknown, unknown>()
+  const fill = (fields: Fields, data: Record<string, unknown>) =>
+    Object.fromEntries(
+      Object.entries(data).map(([f, v]) => {
+        if (isGenerated(v) && !made.has(v)) made.set(v, sample(fields[f], `${name}:${made.size}`))
+        return [f, isGenerated(v) ? made.get(v) : v]
+      }),
+    )
+  const example = (c: Example): ExampleData => ({
+    decl: c[META].decl,
+    data: fill(c[META].decl.fields, c[META].data),
+  })
   const test: TestData = {
     name,
-    given: many(spec.given).map((c) => c[META]),
-    then:
-      spec.reject === undefined ? many(spec.then).map((c) => c[META]) : [{ message: spec.reject }],
+    given: many(spec.given).map(example),
+    then: spec.reject === undefined ? many(spec.then).map(example) : [{ message: spec.reject }],
   }
   if (view && spec.when)
     test.query = z
       .object(view.query ?? {})
       .partial()
-      .parse(spec.when)
-  else if (spec.when) test.when = (spec.when as Example)[META]
+      .parse(fill(view.query ?? {}, spec.when as Record<string, unknown>))
+  else if (spec.when) test.when = example(spec.when as Example)
   return test
+}
+
+/** A value `schema` accepts, the same on every run for the same seed. */
+function sample(schema: z.ZodType | undefined, seed: string): unknown {
+  const hex = createHash("sha256").update(seed).digest("hex")
+  const n = Number.parseInt(hex.slice(0, 8), 16)
+  const uuid = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`
+  const time = new Date(Date.UTC(2026, 0, 1) + (n % 525_600) * 60_000).toISOString()
+  let options: unknown[] = []
+  try {
+    options =
+      (z.toJSONSchema(schema ?? z.never(), { io: "input" }) as { enum?: unknown[] }).enum ?? []
+  } catch {}
+  const values = [
+    options[n % options.length],
+    uuid,
+    time,
+    time.slice(0, 10),
+    (n % 1000) + 1,
+    n % 2 === 0,
+    [],
+  ]
+  return values.find((v) => v !== undefined && schema?.safeParse(v).success) ?? uuid
 }
 
 // Each step copies, so a shared chain prefix can start several slices. The
@@ -600,9 +630,12 @@ function chain(data: SliceData) {
         service:
           method === undefined ? { service: service[META] } : { service: service[META], method },
       }),
-    test: (name: string, spec: AnySpec) =>
+    test: (name: string, spec: AnySpec | (() => AnySpec)) =>
       next({
-        tests: [...data.tests, testData(name, spec, data.view ? data : undefined)],
+        tests: [
+          ...data.tests,
+          testData(name, typeof spec === "function" ? spec() : spec, data.view ? data : undefined),
+        ],
       }),
     note: (text: string) => next({ note: text }),
     chapter: (chapter: Chapter) => next({ chapters: [...data.chapters, chapter[META]] }),
@@ -668,6 +701,7 @@ export const m = {
   event,
   command,
   readModel,
+  generate,
   external,
   stream,
   chapter,
