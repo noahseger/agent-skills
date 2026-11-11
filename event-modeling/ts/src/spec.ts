@@ -202,7 +202,7 @@ function mappedFields(decl: DeclData, mapping: Record<string, Source> = {}): Spe
   })
 }
 
-/** A read model built from several events maps each column once per event: `Event: source`. */
+/** A view built from several events maps each column once per event: `Event: source`. */
 function projectedFields(decl: DeclData, flows: Flow[]): SpecField[] {
   return fieldsOf(decl.fields, decl.keys).map((f) => {
     const lines = flows.flatMap(({ decl: event, mapping }) => {
@@ -216,13 +216,13 @@ function projectedFields(decl: DeclData, flows: Flow[]): SpecField[] {
 const TYPE: Record<DeclData["kind"], ElementType> = {
   event: "EVENT",
   command: "COMMAND",
-  readModel: "READMODEL",
+  view: "READMODEL",
 }
 
 const STEP: Record<DeclData["kind"], SpecStep["type"]> = {
   event: "SPEC_EVENT",
   command: "SPEC_COMMAND",
-  readModel: "SPEC_READMODEL",
+  view: "SPEC_READMODEL",
 }
 
 function actorOf(a: ActorData): SpecActor {
@@ -276,7 +276,7 @@ export function toFeed({
   const looseActors = loose.flatMap((d) => (d.kind === "actor" ? [actorOf(d)] : []))
   const systems = externals.map((name) => ({ name, authRequired: false, tags: ["external"] }))
   const looseElements = loose.flatMap((d) =>
-    d.kind === "event" || d.kind === "command" || d.kind === "readModel"
+    d.kind === "event" || d.kind === "command" || d.kind === "view"
       ? [looseElement(d, streamOf, `loose:${slug(d.name ?? "")}`)]
       : [],
   )
@@ -329,7 +329,7 @@ function sliceOf(
         ? "STATE_CHANGE"
         : "STATE_VIEW"
 
-  // The endpoint is on what it serves: the command, or the read model a view shows.
+  // The endpoint is on what it serves: the command, or the view a state view shows.
   const method = service?.method ?? command?.decl.name ?? view?.name ?? ""
   const endpoint = service ? { service: service.service.name ?? "", apiEndpoint: method } : {}
 
@@ -340,7 +340,7 @@ function sliceOf(
     : slice.events.map((f) => element(f.decl, mappedFields(f.decl, f.mapping)))
   const heardEvents = view ? slice.events.map((f) => element(f.decl, fieldsOf(f.decl.fields))) : []
   const triggerEl = trigger && element(trigger, fieldsOf(trigger.fields))
-  const reads = slice.readModels.map((r) => element(r, fieldsOf(r.fields, r.keys)))
+  const reads = slice.reads.map((r) => element(r, fieldsOf(r.fields, r.keys)))
   const pollsEl = polls && element(polls, fieldsOf(polls.fields, polls.keys))
   const viewEl = view && element(view, projectedFields(view, slice.events), endpoint)
   const processor: SpecElement | undefined =
@@ -405,7 +405,7 @@ function step(c: ClauseData, id: string): SpecStep {
   return { id, title: c.decl.name ?? "", type: STEP[c.decl.kind], examples: [c.data] }
 }
 
-/** A view's query is asked from its screen, as a command is sent from one: so `asked` titles it. */
+/** A state view's query is asked from its screen, as a command is sent from one: so `asked` titles it. */
 function specification(
   t: TestData,
   id: string,

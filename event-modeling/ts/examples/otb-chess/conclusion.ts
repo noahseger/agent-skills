@@ -65,7 +65,7 @@ export const IllegalMoveForfeited = m
 
 // How this game finished, whichever way it finished.
 export const GameResult = m
-  .readModel({
+  .view({
     gameId: z.string(),
     result: Result,
     termination: Termination,
@@ -96,7 +96,7 @@ export const ResultRecorded = m
 
 // The finished game as the crosstable shows it.
 export const GameRecord = m
-  .readModel({
+  .view({
     gameId: z.string(),
     round: z.number().int(),
     boardNumber: z.number().int(),
@@ -148,7 +148,7 @@ export const Conclusion = m.chapter()
 m.slice()
   .command(ClaimFlagFall, TimeForfeited)
   .chapter(Conclusion)
-  .readModel(ClockState)
+  .view(ClockState)
   .actor(Player)
   .service(ChessService)
   .test("White claims Black's fallen flag", {
@@ -189,7 +189,7 @@ m.slice("OutcomeAdjudicator")
     BoardOutcomeAdjudicated((c) => ({ result: m.generate(c.termination, GameState) })),
   )
   .chapter(Conclusion)
-  .readModel(GameState)
+  .view(GameState)
   .note("The move that ended the game says how. This turns that into a result.")
   .test("Checkmate on the board ends the game", {
     given: mated,
@@ -254,7 +254,7 @@ m.slice("IllegalMoveForfeiter")
     })),
   )
   .chapter(Conclusion)
-  .readModel(IllegalMoveTally)
+  .view(IllegalMoveTally)
   .test("The second illegal move forfeits the game", {
     given: secondOffence,
     when: ForfeitGame({
@@ -317,8 +317,8 @@ m.slice()
 m.slice()
   .command(RecordResult, ResultRecorded)
   .chapter(Conclusion)
-  .readModel(GameResult)
-  .readModel(GamePairing)
+  .view(GameResult)
+  .view(GamePairing)
   .actor(Arbiter)
   .service(ChessService)
   .test("The arbiter records the signed draw on the pairing sheet", {

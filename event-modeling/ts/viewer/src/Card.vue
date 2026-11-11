@@ -10,7 +10,7 @@ const LABEL: Record<Box["kind"], string> = {
   external: "external event",
   command: "command",
   event: "event",
-  readModel: "read model",
+  readModel: "view",
   automation: "automation",
 }
 

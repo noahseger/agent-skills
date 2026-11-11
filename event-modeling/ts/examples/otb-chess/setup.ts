@@ -63,7 +63,7 @@ export const GameStarted = m
 
 // Who is playing whom, on which board, in which round.
 export const GamePairing = m
-  .readModel({
+  .view({
     gameId: z.string(),
     round: z.number().int(),
     boardNumber: z.number().int(),

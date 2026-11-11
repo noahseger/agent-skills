@@ -32,7 +32,7 @@ export const DrawOffered = m
 
 // The offer standing on the opponent. One offer at a time, and only the latest counts.
 export const PendingDrawOffer = m
-  .readModel({
+  .view({
     gameId: z.string(),
     offeringSide: z.enum(["white", "black"]),
     ply: z.number().int(),
@@ -127,7 +127,7 @@ export const DrawsAndResignation = m.chapter()
 m.slice()
   .command(OfferDraw, DrawOffered)
   .chapter(DrawsAndResignation)
-  .readModel(GameState)
+  .view(GameState)
   .actor(Player)
   .service(ChessService)
   .test("White offers a draw on move 21", {
@@ -176,7 +176,7 @@ m.slice()
 m.slice()
   .command(AcceptDraw, DrawAgreed)
   .chapter(DrawsAndResignation)
-  .readModel(PendingDrawOffer)
+  .view(PendingDrawOffer)
   .actor(Player)
   .service(ChessService)
   .test("Black accepts the pending draw offer", {
@@ -203,7 +203,7 @@ m.slice()
 m.slice()
   .command(Resign, GameResigned)
   .chapter(DrawsAndResignation)
-  .readModel(GameState)
+  .view(GameState)
   .actor(Player)
   .service(ChessService)
   .test("Black resigns a lost endgame", {

@@ -157,7 +157,7 @@ function describe(d: Diagnostic, text: string, file: string): Warning {
   const unsupplied = d.relatedInformation
     ?.map((r) => r.text)
     .find((t) => t.startsWith("An argument for"))
-  // Named after its command or read model, as `em json` names the slice.
+  // Named after its command or view, as `em json` names the slice.
   const core = UNSUPPLIED[`${text.slice(d.pos, d.end)} ${unsupplied?.match(/'(\w+)'/)?.[1]}`]
   const args = text.slice(d.end).match(/^\s*\(\s*([\w.]+)\s*(?:,\s*([\w.]+))?/)
   if (core && args) return said(`${at(d.pos)}${args[2] ?? args[1]}: ${core}`)

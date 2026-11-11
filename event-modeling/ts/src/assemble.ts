@@ -90,7 +90,7 @@ export function loadModules(
     files,
     conflict,
   )
-  const drafts = runBy(firstSystem(declared), oneSlicePerReadModel(written, fail))
+  const drafts = runBy(firstSystem(declared), oneSlicePerView(written, fail))
   const unchaptered: SliceData[] = []
   for (const s of drafts) {
     const name = chapterOf(s, conflict)
@@ -122,11 +122,12 @@ export function loadModules(
 }
 
 /**
- * Every `.view()` of a read model is one slice: the first, where it is drawn, which chapter it joins
- * and who sees it, built from the events of all of them and specified by all their specifications.
+ * Every `m.slice().view()` of a view is one slice: the first, where it is drawn, which chapter it
+ * joins and who sees it, built from the events of all of them and specified by all their
+ * specifications.
  * What a later call says about where or how it is drawn would be lost, so it is reported.
  */
-function oneSlicePerReadModel(drafts: SliceData[], fail: Fail): SliceData[] {
+function oneSlicePerView(drafts: SliceData[], fail: Fail): SliceData[] {
   const calls = new Map<DeclData, SliceData[]>()
   for (const s of drafts) if (s.view) calls.set(s.view, [...(calls.get(s.view) ?? []), s])
   return drafts.flatMap((s) => {
@@ -143,7 +144,7 @@ function oneSlicePerReadModel(drafts: SliceData[], fail: Fail): SliceData[] {
   })
 }
 
-/** What a later `.view()` of the first's read model says differently about drawing it. */
+/** What a later `.view()` of the first's view says differently about drawing it. */
 function drawnElsewhere(first: SliceData, later: SliceData): Warning[] {
   const rm = first.view?.name ?? ""
   const chapter = (s: SliceData) => s.chapters.map((c) => c.name).join(" and ") || undefined
@@ -186,8 +187,8 @@ function firstSystem(declared: Declaration[]): ActorData | undefined {
 }
 
 /**
- * An automation that names no machine of ours, or a view no one sees, is run by `system`, or else
- * by System.
+ * An automation that names no machine of ours, or a state view no one sees, is run by `system`, or
+ * else by System.
  */
 function runBy(system: ActorData | undefined, drafts: SliceData[]): SliceData[] {
   return drafts.map((s) =>
@@ -332,7 +333,7 @@ function looseOf(
 const KIND_LABEL = {
   event: "an event",
   command: "a command",
-  readModel: "a read model",
+  view: "a view",
   actor: "an actor",
   screen: "a screen",
   service: "a service",
@@ -463,13 +464,8 @@ function used(slice: SliceData): [keyof typeof KIND_LABEL, { name?: string }][] 
     out.push(["event", e])
     if (e.external) out.push(["external", e.external])
   }
-  const readModels = [
-    ...slice.readModels,
-    slice.polls,
-    slice.view,
-    ...flows(slice).flatMap(generatedFrom),
-  ]
-  for (const r of readModels) if (r) out.push(["readModel", r])
+  const reads = [...slice.reads, slice.polls, slice.view, ...flows(slice).flatMap(generatedFrom)]
+  for (const r of reads) if (r) out.push(["view", r])
   for (const t of slice.tests) {
     for (const c of [...t.given, t.when, ...t.then])
       if (c && "decl" in c) out.push([c.decl.kind, c.decl])
@@ -483,18 +479,18 @@ const flows = (slice: SliceData): Flow[] => [
   ...slice.events,
 ]
 
-/** The read models a flow's generated values are made from. */
+/** The views a flow's generated values are made from. */
 const generatedFrom = (flow: Flow): DeclData[] =>
   Object.values(flow.mapping).flatMap((s) =>
     "generate" in s
-      ? s.generate.filter((i): i is DeclData => typeof i !== "string" && i.kind === "readModel")
+      ? s.generate.filter((i): i is DeclData => typeof i !== "string" && i.kind === "view")
       : [],
   )
 
 /**
  * A mapping copies a field, sets a constant or says what a value is made from. One that computes a
  * value is drawn as generated and left to do: what it computes is the handler's, not the model's. A
- * read model a value is made from is one the handler reads. An automation's command makes nothing:
+ * view a value is made from is one the handler reads. An automation's command makes nothing:
  * it is filled from what starts it.
  */
 function checkGenerated({ slice, where }: Located, fail: Fail): void {
@@ -520,13 +516,9 @@ function checkGenerated({ slice, where }: Located, fail: Fail): void {
         })
       }
       for (const input of "generate" in s ? s.generate : [])
-        if (
-          typeof input !== "string" &&
-          input.kind === "readModel" &&
-          !slice.readModels.includes(input)
-        )
+        if (typeof input !== "string" && input.kind === "view" && !slice.reads.includes(input))
           fail({
-            message: `${where}: ${target} is generated from ${input.name}, which this slice doesn't read yet. Add .readModel(${input.name}).`,
+            message: `${where}: ${target} is generated from ${input.name}, which this slice doesn't read yet. Add .view(${input.name}).`,
             element: input.name ?? "",
             slice: slice.name ?? "",
           })
@@ -544,7 +536,7 @@ function optional(decl: DeclData): string[] {
   return Object.keys(decl.fields).filter((f) => decl.fields[f]?.safeParse(undefined).success)
 }
 
-/** Each read model a view builds, and the events that build it. */
+/** Each view a state view slice builds, and the events that build it. */
 type Built = Map<DeclData, Flow[]>
 
 function builtOf(located: Located[]): Built {
@@ -635,7 +627,7 @@ function checkKeys({ slice, where }: Located, fail: Fail): void {
   }
 }
 
-/** External events are not stored, so a read model built from one would be empty after a replay. */
+/** External events are not stored, so a view built from one would be empty after a replay. */
 function checkStored({ slice, where }: Located, fail: Fail): void {
   const { view } = slice
   if (!view) return
@@ -651,8 +643,8 @@ function checkStored({ slice, where }: Located, fail: Fail): void {
 /**
  * Every event a slice handles or produces is in one of its specifications: a command's events are
  * alternatives, and only a specification says when each happens; an automation's trigger, and a
- * view's events, are in a given. An automation that polls a read model has no trigger event. A
- * view's specifications say what the screen shows.
+ * state view's events, are in a given. An automation that polls a view has no trigger event. A
+ * state view's specifications say what the screen shows.
  */
 function checkCovered({ slice, where }: Located, fail: Fail): void {
   if (slice.view && slice.tests.length === 0) {
@@ -783,26 +775,26 @@ function valuesOf(row: { values: Record<string, Expected> }): Record<string, unk
 /** The rows with the key values `data` has. */
 function rowsLike<R extends { values: Record<string, Expected> }>(
   rows: R[],
-  readModel: DeclData,
+  view: DeclData,
   data: Record<string, unknown>,
 ): R[] {
-  const keys = readModel.keys.filter((k) => data[k] !== undefined)
+  const keys = view.keys.filter((k) => data[k] !== undefined)
   return rows.filter((r) => keys.every((k) => isDeepStrictEqual(r.values[k]?.value, data[k])))
 }
 
 /** The key columns of the polled row a command was issued for, with what the command copied from them. */
-function polledKey(command: Flow, when: ExampleData, readModel: DeclData): Record<string, unknown> {
+function polledKey(command: Flow, when: ExampleData, view: DeclData): Record<string, unknown> {
   const keyed: Record<string, unknown> = {}
   for (const field of Object.keys(command.decl.fields)) {
     const s = command.mapping[field] ?? { from: field }
-    if ("from" in s && readModel.keys.includes(s.from)) keyed[s.from] = when.data[field]
+    if ("from" in s && view.keys.includes(s.from)) keyed[s.from] = when.data[field]
   }
   return keyed
 }
 
-/** A row by its keys, or by every value when the read model has none. */
-function rowName(readModel: DeclData, data: Record<string, unknown>): string {
-  const keys = readModel.keys.length > 0 ? readModel.keys : Object.keys(data)
+/** A row by its keys, or by every value when the view has none. */
+function rowName(view: DeclData, data: Record<string, unknown>): string {
+  const keys = view.keys.length > 0 ? view.keys : Object.keys(data)
   return show(
     Object.fromEntries(keys.flatMap((k) => (data[k] === undefined ? [] : [[k, data[k]]]))),
   )
@@ -838,7 +830,7 @@ function source(
 
 /** The rows `given` builds, in order, so the last event to set a column wins; each column says where it came from. */
 function project(
-  readModel: DeclData,
+  view: DeclData,
   flows: Flow[],
   given: ExampleData[],
 ): { values: Record<string, Expected> }[] {
@@ -848,11 +840,11 @@ function project(
     if (!flow) continue
     const has = `${g.decl.name} in given has`
     const values: Record<string, Expected> = {}
-    for (const column of Object.keys(readModel.fields)) {
+    for (const column of Object.keys(view.fields)) {
       const e = source(flow, column, g, has)
       if (e) values[column] = e
     }
-    const keys = readModel.keys.filter((k) => values[k]?.value !== undefined)
+    const keys = view.keys.filter((k) => values[k]?.value !== undefined)
     let matched = rows.filter((r) =>
       keys.every((k) => isDeepStrictEqual(r.values[k]?.value, values[k]?.value)),
     )
@@ -893,9 +885,9 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
     for (const e of recorded(slice)) emitted.add(e)
     for (const e of heard(slice)) add(reacting, e, at)
     for (const t of slice.tests) for (const g of t.given) add(assuming, g.decl, at)
-    // A view someone sees, or that serves a method, is read there.
+    // A state view someone sees, or that serves a method, is read there.
     if (slice.view && (slice.actors.length > 0 || slice.service)) read.add(slice.view)
-    for (const r of [...slice.readModels, slice.polls]) if (r) read.add(r)
+    for (const r of [...slice.reads, slice.polls]) if (r) read.add(r)
   }
   const consumed = new Set([...reacting.keys(), ...assuming.keys()])
   for (const { slice, where } of located) {
@@ -905,7 +897,7 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
       slice: slice.name ?? "",
     })
     // tsc rejects these too, but the CLI does not run tsc, and without this a
-    // read model in given would be reported below as an event no slice emits.
+    // view in given would be reported below as an event no slice emits.
     for (const t of slice.tests) {
       for (const g of t.given) {
         if (g.decl.kind !== "event")
@@ -940,7 +932,7 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
         fail(
           about(
             e,
-            `${where}: nothing uses ${e.name} yet. Add .automation(${e.name}) or a view's .event(${e.name}) where something reacts to it.`,
+            `${where}: nothing uses ${e.name} yet. Add .automation(${e.name}) or a state view's .event(${e.name}) where something reacts to it.`,
           ),
         )
     }
@@ -949,12 +941,17 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
       fail(
         about(
           view,
-          `${where}: nothing reads ${view.name} yet. Add .actor() for who sees it, or .readModel(${view.name}) or .automation(${view.name}) where it's needed.`,
+          `${where}: nothing reads ${view.name} yet. Add .actor() for who sees it, or .view(${view.name}) or .automation(${view.name}) where it's needed.`,
         ),
       )
-    for (const r of [...slice.readModels, slice.polls]) {
+    for (const r of [...slice.reads, slice.polls]) {
       if (r && !built.has(r))
-        fail(about(r, `${where}: nothing fills ${r.name} yet. Add a slice with .view(${r.name}).`))
+        fail(
+          about(
+            r,
+            `${where}: nothing fills ${r.name} yet. Add a state view, m.slice().view(${r.name}, Event).`,
+          ),
+        )
     }
   }
   // One line per event, at the slices that react to it, or else at those that assume it.

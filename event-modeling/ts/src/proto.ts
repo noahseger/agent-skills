@@ -26,7 +26,7 @@ interface Message {
 
 interface Method {
   name: string
-  /** Request, then the read models it repeats, then response: print order. */
+  /** Request, then the views it repeats, then response: print order. */
   messages: Message[]
 }
 
@@ -115,7 +115,7 @@ function toMessage(name: string, fields: Fields, where = name): Message {
 
 const empty = (name: string): Message => ({ name, fields: [], nested: [] })
 
-/** A view's read model prints before the response that repeats it. */
+/** The view a state view shows prints before the response that repeats it. */
 function methodOf(slice: SliceData): Method {
   const command = slice.command?.decl
   const name = slice.service?.method ?? command?.name ?? ""
@@ -125,7 +125,7 @@ function methodOf(slice: SliceData): Method {
     return { name, messages: [request, empty(`${name}Response`)] }
   }
   const shown = slice.view
-  // A query that names every key column of the read model picks one row.
+  // A query that names every key column of the view picks one row.
   const query = new Set(Object.keys(slice.query ?? {}))
   const one = shown && shown.keys.length > 0 && shown.keys.every((k) => query.has(k))
   const response: Message = {

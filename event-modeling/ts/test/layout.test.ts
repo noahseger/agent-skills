@@ -160,7 +160,7 @@ test("every edge joins two cards, and a projection is fed by each of its events"
   }
 })
 
-test("an automation is in its actor's lane, and reads are drawn back from the read model", () => {
+test("an automation is in its actor's lane, and reads are drawn back from the view", () => {
   const column = out.columns.find((c) => c.slice.automation)
   assert.ok(column)
   const gear = out.boxes.find((b) => b.column === column.index && b.kind === "automation")
@@ -170,19 +170,16 @@ test("an automation is in its actor's lane, and reads are drawn back from the re
   assert.equal(
     out.boxes.filter((b) => b.column === column.index && b.compact).length,
     0,
-    "no reference card when the read model is drawn in full",
+    "no reference card when the view is drawn in full",
   )
   const search = out.boxes.find(
     (b) => b.name === "ListItems" && b.kind === "readModel" && !b.compact,
   )
   assert.ok(search)
   const reads = out.edges.find((e) => e.from === search.id && e.to === gear.id)
-  assert.ok(
-    reads?.dashed && reads.points,
-    "a dashed, routed edge from the read model to the automation",
-  )
+  assert.ok(reads?.dashed && reads.points, "a dashed, routed edge from the view to the automation")
   const start = reads.points[0]
-  assert.ok(start && start[0] > search.x + search.w / 2, "leaves the read model right of centre")
+  assert.ok(start && start[0] > search.x + search.w / 2, "leaves the view right of centre")
   assert.equal(start?.[1], search.y + search.h)
   const end = reads.points.at(-1)
   assert.ok(end && end[0] === gear.x && end[1] > gear.y && end[1] < gear.y + gear.h)
@@ -192,7 +189,7 @@ test("an automation is in its actor's lane, and reads are drawn back from the re
   assert.ok(into && into[0] === gear.x && into[1] > gear.y && into[1] < gear.y + gear.h)
 })
 
-test("a read model nothing draws in full still gets a reference card", () => {
+test("a view nothing draws in full still gets a reference card", () => {
   const copy: Board = JSON.parse(JSON.stringify(model))
   for (const c of copy.chapters)
     c.slices = c.slices.filter((s) => !s.read_models?.some((r) => r.startsWith("ListItems")))
@@ -212,7 +209,7 @@ test("lanes say what they are, and the system lane is the automations", () => {
   ])
 })
 
-test("a screen is a wireframe of its command or its read model", () => {
+test("a screen is a wireframe of its command or its view", () => {
   const create = out.boxes.find((b) => b.kind === "ui" && b.name === "CreateList")
   assert.deepEqual(create?.form, ["userId", "listId", "name"])
   assert.equal(create?.button, "CreateList")

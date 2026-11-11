@@ -59,16 +59,16 @@ export interface Into<S extends Fields> {
   readonly source: S
 }
 
-/** A use in a view, where the event fills `R`'s columns. */
+/** A use in a state view, where the event fills the view `R`'s columns. */
 export interface Onto<R extends Fields> {
-  readonly readModel: R
+  readonly view: R
 }
 
 export type Place = Into<Fields> | Onto<Fields>
 
 /**
  * The function a declaration with fields `F` is called with, typed by where the slice uses it. A
- * handler's must set every field its source lacks; a view's sets any columns.
+ * handler's must set every field its source lacks; a state view's sets any columns.
  */
 export type Mapper<F extends Fields, P> =
   P extends Onto<infer R>
@@ -125,14 +125,14 @@ export interface EventDecl<F extends Fields = Fields> extends Decl<"event", F> {
   external(system: External): ExternalEventDecl<F>
 }
 export type CommandDecl<F extends Fields = Fields> = Decl<"command", F>
-export interface ReadModelDecl<F extends Fields = Fields> extends Decl<"readModel", F> {
+export interface ViewDecl<F extends Fields = Fields> extends Decl<"view", F> {
   /** The columns that identify a row. */
   key(...columns: (keyof F & string)[]): this
 }
 
 /** An event of a system we do not own, as `.external()` returns it. */
 export interface ExternalEventDecl<F extends Fields = Fields> extends EventDecl<F> {
-  /** A view and an automation refuse an event with these keys, so the editor's error names the fix. */
+  /** A state view and an automation refuse an event with these keys, so the error names the fix. */
   readonly "isn't stored: translate it into an event of ours, then project that": true
   readonly "comes from outside: start its slice with .translation()": true
 }
@@ -189,14 +189,14 @@ function command<F extends Fields>(fields: F): CommandDecl<F> {
   return decl("command", fields)
 }
 
-function readModel<F extends Fields>(fields: F): ReadModelDecl<F> {
-  const declared = decl("readModel", fields)
+function view<F extends Fields>(fields: F): ViewDecl<F> {
+  const declared = decl("view", fields)
   return Object.assign(declared, {
     key(...columns: string[]) {
       declared[META].keys = columns
       return declared
     },
-  }) as ReadModelDecl<F>
+  }) as ViewDecl<F>
 }
 
 export interface Actor {
@@ -204,7 +204,7 @@ export interface Actor {
   note(text: string): this
 }
 
-/** A machine of ours, which can run automations and views. */
+/** A machine of ours, which can run automations and state views. */
 export interface SystemActor extends Actor {
   readonly __system: true
 }
@@ -326,21 +326,21 @@ function isGenerated(value: unknown): value is Generated {
   return typeof value === "object" && value !== null && GENERATE in value
 }
 
-/** A source field by its name; the source, or a read model, by its declaration. */
+/** A source field by its name; the source, or a view, by its declaration. */
 function input(value: unknown): string | DeclData {
   if (isProbe(value)) return value[FIELD]
   const source = (value as { [SOURCE]?: DeclData } | undefined)?.[SOURCE]
   if (source) return source
-  const decl = (value as Partial<ReadModelDecl> | undefined)?.[META]
-  if (decl?.kind === "readModel") return decl
+  const decl = (value as Partial<ViewDecl> | undefined)?.[META]
+  if (decl?.kind === "view") return decl
   throw new Error(
-    `m.generate() takes the source, its fields and read models, such as m.generate(e.pageId, Pages), not ${String(value)}.`,
+    `m.generate() takes the source, its fields and views, such as m.generate(e.pageId, Pages), not ${String(value)}.`,
   )
 }
 
 /**
  * A value the handler makes: from the source, such as `m.generate(e)` for a count, its fields, such
- * as `m.generate(c.title)`, and the read models the slice names with `.readModel()`, such as
+ * as `m.generate(c.title)`, and the views the slice names with `.view()`, such as
  * `m.generate(e.pageId, Pages)`; from nothing, `m.generate()`, it is an id or a clock. In a
  * specification, `m.generate()` is a value of its field's type that no other generated value has.
  * It returns a marker, so the probe can tell it from a source field or a constant.
@@ -421,12 +421,12 @@ export type Spec<C extends Fields, Em extends Fields> = {
 } & ({ then: OneOrMany<Example<"event", Em>>; reject?: never } | { reject: string; then?: never })
 
 /**
- * A view's example: `given` builds the rows, `when` holds the query's values, and `then` the rows
- * the screen shows. A view with no query has no `when`, and a read model cannot reject an event.
+ * A state view's example: `given` builds the rows, `when` holds the query's values, and `then` the
+ * rows the screen shows. One with no query has no `when`, and a view cannot reject an event.
  */
 export type ViewSpec<Q extends Fields, R extends Fields> = {
   given?: OneOrMany<Example<"event">>
-  then: OneOrMany<Example<"readModel", R>>
+  then: OneOrMany<Example<"view", R>>
 } & ([keyof Q] extends [never] ? { when?: never } : { when: z.input<z.ZodObject<Q>> })
 
 type Actors = [Actor, ...Actor[]]
@@ -449,20 +449,20 @@ type ViewedEvent<R extends Fields, E extends Fields> =
     })
   | Mapped<"event", E, Onto<R>>
 
-/** What starts an automation: an event of ours, or a read model it polls. */
+/** What starts an automation: an event of ours, or a view it polls. */
 type Started<T extends Fields> =
   | (EventDecl<T> & {
       readonly "comes from outside: start its slice with .translation()"?: never
     })
-  | ReadModelDecl<T>
+  | ViewDecl<T>
 
 /** A translation's start: an external event, or, for anything else, the instruction to fix it. */
 type Translated<E> = E extends {
   readonly "comes from outside: start its slice with .translation()": true
 }
   ? E
-  : E extends { readonly __kind: "readModel" }
-    ? "is a read model: poll it with .automation()"
+  : E extends { readonly __kind: "view" }
+    ? "is a view: poll it with .automation()"
     : "is ours: start its slice with .automation()"
 
 /** A slice starts with its whole pattern, so an incomplete one does not compile where it is written. */
@@ -472,14 +472,14 @@ export interface SliceStart {
     command: CommandDecl<C>,
     event: Outcome<C, A>,
   ): StateChange<C, A["__fields"]>
-  /** State view: the read model, and an event that builds it. */
+  /** State view: the view, and an event that builds it. */
   view<R extends Fields, E extends Fields>(
-    readModel: ReadModelDecl<R>,
+    view: ViewDecl<R>,
     event: ViewedEvent<R, E>,
-  ): View<Record<never, never>, R>
+  ): StateView<Record<never, never>, R>
   /**
    * Automation: what starts it, the command it issues, and an event that records. An event starts it
-   * as it happens; a read model, polled on the automation's own schedule, starts it once per row.
+   * as it happens; a view, polled on the automation's own schedule, starts it once per row.
    */
   automation<T extends Fields, I extends AnyCommand, A extends AnyEvent>(
     trigger: Started<T>,
@@ -494,23 +494,23 @@ export interface SliceStart {
   ): Automation<I["__fields"], A["__fields"]>
 }
 
-export interface View<Q extends Fields, R extends Fields> extends Slice {
-  /** Another event that writes the read model. */
-  event<E extends Fields>(event: ViewedEvent<R, E>): View<Q, R>
+export interface StateView<Q extends Fields, R extends Fields> extends Slice {
+  /** Another event that writes the view. */
+  event<E extends Fields>(event: ViewedEvent<R, E>): StateView<Q, R>
   /** The request fields; without them the request is empty. */
-  query<F extends Fields>(fields: F): View<F, R>
-  actor(...actors: Actors): View<Q, R>
-  /** Where the actors see it; without one, the read model's table is drawn as their screen. */
-  screen(screen: Screen): View<Q, R>
-  /** A view has no command to name its method after. */
-  service(service: Service, method: string): View<Q, R>
-  test(name: string, spec: ViewSpec<Q, R> | (() => ViewSpec<Q, R>)): View<Q, R>
-  note(text: string): View<Q, R>
+  query<F extends Fields>(fields: F): StateView<F, R>
+  actor(...actors: Actors): StateView<Q, R>
+  /** Where the actors see it; without one, the view's table is drawn as their screen. */
+  screen(screen: Screen): StateView<Q, R>
+  /** A state view has no command to name its method after. */
+  service(service: Service, method: string): StateView<Q, R>
+  test(name: string, spec: ViewSpec<Q, R> | (() => ViewSpec<Q, R>)): StateView<Q, R>
+  note(text: string): StateView<Q, R>
 }
 
 export interface StateChange<C extends Fields, Em extends Fields> extends Slice {
-  /** What the handler reads to decide; once per read model. */
-  readModel(readModel: ReadModelDecl): StateChange<C, Em>
+  /** What the handler reads to decide; once per view. */
+  view(view: ViewDecl): StateChange<C, Em>
   /** Another event the command can record instead. */
   event<A extends AnyEvent>(event: Outcome<C, A>): StateChange<C, Em | A["__fields"]>
   actor(...actors: Actors): StateChange<C, Em>
@@ -523,8 +523,8 @@ export interface StateChange<C extends Fields, Em extends Fields> extends Slice 
 }
 
 export interface Automation<C extends Fields, Em extends Fields> extends Slice {
-  /** What the handler reads to decide; once per read model. */
-  readModel(readModel: ReadModelDecl): Automation<C, Em>
+  /** What the handler reads to decide; once per view. */
+  view(view: ViewDecl): Automation<C, Em>
   /** Another event the command can record instead. */
   event<A extends AnyEvent>(event: Outcome<C, A>): Automation<C, Em | A["__fields"]>
   /** The machine of ours that runs it; without one, the first declared, or else System. */
@@ -546,8 +546,9 @@ interface AnySpec {
 }
 
 /**
- * A view's `when` is its query's values, which Zod checks as it checks an example's. Each generated
- * value becomes one value wherever the specification uses it, so the check compares it as any other.
+ * A state view's `when` is its query's values, which Zod checks as it checks an example's. Each
+ * generated value becomes one value wherever the specification uses it, so the check compares it as
+ * any other.
  */
 function testData(name: string, spec: AnySpec, view?: SliceData): TestData {
   const made = new Map<unknown, unknown>()
@@ -609,9 +610,8 @@ function chain(data: SliceData) {
   }
   return {
     [META]: data,
-    readModel: (readModel: ReadModelDecl) =>
-      next({ readModels: [...data.readModels, readModel[META]] }),
-    // A view's event is its own source; a handler's source is the command.
+    view: (view: ViewDecl) => next({ reads: [...data.reads, view[META]] }),
+    // A state view's event is its own source; a handler's source is the command.
     event: (event: Used) =>
       next({
         events: [...data.events, flow(event, data.view ? undefined : data.command?.decl)],
@@ -646,7 +646,7 @@ function chain(data: SliceData) {
 function slice(name?: string): SliceStart {
   const empty: SliceData = {
     actors: [],
-    readModels: [],
+    reads: [],
     events: [],
     tests: [],
     chapters: [],
@@ -661,17 +661,15 @@ function slice(name?: string): SliceStart {
   }
   const start = {
     command: (command?: Used, event?: Used) => handled({}, command, event),
-    view: (readModel?: ReadModelDecl, event?: Used) =>
+    view: (view?: ViewDecl, event?: Used) =>
       chain({
         ...empty,
-        ...(readModel && { view: readModel[META] }),
+        ...(view && { view: view[META] }),
         events: event ? [flow(event)] : [],
       }),
-    automation: (trigger?: EventDecl | ReadModelDecl, command?: Used, event?: Used) =>
+    automation: (trigger?: EventDecl | ViewDecl, command?: Used, event?: Used) =>
       handled(
-        trigger
-          ? { [trigger[META].kind === "readModel" ? "polls" : "trigger"]: trigger[META] }
-          : {},
+        trigger ? { [trigger[META].kind === "view" ? "polls" : "trigger"]: trigger[META] } : {},
         command,
         event,
         trigger?.[META],
@@ -700,7 +698,7 @@ export const m = {
   service,
   event,
   command,
-  readModel,
+  view,
   generate,
   external,
   stream,

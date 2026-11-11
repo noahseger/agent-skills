@@ -74,7 +74,7 @@ function mapped(el: SpecElement): Record<string, Source> {
   return out
 }
 
-/** A read model a projection builds says, per column, `Event: source` once per event. */
+/** A view a projection builds says, per column, `Event: source` once per event. */
 function projected(rm: SpecElement, events: SpecElement[]): Record<string, Record<string, Source>> {
   const out: Record<string, Record<string, Source>> = {}
   for (const f of rm.fields ?? []) {

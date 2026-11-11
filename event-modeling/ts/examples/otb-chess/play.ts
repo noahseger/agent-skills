@@ -55,7 +55,7 @@ export const GameEnded = m
 
 // The position on the board right now.
 export const GameState = m
-  .readModel({
+  .view({
     gameId: z.string(),
     ply: z.number().int(),
     sideToMove: z.enum(["white", "black"]),
@@ -81,7 +81,7 @@ export const ClockPressed = m
 
 // Whose clock runs, and how much time each side has left.
 export const ClockState = m
-  .readModel({
+  .view({
     gameId: z.string(),
     whiteTimeMs: z.number().int(),
     blackTimeMs: z.number().int(),
@@ -115,7 +115,7 @@ export const IllegalMoveRuled = m
 
 // The scoresheet: one row per ply. A struck move stays on the sheet, marked.
 export const MoveList = m
-  .readModel({
+  .view({
     gameId: z.string(),
     ply: z.number().int(),
     san: z.string(),
@@ -192,7 +192,7 @@ export const Broadcast = m.screen()
 m.slice()
   .command(PlayMove, MovePlayed)
   .chapter(Play)
-  .readModel(GameState)
+  .view(GameState)
   .event(GameEnded)
   .actor(Player)
   .service(ChessService)
@@ -321,7 +321,7 @@ m.slice()
 m.slice()
   .command(PressClock, ClockPressed)
   .chapter(Play)
-  .readModel(ClockState)
+  .view(ClockState)
   .actor(Player)
   .service(ChessService)
   .note("FIDE 6.2.1: pressing banks the increment and starts the opponent's clock.")

@@ -27,7 +27,7 @@ function stateChange(command: string) {
   return slice
 }
 
-/** The view slice on `method`, with the read model it shows. */
+/** The state view slice on `method`, with the view it shows. */
 function view(method: string) {
   const slice = slices.find((s) => s.readmodels[0]?.apiEndpoint === method)
   assert.ok(slice, `no view on ${method}`)

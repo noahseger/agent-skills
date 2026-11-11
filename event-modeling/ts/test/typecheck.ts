@@ -13,7 +13,7 @@ const CreateList = m.command({ listId: z.string(), name: z.string() })
 const ListCreated = m.event({ listId: z.string(), name: z.string() })
 const AddItem = m.command({ listId: z.string(), text: z.string() })
 const ItemAdded = m.event({ listId: z.string(), title: z.string() })
-const TodoList = m.readModel({ listId: z.string(), name: z.string(), itemCount: z.number().int() }).key("listId")
+const TodoList = m.view({ listId: z.string(), name: z.string(), itemCount: z.number().int() }).key("listId")
 const NameList = m.command({ listId: z.string(), name: z.string() })
 const Lock = m.screen()
 const Ch = m.chapter().note("A run of slices.")
@@ -51,16 +51,16 @@ m.slice().command(CreateList, CreateList)
 // @ts-expect-error a command is not an event, after the start either
 m.slice().command(CreateList, ListCreated).event(CreateList)
 
-// @ts-expect-error a command is not a read model
+// @ts-expect-error a command is not a view
 m.slice().view(CreateList, ListCreated)
 
-// @ts-expect-error an event is not a read model
+// @ts-expect-error an event is not a view
 m.slice().view(ListCreated, ListCreated)
 
-// @ts-expect-error a view shows one read model: what follows it is an event
+// @ts-expect-error a state view shows one view: what follows it is an event
 m.slice().view(TodoList, TodoList)
 
-// @ts-expect-error a command starts no automation: an event or a read model does
+// @ts-expect-error a command starts no automation: an event or a view does
 m.slice().automation(CreateList, NameList, ListCreated)
 
 // --- the chain: a slice starts with its whole pattern -------------------------
@@ -88,10 +88,10 @@ m.slice().automation(ListCreated)
 // @ts-expect-error an automation's command records an event
 m.slice().automation(ListCreated, NameList)
 
-// @ts-expect-error a view is built by an event
+// @ts-expect-error a state view is built by an event
 m.slice().view(TodoList)
 
-// @ts-expect-error a view shows a read model
+// @ts-expect-error a state view shows a view
 m.slice().view()
 
 // @ts-expect-error a slice not yet started joins no chapter
@@ -102,10 +102,10 @@ m.slice().chapter(Ch)
 // @ts-expect-error a machine of ours runs an automation, not a person
 m.slice().automation(ListCreated, NameList, ListCreated).actor(User)
 
-// @ts-expect-error an automation polls a read model without a service
+// @ts-expect-error an automation polls a view without a service
 m.slice().automation(TodoList, NameList, ListCreated).service(TodoService)
 
-// @ts-expect-error a view issues no command
+// @ts-expect-error a state view issues no command
 m.slice().view(TodoList, ListCreated).command(CreateList, ListCreated)
 
 // @ts-expect-error an automation has no screen: no one sees it
@@ -119,17 +119,17 @@ m.slice().command(CreateList, ListCreated).command(AddItem, ItemAdded)
 
 // Complete, with no actor, service or chapter: none is required. A chapter joins anywhere after the start.
 m.slice().command(CreateList, ListCreated)
-m.slice().command(CreateList, ListCreated).chapter(Ch).readModel(TodoList).actor(User, Admin).service(TodoService)
+m.slice().command(CreateList, ListCreated).chapter(Ch).view(TodoList).actor(User, Admin).service(TodoService)
 m.slice().command(CreateList, ListCreated).actor(User).screen(Lock).service(TodoService, "StartList").chapter(Ch)
 m.slice().view(TodoList, ListCreated).chapter(Ch)
 m.slice().view(TodoList, ListCreated).chapter(Ch).event(ItemAdded).query({ listId: z.string() }).actor(User)
 m.slice().view(TodoList, ListCreated).actor(User).screen(Lock).service(TodoService, "GetList")
-m.slice().automation(ListCreated, NameList, ListCreated).chapter(Ch).readModel(TodoList)
-m.slice().automation(TodoList, NameList, ListCreated).readModel(TodoList).chapter(Ch)
+m.slice().automation(ListCreated, NameList, ListCreated).chapter(Ch).view(TodoList)
+m.slice().automation(TodoList, NameList, ListCreated).view(TodoList).chapter(Ch)
 m.slice().automation(ListCreated, NameList, ListCreated).actor(Syncer)
 m.model("x", { description: "A model lists no chapters." })
 
-// @ts-expect-error a view names its method: it has no command to take one from
+// @ts-expect-error a state view names its method: it has no command to take one from
 m.slice().view(TodoList, ListCreated).service(TodoService)
 
 // --- a function: its argument is the source, its result is the target --------
@@ -155,13 +155,13 @@ const ItemShared = m.event({ listId: z.string(), title: z.string().optional() })
 m.slice().command(CreateList, ItemShared)
 // m.generate() fills the field the command lacks.
 m.slice().command(AddItem, ItemAdded(() => ({ title: m.generate() })))
-// generate() says what the value is made from: the command's fields, and the read models the slice reads.
-m.slice().command(AddItem, ItemAdded((c) => ({ title: m.generate(c.text, TodoList) }))).readModel(TodoList)
+// m.generate() says what the value is made from: the command's fields, and the views the slice reads.
+m.slice().command(AddItem, ItemAdded((c) => ({ title: m.generate(c.text, TodoList) }))).view(TodoList)
 
 // @ts-expect-error a mapper only works inside a slice
 ItemAdded((c) => ({ title: m.generate(c.text) }))
 
-// @ts-expect-error a mapper only works inside a slice, for a view's event too
+// @ts-expect-error a mapper only works inside a slice, for a state view's event too
 ItemAdded(() => ({ itemCount: 0 }))
 m.slice().command(CreateList, ListCreated).event(ItemAdded((c) => ({ title: c.name })))
 
@@ -226,13 +226,14 @@ m.slice().automation(CartUpdated, NameList((e) => ({ name: "" })), ListCreated)
 // @ts-expect-error a translation starts with an external event
 m.slice().translation(ListCreated, NameList, ListCreated)
 
-// @ts-expect-error nor does a read model start one
+// @ts-expect-error nor does a view start one
 m.slice().translation(TodoList, NameList, ListCreated)
+const polled: Parameters<typeof start.translation<typeof TodoList, typeof NameList, typeof ListCreated>>[0] = "is a view: poll it with .automation()"
 
 // @ts-expect-error ItemAdded is ours, so AddItem must still carry its title
 m.slice().command(AddItem, CartUpdated).event(ItemAdded)
 
-// @ts-expect-error an external event isn't stored, so it builds no read model
+// @ts-expect-error an external event isn't stored, so it builds no view
 m.slice().view(TodoList, CartUpdated)
 
 // @ts-expect-error nor after the start
@@ -252,7 +253,7 @@ m.slice().command(CreateList, ListCreated).event("ListNamed", { name: z.string()
 // @ts-expect-error an automation's command is not declared in place
 m.slice().automation(ListCreated, "Archive", { listId: z.string() })
 
-// --- a view: its function reads the event and sets columns --------------------
+// --- a state view: its function reads the event and sets columns --------------
 
 // @ts-expect-error TodoList has no column done
 m.slice().view(TodoList, ListCreated(() => ({ done: true })))
@@ -285,11 +286,11 @@ create.test("x", { when: CreateList({ listId: "l-1" }) })
 // @ts-expect-error a rejection is written in the specification, not declared on m
 m.reject
 
-// @ts-expect-error a view's when is its query's values, never a command
+// @ts-expect-error a state view's when is its query's values, never a command
 m.slice().view(TodoList, ListCreated).test("x", { given: ListCreated({ listId: "l-1" }), when: CreateList({}), then: TodoList({}) })
 
-// A view's when is its query's values; its then, rows of the read model it shows.
-const Shelf = m.readModel({ shelfId: z.string() }).key("shelfId")
+// A state view's when is its query's values; its then, rows of the view it shows.
+const Shelf = m.view({ shelfId: z.string() }).key("shelfId")
 const inbox = m.slice().view(TodoList, ListCreated).query({ name: z.string() })
 
 // @ts-expect-error name is a string
@@ -298,10 +299,10 @@ inbox.test("x", { when: { name: 1 }, then: [] })
 // @ts-expect-error the query has no field nope
 inbox.test("x", { when: { name: "a", nope: 1 }, then: [] })
 
-// @ts-expect-error a view with a query is asked with its values
+// @ts-expect-error a state view with a query is asked with its values
 inbox.test("x", { then: [] })
 
-// @ts-expect-error a view with no query has no when
+// @ts-expect-error a state view with no query has no when
 m.slice().view(TodoList, ListCreated).test("x", { when: { name: "a" }, then: [] })
 
 // @ts-expect-error then is rows of what the view shows, and it does not show Shelf
@@ -310,7 +311,7 @@ inbox.test("x", { when: { name: "a" }, then: Shelf({ shelfId: "s-1" }) })
 // @ts-expect-error then is rows, not events
 inbox.test("x", { when: { name: "a" }, then: ListCreated({ listId: "l-1" }) })
 
-// @ts-expect-error a view cannot reject: a read model cannot refuse an event
+// @ts-expect-error a state view cannot reject: a view cannot refuse an event
 inbox.test("x", { when: { name: "a" }, then: [], reject: "nope" })
 
 // @ts-expect-error an example is not a use in a slice
@@ -327,11 +328,17 @@ CreateList({ listId: 42 })
 // @ts-expect-error a declaration is called for an example; there is no .with()
 CreateList.with({ listId: "l-1" })
 
-// @ts-expect-error a key is one of the read model's columns
-m.readModel({ shelfId: z.string() }).key("nope")
+// @ts-expect-error a key is one of the view's columns
+m.view({ shelfId: z.string() }).key("nope")
 
-// @ts-expect-error a key is named on the read model with .key(), not marked on m
+// @ts-expect-error a key is named on the view with .key(), not marked on m
 m.key
+
+// @ts-expect-error a table built from events is declared with m.view
+m.readModel({ shelfId: z.string() })
+
+// @ts-expect-error what a handler reads is named with .view()
+m.slice().command(CreateList, ListCreated).readModel(TodoList)
 
 // The legal forms of the same calls, so a check that fires too widely also fails.
 create.test("x", { given: ListCreated({ listId: "l-1" }), when: CreateList({ listId: "l-2" }), then: [ListCreated({ listId: "l-2" })] })

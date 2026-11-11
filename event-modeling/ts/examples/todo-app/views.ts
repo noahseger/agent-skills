@@ -21,7 +21,7 @@ export const ListCompleted = m.event({ userId: z.string(), listId: z.string() })
 
 // A user's lists, one row per list.
 export const TodoList = m
-  .readModel({
+  .view({
     userId: z.string(),
     listId: z.string(),
     name: z.string(),
@@ -32,7 +32,7 @@ export const TodoList = m
 
 // The items of each list.
 export const ListItems = m
-  .readModel({
+  .view({
     listId: z.string(),
     itemId: z.string(),
     title: z.string(),
@@ -43,7 +43,7 @@ export const ListItems = m
 
 // Every item in every list, searchable by title.
 export const ItemSearch = m
-  .readModel({
+  .view({
     itemId: z.string(),
     listId: z.string(),
     title: z.string(),
@@ -237,7 +237,7 @@ export const Automations = m.chapter()
 m.slice("ListCompleter")
   .automation(ItemCompleted, CompleteList, ListCompleted)
   .chapter(Automations)
-  .readModel(ListItems)
+  .view(ListItems)
   .test("List completes when every item is done", {
     given: [milk, milkDone],
     when: CompleteList({ userId: "u-1", listId: "list-1" }),

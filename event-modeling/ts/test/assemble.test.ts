@@ -52,7 +52,7 @@ function fixture() {
   const Svc = m.service("t.v1")
   const Create = m.command({ id: z.string(), name: z.string() })
   const Created = m.event({ id: z.string(), name: z.string() })
-  const Table = m.readModel({ id: z.string(), name: z.string() }).key("id")
+  const Table = m.view({ id: z.string(), name: z.string() }).key("id")
   return { User, Svc, Create, Created, Table }
 }
 type Fixture = ReturnType<typeof fixture>
@@ -196,7 +196,7 @@ test("m.generate() records what a value is made from, and a specification gives 
       f.Create,
       Created((c) => ({ at: m.generate(c.name, f.Table) })),
     )
-    .readModel(f.Table)
+    .view(f.Table)
     .actor(f.User)
     .service(f.Svc)
     .test("Create", {
@@ -225,7 +225,7 @@ test("m.generate() in a specification is one value of its field's type wherever 
     at: z.iso.datetime(),
   }
   const Moved = m.event(fields)
-  const Moves = m.readModel(fields).key("id")
+  const Moves = m.view(fields).key("id")
   const model = () => {
     const shown = m
       .slice()
@@ -261,7 +261,7 @@ test("m.generate() in a specification is one value of its field's type wherever 
   assert.deepEqual(feedOf([model()], { partial: true }).model, feed.model)
 })
 
-test("a read model a value is generated from, which the slice does not read", () => {
+test("a view a value is generated from, which the slice does not read", () => {
   const f = fixture()
   const Created = m.event({ id: z.string(), name: z.string(), at: z.string() })
   const slice = m
@@ -273,7 +273,7 @@ test("a read model a value is generated from, which the slice does not read", ()
     .test("Create", { when: f.Create(list), then: Created({ ...list, at: "noon" }) })
   assert.throws(
     () => assembled({ ...f, Created }, [slice, view({ ...f, Created })]),
-    /Ch › Create: Created\.at is generated from Table, which this slice doesn't read yet\. Add \.readModel\(Table\)\./,
+    /Ch › Create: Created\.at is generated from Table, which this slice doesn't read yet\. Add \.view\(Table\)\./,
   )
 })
 
@@ -319,20 +319,20 @@ test("a mapper that builds a value is drawn, and is left to do until m.generate(
         f.Create,
         Created(() => ({ label: m.generate("x"), size: 0 })),
       ),
-    /m\.generate\(\) takes the source, its fields and read models, such as m\.generate\(e\.pageId, Pages\), not x\./,
+    /m\.generate\(\) takes the source, its fields and views, such as m\.generate\(e\.pageId, Pages\), not x\./,
   )
 })
 
 test("a column no .event() writes", () => {
   const f = fixture()
-  const Table = m.readModel({ id: z.string(), name: z.string(), count: z.number() }).key("id")
+  const Table = m.view({ id: z.string(), name: z.string(), count: z.number() }).key("id")
   assert.throws(
     () => assembled({ ...f, Table }, [create(f), view({ ...f, Table })]),
     /Ch › Table: Table\.count has no value\. Add \.event\(\) for an event that carries count, or set it in a mapping\./,
   )
 })
 
-test("an event that carries none of the read model's key columns", () => {
+test("an event that carries none of the view's key columns", () => {
   const f = fixture()
   const Rename = m.command({ name: z.string() })
   const Renamed = m.event({ name: z.string() })
@@ -351,11 +351,9 @@ test("an event that carries none of the read model's key columns", () => {
   )
 })
 
-test("an event that carries only some of the read model's key columns", () => {
+test("an event that carries only some of the view's key columns", () => {
   const f = fixture()
-  const Table = m
-    .readModel({ id: z.string(), owner: z.string(), name: z.string() })
-    .key("id", "owner")
+  const Table = m.view({ id: z.string(), owner: z.string(), name: z.string() }).key("id", "owner")
   const Create = m.command({ id: z.string(), owner: z.string(), name: z.string() })
   const Created = m.event({ id: z.string(), owner: z.string(), name: z.string() })
   const Renamed = m.event({ id: z.string(), name: z.string() })
@@ -385,7 +383,7 @@ test("an event nothing consumes", () => {
   const f = fixture()
   assert.throws(
     () => assembled(f, [create(f)]),
-    /Ch › Create: nothing uses Created yet\. Add \.automation\(Created\) or a view's \.event\(Created\) where something reacts to it\./,
+    /Ch › Create: nothing uses Created yet\. Add \.automation\(Created\) or a state view's \.event\(Created\) where something reacts to it\./,
   )
 })
 
@@ -441,7 +439,7 @@ test("an event no slice emits is one line, at the slices that react to it", () =
   )
 })
 
-test("a read model nothing reads", () => {
+test("a view nothing reads", () => {
   const f = fixture()
   const unseen = m
     .slice()
@@ -449,15 +447,15 @@ test("a read model nothing reads", () => {
     .test("A new list is a row", { given: f.Created(list), then: f.Table(list) })
   assert.throws(
     () => assembled(f, [create(f), unseen]),
-    /Ch › Table: nothing reads Table yet\. Add \.actor\(\) for who sees it, or \.readModel\(Table\) or \.automation\(Table\) where it's needed\./,
+    /Ch › Table: nothing reads Table yet\. Add \.actor\(\) for who sees it, or \.view\(Table\) or \.automation\(Table\) where it's needed\./,
   )
 })
 
-test("a read model nothing projects", () => {
+test("a view nothing projects", () => {
   const f = fixture()
   const created = f.Created({ id: "1", name: "n" })
   const slice = create(f)
-    .readModel(f.Table)
+    .view(f.Table)
     .test("t", {
       given: created,
       when: f.Create({ id: "1", name: "n" }),
@@ -465,7 +463,7 @@ test("a read model nothing projects", () => {
     })
   assert.throws(
     () => assembled(f, [slice]),
-    /Ch › Create: nothing fills Table yet\. Add a slice with \.view\(Table\)\./,
+    /Ch › Create: nothing fills Table yet\. Add a state view, m\.slice\(\)\.view\(Table, Event\)\./,
   )
 })
 
@@ -851,7 +849,7 @@ const processedView = (f: Fixture, Processed: EventDecl<{ id: z.ZodString }>) =>
       then: f.Table(list),
     })
 
-test("an automation's trigger no specification's given has is left to do, and an error when strict; one a read model starts has none", () => {
+test("an automation's trigger no specification's given has is left to do, and an error when strict; one a view starts has none", () => {
   const f = fixture()
   const Process = m.command({ id: z.string() })
   const Processed = m.event({ id: z.string() })
@@ -987,7 +985,7 @@ test("the first system actor declared runs what names none, and .actor() names a
   )
 })
 
-test("a view without a service is named by its read model and has a screen", () => {
+test("a state view without a service is named by its view and has a screen", () => {
   const f = fixture()
   const unserved = m
     .slice()
@@ -1040,7 +1038,7 @@ test("a slice with several actors draws a screen in each one's lane", () => {
 
 // --- What the viewer draws: polls, lanes, screens ------------------------------
 
-test("a .automation() automation polls the read model", () => {
+test("a .automation() automation polls the view", () => {
   const f = fixture()
   const Process = m.command({ id: z.string() })
   const Processed = m.event({ id: z.string() })
@@ -1094,9 +1092,7 @@ test("a polled command's when matches the row given builds", () => {
 
 test("a polled command's when whose row given builds none of, or several of, is a to-do", () => {
   const f = fixture()
-  const Table = m
-    .readModel({ id: z.string(), owner: z.string(), name: z.string() })
-    .key("id", "owner")
+  const Table = m.view({ id: z.string(), owner: z.string(), name: z.string() }).key("id", "owner")
   const Created = m.event({ id: z.string(), owner: z.string(), name: z.string() })
   const Process = m.command({ id: z.string() })
   const Processed = m.event({ id: z.string() })
@@ -1209,9 +1205,9 @@ test("a screen no one sees, and one no slice names, are left to do", () => {
   ])
 })
 
-test("every .view() of a read model is one slice: its events in, its screen out, drawn where the first is", () => {
+test("every m.slice().view() of a view is one slice: its events in, its screen out, drawn where the first is", () => {
   const f = fixture()
-  const Table = m.readModel({ id: z.string(), name: z.string(), status: z.string() }).key("id")
+  const Table = m.view({ id: z.string(), name: z.string(), status: z.string() }).key("id")
   const Archive = m.command({ id: z.string() })
   const Archived = m.event({ id: z.string() })
   const archive = m
@@ -1315,9 +1311,9 @@ test("a later .view() that says where or how to draw the slice is a to-do", () =
   )
 })
 
-test("a column no .view() of the read model writes is reported once", () => {
+test("a column no m.slice().view() of the view writes is reported once", () => {
   const f = fixture()
-  const Table = m.readModel({ id: z.string(), name: z.string(), status: z.string() }).key("id")
+  const Table = m.view({ id: z.string(), name: z.string(), status: z.string() }).key("id")
   const Ch = [create(f), view({ ...f, Table }), view({ ...f, Table })]
   const json = assembleModules([{ ...f, Table, ...chapters({ Ch }), default: m.model("x") }], {
     partial: true,
@@ -1330,7 +1326,7 @@ test("a column no .view() of the read model writes is reported once", () => {
   )
 })
 
-test("a single file written top to bottom extends an earlier read model in a later chapter", async () => {
+test("a single file written top to bottom extends an earlier view in a later chapter", async () => {
   const json = await assemble(here("./fixtures/top-to-bottom.ts"))
   assert.equal(json.warnings, undefined)
   assert.equal(json.loose, undefined)
@@ -1340,10 +1336,10 @@ test("a single file written top to bottom extends an earlier read model in a lat
   )
 })
 
-test("a read model in given is named as one", () => {
+test("a view in given is named as one", () => {
   const f = fixture()
   const row = f.Table({ id: "1", name: "n" })
-  // @ts-expect-error a read model is not an event, in given
+  // @ts-expect-error a view is not an event, in given
   const slice = create(f).test("t", {
     given: row,
     when: f.Create({ id: "1", name: "n" }),
@@ -1351,7 +1347,7 @@ test("a read model in given is named as one", () => {
   })
   assert.throws(
     () => assembled(f, [slice, view(f)]),
-    /Ch › Create: Table in given is a read model\. given lists events that already happened\./,
+    /Ch › Create: Table in given is a view\. given lists events that already happened\./,
   )
 })
 
@@ -1377,7 +1373,7 @@ test("a partial assembly lists the dead ends and keeps the loose declarations in
   assert.deepEqual(json.warnings, [
     {
       message:
-        "Ch › Create: nothing uses Created yet. Add .automation(Created) or a view's .event(Created) where something reacts to it.",
+        "Ch › Create: nothing uses Created yet. Add .automation(Created) or a state view's .event(Created) where something reacts to it.",
       element: "Created",
       slice: "Create",
     },
@@ -1793,7 +1789,7 @@ test("an automation's when has what its trigger in given carries and its mapping
 
 test("a view's rows have what given builds, matched by key", () => {
   const Lists = m
-    .readModel({
+    .view({
       userId: z.string(),
       listId: z.string(),
       name: z.string(),

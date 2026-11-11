@@ -7,7 +7,7 @@ description: Use to model a system's behavior as domain events, extract an event
 
 ## Overview
 
-Event modeling captures a system as a left-to-right **timeline** connecting five elements: **interfaces** (real entry points), **commands** (what actors intend), **events** (facts that happened), **read models** (what the system knows), and **automations** (event-driven side effects).
+Event modeling captures a system as a left-to-right **timeline** connecting five elements: **interfaces** (real entry points), **commands** (what actors intend), **events** (facts that happened), **views** (what the system knows), and **automations** (event-driven side effects).
 
 The visualization uses two kinds of swim lanes:
 - **Actor lanes** at the top — one row per actor (user, admin, external system), containing the real interfaces they use
@@ -27,15 +27,15 @@ Review workflows and concrete examples together before implementation. Use the e
 
 ## The Practice
 
-Event modeling is **capture, not design**. The goal is to discover and record what happens in a system — the events, the commands that cause them, and the read models that make sense of them. The language is "identify," "discover," "capture" — never "design" or "architect."
+Event modeling is **capture, not design**. The goal is to discover and record what happens in a system — the events, the commands that cause them, and the views that make sense of them. The language is "identify," "discover," "capture" — never "design" or "architect."
 
 The practice follows a natural progression:
 
-1. **Storm** — Brainstorm domain events on a timeline. No commands, no read models yet. Just "what happened?"
-2. **Capture** — Organize events into streams and chapters. Identify commands that cause events and read models that make sense of them.
+1. **Storm** — Brainstorm domain events on a timeline. No commands, no views yet. Just "what happened?"
+2. **Capture** — Organize events into streams and chapters. Identify commands that cause events and views that make sense of them.
 3. **Specify** — Write GWT tests with concrete example data for each slice. The tests ARE the specification.
 4. **Deliver** — Extract vertical slices for parallel development. Each slice is independently buildable and testable.
-5. **Evolve** — Update the model as production reveals gaps. New events, new slices, revised read models.
+5. **Evolve** — Update the model as production reveals gaps. New events, new slices, revised views.
 
 When extracting from existing code, you're doing Capture and Specify simultaneously — the code already tells you what commands produce what events. When modeling from scratch, start with Storm.
 
@@ -43,12 +43,12 @@ When extracting from existing code, you're doing Capture and Specify simultaneou
 
 Every state-change slice follows a **V-shaped information flow**:
 
-1. User sees a **read model** (green) — "here's what the system knows"
+1. User sees a **view** (green) — "here's what the system knows"
 2. User submits a **command** (blue) — "here's what I want to happen"
 3. System records an **event** (orange) — "here's what happened"
-4. Event updates the **read model** (green) — ready for the next step
+4. Event updates the **view** (green) — ready for the next step
 
-The V shape is the heartbeat of the system. Read model feeds the UI, UI triggers a command, command produces an event, event updates the read model. Repeat. Every feature is one or more V's on the timeline.
+The V shape is the heartbeat of the system. View feeds the UI, UI triggers a command, command produces an event, event updates the view. Repeat. Every feature is one or more V's on the timeline.
 
 ## Information Completeness
 
@@ -56,23 +56,23 @@ The V shape is the heartbeat of the system. Read model feeds the UI, UI triggers
 
 Two directions, both required:
 
-1. **Read model ← Event (projection):** Every field displayed in a read model must trace back to a field in an event. If a view shows "total price," there must be an event carrying that data.
+1. **View ← Event (projection):** Every field displayed in a view must trace back to a field in an event. If a view shows "total price," there must be an event carrying that data.
 
 2. **Event ← Inputs (provenance):** Every field in an event must trace back to a data source within the slice. Those sources are:
    - **Command parameters** — fields the actor provides (e.g. `PlaceOrder(customerId, items)`)
    - **Trigger event** — for automation slices, the event that triggered the automation
    - **External event** — for external event slices, the inbound event from outside the system
-   - **Read models the handler reads** — named on the slice with `.readModel()`; in spec JSON, a read model pointing at the command
+   - **Views the handler reads** — named on the slice with `.view()`; in spec JSON, a view pointing at the command
 
 If an event contains a field that doesn't appear in any of these sources, the model has an information gap — that field's data comes from somewhere not captured in the model. This is the most common information completeness mistake: an event field that materializes from a hidden data source.
 
-**Example — automation consuming a read model:**
+**Example — automation consuming a view:**
 
-An `OnOrderPlaced` automation triggers `ReserveInventory`. The trigger event `OrderPlaced` carries `orderId, items`. But the automation also needs current stock levels to decide which warehouse to reserve from. The slice names the `InventoryLevel` read model (with `sku, available, reserved`) it reads, with `.readModel(InventoryLevel)`. Now `InventoryReserved(orderId, items, warehouseId)` is information complete: `orderId` and `items` come from the trigger, `warehouseId` comes from the consumed `InventoryLevel` read model.
+An `OnOrderPlaced` automation triggers `ReserveInventory`. The trigger event `OrderPlaced` carries `orderId, items`. But the automation also needs current stock levels to decide which warehouse to reserve from. The slice names the `InventoryLevel` view (with `sku, available, reserved`) it reads, with `.view(InventoryLevel)`. Now `InventoryReserved(orderId, items, warehouseId)` is information complete: `orderId` and `items` come from the trigger, `warehouseId` comes from the consumed `InventoryLevel` view.
 
 **Example — hidden data source (antipattern):**
 
-A `StartSync` command takes `(bucket, path)` from the operator, but the `SyncStarted` event records `(bucket, path, remoteCount, localCount)`. Where do `remoteCount` and `localCount` come from? The command handler secretly reads remote and local state — but those data sources aren't declared anywhere in the slice. The fix: name the read model the handler reads and say what the field is made from, as in `m.generate(c.pageId, Pages)` with `.readModel(Pages)`, or move the computation to a downstream automation that reads it.
+A `StartSync` command takes `(bucket, path)` from the operator, but the `SyncStarted` event records `(bucket, path, remoteCount, localCount)`. Where do `remoteCount` and `localCount` come from? The command handler secretly reads remote and local state — but those data sources aren't declared anywhere in the slice. The fix: name the view the handler reads and say what the field is made from, as in `m.generate(c.pageId, Pages)` with `.view(Pages)`, or move the computation to a downstream automation that reads it.
 
 Missing information blocks work. A field with no source might depend on another team's API with a 3-month backlog — discovering this during implementation instead of during modeling is the most expensive mistake you can make.
 
@@ -86,13 +86,13 @@ Event modeling earns its keep by moving discovery to the cheapest phase. A gap f
 
 When a thread leads somewhere, follow it to the end:
 
-- An event feeds a read model or triggers an automation (see "Every event connects forward").
-- A read model that tracks a condition the domain reacts to — a count nearing a limit, a status, a deadline — has a slice that acts on that condition. State that leads nowhere is a gap one level up from a dead-end event. If an `IllegalMoveTally` reaches the count that ends the game, some slice must consume that threshold.
+- An event feeds a view or triggers an automation (see "Every event connects forward").
+- A view that tracks a condition the domain reacts to — a count nearing a limit, a status, a deadline — has a slice that acts on that condition. State that leads nowhere is a gap one level up from a dead-end event. If an `IllegalMoveTally` reaches the count that ends the game, some slice must consume that threshold.
 - A domain rule you uncover while modeling — "a second illegal move forfeits the game," "an invoice unpaid after 30 days is written off" — gets captured, not shelved.
 
 **Don't put domain truths to a vote.** When the domain determines something and it traces to a source, model it — don't surface a real, traceable rule as an optional add-on. Flagging a rule you already understand instead of capturing it just relocates the decision, and the work, to a more expensive moment. Reserve questions for genuine forks: real disagreement, irreversible cost, or facts only a domain expert holds. Everything the domain already decides, you model.
 
-The same discipline runs in reverse — **invent nothing.** No event, read model, or slice that isn't a real domain concept (see "Invented read model names"). Model every real thing; add nothing spurious. Both halves serve one goal: minimize the total work the system demands over its life.
+The same discipline runs in reverse — **invent nothing.** No event, view, or slice that isn't a real domain concept (see "Invented view names"). Model every real thing; add nothing spurious. Both halves serve one goal: minimize the total work the system demands over its life.
 
 ## Tooling: two ways in
 
@@ -115,18 +115,18 @@ The file is `{ "slices": [...] }`, validated by `ts/schema/eventmodeling.schema.
 | `sliceType` | Elements | Meaning |
 |---|---|---|
 | `STATE_CHANGE` | screen → command → events | An actor uses an interface to issue a command that records events |
-| `STATE_VIEW` | events → read model → screen | A view: events build a read model, and an actor queries it, with no state change. A read model only a handler or an automation reads has no screen |
-| `AUTOMATION` | event or polled read model → processor → command → events | An event, or a list of work, drives a command with no actor |
+| `STATE_VIEW` | events → view → screen | A state view: events build a view, and an actor queries it, with no state change. A view only a handler or an automation reads has no screen |
+| `AUTOMATION` | event or polled view → processor → command → events | An event, or a list of work, drives a command with no actor |
 | `TRANSLATION` | external event → processor → command → events | An event from outside the system boundary becomes one of ours |
 
 - **Interfaces**: one `SCREEN` per slice with an actor, titled with the real entry point, and the actors in the slice's `actors`. The command's `apiEndpoint` says the same; `service` names an RPC service.
 - **Streams**: each event's `aggregate`. One lane per stream.
 - **Chapters**: each slice's `context`.
 - **External events**: `"context": "EXTERNAL"`, with `service` naming the system they come from. They have no `aggregate`; we never store them. A command's outbound event that is external is a call to that system.
-- **What a handler reads**: a read model with an `OUTBOUND` dependency on the command. One pointing at the processor is the read model the automation polls for its work.
+- **What a handler reads**: a view with an `OUTBOUND` dependency on the command. One pointing at the processor is the view the automation polls for its work.
 - **Key columns**: `"idAttribute": true`. A list: `"cardinality": "List"`.
 - **Mapping**: a field filled by a renamed source gives the source field's name in `mapping`; `= 0` is a constant, and `"generated": true` a value the handler assigns, such as an id or a clock.
-- **Specifications**: `given`, `when` and `then` steps, each with one example in `examples`. A refusal is a `SPEC_ERROR` step titled with the reason. A view's `when` is a `SPEC_COMMAND` step titled with its screen, holding the query's values; its `then`, `SPEC_READMODEL` rows.
+- **Specifications**: `given`, `when` and `then` steps, each with one example in `examples`. A refusal is a `SPEC_ERROR` step titled with the reason. A state view's `when` is a `SPEC_COMMAND` step titled with its screen, holding the query's values; its `then`, `SPEC_READMODEL` rows.
 - **Notes**: an element's `description`.
 
 ```json
@@ -222,9 +222,9 @@ An automation issues a command with no actor. One of two things drives it. An ex
 | Form | Spec JSON | TypeScript | Use it when |
 |---|---|---|---|
 | event-driven | the event points at the processor | `.automation(Event, Command, Event)` | One event is enough to decide, and the work is quick and safe to repeat |
-| polled read model | the read model points at the processor | `.automation(ReadModel, Command, Event)` | The work is slow, can fail, calls another system, or must not run twice |
+| polled view | the view points at the processor | `.automation(View, Command, Event)` | The work is slow, can fail, calls another system, or must not run twice |
 
-The polled read model lists the work to do. A projection adds a row when the work becomes due and marks it done when the event that finishes it arrives. The processor reads the list on its own schedule and issues the command for each open row. The read model records pending and completed work. The implementation must make retries safe.
+The polled view lists the work to do. A projection adds a row when the work becomes due and marks it done when the event that finishes it arrives. The processor reads the list on its own schedule and issues the command for each open row. The view records pending and completed work. The implementation must make retries safe.
 
 An event-driven automation has none of this. If the handler fails after the event, the work is lost unless the transport replays it.
 
@@ -248,8 +248,8 @@ When modeling a new system or discovering behavior before reading code, start by
 
 1. List everything that happens in the domain — past tense facts like `OrderPlaced`, `PaymentReceived`, `ItemShipped`
 2. Arrange events on a left-to-right timeline
-3. Sketch rough screens — ugly wireframes showing what users see and what buttons they click. Spend no more than 2 minutes per screen. Screens drive read model discovery: what information does the user need to see?
-4. Don't worry about commands, read models, or streams yet — just events and screens
+3. Sketch rough screens — ugly wireframes showing what users see and what buttons they click. Spend no more than 2 minutes per screen. Screens drive view discovery: what information does the user need to see?
+4. Don't worry about commands, views, or streams yet — just events and screens
 5. Group related events by what the system keeps track of
 
 This phase is optional when extracting from code (Phase 1 covers discovery through code reading), but valuable when:
@@ -300,7 +300,7 @@ For one workflow at a time, trace from trigger to completion:
 | **External Event** | CamelCase past tense; joins its system with `.external(System)` | `PaymentReceived(orderId, amount)` |
 | **Command** | CamelCase imperative, with schema | `PlaceOrder(customerId, items)` |
 | **Event** | CamelCase past tense, with schema | `OrderPlaced(orderId, items, total)` |
-| **Read Model** | CamelCase noun, with schema | `OrderSummary(orderId, status, total)` |
+| **View** | CamelCase noun, with schema | `OrderSummary(orderId, status, total)` |
 | **Automation** | CamelCase descriptive processor name | `InventoryReserver` |
 
 ### Phase 4: Organize
@@ -324,7 +324,7 @@ Define GWT tests **collaboratively with business experts** — not in isolation.
 
 In spec JSON each of these is a step with its values in `examples`, as in the example above.
 
-**Projection check:** For each read model, verify that the events that build it carry its fields. Additive events (e.g. `ItemAdded`) should carry all the data the view needs. Destructive events (e.g. `ItemRemoved`, `CartCleared`) only need identifying fields — enough to locate and remove rows.
+**Projection check:** For each view, verify that the events that build it carry its fields. Additive events (e.g. `ItemAdded`) should carry all the data the view needs. Destructive events (e.g. `ItemRemoved`, `CartCleared`) only need identifying fields — enough to locate and remove rows.
 
 ### Phase 6: Look at the Diagram
 
@@ -358,25 +358,25 @@ Event models are living documents. When production reveals gaps:
 
 - **Events are immutable facts** in past tense — never update, only append
 - **Commands are imperative intents** — each produces one or a small cluster of events
-- **Read models are pure functions of events** — given same events, same view
-- **Each read model has one State View slice** — the events it subscribes to, the read model it builds, and the screen that shows it, if anyone sees it. State Change slices produce events; State View slices project events into read models. A read model a slice's handler reads is an input from another slice, and its State View slice must build it.
-- **Event fields must trace to declared sources** — every field in an event must come from: (1) the command, trigger, or external event, (2) a read model the handler reads, or (3) a mapping that says how it is computed. If a command handler reads external state, that state must be a read model it reads.
-- **Read models feed interfaces** — they belong near the top, close to the entry points they serve
+- **Views are pure functions of events** — given same events, same view
+- **Each view has one State View slice** — the events it subscribes to, the view it builds, and the screen that shows it, if anyone sees it. State Change slices produce events; State View slices project events into views. A view a slice's handler reads is an input from another slice, and its State View slice must build it.
+- **Event fields must trace to declared sources** — every field in an event must come from: (1) the command, trigger, or external event, (2) a view the handler reads, or (3) a mapping that says how it is computed. If a command handler reads external state, that state must be a view it reads.
+- **Views feed interfaces** — they belong near the top, close to the entry points they serve
 - **External events represent inbound data from outside the system** — Kafka topics, webhooks, message queues. Use an external event (not a screen) for these, drawn in the system's lane.
-- **A view shows one read model** — drawn with arrows from its events into the read model and from the read model up to the interface, with no command. Two read models shown together are two views on one screen.
+- **A state view shows one view** — drawn with arrows from its events into the view and from the view up to the interface, with no command. Two views shown together are two state views on one screen.
 - **Actor swimlanes show real interfaces** — REST endpoints, RPC methods — NEVER made-up screen names
 - **Stream swimlanes contain commands and events** — one per stream, named after what we keep track of
-- **Automations are driven by events or read models** — never standalone; the event or the polled read model points at the processor (see "Automations: two forms")
+- **Automations are driven by events or views** — never standalone; the event or the polled view points at the processor (see "Automations: two forms")
 - **Every state change appears on the timeline** — no hidden triggers or side effects
 - **Names are CamelCase** — no spaces, e.g. `PlaceOrder` not `Place Order`
 - **GWT uses concrete data** — real IDs, real numbers, real outcomes
 - **Business language only** — no "DAO persisted" or "saga timed out"
 - **Each slice is independently buildable and testable** — events are the only contract between slices. No slice depends on another slice's internals. This independence enables parallel work by multiple developers or AI agents.
 - **One command per slice** — if there are 2 commands, break it into 2 slices
-- **Every event connects forward** — each event feeds a read model (projection), triggers an automation, or appears in a specification's `given`. An external event we produce is published and needs none of these; any other connects forward only through a translation, and a `given` is not enough. Assembly reports any other event nothing uses.
-- **State connects forward too** — a read model that tracks a condition the domain acts on (a threshold, status, or deadline) must have a slice that consumes it. A tally that reaches a process-ending count with nothing acting on it is a gap, exactly like a dead-end event.
+- **Every event connects forward** — each event feeds a view (projection), triggers an automation, or appears in a specification's `given`. An external event we produce is published and needs none of these; any other connects forward only through a translation, and a `given` is not enough. Assembly reports any other event nothing uses.
+- **State connects forward too** — a view that tracks a condition the domain acts on (a threshold, status, or deadline) must have a slice that consumes it. A tally that reaches a process-ending count with nothing acting on it is a gap, exactly like a dead-end event.
 - **Finish the model — don't put domain truths to a vote** — when the domain determines something and it traces to a source, capture it. Modeling is the cheap phase to close gaps; a rule you noticed but shelved as "optional" resurfaces during implementation, the most expensive place to find it. Reserve questions for genuine forks, not for work you can already do.
-- **Read models grow progressively** — a single read model can accumulate fields as more events project into it. Don't invent separate read models per phase when one growing projection captures the domain.
+- **Views grow progressively** — a single view can accumulate fields as more events project into it. Don't invent separate views per phase when one growing projection captures the domain.
 - **Capture, don't design** — event modeling discovers what happens in a system. Use language like "identify," "capture," "discover" — not "design" or "architect." The model records reality, it doesn't prescribe it.
 
 ## Plain English
@@ -384,9 +384,9 @@ Event models are living documents. When production reveals gaps:
 - event: "something that happened in the system"
 - external event: "something that happened outside the system that we need to react to" — arrives via Kafka, webhook, message queue
 - command: "something we want to happen in the system"
-- read model: "making sense of what happened in the system"
+- view: "making sense of what happened in the system"
 - interface: "the real entry point where actors interact with the system" — a REST endpoint, RPC method, or cron job
-- automation: "side effect of what happens in the system" — always driven by an event or a polled read model, always issues a command
+- automation: "side effect of what happens in the system" — always driven by an event or a polled view, always issues a command
 
 ## Antipatterns
 
@@ -395,16 +395,16 @@ Event models are living documents. When production reveals gaps:
 - **One command always producing multiple events simultaneously** (suggests the events should be combined into one). Note: alternative outcomes from one command (success/failure) are NOT an antipattern — list each as an event the command can record, and let each GWT `then` show which one happened.
 - One slice with multiple commands
 - Events with arrows into other events (events don't cause each other)
-- Read models at the bottom of the diagram (they feed interfaces, put them near the top)
-- Swim lanes for element types (Commands/Events/ReadModels) instead of streams
+- Views at the bottom of the diagram (they feed interfaces, put them near the top)
+- Swim lanes for element types (Commands/Events/Views) instead of streams
 - Names with spaces instead of CamelCase
 - GWT with placeholder schemas instead of concrete example data
-- Standalone automations not driven by an event or TODO-list read model
+- Standalone automations not driven by an event or TODO-list view
 - "The thing" — too much business logic in a single slice
-- **Dead-end events** — events that don't feed any read model or trigger any automation
-- **Invented read model names** — read models should use domain terms the team already uses. If you can't name it from the domain vocabulary, it may not be a real concept.
-- **Inline projections** — putting read models as outputs of state change slices instead of giving each read model its own State View slice: the events it subscribes to, the read model it builds, and the screen that shows it. State Change slices produce events; State View slices project events into read models.
-- **Hidden data sources in events** — an event field that doesn't trace to any input within the slice (command, trigger, external event, or a read model the handler reads). Example: `SyncStarted(bucket, path, remoteCount)` where `remoteCount` comes from querying an external system that isn't declared as a consumed read model. Fix: name the read model on the slice and say what the field is made from (`m.generate(c.pageId, Pages)` with `.readModel(Pages)`), or move the computation to a downstream automation that reads it.
-- **"Design" language** — saying "design the read models" or "architect the commands." Event modeling captures what happens; it doesn't prescribe what should happen.
-- **Dead-end state** — a read model that tracks a condition the domain reacts to (a count nearing a limit, a status, a deadline) with no slice that consumes it. The same defect as a dead-end event, one level up.
+- **Dead-end events** — events that don't feed any view or trigger any automation
+- **Invented view names** — views should use domain terms the team already uses. If you can't name it from the domain vocabulary, it may not be a real concept.
+- **Inline projections** — putting views as outputs of state change slices instead of giving each view its own State View slice: the events it subscribes to, the view it builds, and the screen that shows it. State Change slices produce events; State View slices project events into views.
+- **Hidden data sources in events** — an event field that doesn't trace to any input within the slice (command, trigger, external event, or a view the handler reads). Example: `SyncStarted(bucket, path, remoteCount)` where `remoteCount` comes from querying an external system that isn't declared as a consumed view. Fix: name the view on the slice and say what the field is made from (`m.generate(c.pageId, Pages)` with `.view(Pages)`), or move the computation to a downstream automation that reads it.
+- **"Design" language** — saying "design the views" or "architect the commands." Event modeling captures what happens; it doesn't prescribe what should happen.
+- **Dead-end state** — a view that tracks a condition the domain reacts to (a count nearing a limit, a status, a deadline) with no slice that consumes it. The same defect as a dead-end event, one level up.
 - **Punting a known rule** — flagging a real, traceable domain rule as an optional add-on instead of modeling it. Deferring a rule you already understand just moves the work to a more expensive phase. Model it; report what you modeled.

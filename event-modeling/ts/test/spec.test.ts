@@ -30,7 +30,7 @@ const Refund = m.command({ orderId: z.string() })
 const RecordPayment = m.command({ orderId: z.string(), paid: z.number().int() })
 const PaymentRecorded = m.event({ orderId: z.string(), paid: z.number().int() }).stream(Payments)
 const Unpaid = m
-  .readModel({
+  .view({
     orderId: z.string(),
     product: z.string(),
     lines: z.array(z.object({ sku: z.string(), gift: z.boolean().optional() })),
@@ -86,7 +86,7 @@ const slices = [
       RecordPayment((e) => ({ paid: e.amount })),
       PaymentRecorded,
     )
-    .readModel(Unpaid),
+    .view(Unpaid),
   m.slice("Refunder").automation(PaymentRecorded, Refund, OrderRefused).chapter(Sales),
 ]
 const exports = {
@@ -170,7 +170,7 @@ test("a mapping says where each field comes from: a field, generated, or = a val
     type: "Int",
     mapping: "amount",
   })
-  // A read model several events build maps a column once per event.
+  // A view several events build maps a column once per event.
   const columns = Object.fromEntries((view?.readmodels[0]?.fields ?? []).map((f) => [f.name, f]))
   assert.deepEqual(columns.orderId, { name: "orderId", type: "String", idAttribute: true })
   assert.deepEqual(columns.lines, {
@@ -199,7 +199,7 @@ test("a mapping says where each field comes from: a field, generated, or = a val
   })
 })
 
-test("a view is one state view: events in, its read model, a screen out", () => {
+test("a state view slice: events in, its view, a screen out", () => {
   assert.deepEqual(titles(view?.events), ["OrderPlaced", "PaymentRecorded", "OrderRefused"])
   assert.equal(view?.aggregates, undefined, "a slice that stores nothing names no aggregate")
   const [table] = view?.readmodels ?? []
@@ -222,7 +222,7 @@ test("a view is one state view: events in, its read model, a screen out", () => 
   assert.deepEqual(
     [drawn?.actor, drawn?.ui, drawn?.trigger?.length, drawn?.read_models?.length],
     ["clerk", "Shop/ListUnpaid", 3, 1],
-    "drawn as one column: the events feed the read model, the clerk's screen shows it",
+    "drawn as one column: the events feed the view, the clerk's screen shows it",
   )
 })
 
@@ -232,7 +232,7 @@ test("an automation: a processor between what starts it and its command", () => 
   assert.deepEqual(
     todo?.dependencies.map((d) => [d.type, d.elementType]),
     [["OUTBOUND", "AUTOMATION"]],
-    "the polled read model feeds the processor",
+    "the polled view feeds the processor",
   )
   const trigger = refund?.events[0]
   assert.deepEqual(

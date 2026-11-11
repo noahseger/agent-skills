@@ -12,7 +12,7 @@ export const DRAFTS: Set<SliceData> = shared[DRAFTS_KEY]
 
 export type Fields = Record<string, z.ZodType>
 
-export type DeclKind = "event" | "command" | "readModel"
+export type DeclKind = "event" | "command" | "view"
 
 /** Anything named by its export binding. Assembly fills in `name`. */
 export interface Named {
@@ -23,7 +23,7 @@ export interface DeclData extends Named {
   kind: DeclKind
   /** Insertion order is the field order on the card and in the proto. */
   fields: Fields
-  /** Read models only: the columns that identify a row. */
+  /** Views only: the columns that identify a row. */
   keys: string[]
   note?: string
   /** Set when the event is a system's we do not own. */
@@ -117,7 +117,7 @@ export interface Warning {
 
 /**
  * Where a mapping function got one target field from. A generated value lists what it is made
- * from: source fields by name, the source and read models by declaration, or, from JSON, by name.
+ * from: source fields by name, the source and views by declaration, or, from JSON, by name.
  * `built` marks one the mapping computed instead of saying so, which is left to do.
  */
 export type Source =
@@ -159,41 +159,41 @@ export interface TestData {
   name: string
   given: ExampleData[]
   when?: ExampleData
-  /** A view's `when`: the values its query is asked with. */
+  /** A state view's `when`: the values its query is asked with. */
   query?: Record<string, unknown>
   then: ClauseData[]
 }
 
 export interface SliceData {
-  /** Given to `m.slice()`, or derived from the command or read model at assembly. */
+  /** Given to `m.slice()`, or derived from the command or view at assembly. */
   name?: string
   note?: string
-  /** Who issues the command or reads the view; each has a screen. */
+  /** Who issues the command or sees the view; each has a screen. */
   actors: ActorData[]
   /** Where the actors see it. */
   screen?: ScreenData
-  /** The machine of ours that runs an automation, or a view no one sees. */
+  /** The machine of ours that runs an automation, or a state view no one sees. */
   system?: ActorData
   service?: { service: ServiceData; method?: string }
-  /** A view's request fields. */
+  /** A state view's request fields. */
   query?: Fields
-  /** What starts an automation: an event, or a read model it polls for work. */
+  /** What starts an automation: an event, or a view it polls for work. */
   trigger?: DeclData
   polls?: DeclData
-  /** The read model a view builds from `events` and shows. */
+  /** The view a state view slice builds from `events` and shows. */
   view?: DeclData
   /** In an automation, mapped from the trigger event or the polled row. */
   command?: Flow
   /** What the command's handler reads. */
-  readModels: DeclData[]
-  /** What the command records; in a view, what builds the read model. */
+  reads: DeclData[]
+  /** What the command records; in a state view, what builds the view. */
   events: Flow[]
   tests: TestData[]
   /** The chapters it joined; assembly allows one. */
   chapters: ChapterData[]
 }
 
-/** The events a slice records. A view records none. */
+/** The events a slice records. A state view records none. */
 export function recorded(slice: SliceData): DeclData[] {
   return slice.view ? [] : slice.events.map((f) => f.decl)
 }

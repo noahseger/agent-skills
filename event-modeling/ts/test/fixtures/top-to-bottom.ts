@@ -1,5 +1,5 @@
 // A model in one file, read top to bottom: nothing is used above where it is declared, and a
-// later chapter extends a read model's view next to the event that changes it.
+// later chapter extends a view's state view next to the event that changes it.
 
 import { z } from "zod"
 import { m } from "#em"
@@ -13,7 +13,7 @@ export const Capture = m.chapter()
 export const CreateNote = m.command({ noteId: z.string(), text: z.string() })
 export const NoteCreated = m.event({ noteId: z.string(), text: z.string() }).stream(Notes)
 export const Inbox = m
-  .readModel({
+  .view({
     noteId: z.string(),
     text: z.string(),
     status: z.enum(["inbox", "filed"]),

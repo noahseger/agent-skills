@@ -26,7 +26,7 @@ export interface Box {
   keys: string[]
   /** A second line under the name: the service of a ui card. */
   detail?: string
-  /** Name only: a reference to a read model, or a later appearance of an element. */
+  /** Name only: a reference to a view, or a later appearance of an element. */
   compact?: boolean
   /** The first appearance of this element, when this card is a later one. */
   canonical?: string
@@ -366,7 +366,7 @@ function columnWidth(s: BoardSlice): number {
 }
 
 export function layout(model: Board): Layout {
-  // A `reads` entry is a name. Its fields come from where the read model is drawn in full.
+  // A `reads` entry is a name. Its fields come from where the view is drawn in full.
   const registry = new Map<string, Element>()
   const kinds = new Map<string, Kind>()
   for (const chapter of model.chapters) {
@@ -543,7 +543,7 @@ export function layout(model: Board): Layout {
       const slash = s.ui.indexOf("/")
       const service = slash < 0 ? undefined : s.ui.slice(0, slash)
       const method = slash < 0 ? s.ui : s.ui.slice(slash + 1)
-      // The wireframe is the command's form or the read model's table.
+      // The wireframe is the command's form or the view's table.
       const commandFields = s.command ? parse(s.command).fields : []
       const shown = s.read_models?.[0] ? parse(s.read_models[0]).fields : undefined
       for (const actor of s.actors ?? [s.actor]) {
@@ -617,12 +617,12 @@ export function layout(model: Board): Layout {
     if (command) for (const ev of [...events, ...calls]) edge(command, ev)
     consumers.set(i, { ...(command ? { command } : {}), ...(gear ? { gear } : {}) })
 
-    // What a trigger points at: the automation, or the read model it builds.
+    // What a trigger points at: the automation, or the view it builds.
     const target = gear ?? readModels[0]
     if (target && s.trigger && !s.external_event) targets.set(i, target)
   }
 
-  // Reads are dashed from the read model into the automation, or else the command.
+  // Reads are dashed from the view into the automation, or else the command.
   const crossing: Edge[] = []
   for (const link of readLinks) {
     const c = consumers.get(link.column)
