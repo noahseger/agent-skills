@@ -7,6 +7,7 @@ import { type Chapter, type EventDecl, m, type Slice } from "#em"
 
 import { type Feed, assemble as feedAt, assembleModules as feedOf, load } from "../src/assemble.ts"
 import { toFeed } from "../src/spec.ts"
+import { DRAFTS, META } from "../src/types.ts"
 import { validate } from "../src/validate.ts"
 import { layout } from "../viewer/src/layout.ts"
 import { read } from "../viewer/src/read.ts"
@@ -277,7 +278,7 @@ test("a view a value is generated from, which the slice does not read", () => {
   )
 })
 
-test("a mapper that builds a value is drawn, and is left to do until m.generate() says what it is made from", () => {
+test("a mapping recognises a source field, a z.literal() and m.generate(); a schema it computes is left to do", () => {
   const f = fixture()
   const Create = m.command({ id: z.string(), name: z.string(), n: z.number() })
   const Created = m.event({ id: z.string(), name: z.string(), label: z.string(), size: z.number() })
@@ -288,36 +289,41 @@ test("a mapper that builds a value is drawn, and is left to do until m.generate(
       .slice()
       .command(
         Create,
-        Created((c) => ({ label: `${c.name} (${c.id})`, size: c.n * 2 })),
+        Created((c) => ({ name: c.id, label: c.name.toUpperCase(), size: z.literal(2) })),
       )
       .test("Create", {
         when: Create({ ...list, n: 1 }),
-        then: Created({ ...list, label: "x", size: 2 }),
+        then: Created({ ...list, name: "list-1", label: "x", size: 2 }),
       })
     const story = chapters({ Ch: [slice, view(exports)] })
     return [{ ...exports, ...story, default: m.model("x") }]
   }
   const label =
-    "Ch › Create: Created.label builds a string from name, id. Write m.generate() with name, id instead, to say what it is made from."
-  const size =
-    "Ch › Create: Created.size computes a number from n. Write m.generate() with n instead, to say what it is made from."
+    "Ch › Create: Created.label is computed in the mapping. Set it to a source field, a z.literal() or m.generate() with what it is made from."
   const partial = feedOf(modules(), { partial: true })
   assert.deepEqual(
     partial.warnings?.filter((w) => w.slice === "Create").map((w) => w.message),
-    [label, size],
+    [label],
   )
   assert.deepEqual(drawn(partial).chapters[0]?.slices[0]?.mapping, {
-    Created: { label: { generate: ["name", "id"] }, size: { generate: ["n"] } },
+    Created: { name: { from: "id" }, label: { generate: [] }, size: { value: 2 } },
   })
-  assert.throws(
-    () => feedOf(modules()),
-    (e: Error) => e.message.includes(label) && e.message.includes(size),
+  assert.throws(() => feedOf(modules()), { message: label })
+  // Two fields that share a schema are told apart.
+  const Id = z.string()
+  const Pair = m.command({ a: Id, b: Id })
+  const Paired = m.event({ a: Id, b: Id })
+  const swapped = m.slice().command(
+    Pair,
+    Paired((c) => ({ a: c.b, b: c.a })),
   )
+  assert.deepEqual(swapped[META].events[0]?.mapping, { a: { from: "b" }, b: { from: "a" } })
+  DRAFTS.delete(swapped[META])
   assert.throws(
     () =>
       m.slice().command(
         f.Create,
-        Created(() => ({ label: m.generate("x"), size: 0 })),
+        Created(() => ({ label: m.generate("x"), size: z.literal(0) })),
       ),
     /m\.generate\(\) takes the source, its fields and views, such as m\.generate\(e\.pageId, Pages\), not x\./,
   )
@@ -1226,7 +1232,7 @@ test("every m.slice().view() of a view is one slice: its events in, its screen o
         .slice()
         .view(
           Table,
-          f.Created(() => ({ status: "open" })),
+          f.Created(() => ({ status: z.literal("open") })),
         )
         .actor(f.User)
         .service(f.Svc, "Get")
@@ -1240,7 +1246,7 @@ test("every m.slice().view() of a view is one slice: its events in, its screen o
   m.slice()
     .view(
       Table,
-      Archived(() => ({ status: "archived" })),
+      Archived(() => ({ status: z.literal("archived") })),
     )
     .actor(f.User)
     .service(f.Svc, "Get")
@@ -1694,7 +1700,7 @@ test("a state change's then has what its command sends and its mapping sets", ()
     .slice()
     .command(
       Add,
-      Added((c) => ({ title: c.text, status: "open", at: m.generate() })),
+      Added((c) => ({ title: c.text, status: z.literal("open"), at: m.generate() })),
     )
     .test("agrees", {
       when: Add({ id: "a-1", text: "buy milk", tags: [{ name: "food" }] }),
@@ -1760,7 +1766,7 @@ test("an automation's when has what its trigger in given carries and its mapping
     .slice("Processor")
     .automation(
       f.Created,
-      Process((e) => ({ label: e.name, by: "processor" })),
+      Process((e) => ({ label: e.name, by: z.literal("processor") })),
       Processed,
     )
     .test("agrees", {
@@ -1807,10 +1813,10 @@ test("a view's rows have what given builds, matched by key", () => {
     .slice()
     .view(
       Lists,
-      ListCreated((e) => ({ title: e.name, items: 0, status: "open" })),
+      ListCreated((e) => ({ title: e.name, items: z.literal(0), status: z.literal("open") })),
     )
     .event(ItemAdded((e) => ({ items: m.generate(e) })))
-    .event(ListClosed(() => ({ status: "closed" })))
+    .event(ListClosed(() => ({ status: z.literal("closed") })))
   const given = [
     ListCreated({ ...groceries, name: "Groceries" }),
     ListCreated({ ...chores, name: "Chores" }),

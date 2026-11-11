@@ -48,9 +48,11 @@ the same way. Zod types the example data in specifications and the generated mes
 **Slices connect declarations.** A slice is a chain of calls. The first takes the slice's whole
 pattern, starting with what starts it, so an incomplete slice does not compile; the rest add to it.
 When a slice connects two declarations, fields with the same name flow from one to the other. When
-the names differ, or a value has to be computed, call the declaration with a function:
-`ItemAdded((c) => ({ title: c.text }))`. The function's argument is the slice's source, so the
-editor knows its fields. The editor offers only the calls that can come next.
+the names differ, or a value has to be set, call the declaration with a function:
+`ItemAdded((c) => ({ title: c.text }))`. The function's argument is the slice's source as schemas,
+so `c.text` is the `z.string()` declared for `text`, and the editor refuses one that does not fit
+its target: a `z.string()` does not fit a `z.uuid()`. A field that flows by name must fit too. A
+constant is `z.literal("open")`. The editor offers only the calls that can come next.
 
 ## The slice patterns
 
@@ -202,7 +204,7 @@ export const TodoList = m
   .key("userId", "listId")
 
 m.slice()
-  .view(TodoList, ListCreated(() => ({ itemCount: 0 })))
+  .view(TodoList, ListCreated(() => ({ itemCount: z.literal(0) })))
   .chapter(Views)
   .event(ItemAdded((e) => ({ itemCount: m.generate(e) })))
   .query({ userId: z.string() })
@@ -314,9 +316,8 @@ m.slice().command(ShareText, NoteShared)    // ShareText has no imageUri
 m.slice().command(ShareImage, NoteShared)   // ShareImage carries it
 ```
 
-An optional field no slice fills is left to do. The same holds for an automation's command. Write
-no default in a mapping, such as `c.imageUri ?? ""`: the model cannot see it. Make the field
-optional instead.
+An optional field no slice fills is left to do. The same holds for an automation's command. A
+mapping has no default for a missing value: make the field optional instead.
 
 A value the handler makes has no field to copy. Say what it is made from with `m.generate()`: the
 command's fields, and any view the handler looks it up in, which the slice names with
@@ -331,9 +332,10 @@ command's fields, and any view the handler looks it up in, which the slice names
 An automation's command is filled from what starts it, so a value generated there is left to do.
 
 A mapping only copies, sets constants and says what a value is made from; it computes nothing. A
-field put into a string, such as `` `${c.title}!` ``, or into arithmetic, such as `c.minutes * 60`,
-is drawn as generated from that field and left to do, with the fix: `m.generate(c.title)`. The
-compiler cannot see it, because a string built from a string is a string.
+string built from a field, such as `` `${c.title}!` ``, or arithmetic, such as `c.minutes * 60`, is
+not a schema, so the editor refuses it. A schema changed by a Zod method, such as
+`c.title.toUpperCase()`, is not a source field: it is drawn as generated and left to do, with the
+fix: `m.generate(c.title)`.
 
 The events a command lists, `.command(AddItem, ItemAdded).event(ListFull)`, are what it can
 produce, not a sequence; the diagram draws them side by side. Each specification's `then` says
@@ -368,9 +370,9 @@ slice, which is drawn where the first one is: in its chapter, seen by its actors
 served by its method. A later call that names another of those is left to do.
 
 ```ts
-m.slice().view(Inbox, NoteCreated(() => ({ status: "inbox" }))).chapter(Capture)
+m.slice().view(Inbox, NoteCreated(() => ({ status: z.literal("inbox") }))).chapter(Capture)
 // further down the file: adds NoteFiled to the Inbox slice in Capture
-m.slice().view(Inbox, NoteFiled(() => ({ status: "filed" }))).chapter(Capture)
+m.slice().view(Inbox, NoteFiled(() => ({ status: z.literal("filed") }))).chapter(Capture)
 ```
 
 A view an automation polls, or a handler reads, is built by a state view like any other, which then
@@ -527,7 +529,8 @@ The compiler catches:
 |---|---|
 | any reference | An unknown actor, event, command, view, screen or service cannot be written, because references are values, not strings. |
 | the chain | Only a legal chain compiles; each start offers only its own steps. A slice missing part of its pattern is an error where it is written: `Expected 2 arguments, but got 1`, beside which the editor names the missing argument, such as `event`. |
-| a function | Its argument is the slice's source: the command for a handler's event, the trigger event or the polled row for an automation's command, the event in a state view. Its result must be fields of the target, with matching types. |
+| a function | Its argument is the slice's source as schemas: the command for a handler's event, the trigger event or the polled row for an automation's command, the event in a state view. Its result must be fields of the target, each a source field that fits it, a `z.literal()` or `m.generate()`. A string format, such as `z.uuid()`, takes only that format. |
+| a field that flows by name | It must fit its target as a mapped one does. The error names the field to set in the mapping. |
 | a command's event | Every event field the command lacks must be set by the function, or marked `m.generate()`, unless it is optional. The error names the fields. |
 | a state view's event | An external event is refused, because it isn't stored. The error says to translate it first. |
 | what starts an automation or a translation | `.automation()` refuses an external event, and the error says to use `.translation()`; `.translation()` takes nothing else. |
@@ -558,7 +561,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | A slice's event, or a state view, that no specification covers, as [Specifications](#specifications) says | Each `.test()` is checked on its own, not against the slice's other specifications. |
 | A specification value that is not what flows in: from `when`, the trigger in `given`, or the events that build the row | Example values are data, not types. |
 | A state view's row that `given` does not build, or a built row `then` leaves out and the query does not exclude | Same. |
-| A source field put into a string or arithmetic in a mapping | A string built from a string is a string, and a number from a number a number. |
+| A mapping's result that is a schema but no source field, such as `c.title.toUpperCase()` | A Zod method returns a schema of the same type. |
 | `m.generate()` in an automation's command | `m.generate()` is one function, wherever it is called. |
 | A view passed to `m.generate()` that the slice does not name with `.view()` | `.view()` can be called anywhere down the chain. |
 

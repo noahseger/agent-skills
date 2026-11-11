@@ -267,7 +267,7 @@ export default m.model("Chess")
     await reloaded(server.url, () => {
       writeFileSync(
         join(dir, ".!1!index.ts"),
-        model('GameStarted(() => ({ white: "me", black: "you" }))'),
+        model('GameStarted(() => ({ white: z.literal("me"), black: z.literal("you") }))'),
       )
       renameSync(join(dir, ".!1!index.ts"), file)
     })
@@ -323,6 +323,42 @@ export default m.model("Chess")
           "Started",
           "Begin",
         ],
+      ],
+    )
+  } finally {
+    server.close()
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test("view lists a mapping's source field that does not fit its target, mapped or by name", async () => {
+  const dir = mkdtempSync(here("../tmp-fit-"))
+  writeFileSync(
+    join(dir, "index.ts"),
+    `import { z } from "zod"
+import { m } from "#em"
+
+export const Notes = m.stream()
+export const Capture = m.chapter()
+export const NoteCaptured = m.event({ noteId: z.uuid(), text: z.string() }).stream(Notes)
+export const CaptureNote = m.command({ text: z.string() })
+m.slice().command(CaptureNote, NoteCaptured((c) => ({ noteId: c.text }))).chapter(Capture)
+export const NoteTaken = m.event({ noteId: z.uuid(), text: z.string() }).stream(Notes)
+export const TakeNote = m.command({ noteId: z.string(), text: z.string() })
+m.slice().command(TakeNote, NoteTaken).chapter(Capture)
+export default m.model("Notes")
+`,
+  )
+  const server = await view(dir)
+  try {
+    const { warnings = [] } = (await (await fetch(`${server.url}/model.json`)).json()) as {
+      warnings?: { message: string }[]
+    }
+    assert.deepEqual(
+      warnings.filter((w) => w.message.startsWith("index.ts:")).map((w) => w.message),
+      [
+        "index.ts:8  noteId does not fit: set it to a source field of its type, a z.literal() or m.generate()",
+        "index.ts:11  NoteTaken: the command's noteId does not fit: set it in the mapping",
       ],
     )
   } finally {

@@ -162,14 +162,14 @@ m.slice().command(AddItem, ItemAdded((c) => ({ title: m.generate(c.text, TodoLis
 ItemAdded((c) => ({ title: m.generate(c.text) }))
 
 // @ts-expect-error a mapper only works inside a slice, for a state view's event too
-ItemAdded(() => ({ itemCount: 0 }))
+ItemAdded(() => ({ itemCount: z.literal(0) }))
 m.slice().command(CreateList, ListCreated).event(ItemAdded((c) => ({ title: c.name })))
 
 // @ts-expect-error a mapping takes one argument: generate is m.generate
 m.slice().command(AddItem, ItemAdded((c, { generate }) => ({ title: generate() })))
 
 // @ts-expect-error title is a string
-m.slice().command(AddItem, ItemAdded((c) => ({ title: 42 })))
+m.slice().command(AddItem, ItemAdded((c) => ({ title: z.literal(42) })))
 
 // @ts-expect-error the argument is the command's fields, and AddItem has no name
 m.slice().command(AddItem, ItemAdded((c) => ({ title: c.name })))
@@ -205,6 +205,40 @@ m.slice().automation(ListCreated, AddItem((e) => ({ text: e.name })), ItemAdded(
 m.slice().automation(ListCreated, m.command({ listId: z.string(), text: z.string().optional() }), ItemShared)
 m.slice().automation(TodoList, AddItem((row) => ({ text: row.name })), ListCreated((c) => ({ name: c.text })))
 
+// --- a mapping's source is its schemas, and a constant is z.literal() -------------
+
+const NoteCaptured = m.event({ noteId: z.uuid(), text: z.string(), status: z.enum(["inbox", "filed"]), count: z.number().int() })
+const CaptureNote = m.command({ noteId: z.uuid(), text: z.string(), n: z.number(), at: z.iso.datetime() })
+
+// @ts-expect-error a string is not a uuid
+m.slice().command(CaptureNote, NoteCaptured((c) => ({ noteId: c.text, status: z.literal("inbox"), count: z.literal(0) })))
+
+// @ts-expect-error a datetime is not a uuid either
+m.slice().command(CaptureNote, NoteCaptured((c) => ({ noteId: c.at, status: z.literal("inbox"), count: z.literal(0) })))
+
+// @ts-expect-error status is one of inbox or filed
+m.slice().command(CaptureNote, NoteCaptured(() => ({ status: z.literal("nope"), count: z.literal(0) })))
+
+// @ts-expect-error text is a string, not a number
+m.slice().command(CaptureNote, NoteCaptured((c) => ({ text: c.n, status: z.literal("inbox"), count: z.literal(0) })))
+
+// @ts-expect-error a mapping computes nothing: a string built from a field is not a schema
+m.slice().command(CaptureNote, NoteCaptured((c) => ({ text: `${c.text}!`, status: z.literal("inbox"), count: z.literal(0) })))
+
+// @ts-expect-error a constant is z.literal(), not a value
+m.slice().command(CaptureNote, NoteCaptured(() => ({ status: "inbox", count: z.literal(0) })))
+
+m.slice().command(CaptureNote, NoteCaptured((c) => ({ noteId: c.noteId, text: c.noteId, status: z.literal("filed"), count: z.literal(0) })))
+
+// A field that flows by name must fit too.
+const CaptureText = m.command({ noteId: z.string(), text: z.string() })
+const TextCaptured = m.event({ noteId: z.uuid(), text: z.string() })
+
+// @ts-expect-error CaptureText's noteId is a string, and TextCaptured's a uuid
+m.slice().command(CaptureText, TextCaptured)
+const misfit: Parameters<typeof start.command<typeof CaptureText.__fields, typeof TextCaptured>>[1] = "the command's noteId does not fit: set it in the mapping"
+m.slice().command(CaptureText, TextCaptured(() => ({ noteId: m.generate() })))
+
 // --- a call ends in the external event that brings the data back -------------
 
 const Shop = m.external()
@@ -218,10 +252,10 @@ m.external({ CartUpdated: m.event({ listId: z.string() }) })
 // An external event's fields come from outside, so the command need not carry them.
 const CartUpdated = m.event({ listId: z.string(), unavailable: z.array(z.string()) }).external(Shop)
 m.slice().command(AddItem, CartUpdated).actor(User)
-m.slice().translation(CartUpdated, NameList((e) => ({ name: "" })), ListCreated)
+m.slice().translation(CartUpdated, NameList((e) => ({ name: z.literal("") })), ListCreated)
 
 // @ts-expect-error an external event starts a translation, not an automation
-m.slice().automation(CartUpdated, NameList((e) => ({ name: "" })), ListCreated)
+m.slice().automation(CartUpdated, NameList((e) => ({ name: z.literal("") })), ListCreated)
 
 // @ts-expect-error a translation starts with an external event
 m.slice().translation(ListCreated, NameList, ListCreated)
@@ -256,13 +290,13 @@ m.slice().automation(ListCreated, "Archive", { listId: z.string() })
 // --- a state view: its function reads the event and sets columns --------------
 
 // @ts-expect-error TodoList has no column done
-m.slice().view(TodoList, ListCreated(() => ({ done: true })))
+m.slice().view(TodoList, ListCreated(() => ({ done: z.literal(true) })))
 
 // @ts-expect-error itemCount is a number
-m.slice().view(TodoList, ListCreated(() => ({ itemCount: "0" })))
+m.slice().view(TodoList, ListCreated(() => ({ itemCount: z.literal("0") })))
 
 // @ts-expect-error a later event is checked the same: itemCount is a number
-m.slice().view(TodoList, ListCreated).event(ItemAdded(() => ({ itemCount: "0" })))
+m.slice().view(TodoList, ListCreated).event(ItemAdded(() => ({ itemCount: z.literal("0") })))
 
 // --- .test() -----------------------------------------------------------------
 
@@ -344,7 +378,7 @@ m.slice().command(CreateList, ListCreated).readModel(TodoList)
 create.test("x", { given: ListCreated({ listId: "l-1" }), when: CreateList({ listId: "l-2" }), then: [ListCreated({ listId: "l-2" })] })
 create.test("x", { given: [ListCreated({ listId: "l-1" })], when: CreateList({ listId: "l-1" }), reject: "nope" })
 m.slice().automation(ListCreated, NameList, ListCreated).test("x", { given: ListCreated({ listId: "l-1" }), when: NameList({ listId: "l-1" }), then: ListCreated({ listId: "l-1" }) })
-m.slice().view(TodoList, ListCreated(() => ({ itemCount: 0 }))).event(ItemAdded((e) => ({ itemCount: m.generate(e), name: e.title })))
+m.slice().view(TodoList, ListCreated(() => ({ itemCount: z.literal(0) }))).event(ItemAdded((e) => ({ itemCount: m.generate(e), name: e.title })))
 inbox.test("x", { given: [ListCreated({ listId: "l-1", name: "a" }), ItemAdded({ listId: "l-1" })], when: { name: "a" }, then: [TodoList({ listId: "l-1" })] })
 m.slice().view(TodoList, ListCreated).test("x", { given: ListCreated({ listId: "l-1" }), then: TodoList({ listId: "l-1" }) })
 m.event({ noteId: z.string() }).stream(Notes)

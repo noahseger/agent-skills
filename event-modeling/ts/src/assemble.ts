@@ -498,6 +498,14 @@ function checkGenerated({ slice, where }: Located, fail: Fail): void {
   for (const flow of flows(slice)) {
     for (const [field, s] of Object.entries(flow.mapping)) {
       const target = `${flow.decl.name}.${field}`
+      if ("built" in s) {
+        fail({
+          message: `${where}: ${target} is computed in the mapping. Set it to a source field, a z.literal() or m.generate() with what it is made from.`,
+          element: flow.decl.name ?? "",
+          slice: slice.name ?? "",
+        })
+        continue
+      }
       if (from && flow === slice.command && "generate" in s) {
         fail({
           message: `${where}: ${target} is generated, but an automation's command is filled from ${from.name}. Add ${field} to ${from.name}, or generate it in an event ${flow.decl.name} records.`,
@@ -505,15 +513,6 @@ function checkGenerated({ slice, where }: Located, fail: Fail): void {
           slice: slice.name ?? "",
         })
         continue
-      }
-      if ("built" in s && s.built !== undefined) {
-        const fields = s.generate.join(", ")
-        const builds = s.built === "string" ? "builds a string" : "computes a number"
-        fail({
-          message: `${where}: ${target} ${builds} from ${fields}. Write m.generate() with ${fields} instead, to say what it is made from.`,
-          element: flow.decl.name ?? "",
-          slice: slice.name ?? "",
-        })
       }
       for (const input of "generate" in s ? s.generate : [])
         if (typeof input !== "string" && input.kind === "view" && !slice.reads.includes(input))

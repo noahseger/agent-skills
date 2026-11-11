@@ -62,12 +62,12 @@ export const Views = m.chapter()
 m.slice()
   .view(
     TodoList,
-    ListCreated(() => ({ itemCount: 0, status: "open" })),
+    ListCreated(() => ({ itemCount: z.literal(0), status: z.literal("open") })),
   )
   .chapter(Views)
   .event(ItemAdded((e) => ({ itemCount: m.generate(e) })))
-  .event(ListCompleted(() => ({ status: "completed" })))
-  .event(ListDeleted(() => ({ status: "deleted" })))
+  .event(ListCompleted(() => ({ status: z.literal("completed") })))
+  .event(ListDeleted(() => ({ status: z.literal("deleted") })))
   .query({ userId: z.string() })
   .actor(User)
   .service(TodoService, "ListTodoLists")
@@ -130,11 +130,11 @@ m.slice()
 m.slice()
   .view(
     ListItems,
-    ItemAdded(() => ({ done: false, deleted: false })),
+    ItemAdded(() => ({ done: z.literal(false), deleted: z.literal(false) })),
   )
   .chapter(Views)
-  .event(ItemCompleted(() => ({ done: true })))
-  .event(ItemDeleted(() => ({ deleted: true })))
+  .event(ItemCompleted(() => ({ done: z.literal(true) })))
+  .event(ItemDeleted(() => ({ deleted: z.literal(true) })))
   .query({ listId: z.string() })
   .actor(User)
   .screen(ListScreen)
@@ -190,11 +190,11 @@ m.slice()
 m.slice()
   .view(
     ItemSearch,
-    ItemAdded(() => ({ done: false, deleted: false })),
+    ItemAdded(() => ({ done: z.literal(false), deleted: z.literal(false) })),
   )
   .chapter(Views)
-  .event(ItemCompleted(() => ({ done: true })))
-  .event(ItemDeleted(() => ({ deleted: true })))
+  .event(ItemCompleted(() => ({ done: z.literal(true) })))
+  .event(ItemDeleted(() => ({ deleted: z.literal(true) })))
   .query({ text: z.string() })
   .actor(User)
   .service(TodoService, "SearchItems")

@@ -385,10 +385,10 @@ m.slice()
 m.slice()
   .view(
     MoveList,
-    MovePlayed(() => ({ status: "recorded" })),
+    MovePlayed(() => ({ status: z.literal("recorded") })),
   )
   .chapter(Play)
-  .event(IllegalMoveRuled(() => ({ status: "struck" })))
+  .event(IllegalMoveRuled(() => ({ status: z.literal("struck") })))
   .query({ gameId: z.string() })
   .actor(Spectator)
   .screen(Broadcast)

@@ -113,6 +113,9 @@ function usedEarly(d: Diagnostic): string[] {
 }
 
 const MISSING = /"add (\w+) to the ([\w -]+) or set it in the mapping"/g
+const MISFIT = /"the ([\w -]+)'s (\w+) does not fit: set it in the mapping"/g
+/** A mapping's result that is not a schema its target takes. */
+const UNFIT = /^Type '.*' is not assignable to type '(?:ZodStringFormat|ZodType)</
 const OUTSIDE = /"(a mapper only works inside a slice[^"]*)"/
 const UNSET = /Property '(\w+)' is missing in type '.*' but required in type 'Pick</
 /** A slice's first call and the parameter it was not given, as `em json` words what that leaves out. */
@@ -142,6 +145,22 @@ function describe(d: Diagnostic, text: string, file: string): Warning {
       fields,
     }
   }
+  // One sentence per field that would flow by name but does not fit.
+  const misfit = [...d.text.matchAll(MISFIT)]
+  if (misfit[0]) {
+    const fields = misfit.flatMap((f) => (f[2] ? [f[2]] : []))
+    const target = text.slice(d.pos, d.end)
+    const them = fields.length > 1 ? "do not fit: set them" : "does not fit: set it"
+    return {
+      message: `${at(d.pos)}${target}: the ${misfit[0][1]}'s ${fields.join(", ")} ${them} in the mapping`,
+      element: target.match(/\w+$/)?.[0] ?? "",
+      fields,
+    }
+  }
+  if (UNFIT.test(d.text))
+    return said(
+      `${at(d.pos)}${text.slice(d.pos, d.end)} does not fit: set it to a source field of its type, a z.literal() or m.generate()`,
+    )
   const outside = lines.map((l) => l.match(OUTSIDE)?.[1]).find((m) => m !== undefined)
   if (outside) return said(`${at(d.pos)}${outside}`)
   const unset = lines.map((l) => l.match(UNSET)?.[1]).find((f) => f !== undefined)

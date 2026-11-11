@@ -36,7 +36,33 @@ type Needed<T extends Fields> = {
   [K in keyof T]: undefined extends z.input<T[K]> ? never : K
 }[keyof T]
 
-type Unfilled<S extends Fields, T extends Fields> = Exclude<Needed<T>, keyof S> & string
+/**
+ * What a target field takes: a string format takes only that format, and any other type any schema
+ * with its output.
+ */
+type Fit<T extends z.ZodType> =
+  T extends z.ZodStringFormat<infer F> ? z.ZodStringFormat<F> : z.ZodType<z.output<T>>
+
+/** A mapping's result: for each target field, a source field, a `z.literal()` or `m.generate()`. */
+type Out<T extends Fields> = { [K in keyof T]?: Fit<T[K]> }
+
+/**
+ * The fields that would flow by name from `S` but do not fit `T`'s. An optional source field flows
+ * when it is set. A source not yet inferred has no fields to judge.
+ */
+type Misfit<S extends Fields, T extends Fields> = string extends keyof S
+  ? never
+  : {
+      [K in keyof T & keyof S]: (S[K] extends z.ZodOptional<infer U> ? U : S[K]) extends Fit<T[K]>
+        ? never
+        : K
+    }[keyof T & keyof S] &
+      string
+
+/** What the mapping must set: what `S` lacks, and what it has that does not fit. */
+type Unfilled<S extends Fields, T extends Fields> =
+  | (Exclude<Needed<T>, keyof S> & string)
+  | Misfit<S, T>
 
 /**
  * The declaration `A`, or, where `S` lacks a field it needs, the instruction to fix that: the editor
@@ -51,7 +77,9 @@ type FilledBy<S extends Fields, A, From extends string, Use> = [A] extends [neve
     : A extends Decl<DeclKind, infer T>
       ? [Unfilled<S, T>] extends [never]
         ? A
-        : `add ${Unfilled<S, T>} to the ${From} or set it in the mapping`
+        : [Misfit<S, T>] extends [never]
+          ? `add ${Unfilled<S, T>} to the ${From} or set it in the mapping`
+          : `the ${From}'s ${Misfit<S, T>} does not fit: set it in the mapping`
       : Use
 
 /** A use where a handler fills the declaration from `S`'s fields. */
@@ -67,14 +95,16 @@ export interface Onto<R extends Fields> {
 export type Place = Into<Fields> | Onto<Fields>
 
 /**
- * The function a declaration with fields `F` is called with, typed by where the slice uses it. A
- * handler's must set every field its source lacks; a state view's sets any columns.
+ * The function a declaration with fields `F` is called with, typed by where the slice uses it. Its
+ * argument is the source's schemas, so each result is a schema the target field takes. A handler's
+ * must set every field its source lacks or has in a type that does not fit; a state view's sets any
+ * columns.
  */
 export type Mapper<F extends Fields, P> =
   P extends Onto<infer R>
-    ? (event: Infer<F>) => Partial<Infer<R>>
+    ? (event: F) => Out<R>
     : P extends Into<infer S>
-      ? (source: Infer<S>) => Pick<Infer<F>, Unfilled<S, F>> & Partial<Infer<F>>
+      ? (source: S) => { [K in Unfilled<S, F>]: Fit<F[K]> } & Out<F>
       : never
 
 /**
@@ -162,7 +192,7 @@ function decl<K extends DeclKind, F extends Fields>(kind: K, fields: F): Decl<K,
     [META]: data,
     __kind: kind,
     __fields: fields,
-    // Mutating is safe: .note() and .key() are called on the declaration before anything else holds it.
+    // Mutating is safe: .note() and .key() are called before anything else holds the declaration.
     note(text: string) {
       data.note = text
       return declared
@@ -305,21 +335,15 @@ function chapter(): Chapter {
 // Mapping functions
 // ---------------------------------------------------------------------------
 
-// A mapping runs once, on probe values, to learn which source fills each field.
-const FIELD = Symbol("field")
+// A mapping runs once, on a copy of each source field's schema, to learn which fills each target.
 const SOURCE = Symbol("source")
 const GENERATE = Symbol("generate")
 
-interface Probe {
-  readonly [FIELD]: string
-}
+/** Each copy's field name. A copy per field, so two fields that share a schema stay apart. */
+const FIELDS = new WeakMap<object, string>()
 
 interface Generated {
   readonly [GENERATE]: (string | DeclData)[]
-}
-
-function isProbe(value: unknown): value is Probe {
-  return typeof value === "object" && value !== null && FIELD in value
 }
 
 function isGenerated(value: unknown): value is Generated {
@@ -328,7 +352,8 @@ function isGenerated(value: unknown): value is Generated {
 
 /** A source field by its name; the source, or a view, by its declaration. */
 function input(value: unknown): string | DeclData {
-  if (isProbe(value)) return value[FIELD]
+  const field = typeof value === "object" && value !== null ? FIELDS.get(value) : undefined
+  if (field !== undefined) return field
   const source = (value as { [SOURCE]?: DeclData } | undefined)?.[SOURCE]
   if (source) return source
   const decl = (value as Partial<ViewDecl> | undefined)?.[META]
@@ -349,47 +374,31 @@ function generate<T = never>(...inputs: unknown[]): T {
   return { [GENERATE]: inputs.map(input) } as T
 }
 
-// Private use, so no text a model writes contains it.
-const SPLICE = "\u{E000}"
-const SPLICED = new RegExp(`${SPLICE}(\\w+)${SPLICE}`, "gu")
-
 /**
- * A mapping that computes a value is recorded as generated from the fields it used, and marked
- * `built` for assembly to report. In a string a field reads as its name between markers. In
- * arithmetic it is NaN, which carries no name, so every field used as a number in this mapping is
- * named: the probe cannot tell which target each went into.
+ * What a mapping put in each target: a source field, a constant from `z.literal()`, or a generated
+ * value. Anything else, such as a field's schema changed by a Zod method, is computed, and marked
+ * `built` for assembly to report.
  */
 function probe(from: DeclData, map: MapFn): Record<string, Source> {
-  const counted: string[] = []
-  const numeric = (f: string) => from.fields[f]?.safeParse(0).success === true
   const fields = Object.fromEntries(
-    Object.keys(from.fields).map((f) => [
-      f,
-      {
-        [FIELD]: f,
-        [Symbol.toPrimitive]: (hint: string) => {
-          if (hint === "string" || (hint === "default" && !numeric(f)))
-            return `${SPLICE}${f}${SPLICE}`
-          counted.push(f)
-          return Number.NaN
-        },
-      },
-    ]),
+    Object.entries(from.fields).map(([f, schema]) => {
+      const copy = schema.clone()
+      FIELDS.set(copy, f)
+      return [f, copy]
+    }),
   )
   const source = { ...fields, [SOURCE]: from }
   const mapping: Record<string, Source> = {}
   for (const [field, value] of Object.entries(map(source as never))) {
-    const spliced =
-      typeof value === "string" ? [...value.matchAll(SPLICED)].map((m) => m[1] ?? "") : []
+    const from = typeof value === "object" && value !== null ? FIELDS.get(value) : undefined
+    const def = (value as { _zod?: { def?: { type?: string; values?: unknown[] } } })?._zod?.def
     mapping[field] = isGenerated(value)
       ? { generate: value[GENERATE] }
-      : isProbe(value)
-        ? { from: value[FIELD] }
-        : spliced.length > 0
-          ? { generate: [...new Set(spliced)], built: "string" }
-          : Number.isNaN(value) && counted.length > 0
-            ? { generate: [...new Set(counted)], built: "number" }
-            : { value }
+      : from !== undefined
+        ? { from }
+        : def?.type === "literal" && def.values?.length === 1
+          ? { value: def.values[0] }
+          : { generate: [], built: true }
   }
   return mapping
 }

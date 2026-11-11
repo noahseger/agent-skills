@@ -18,9 +18,15 @@ const Orders = m.stream()
 const Payments = m.stream()
 const Bank = m.external()
 
-const PlaceOrder = m.command({ orderId: z.string(), item: z.string(), note: z.string().optional() })
+const Lines = z.array(z.object({ sku: z.string(), gift: z.boolean().optional() }))
+const PlaceOrder = m.command({
+  orderId: z.string(),
+  item: z.string(),
+  lines: Lines,
+  note: z.string().optional(),
+})
 const OrderPlaced = m
-  .event({ orderId: z.string(), product: z.string(), placedAt: z.string() })
+  .event({ orderId: z.string(), product: z.string(), lines: Lines, placedAt: z.string() })
   .stream(Orders)
   .note("One per order.")
 const OrderRefused = m.event({ orderId: z.string() }).stream(Orders)
@@ -33,7 +39,7 @@ const Unpaid = m
   .view({
     orderId: z.string(),
     product: z.string(),
-    lines: z.array(z.object({ sku: z.string(), gift: z.boolean().optional() })),
+    lines: Lines,
     payments: z.number().int(),
     status: z.string(),
   })
@@ -64,17 +70,23 @@ const slices = [
     .slice()
     .view(
       Unpaid,
-      OrderPlaced(() => ({ lines: [], payments: 0, status: "open" })),
+      OrderPlaced(() => ({ payments: z.literal(0), status: z.literal("open") })),
     )
     .chapter(Sales)
     .event(
       PaymentRecorded((e) => ({
-        product: "",
+        product: z.literal(""),
         payments: m.generate(e),
-        status: "paid",
+        status: z.literal("paid"),
       })),
     )
-    .event(OrderRefused(() => ({ product: "", lines: [], payments: 0, status: "refused" })))
+    .event(
+      OrderRefused(() => ({
+        product: z.literal(""),
+        payments: z.literal(0),
+        status: z.literal("refused"),
+      })),
+    )
     .query({ orderId: z.string() })
     .actor(Clerk)
     .service(Shop, "ListUnpaid"),
@@ -134,6 +146,7 @@ test("a state change: a screen per slice, the endpoint on the command, events in
   assert.deepEqual(titles(screen?.fields.map((f) => ({ title: f.name }))), [
     "orderId",
     "item",
+    "lines",
     "note",
   ])
   const [command] = place.commands
@@ -163,6 +176,15 @@ test("a mapping says where each field comes from: a field, generated, or = a val
   assert.deepEqual(placed, [
     { name: "orderId", type: "String" },
     { name: "product", type: "String", mapping: "item" },
+    {
+      name: "lines",
+      type: "Custom",
+      subfields: [
+        { name: "sku", type: "String" },
+        { name: "gift", type: "Boolean", optional: true },
+      ],
+      cardinality: "List",
+    },
     { name: "placedAt", type: "String", generated: true },
   ])
   assert.deepEqual(translate?.commands[0]?.fields[1], {
@@ -181,7 +203,6 @@ test("a mapping says where each field comes from: a field, generated, or = a val
       { name: "gift", type: "Boolean", optional: true },
     ],
     cardinality: "List",
-    mapping: "OrderPlaced: = []\nOrderRefused: = []",
   })
   assert.equal(
     columns.payments?.mapping,

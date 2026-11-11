@@ -250,7 +250,7 @@ m.slice("IllegalMoveForfeiter")
     ForfeitGame,
     IllegalMoveForfeited((c) => ({
       result: m.generate(c.offendingSide),
-      termination: "illegal_move_forfeit",
+      termination: z.literal("illegal_move_forfeit"),
     })),
   )
   .chapter(Conclusion)

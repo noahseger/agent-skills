@@ -122,7 +122,11 @@ m.slice("ReceivePairing")
   .translation(
     PairingPublished,
     StartGame,
-    GameStarted(() => ({ fen: START_FEN, sideToMove: "white", ply: 0 })),
+    GameStarted(() => ({
+      fen: z.literal(START_FEN),
+      sideToMove: z.literal("white"),
+      ply: z.literal(0),
+    })),
   )
   .chapter(GameSetup)
   .note("The pairing is translated, never stored. The starting position is ours to supply.")
@@ -162,7 +166,7 @@ m.slice("ClockStarter")
     ClockStarted((c) => ({
       whiteTimeMs: m.generate(c.baseMinutes),
       blackTimeMs: m.generate(c.baseMinutes),
-      runningSide: "white",
+      runningSide: z.literal("white"),
     })),
   )
   .chapter(GameSetup)

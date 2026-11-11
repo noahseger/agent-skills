@@ -33,7 +33,7 @@ m.slice()
 m.slice()
   .view(
     Inbox,
-    NoteCreated(() => ({ status: "inbox" })),
+    NoteCreated(() => ({ status: z.literal("inbox") })),
   )
   .chapter(Capture)
   .query({ status: z.string() })
@@ -63,7 +63,7 @@ m.slice()
 m.slice()
   .view(
     Inbox,
-    NoteFiled(() => ({ status: "filed" })),
+    NoteFiled(() => ({ status: z.literal("filed") })),
   )
   .query({ status: z.string() })
   .test("A filed note leaves the inbox", {
