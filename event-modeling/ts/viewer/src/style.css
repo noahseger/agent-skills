@@ -801,6 +801,13 @@ svg .warn-dot {
   font-size: 12px;
 }
 
+.detail td.type {
+  padding-left: 12px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
 .detail td.hint {
   color: var(--muted);
   text-align: right;

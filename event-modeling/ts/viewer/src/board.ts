@@ -1,5 +1,6 @@
 // What the layout draws: the model as columns and lanes, read from the spec JSON by `read.ts`.
 // An element is written `Name(field, *key)`, a clause `Name(field=value)` or `Error: reason`.
+import type { SpecField } from "../../src/spec.ts"
 import type { Source, Warning } from "../../src/types.ts"
 
 export interface BoardTest {
@@ -66,6 +67,8 @@ export interface Board {
   /** In order; the slices in no chapter come last, in a nameless one. */
   chapters: { name: string; slices: BoardSlice[] }[]
   notes: Record<string, string>
+  /** Per element, its fields as the spec JSON gives them: type, key, optional, list, subfields. */
+  fields?: Record<string, SpecField[]>
   loose?: Loose[]
   warnings?: Warning[]
 }

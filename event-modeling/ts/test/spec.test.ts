@@ -322,6 +322,12 @@ test("what the spec has no place for travels beside it, to the viewer", () => {
   assert.deepEqual(board.loose?.[0], { kind: "event", element: "Loose(id)", aggregate: "orders" })
 })
 
+test("the viewer has each element's fields as the JSON types them", () => {
+  const board = read(feed)
+  assert.deepEqual(board.fields?.PlaceOrder, place?.commands[0]?.fields)
+  assert.equal(board.fields?.Unpaid?.[0]?.idAttribute, true)
+})
+
 test("a model from elsewhere draws from the spec alone", () => {
   const board = read({
     name: "model",

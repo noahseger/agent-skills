@@ -193,8 +193,10 @@ export function read(written: Feed): Board {
 
   const notes: Record<string, string> = {}
   for (const c of feed.chapters ?? []) if (c.note !== undefined) notes[c.name] = c.note
+  const fields: Record<string, SpecField[]> = {}
   const noted = (el: SpecElement) => {
     if (el.description !== undefined) notes[el.title] = el.description
+    if (el.fields.length > 0) fields[el.title] = el.fields
   }
 
   const boardSlice = (s: SpecSlice): BoardSlice => {
@@ -311,6 +313,7 @@ export function read(written: Feed): Board {
     aggregates,
     chapters,
     notes,
+    fields,
     ...(loose.length > 0 && { loose }),
     ...(feed.warnings && feed.warnings.length > 0 && { warnings: feed.warnings }),
   }
