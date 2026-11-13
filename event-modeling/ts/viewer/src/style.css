@@ -49,6 +49,9 @@
   --automation-fill: #f3e8ff;
   --automation-stroke: #a855f7;
   --automation-ink: #581c87;
+  --external-fill: #f1f5f9;
+  --external-stroke: #64748b;
+  --external-ink: #334155;
 
   --text-lg: 18px;
   --text-md: 14px;
@@ -185,6 +188,7 @@ body,
 .top .swatch.event::before { background: var(--event-fill); border-color: var(--event-stroke); }
 .top .swatch.readModel::before { background: var(--readModel-fill); border-color: var(--readModel-stroke); }
 .top .swatch.automation::before { background: var(--automation-fill); border-color: var(--automation-stroke); }
+.top .swatch.external::before { background: var(--external-fill); border-color: var(--external-stroke); border-style: dashed; }
 
 .top .status {
   margin-left: 20px;
@@ -527,8 +531,8 @@ svg .warn-dot {
 }
 
 .card.command .field { fill: var(--command-ink); }
-.card.event .field,
-.card.external .field { fill: var(--event-ink); }
+.card.event .field { fill: var(--event-ink); }
+.card.external .field { fill: var(--external-ink); }
 .card.readModel .field { fill: var(--readModel-ink); }
 
 /* a screen's wireframe */
@@ -648,11 +652,10 @@ svg .warn-dot {
 .card.ui .title { fill: var(--ui-ink); }
 .card.command .shape { fill: var(--command-fill); stroke: var(--command-stroke); }
 .card.command .title { fill: var(--command-ink); }
-.card.event .shape,
-.card.external .shape { fill: var(--event-fill); stroke: var(--event-stroke); }
-.card.event .title,
-.card.external .title { fill: var(--event-ink); }
-.card.external .shape { stroke-dasharray: 5 3; }
+.card.event .shape { fill: var(--event-fill); stroke: var(--event-stroke); }
+.card.event .title { fill: var(--event-ink); }
+.card.external .shape { fill: var(--external-fill); stroke: var(--external-stroke); stroke-dasharray: 5 3; }
+.card.external .title { fill: var(--external-ink); }
 .card.readModel .shape { fill: var(--readModel-fill); stroke: var(--readModel-stroke); }
 .card.readModel .title { fill: var(--readModel-ink); }
 .card.automation .shape { fill: var(--automation-fill); stroke: var(--automation-stroke); }
@@ -687,8 +690,8 @@ svg .warn-dot {
 .detail .kind.ui,
 .detail .kind.slice { background: #f1f5f9; color: var(--ui-ink); }
 .detail .kind.command { background: var(--command-fill); color: var(--command-ink); }
-.detail .kind.event,
-.detail .kind.external { background: var(--event-fill); color: var(--event-ink); }
+.detail .kind.event { background: var(--event-fill); color: var(--event-ink); }
+.detail .kind.external { background: var(--external-fill); color: var(--external-ink); }
 .detail .kind.readModel { background: var(--readModel-fill); color: var(--readModel-ink); }
 .detail .kind.automation { background: var(--automation-fill); color: var(--automation-ink); }
 
@@ -794,6 +797,13 @@ svg .warn-dot {
 }
 
 .detail td.name {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.detail td.type {
+  padding-left: 12px;
+  color: var(--muted);
   font-family: var(--mono);
   font-size: 12px;
 }
@@ -1080,8 +1090,8 @@ svg .warn-dot {
 }
 
 .hcard.command { background: var(--command-fill); border-color: var(--command-stroke); color: var(--command-ink); }
-.hcard.event,
-.hcard.external { background: var(--event-fill); border-color: var(--event-stroke); color: var(--event-ink); }
+.hcard.event { background: var(--event-fill); border-color: var(--event-stroke); color: var(--event-ink); }
+.hcard.external { background: var(--external-fill); border-color: var(--external-stroke); color: var(--external-ink); }
 .hcard.readModel { background: var(--readModel-fill); border-color: var(--readModel-stroke); color: var(--readModel-ink); }
 .hcard.automation { background: var(--automation-fill); border-color: var(--automation-stroke); color: var(--automation-ink); }
 .hcard.ui { background: var(--ui-fill); border-color: var(--ui-stroke); color: var(--ui-ink); }

@@ -5,7 +5,8 @@ import { readFileSync } from "node:fs"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
 
-import type { ModelJson } from "../src/json.ts"
+import type { Source } from "../src/types.ts"
+import type { Board } from "../viewer/src/board.ts"
 import {
   type Box,
   fitColumns,
@@ -14,13 +15,19 @@ import {
   parseClause,
   path,
   polyline,
+  source,
   words,
   wrap,
 } from "../viewer/src/layout.ts"
+import { read } from "../viewer/src/read.ts"
 
-const model: ModelJson = JSON.parse(
-  readFileSync(fileURLToPath(new URL("./todo-app.json", import.meta.url)), "utf8"),
-)
+// A model read from its spec JSON alone, as a hand-written one is.
+const model = read({
+  name: "Todo List Application",
+  model: JSON.parse(
+    readFileSync(fileURLToPath(new URL("./todo-app.json", import.meta.url)), "utf8"),
+  ),
+})
 const out = layout(model)
 const byId = new Map(out.boxes.map((b) => [b.id, b]))
 const rowOf = (b: { y: number; h: number }) =>
@@ -41,6 +48,10 @@ test("parseClause gives one line per field, and a rejection its message", () => 
     lines: ["listId = list-1", "tags = [a, b]"],
     error: false,
   })
+  assert.deepEqual(parseClause("Ordered(items=[{name=a, qty=2}], to={city=b, zip=c})").lines, [
+    "items = [{name=a, qty=2}]",
+    "to = {city=b, zip=c}",
+  ])
   assert.deepEqual(parseClause("Error: maximum 3 items per list"), {
     name: "Rejected",
     lines: ["maximum 3 items per list"],
@@ -49,6 +60,21 @@ test("parseClause gives one line per field, and a rejection its message", () => 
   assert.deepEqual(wrap("Adding a fourth item is rejected", 20), [
     "Adding a fourth item",
     "is rejected",
+  ])
+})
+
+test("a mapped field shows where its value came from", () => {
+  const sources: Source[] = [
+    { from: "text" },
+    { generate: [] },
+    { generate: ["pageId", "Pages"] },
+    { value: 0 },
+  ]
+  assert.deepEqual(sources.map(source), [
+    "← text",
+    "generated",
+    "generated from pageId, Pages",
+    "= 0",
   ])
 })
 
@@ -134,7 +160,7 @@ test("every edge joins two cards, and a projection is fed by each of its events"
   }
 })
 
-test("an automation is in its actor's lane, and reads are drawn back from the read model", () => {
+test("an automation is in its actor's lane, and reads are drawn back from the view", () => {
   const column = out.columns.find((c) => c.slice.automation)
   assert.ok(column)
   const gear = out.boxes.find((b) => b.column === column.index && b.kind === "automation")
@@ -144,19 +170,16 @@ test("an automation is in its actor's lane, and reads are drawn back from the re
   assert.equal(
     out.boxes.filter((b) => b.column === column.index && b.compact).length,
     0,
-    "no reference card when the read model is drawn in full",
+    "no reference card when the view is drawn in full",
   )
   const search = out.boxes.find(
-    (b) => b.name === "ItemSearch" && b.kind === "readModel" && !b.compact,
+    (b) => b.name === "ListItems" && b.kind === "readModel" && !b.compact,
   )
   assert.ok(search)
   const reads = out.edges.find((e) => e.from === search.id && e.to === gear.id)
-  assert.ok(
-    reads?.dashed && reads.points,
-    "a dashed, routed edge from the read model to the automation",
-  )
+  assert.ok(reads?.dashed && reads.points, "a dashed, routed edge from the view to the automation")
   const start = reads.points[0]
-  assert.ok(start && start[0] > search.x + search.w / 2, "leaves the read model right of centre")
+  assert.ok(start && start[0] > search.x + search.w / 2, "leaves the view right of centre")
   assert.equal(start?.[1], search.y + search.h)
   const end = reads.points.at(-1)
   assert.ok(end && end[0] === gear.x && end[1] > gear.y && end[1] < gear.y + gear.h)
@@ -166,11 +189,11 @@ test("an automation is in its actor's lane, and reads are drawn back from the re
   assert.ok(into && into[0] === gear.x && into[1] > gear.y && into[1] < gear.y + gear.h)
 })
 
-test("a read model nothing draws in full still gets a reference card", () => {
-  const copy: ModelJson = JSON.parse(JSON.stringify(model))
+test("a view nothing draws in full still gets a reference card", () => {
+  const copy: Board = JSON.parse(JSON.stringify(model))
   for (const c of copy.chapters)
-    c.slices = c.slices.filter((s) => !s.read_models?.some((r) => r.startsWith("ItemSearch")))
-  const ref = layout(copy).boxes.find((b) => b.name === "ItemSearch")
+    c.slices = c.slices.filter((s) => !s.read_models?.some((r) => r.startsWith("ListItems")))
+  const ref = layout(copy).boxes.find((b) => b.name === "ListItems")
   assert.ok(ref?.compact && ref.canonical === undefined)
 })
 
@@ -179,13 +202,14 @@ test("lanes say what they are, and the system lane is the automations", () => {
   assert.deepEqual(labels, [
     "User (Actor)",
     "Automations (System)",
-    "Calendar (System)",
-    "Items (Stream)",
+    // From the JSON alone, lanes come in the order the slices first name them.
     "Lists (Stream)",
+    "Items (Stream)",
+    "Calendar (System)",
   ])
 })
 
-test("a screen is a wireframe of its command or its read model", () => {
+test("a screen is a wireframe of its command or its view", () => {
   const create = out.boxes.find((b) => b.kind === "ui" && b.name === "CreateList")
   assert.deepEqual(create?.form, ["userId", "listId", "name"])
   assert.equal(create?.button, "CreateList")
@@ -249,17 +273,13 @@ test("a path starts at one box's edge and ends at the other's", () => {
 })
 
 test("a later appearance of an element is collapsed and points at the first", () => {
-  const todoLists = out.boxes.filter((b) => b.name === "TodoList")
-  assert.ok(todoLists.length > 1)
-  const [full, ...later] = todoLists
+  const [full, ...later] = out.boxes.filter((b) => b.name === "ItemAdded" && b.kind === "event")
+  assert.equal(later.length, 1)
   assert.ok(full && !full.compact && full.canonical === undefined)
   for (const b of later) {
     assert.ok(b.compact)
     assert.equal(b.canonical, full.id)
   }
-  const added = out.boxes.filter((b) => b.name === "ItemAdded" && b.kind === "event")
-  assert.equal(added.length, 2)
-  assert.equal(added[1]?.canonical, added[0]?.id)
 })
 
 test("a note marks the card and the slice", () => {
@@ -287,13 +307,25 @@ test("specifications sit under their slice, one card per clause with a line per 
   assert.equal(given?.cards[0]?.lines.length, 4)
 })
 
+test("a view's specification asks its screen in when, and shows rows in then", () => {
+  const column = out.columns.find((c) => c.label === "TodoList")
+  const spec = out.specs.filter((s) => s.column === column?.index).at(-1)
+  const kinds = spec?.steps.map((st) => [st.word, st.cards.map((c) => c.kind)])
+  assert.deepEqual(kinds, [
+    ["given", ["event", "event"]],
+    ["when", ["ui"]],
+    ["then", ["readModel"]],
+  ])
+  assert.deepEqual(spec?.steps[1]?.cards[0]?.lines, ["userId = u-1"])
+})
+
 test("the picture shows names as words", () => {
   assert.equal(words("DrawsAndResignation"), "Draws and Resignation")
   assert.equal(words("ItemAdded"), "Item Added")
   assert.equal(words("FIDEGame"), "FIDE Game")
   assert.equal(words("TodoService"), "Todo Service")
   assert.equal(out.chapters[0]?.title, "List Management")
-  assert.equal(out.columns.find((c) => c.label === "ListTodoLists")?.title, "List Todo Lists")
+  assert.equal(out.columns.find((c) => c.label === "ListItems")?.title, "List Items")
 })
 
 test("a translation gets an automation of ours between the outside event and the command", () => {
@@ -309,9 +341,137 @@ test("a translation gets an automation of ours between the outside event and the
   assert.ok(!out.edges.some((e) => e.from === external.id && e.to === command.id))
 })
 
+test("a call's external event is drawn in the system's lane, and a later trigger links to it", () => {
+  const called = layout({
+    name: "x",
+    description: "",
+    actors: [
+      { id: "user", name: "User", type: "user" },
+      { id: "remote", name: "Remote", type: "external" },
+    ],
+    aggregates: [{ id: "events", name: "Events" }],
+    chapters: [
+      {
+        name: "Ch",
+        slices: [
+          {
+            name: "Ask",
+            actor: "user",
+            aggregate: "events",
+            ui: "Ask",
+            command: "Ask(id)",
+            calls: [{ actor: "remote", event: "Answered(id, detail)" }],
+            tests: [],
+          },
+          {
+            name: "Keep",
+            actor: "remote",
+            aggregate: "events",
+            external_event: "Answered(id, detail)",
+            command: "Keep(id, detail)",
+            events: ["Kept(id, detail)"],
+            tests: [],
+          },
+        ],
+      },
+    ],
+    notes: {},
+  })
+  const [first, ...later] = called.boxes.filter((b) => b.name === "Answered")
+  const command = called.boxes.find((b) => b.name === "Ask" && b.kind === "command")
+  const gear = called.boxes.find((b) => b.name === "Keep" && b.kind === "automation")
+  assert.ok(first && command && gear)
+  assert.equal(first.kind, "external")
+  assert.equal(first.column, 0)
+  assert.ok(!first.compact)
+  const lane = called.rows.find((r) => first.y >= r.y && first.y + first.h <= r.y + r.h)
+  assert.equal(lane?.id, "actor:remote")
+  assert.deepEqual(
+    called.rows.map((r) => r.id),
+    ["actor:user", "actor:system", "middle", "stream:events", "actor:remote"],
+    "an outside system's lane is beneath our streams",
+  )
+  assert.ok(called.edges.some((e) => e.from === command.id && e.to === first.id))
+  assert.deepEqual(later, [])
+  assert.ok(called.edges.some((e) => e.from === first.id && e.to === gear.id))
+})
+
+test("a call's arrow goes around the event of ours that keeps its reply, so each arrow shows", () => {
+  const out = layout({
+    name: "x",
+    description: "",
+    actors: [
+      { id: "user", name: "User", type: "user" },
+      { id: "remote", name: "Remote", type: "external" },
+    ],
+    aggregates: [{ id: "events", name: "Events" }],
+    chapters: [
+      {
+        name: "Ch",
+        slices: [
+          {
+            name: "Ask",
+            actor: "user",
+            aggregate: "events",
+            ui: "Ask",
+            command: "Ask(id)",
+            events: ["Kept(id, detail)"],
+            calls: [{ actor: "remote", event: "Answered(id, detail)", kept: ["Kept"] }],
+            tests: [],
+          },
+        ],
+      },
+    ],
+    notes: {},
+  })
+  const box = (name: string) => out.boxes.find((b) => b.name === name && b.kind !== "ui")
+  const [command, kept, answered] = [box("Ask"), box("Kept"), box("Answered")]
+  assert.ok(command && kept && answered)
+  const edge = (from: string, to: string) => out.edges.find((e) => e.from === from && e.to === to)
+  assert.ok(edge(command.id, kept.id))
+  assert.ok(edge(answered.id, kept.id))
+  const call = edge(command.id, answered.id)
+  assert.ok(call?.points?.every(([x]) => x >= kept.x + kept.w))
+})
+
+test("a command's outcomes stand side by side in their lane, each joined to the command", () => {
+  const both = layout({
+    name: "x",
+    description: "",
+    actors: [{ id: "user", name: "User", type: "user" }],
+    aggregates: [{ id: "notes", name: "Notes" }],
+    chapters: [
+      {
+        name: "Ch",
+        slices: [
+          {
+            name: "SyncNote",
+            actor: "user",
+            aggregate: "notes",
+            command: "SyncNote(noteId)",
+            events: ["NoteSynced(noteId)", "SyncFailed(noteId, reason)"],
+            tests: [],
+          },
+        ],
+      },
+    ],
+    notes: {},
+  })
+  const [synced, failed] = both.boxes.filter((b) => b.kind === "event")
+  const command = both.boxes.find((b) => b.kind === "command")
+  const column = both.columns[0]
+  assert.ok(synced && failed && command && column)
+  assert.equal(synced.y, failed.y)
+  assert.ok(synced.x + synced.w < failed.x, "apart, left to right")
+  assert.ok(synced.x >= column.x && failed.x + failed.w <= column.x + column.w)
+  assert.equal(command.x + command.w / 2, column.x + column.w / 2, "the command is centred above")
+  for (const outcome of [synced, failed])
+    assert.ok(both.edges.some((e) => e.from === command.id && e.to === outcome.id))
+})
+
 test("a long value wraps inside its specification card", () => {
   const fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-  const copy: ModelJson = JSON.parse(JSON.stringify(model))
+  const copy: Board = JSON.parse(JSON.stringify(model))
   const slice = copy.chapters[0]?.slices[0]
   assert.ok(slice?.tests[0])
   slice.tests[0].then = [`ListCreated(listId=list-1, fen=${fen})`]
@@ -344,7 +504,7 @@ test("a loose declaration is a column after the story, its card in its lane", ()
     ],
   })
   const last = storm.chapters.length - 1
-  assert.equal(storm.chapters[last]?.title, "Not yet in a slice")
+  assert.equal(storm.chapters[last]?.title, "Not in a slice yet")
   const cols = storm.columns.filter((c) => c.chapter === last)
   assert.deepEqual(
     cols.map((c) => c.title),
@@ -368,6 +528,14 @@ test("a loose declaration is a column after the story, its card in its lane", ()
   assert.equal(cols[1]?.warned, false)
   assert.equal(storm.columns[0]?.warned, true)
   assert.ok(storm.boxes.filter((b) => b.name === "ListCreated").every((b) => b.warned))
+})
+
+test("the slices in no chapter yet are the nameless chapter, titled as such", () => {
+  const slice = model.chapters[0]?.slices[0]
+  assert.ok(slice)
+  const storm = layout({ ...model, chapters: [...model.chapters, { name: "", slices: [slice] }] })
+  assert.equal(storm.chapters.at(-1)?.title, "Not in a chapter yet")
+  assert.equal(storm.columns.at(-1)?.chapter, storm.chapters.length - 1)
 })
 
 test("every actor gets a lane, and cards in one lane share a top edge", () => {

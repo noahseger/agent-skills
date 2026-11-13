@@ -1,48 +1,47 @@
 // Does the model answer the brief? That is the one thing left that no type
 // system can decide, so it is the one thing these tests assert. Each test is
-// one numbered requirement of tests/fixtures/todo_app_brief.md, checked on the
-// assembled JSON.
+// one numbered requirement of fixtures/todo_app_brief.md, checked on the
+// spec JSON the model emits.
 import assert from "node:assert/strict"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
 
-import { assemble, type ModelJson } from "../src/assemble.ts"
+import { assemble } from "../src/assemble.ts"
+import type { SpecElement } from "../src/spec.ts"
 
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url))
 
-const model: ModelJson = await assemble(here("../examples/todo-app"))
-const slices = model.chapters.flatMap((c) => c.slices)
+const { slices } = (await assemble(here("../examples/todo-app"))).model
 
-const name = (element: string) => element.split("(")[0] ?? element
-const fields = (element: string) =>
-  element
-    .slice(element.indexOf("(") + 1, -1)
-    .split(",")
-    .map((f) => f.trim().replace(/^\*/, ""))
+const fields = (el: SpecElement | undefined) => (el?.fields ?? []).map((f) => f.name)
+const served = (el: SpecElement | undefined) => el && `${el.service}/${el.apiEndpoint}`
 
 /** The state-change slice whose command is `command`, or fails. */
 function stateChange(command: string) {
-  const slice = slices.find((s) => s.command !== undefined && name(s.command) === command)
+  const slice = slices.find(
+    (s) => s.sliceType === "STATE_CHANGE" && s.commands[0]?.title === command,
+  )
   assert.ok(slice, `no slice issues ${command}`)
-  assert.ok(slice.ui, `${command} has no service method`)
-  assert.ok(slice.events?.length, `${command} emits nothing`)
+  assert.ok(slice.commands[0]?.apiEndpoint, `${command} has no service method`)
+  assert.ok(slice.events.length, `${command} emits nothing`)
   return slice
 }
 
-/** The view slice on `method`, with the read model it shows. */
+/** The state view slice on `method`, with the view it shows. */
 function view(method: string) {
-  const slice = slices.find((s) => s.ui?.endsWith(`/${method}`) && s.read_models?.length)
+  const slice = slices.find((s) => s.readmodels[0]?.apiEndpoint === method)
   assert.ok(slice, `no view on ${method}`)
-  return { slice, columns: fields(slice.read_models?.[0] ?? "") }
+  return { slice, columns: fields(slice.readmodels[0]) }
 }
 
 const rejections = slices
-  .flatMap((s) => s.tests)
+  .flatMap((s) => s.specifications)
   .flatMap((t) => t.then)
-  .filter((clause) => clause.startsWith("Error:"))
+  .filter((step) => step.type === "SPEC_ERROR")
+  .map((step) => step.title)
 
 test("1. create a named list; names are unique per user", () => {
-  assert.ok(fields(stateChange("CreateList").command ?? "").includes("name"))
+  assert.ok(fields(stateChange("CreateList").commands[0]).includes("name"))
   assert.ok(
     rejections.some((r) => /already exists/.test(r)),
     "no rejection for a duplicate name",
@@ -51,7 +50,7 @@ test("1. create a named list; names are unique per user", () => {
 
 test("2. add an item with a title; at most 3 per list", () => {
   const slice = stateChange("AddItem")
-  assert.ok(fields(slice.events?.[0] ?? "").includes("title"))
+  assert.ok(fields(slice.events[0]).includes("title"))
   assert.ok(
     rejections.some((r) => /maximum 3 items/.test(r)),
     "no rejection for a fourth item",
@@ -77,22 +76,27 @@ test("6. view all lists with name and item count", () => {
 
 test("7. view one list with its items and their done status", () => {
   const { slice, columns } = view("GetList")
-  assert.deepEqual(slice.query, ["listId"])
+  assert.deepEqual(fields(slice.screens[0]), ["listId"])
   for (const column of ["title", "done"]) assert.ok(columns.includes(column), `no ${column}`)
 })
 
 test("8. a list completes on its own when every item is done", () => {
-  const slice = slices.find((s) => s.automation && s.command && name(s.command) === "CompleteList")
+  const slice = slices.find(
+    (s) => s.sliceType === "AUTOMATION" && s.commands[0]?.title === "CompleteList",
+  )
   assert.ok(slice, "no automation issues CompleteList")
-  assert.equal(name(slice.trigger as string), "ItemCompleted")
-  assert.ok(slice.events?.some((e) => name(e) === "ListCompleted"))
+  const trigger = slice.events.find((e) =>
+    e.dependencies.some((d) => d.elementType === "AUTOMATION"),
+  )
+  assert.equal(trigger?.title, "ItemCompleted")
+  assert.ok(slice.events.some((e) => e.title === "ListCompleted"))
 })
 
 test("9. the calendar pushes scheduled tasks in as items", () => {
-  const slice = slices.find((s) => s.external_event)
+  const slice = slices.find((s) => s.sliceType === "TRANSLATION")
   assert.ok(slice, "no slice receives an external event")
-  assert.equal(model.actors.find((a) => a.id === slice.actor)?.name, "Calendar")
-  assert.equal(name(slice.command ?? ""), "AddItem")
+  assert.equal(slice.events.find((e) => e.context === "EXTERNAL")?.service, "Calendar")
+  assert.equal(slice.commands[0]?.title, "AddItem")
 })
 
 // The brief lists REST paths. The model is an RPC service, so each one has to
@@ -110,7 +114,7 @@ const ENDPOINTS: [string, string][] = [
 for (const [endpoint, method] of ENDPOINTS) {
   test(`API: ${endpoint}`, () => {
     assert.ok(
-      slices.some((s) => s.ui === method),
+      slices.some((s) => [s.commands[0], s.readmodels[0]].some((el) => served(el) === method)),
       `no slice exposes ${method}`,
     )
   })

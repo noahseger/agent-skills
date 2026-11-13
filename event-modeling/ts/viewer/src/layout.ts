@@ -1,6 +1,18 @@
-// Lays out the eventmodeling.org canvas from the assembled JSON. Pure, so it
+// Lays out the eventmodeling.org canvas from the board `read.ts` makes. Pure, so it
 // is tested without a browser.
-import type { ModelJson, SliceJson } from "../../src/json.ts"
+
+import { inputNames, type Source } from "../../src/types.ts"
+import type { Board, BoardSlice } from "./board.ts"
+
+/** Where a mapped field got its value, as the detail panes show it. */
+export function source(s: Source): string {
+  if ("from" in s) return `← ${s.from}`
+  if ("generate" in s) {
+    const inputs = inputNames(s)
+    return inputs.length > 0 ? `generated from ${inputs.join(", ")}` : "generated"
+  }
+  return `= ${JSON.stringify(s.value)}`
+}
 
 export type Kind = "ui" | "external" | "command" | "event" | "readModel" | "automation"
 export type Pt = [number, number]
@@ -14,7 +26,7 @@ export interface Box {
   keys: string[]
   /** A second line under the name: the service of a ui card. */
   detail?: string
-  /** Name only: a reference to a read model, or a later appearance of an element. */
+  /** Name only: a reference to a view, or a later appearance of an element. */
   compact?: boolean
   /** The first appearance of this element, when this card is a later one. */
   canonical?: string
@@ -57,7 +69,7 @@ export interface Row {
 export interface Column {
   index: number
   chapter: number
-  slice: SliceJson
+  slice: BoardSlice
   /** The slice's name, or the name of what it is about. */
   label: string
   /** `label` as words, for the picture. */
@@ -72,6 +84,7 @@ export interface Chapter {
   name: string
   /** `name` as words, for the picture. */
   title: string
+  note?: string
   x: number
   w: number
 }
@@ -175,7 +188,7 @@ export function parse(element: string): Element {
   }
 }
 
-/** `Name(a=1, b=[x, y])` or `Error: message` -> a name and one line per field. */
+/** `Name(a=1, b=[x, y], c={d=2})` or `Error: message` -> a name and one line per field. */
 export function parseClause(clause: string): { name: string; lines: string[]; error: boolean } {
   if (clause.startsWith("Error:")) {
     return { name: "Rejected", lines: [clause.slice("Error:".length).trim()], error: true }
@@ -186,8 +199,8 @@ export function parseClause(clause: string): { name: string; lines: string[]; er
   let depth = 0
   let current = ""
   for (const ch of clause.slice(open + 1, clause.lastIndexOf(")"))) {
-    if (ch === "[") depth++
-    if (ch === "]") depth--
+    if (ch === "[" || ch === "{") depth++
+    if (ch === "]" || ch === "}") depth--
     if (ch === "," && depth === 0) {
       lines.push(current)
       current = ""
@@ -334,7 +347,7 @@ export function polyline(points: Pt[]): string {
 
 type Placed = Omit<Box, "x" | "y"> & { dx: number }
 
-function labelOf(s: SliceJson): string {
+function labelOf(s: BoardSlice): string {
   if (s.name) return s.name
   if (s.command) return parse(s.command).name
   if (s.read_models?.[0]) return parse(s.read_models[0]).name
@@ -344,8 +357,16 @@ function labelOf(s: SliceJson): string {
   return "slice"
 }
 
-export function layout(model: ModelJson): Layout {
-  // A `reads` entry is a name. Its fields come from where the read model is drawn in full.
+/** A command's events are alternatives, so they stand side by side in their lane, and widen it. */
+function columnWidth(s: BoardSlice): number {
+  const perSystem = new Map<string, number>()
+  for (const c of s.calls ?? []) perSystem.set(c.actor, (perSystem.get(c.actor) ?? 0) + 1)
+  const beside = Math.max(1, s.events?.length ?? 0, ...perSystem.values())
+  return COL_W + (beside - 1) * (CARD_W + STACK_GAP)
+}
+
+export function layout(model: Board): Layout {
+  // A `reads` entry is a name. Its fields come from where the view is drawn in full.
   const registry = new Map<string, Element>()
   const kinds = new Map<string, Kind>()
   for (const chapter of model.chapters) {
@@ -358,6 +379,7 @@ export function layout(model: ModelJson): Layout {
       for (const ev of slice.events ?? []) kinds.set(parse(ev).name, "event")
       if (slice.command) kinds.set(parse(slice.command).name, "command")
       if (slice.external_event) kinds.set(parse(slice.external_event).name, "external")
+      for (const call of slice.calls ?? []) kinds.set(parse(call.event).name, "external")
     }
   }
 
@@ -371,6 +393,7 @@ export function layout(model: ModelJson): Layout {
     if (ci > 0) x += CHAPTER_GAP
     const start = x
     for (const slice of chapter.slices) {
+      const w = columnWidth(slice)
       columns.push({
         index: columns.length,
         chapter: ci,
@@ -380,12 +403,15 @@ export function layout(model: ModelJson): Layout {
         noted: slice.note !== undefined,
         warned: warnedSlices.has(slice.name),
         x,
-        w: COL_W,
+        w,
       })
-      x += COL_W
+      x += w
     }
     if (chapter.slices.length === 0) x += COL_W
-    chapters.push({ name: chapter.name, title: words(chapter.name), x: start, w: x - start })
+    // Assembly leaves the slices in no chapter yet in a nameless one, last.
+    const title = chapter.name === "" ? "Not in a chapter yet" : words(chapter.name)
+    const note = model.notes[chapter.name]
+    chapters.push({ name: chapter.name, title, ...(note && { note }), x: start, w: x - start })
   })
   // A declaration in no slice yet gets its own column after the story.
   if (model.loose && model.loose.length > 0) {
@@ -396,12 +422,14 @@ export function layout(model: ModelJson): Layout {
       const card =
         item.kind === "event"
           ? { events: [item.element] }
-          : item.kind === "command"
-            ? { command: item.element }
-            : { read_models: [item.element] }
-      const slice: SliceJson = {
+          : item.kind === "external"
+            ? { external_event: item.element }
+            : item.kind === "command"
+              ? { command: item.element }
+              : { read_models: [item.element] }
+      const slice: BoardSlice = {
         name: el.name,
-        actor: "",
+        actor: item.actor ?? "",
         aggregate: item.aggregate,
         tests: [],
         ...card,
@@ -419,7 +447,7 @@ export function layout(model: ModelJson): Layout {
       })
       x += COL_W
     }
-    chapters.push({ name: "", title: "Not yet in a slice", x: start, w: x - start })
+    chapters.push({ name: "", title: "Not in a slice yet", x: start, w: x - start })
   }
   const width = x + PAD_X
 
@@ -440,6 +468,7 @@ export function layout(model: ModelJson): Layout {
     } = {},
   ): Placed => {
     const key = `${kind === "external" ? "event" : kind}:${el.name}`
+    const colW = columns[column]?.w ?? COL_W
     const earlier = extra.reference ? undefined : first.get(key)
     const box: Placed = {
       id: `b${next++}`,
@@ -462,7 +491,7 @@ export function layout(model: ModelJson): Layout {
       ...(model.notes[el.name] === undefined ? {} : { noted: true }),
       ...(warnedElements.has(el.name) ? { warned: true } : {}),
       column,
-      dx: extra.reference ? COL_W - 10 - REF_W : PAD_X,
+      dx: extra.reference ? colW - 10 - REF_W : (colW - CARD_W) / 2,
       w: extra.reference ? REF_W : CARD_W,
       h: 0,
     }
@@ -471,12 +500,20 @@ export function layout(model: ModelJson): Layout {
     return box
   }
 
-  // Each row is as tall as its tallest stack of cards.
-  const slots = new Map<string, Placed[][]>()
-  const into = (slot: string, column: number, box: Placed) => {
-    const stacks = slots.get(slot) ?? columns.map((): Placed[] => [])
+  // Each row is as tall as its tallest stack of cards. A stack is tiers, each of cards side by side.
+  const slots = new Map<string, Placed[][][]>()
+  const into = (slot: string, column: number, ...tier: Placed[]) => {
+    if (tier.length === 0) return
+    const stacks = slots.get(slot) ?? columns.map((): Placed[][] => [])
     slots.set(slot, stacks)
-    stacks[column]?.push(box)
+    if (tier.length > 1) {
+      const room = columns[column]?.w ?? COL_W
+      const start = (room - tier.length * CARD_W - (tier.length - 1) * STACK_GAP) / 2
+      tier.forEach((b, j) => {
+        b.dx = start + j * (CARD_W + STACK_GAP)
+      })
+    }
+    stacks[column]?.push(tier)
   }
   const edges: Edge[] = []
   const edge = (from: Placed, to: Placed, dashed = false) =>
@@ -489,39 +526,47 @@ export function layout(model: ModelJson): Layout {
   const targets = new Map<number, Placed>()
   const consumers = new Map<number, { command?: Placed; gear?: Placed }>()
   const readLinks: { name: string; column: number; polls: boolean }[] = []
+  const calling: Edge[] = []
 
   for (const col of columns) {
     const s = col.slice
     const i = col.index
-    let ui: Placed | undefined
+    const uis: Placed[] = []
     let external: Placed | undefined
     let command: Placed | undefined
     let gear: Placed | undefined
     const readModels: Placed[] = []
     const events: Placed[] = []
+    const calls: Placed[] = []
 
+    // A screen in each actor's lane.
     if (s.ui) {
       const slash = s.ui.indexOf("/")
       const service = slash < 0 ? undefined : s.ui.slice(0, slash)
       const method = slash < 0 ? s.ui : s.ui.slice(slash + 1)
-      // The wireframe is the command's form or the read model's table.
+      // The wireframe is the command's form or the view's table.
       const commandFields = s.command ? parse(s.command).fields : []
       const shown = s.read_models?.[0] ? parse(s.read_models[0]).fields : undefined
-      ui = make(
-        i,
-        "ui",
-        { name: method, fields: s.query ?? [], keys: [] },
-        {
-          ...(service === undefined ? {} : { detail: service }),
-          form: s.command ? commandFields : (s.query ?? []),
-          ...(s.command ? { button: parse(s.command).name } : {}),
-          ...(shown === undefined ? {} : { table: shown }),
-        },
-      )
-      into(`actor:${s.actor}`, i, ui)
-      useActor(s.actor)
+      for (const actor of s.actors ?? [s.actor]) {
+        const ui = make(
+          i,
+          "ui",
+          { name: s.screen ?? method, fields: s.query ?? [], keys: [] },
+          {
+            ...(service === undefined ? {} : { detail: service }),
+            form: s.command ? commandFields : (s.query ?? []),
+            ...(s.command ? { button: parse(s.command).name } : {}),
+            ...(shown === undefined ? {} : { table: shown }),
+          },
+        )
+        uis.push(ui)
+        into(`actor:${actor}`, i, ui)
+        useActor(actor)
+      }
     }
-    if (s.external_event) {
+    // An outside event a call already ended in triggers from there, as an event does.
+    const called = s.external_event && eventBoxes.has(parse(s.external_event).name)
+    if (s.external_event && !called) {
       external = make(i, "external", parse(s.external_event))
       into(`actor:${s.actor}`, i, external)
       useActor(s.actor)
@@ -533,8 +578,8 @@ export function layout(model: ModelJson): Layout {
     } else if (s.external_event && s.command) {
       // A translation needs a gear the JSON does not name.
       gear = make(i, "automation", { name: s.name || "Translate", fields: [], keys: [] })
-      into("actor:system", i, gear)
-      useActor("system")
+      into(`actor:${s.runner ?? "system"}`, i, gear)
+      useActor(s.runner ?? "system")
     }
     for (const name of s.reads ?? []) readLinks.push({ name, column: i, polls: false })
     if (s.polls) readLinks.push({ name: s.polls, column: i, polls: true })
@@ -550,28 +595,43 @@ export function layout(model: ModelJson): Layout {
     for (const ev of s.events ?? []) {
       const box = make(i, "event", parse(ev))
       events.push(box)
-      into(`stream:${s.aggregate}`, i, box)
       const seen = eventBoxes.get(box.name) ?? []
       seen.push(box)
       eventBoxes.set(box.name, seen)
     }
+    into(`stream:${s.aggregate}`, i, ...events)
+    // The external event a call ends in, in its system's lane.
+    for (const actor of new Set((s.calls ?? []).map((c) => c.actor))) {
+      const ended = (s.calls ?? [])
+        .filter((c) => c.actor === actor)
+        .map((c) => make(i, "external", parse(c.event)))
+      calls.push(...ended)
+      for (const box of ended) eventBoxes.set(box.name, [...(eventBoxes.get(box.name) ?? []), box])
+      into(`actor:${actor}`, i, ...ended)
+      useActor(actor)
+    }
 
-    if (ui && command) edge(ui, command)
+    if (command) for (const ui of uis) edge(ui, command)
     if (external) {
       const next = gear ?? command
       if (next) edge(external, next)
     }
-    if (ui && !command) for (const rm of readModels) edge(rm, ui)
+    if (!command) for (const ui of uis) for (const rm of readModels) edge(rm, ui)
     if (gear && command) edge(gear, command)
     if (command) for (const ev of events) edge(command, ev)
+    if (command)
+      for (const call of calls) calling.push({ from: command.id, to: call.id, dashed: false })
+    for (const c of s.calls ?? [])
+      for (const reply of calls.filter((b) => b.name === parse(c.event).name))
+        for (const ev of events.filter((e) => c.kept?.includes(e.name))) edge(reply, ev)
     consumers.set(i, { ...(command ? { command } : {}), ...(gear ? { gear } : {}) })
 
-    // What a trigger points at: the automation, or the read model it builds.
+    // What a trigger points at: the automation, or the view it builds.
     const target = gear ?? readModels[0]
-    if (target && s.trigger && !s.external_event) targets.set(i, target)
+    if (target && (s.external_event ? called : s.trigger)) targets.set(i, target)
   }
 
-  // Reads are dashed from the read model into the automation, or else the command.
+  // Reads are dashed from the view into the automation, or else the command.
   const crossing: Edge[] = []
   for (const link of readLinks) {
     const c = consumers.get(link.column)
@@ -596,7 +656,7 @@ export function layout(model: ModelJson): Layout {
   // above the streams.
   for (const col of columns) {
     const target = targets.get(col.index)
-    const trigger = col.slice.trigger
+    const trigger = col.slice.trigger ?? col.slice.external_event
     if (!target || !trigger) continue
     const names = (Array.isArray(trigger) ? trigger : [trigger]).map((t) => parse(t).name)
     for (const name of names) {
@@ -606,21 +666,24 @@ export function layout(model: ModelJson): Layout {
       if (source) crossing.push({ from: source.id, to: target.id, dashed: false })
     }
   }
-  edges.push(...crossing)
+  edges.push(...crossing, ...calling)
 
-  const stackHeight = (stack: Placed[]) =>
-    stack.reduce((sum, b) => sum + b.h, 0) + Math.max(0, stack.length - 1) * STACK_GAP
+  const tierHeight = (tier: Placed[]) => Math.max(0, ...tier.map((b) => b.h))
+  const stackHeight = (stack: Placed[][]) =>
+    stack.reduce((sum, tier) => sum + tierHeight(tier), 0) +
+    Math.max(0, stack.length - 1) * STACK_GAP
   const slotHeight = (slot: string) =>
     Math.max(0, ...(slots.get(slot) ?? []).map((stack) => stackHeight(stack)))
 
   const rows: Row[] = []
   const boxes: Box[] = []
-  const place = (slot: string, top: (stack: Placed[]) => number) => {
+  const place = (slot: string, top: number) => {
     for (const stack of slots.get(slot) ?? []) {
-      let y = top(stack)
-      for (const { dx, ...b } of stack) {
-        boxes.push({ ...b, x: (columns[b.column]?.x ?? 0) + dx, y })
-        y += b.h + STACK_GAP
+      let y = top
+      for (const tier of stack) {
+        for (const { dx, ...b } of tier)
+          boxes.push({ ...b, x: (columns[b.column]?.x ?? 0) + dx, y })
+        y += tierHeight(tier) + STACK_GAP
       }
     }
   }
@@ -628,37 +691,39 @@ export function layout(model: ModelJson): Layout {
   let y = HEADER_H + NAME_H
   const nameY = HEADER_H
   const actors = new Map(model.actors.map((a) => [a.id, a]))
-  // Every actor gets a lane, used or not.
-  for (const id of [
-    ...model.actors.map((a) => a.id),
-    ...actorIds.filter((id) => !actors.has(id)),
-  ]) {
-    const slot = `actor:${id}`
-    const h = slotHeight(slot) + 2 * LANE_PAD
-    const actor = actors.get(id)
-    const system = id === "system" || actor?.type === "system"
-    const label = system ? "Automations" : words(actor?.name ?? id)
-    const sub = system
-      ? "System"
-      : actor?.type === "admin"
-        ? "Admin"
-        : actor?.type === "external"
+  // Every actor gets a lane, used or not; an outside system's goes beneath our streams.
+  const ids = [...model.actors.map((a) => a.id), ...actorIds.filter((id) => !actors.has(id))]
+  const outside = (id: string) => actors.get(id)?.type === "external"
+  const lanes = (ids: string[]) => {
+    for (const id of ids) {
+      const slot = `actor:${id}`
+      const h = slotHeight(slot) + 2 * LANE_PAD
+      const actor = actors.get(id)
+      const label = id === "system" ? "Automations" : words(actor?.name ?? id)
+      const sub =
+        id === "system" || actor?.type === "system"
           ? "System"
-          : "Actor"
-    rows.push({ id: slot, label, sub, kind: "actor", y, h })
-    const top = y + LANE_PAD
-    place(slot, () => top)
-    y += h
+          : actor?.type === "admin"
+            ? "Admin"
+            : actor?.type === "external"
+              ? "System"
+              : "Actor"
+      rows.push({ id: slot, label, sub, kind: "actor", y, h })
+      const top = y + LANE_PAD
+      place(slot, top)
+      y += h
+    }
   }
+  lanes(ids.filter((id) => !outside(id)))
 
   const topH = slotHeight("middle:top")
   const bottomH = slotHeight("middle:bottom")
   const middleH = LANE_PAD + topH + (topH > 0 && bottomH > 0 ? SLOT_GAP : 0) + bottomH + LANE_PAD
   rows.push({ id: "middle", label: "", kind: "middle", y, h: middleH })
   const topEnd = y + LANE_PAD + topH
-  place("middle:top", () => y + LANE_PAD)
+  place("middle:top", y + LANE_PAD)
   const bottomTop = topEnd + (topH > 0 && bottomH > 0 ? SLOT_GAP : 0)
-  place("middle:bottom", () => bottomTop)
+  place("middle:bottom", bottomTop)
   y += middleH
 
   const channelTop = y
@@ -669,9 +734,10 @@ export function layout(model: ModelJson): Layout {
     const h = Math.max(slotHeight(slot), COMPACT_H) + 2 * LANE_PAD
     rows.push({ id: slot, label: words(agg.name), sub: "Stream", kind: "stream", y, h })
     const top = y + LANE_PAD
-    place(slot, () => top)
+    place(slot, top)
     y += h
   }
+  lanes(ids.filter(outside))
 
   // Edges that cross columns each get their own line, and fan out where they
   // share an end, so each one can be followed.
@@ -690,7 +756,7 @@ export function layout(model: ModelJson): Layout {
     if (!a || !b) return
     const via = channelTop + CHANNEL_PAD + i * CHANNEL_STEP
     const sx = a.x + a.w / 2 + fanFrom(e)
-    const sy = a.kind === "event" ? a.y : a.y + a.h
+    const sy = a.kind === "event" || a.kind === "external" ? a.y : a.y + a.h
     if (b.kind !== "readModel") {
       const margin = (columns[b.column]?.x ?? 0) + 10 - fanTo(e) - FAN
       const my = b.y + b.h / 2 + fanTo(e) + FAN
@@ -712,6 +778,23 @@ export function layout(model: ModelJson): Layout {
     }
   })
 
+  // A call's arrow goes down the side of the events of ours between the command and its outside
+  // event, which it would otherwise run behind, and enters the outside event from that side.
+  for (const e of calling) {
+    const a = byId.get(e.from)
+    const b = byId.get(e.to)
+    if (!a || !b) continue
+    const between = boxes.filter((x) => x.column === a.column && x.y > a.y && x.y < b.y)
+    if (between.length === 0) continue
+    const side = Math.max(...[a, b, ...between].map((x) => x.x + x.w)) + FAN
+    e.points = [
+      [a.x + a.w, a.y + a.h / 2],
+      [side, a.y + a.h / 2],
+      [side, b.y + b.h / 2],
+      [b.x + b.w, b.y + b.h / 2],
+    ]
+  }
+
   // Specifications, under the slice they belong to.
   const specs: Spec[] = []
   const specsTop = y + LANE_PAD
@@ -723,7 +806,7 @@ export function layout(model: ModelJson): Layout {
       const spec: Spec = {
         column: col.index,
         title,
-        x: col.x + PAD_X,
+        x: col.x + (col.w - CARD_W) / 2,
         y: sy,
         w: CARD_W,
         h: 0,
@@ -744,8 +827,10 @@ export function layout(model: ModelJson): Layout {
           const lines = parsed.lines.flatMap((l) => wrap(l, SPEC_LINE_CHARS, SPEC_INDENT))
           const { name, error } = parsed
           const h = lines.length > 0 ? SPEC_CARD_TITLE + lines.length * SPEC_LINE_H + 6 : 26
+          // A view's when is the query its screen asks.
+          const asked = word === "when" && !col.slice.command
           step.cards.push({
-            kind: error ? "error" : (kinds.get(name) ?? "command"),
+            kind: error ? "error" : asked ? "ui" : (kinds.get(name) ?? "command"),
             name,
             lines,
             x: spec.x,

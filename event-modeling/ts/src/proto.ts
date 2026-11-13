@@ -2,13 +2,13 @@
 // protobuf equivalent is an error, never a guess.
 import { z } from "zod"
 
-import type { DeclData, Fields, ModelData, ServiceData, SliceData } from "./types.ts"
+import type { Assembled, Fields, ServiceData, SliceData } from "./types.ts"
 
-export interface ProtoFile {
+/** A service's file, or what stops it: its slices' own dead ends, or a type with no protobuf equivalent. */
+export type ProtoFile = {
   /** Under the output directory, where the package puts it for buf. */
   path: string
-  source: string
-}
+} & ({ source: string } | { problems: string[] })
 
 interface Field {
   name: string
@@ -26,7 +26,7 @@ interface Message {
 
 interface Method {
   name: string
-  /** Request, then the read models it repeats, then response: print order. */
+  /** Request, then the views it repeats, then response: print order. */
   messages: Message[]
 }
 
@@ -36,17 +36,26 @@ interface JsonSchema {
   items?: JsonSchema
   properties?: Record<string, JsonSchema>
   required?: string[]
+  /** A `z.record()`'s keys and values. */
+  propertyNames?: JsonSchema
+  additionalProperties?: JsonSchema | boolean
 }
 
 const snake = (name: string) => name.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase()
 const pascal = (name: string) => name.charAt(0).toUpperCase() + name.slice(1)
 const unmappable = (where: string, why: string) =>
   new Error(
-    `${where} has no protobuf type (${why}). Use a Zod type from the README's Protobuf table.`,
+    `${where} can't become protobuf: ${why}. The README's Protobuf section lists the Zod types that can.`,
   )
 
-/** The proto type of one schema. An object becomes a message nested in `parent`. */
+/** The proto type of one schema. An object becomes a message nested in `parent`, a record a map. */
 function typeOf(schema: JsonSchema, where: string, field: string, parent: Message): string {
+  const values = schema.additionalProperties
+  if (schema.type === "object" && typeof values === "object") {
+    if (schema.propertyNames?.type !== "string")
+      throw unmappable(where, "a record not keyed by string")
+    return `map<string, ${typeOf(values, where, field, parent)}>`
+  }
   switch (schema.type) {
     case "string":
       return "string"
@@ -75,12 +84,15 @@ function message(name: string, schema: JsonSchema, where: string): Message {
     const repeated = property.type === "array"
     const leaf = repeated ? property.items : property
     if (!leaf) throw unmappable(at, "an array with no item type")
+    const type = typeOf(leaf, at, field, msg)
+    const map = type.startsWith("map<")
+    if (repeated && map) throw unmappable(at, "a list of records")
     msg.fields.push({
       name: snake(field),
-      type: typeOf(leaf, at, field, msg),
+      type,
       number: msg.fields.length + 1,
-      // proto3 has no optional repeated field.
-      label: repeated ? "repeated " : required.has(field) ? "" : "optional ",
+      // proto3 has no optional repeated field or map.
+      label: repeated ? "repeated " : required.has(field) || map ? "" : "optional ",
     })
   }
   return msg
@@ -103,34 +115,38 @@ function toMessage(name: string, fields: Fields, where = name): Message {
 
 const empty = (name: string): Message => ({ name, fields: [], nested: [] })
 
-/** A read model prints once per file, before the first response that repeats it. */
-function methodOf(slice: SliceData, printed: Set<DeclData>): Method {
-  const name = slice.service?.method ?? slice.command?.name ?? ""
-  if (slice.command) {
+/** The view a state view shows prints before the response that repeats it. */
+function methodOf(slice: SliceData): Method {
+  const command = slice.command?.decl
+  const name = slice.service?.method ?? command?.name ?? ""
+  if (command) {
     // Events are internal, so the response has nothing to carry.
-    const request = toMessage(`${name}Request`, slice.command.fields, slice.command.name)
+    const request = toMessage(`${name}Request`, command.fields, command.name)
     return { name, messages: [request, empty(`${name}Response`)] }
   }
-  const unprinted = slice.reads.filter((r) => !printed.has(r))
-  for (const r of unprinted) printed.add(r)
-  // A query that names every key column of a read model picks one row.
+  const shown = slice.view
+  // A query that names every key column of the view picks one row.
   const query = new Set(Object.keys(slice.query ?? {}))
-  const one = (r: DeclData) => r.keys.length > 0 && r.keys.every((k) => query.has(k))
+  const one = shown && shown.keys.length > 0 && shown.keys.every((k) => query.has(k))
   const response: Message = {
     name: `${name}Response`,
-    fields: slice.reads.map((r, i) => ({
-      name: snake(r.name ?? ""),
-      type: r.name ?? "",
-      number: i + 1,
-      label: one(r) ? "" : "repeated ",
-    })),
+    fields: shown
+      ? [
+          {
+            name: snake(shown.name ?? ""),
+            type: shown.name ?? "",
+            number: 1,
+            label: one ? "" : "repeated ",
+          },
+        ]
+      : [],
     nested: [],
   }
   return {
     name,
     messages: [
       toMessage(`${name}Request`, slice.query ?? {}),
-      ...unprinted.map((r) => toMessage(r.name ?? "", r.fields)),
+      ...(shown ? [toMessage(shown.name ?? "", shown.fields)] : []),
       response,
     ],
   }
@@ -147,24 +163,33 @@ function render(msg: Message, indent = ""): string {
 }
 
 /** One file per service that has a method, at the path its package implies. */
-export function generateProto(model: ModelData): ProtoFile[] {
+export function generateProto({
+  chapters,
+  unchaptered,
+  unfinished,
+}: Pick<Assembled, "chapters" | "unchaptered" | "unfinished">): ProtoFile[] {
   const byService = new Map<ServiceData, SliceData[]>()
-  for (const chapter of model.chapters) {
-    for (const slice of chapter.slices) {
-      if (!slice.service) continue
-      const service = slice.service.service
-      byService.set(service, [...(byService.get(service) ?? []), slice])
-    }
+  for (const slice of [...chapters.flatMap((c) => c.slices), ...unchaptered]) {
+    if (!slice.service) continue
+    const service = slice.service.service
+    byService.set(service, [...(byService.get(service) ?? []), slice])
   }
   return [...byService].map(([service, slices]) => {
-    const printed = new Set<DeclData>()
-    const methods = slices.map((s) => methodOf(s, printed))
+    const name = service.name ?? ""
+    const path = `${service.pkg.replaceAll(".", "/")}/${snake(name)}.proto`
+    const problems = slices.flatMap((s) => unfinished.get(s) ?? [])
+    if (problems.length > 0) return { path, problems }
+    let methods: Method[]
+    try {
+      methods = slices.map(methodOf)
+    } catch (error) {
+      return { path, problems: [error instanceof Error ? error.message : String(error)] }
+    }
     const rpcs = methods.map(
       (m) => `  rpc ${m.name}(${m.name}Request) returns (${m.name}Response);\n`,
     )
-    const name = service.name ?? ""
     return {
-      path: `${service.pkg.replaceAll(".", "/")}/${snake(name)}.proto`,
+      path,
       source: [
         'syntax = "proto3";\n',
         `package ${service.pkg};\n`,

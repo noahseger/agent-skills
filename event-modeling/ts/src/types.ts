@@ -3,9 +3,16 @@ import type { z } from "zod"
 
 export const META = Symbol.for("event-modeling")
 
+// On globalThis, like META, so a model and a CLI holding two copies of the package share it.
+const DRAFTS_KEY: unique symbol = Symbol.for("event-modeling.drafts")
+const shared = globalThis as { [DRAFTS_KEY]?: Set<SliceData> }
+shared[DRAFTS_KEY] ??= new Set()
+/** Every chain step nothing has extended yet: the slices, in or out of a chapter. */
+export const DRAFTS: Set<SliceData> = shared[DRAFTS_KEY]
+
 export type Fields = Record<string, z.ZodType>
 
-export type DeclKind = "event" | "command" | "readModel"
+export type DeclKind = "event" | "command" | "view"
 
 /** Anything named by its export binding. Assembly fills in `name`. */
 export interface Named {
@@ -16,16 +23,18 @@ export interface DeclData extends Named {
   kind: DeclKind
   /** Insertion order is the field order on the card and in the proto. */
   fields: Fields
-  /** Read models only: the columns that identify a row. */
+  /** Views only: the columns that identify a row. */
   keys: string[]
   note?: string
-  /** Set when an external system groups this event. Such an event is never emitted. */
+  /** Set when the event is a system's we do not own. */
   external?: ExternalData
 }
 
 export interface ActorData extends Named {
   kind: "actor"
   icon: "user" | "admin" | "system"
+  /** How many actors were declared before it. */
+  order: number
   note?: string
 }
 
@@ -36,48 +45,65 @@ export interface ServiceData extends Named {
   note?: string
 }
 
+export interface ScreenData extends Named {
+  kind: "screen"
+  note?: string
+}
+
 export interface StreamData extends Named {
   kind: "stream"
+  /** How many streams were declared before it. */
+  order: number
+  /** The events that joined it, in the order they did. */
   members: DeclData[]
 }
 
 export interface ExternalData extends Named {
   kind: "external"
-  events: DeclData[]
 }
 
 export interface ChapterData extends Named {
   kind: "chapter"
-  slices: SliceData[]
+  /** How many chapters were declared before it. */
+  order: number
+  note?: string
 }
 
 export interface ModelData {
   kind: "model"
   name: string
   description: string
-  chapters: ChapterData[]
 }
 
 export type Exported =
   | DeclData
   | ActorData
   | ServiceData
+  | ScreenData
   | StreamData
   | ExternalData
   | ChapterData
   | ModelData
 
 /** A named thing a module exports, other than the model, a stream or a chapter. */
-export type Declaration = DeclData | ActorData | ServiceData | ExternalData
+export type Declaration = DeclData | ActorData | ServiceData | ScreenData | ExternalData
 
-/** The named, checked model. The render target and the generators read this. */
+/** The named, checked model. The spec JSON and the generators read this. */
 export interface Assembled {
   model: ModelData
   streams: Map<string, DeclData[]>
+  /** In the order declared, each with its slices in the order written. */
+  chapters: { name: string; note?: string; slices: SliceData[] }[]
+  /** The systems we do not own, by name. Each is a lane, with or without events. */
+  externals: string[]
   /** Exported but in no slice. Only a partial assembly keeps them; otherwise one is an error. */
   loose: Declaration[]
+  /** Slices in no chapter, likewise. */
+  unchaptered: SliceData[]
   /** The dead ends a partial assembly went on past. Empty otherwise. */
   warnings: Warning[]
+  /** Each slice's own dead ends: what checking it alone finds, not what connects it to others. */
+  unfinished: Map<SliceData, string[]>
 }
 
 /** A dead end, with the element and slice the viewer marks. */
@@ -85,15 +111,39 @@ export interface Warning {
   message: string
   element: string
   slice?: string
+  /** The fields of `element` that have no value, when that is the dead end. */
+  fields?: string[]
 }
 
-/** Where a mapping function got one target field from. */
-export type Source = { from: string } | { count: true } | { value: unknown }
+/**
+ * Where a mapping function got one target field from. A generated value lists what it is made
+ * from: source fields by name, the source and views by declaration, or, from JSON, by name.
+ * `built` marks one the mapping computed instead, which is left to do.
+ */
+export type Source =
+  | { from: string }
+  | { generate: (string | DeclData)[]; built?: true }
+  | { value: unknown }
 
-/** An event wired into a slice; `mapping` lists only fields not copied by name. */
+/** What a generated value is made from, by name. */
+export const inputNames = (s: { generate: (string | DeclData)[] }): string[] =>
+  s.generate.map((i) => (typeof i === "string" ? i : (i.name ?? "")))
+
+/** A declaration a slice uses; `mapping` lists only fields not copied by name. */
 export interface Flow {
-  event: DeclData
+  decl: DeclData
   mapping: Record<string, Source>
+  /** The declarations whose `.fields` the mapping reads. */
+  reads?: DeclData[]
+}
+
+/** A function that fills a declaration's fields; run once on probe values. */
+export type MapFn = (source: never) => object
+
+/** A declaration called with a function, before a slice knows its source. */
+export interface MappedData {
+  decl: DeclData
+  map: MapFn
 }
 
 export interface ExampleData {
@@ -111,22 +161,76 @@ export interface TestData {
   name: string
   given: ExampleData[]
   when?: ExampleData
+  /** A state view's `when`: the values its query is asked with. */
+  query?: Record<string, unknown>
   then: ClauseData[]
+  /** What Zod refused in an example or the query, with where in it. */
+  invalid?: { decl: DeclData; message: string }[]
 }
 
 export interface SliceData {
-  /** Given to `m.slice()`, or derived from the command or read model at assembly. */
+  /** Given to `m.slice()`, or derived from the command or view at assembly. */
   name?: string
   note?: string
-  actor?: ActorData
-  query?: Fields
-  reads: DeclData[]
+  /** Who issues the command or sees the view; each has a screen. */
+  actors: ActorData[]
+  /** Where the actors see it. */
+  screen?: ScreenData
+  /** The machine of ours that runs an automation, or a state view no one sees. */
+  system?: ActorData
   service?: { service: ServiceData; method?: string }
-  command?: DeclData
-  emits: Flow[]
-  /** The automation's trigger, or the events a projection writes from. */
-  on: Flow[]
+  /** A state view's request fields. */
+  query?: Fields
+  /** What starts an automation: an event, or a view it polls for work. */
+  trigger?: DeclData
   polls?: DeclData
-  projects?: DeclData
+  /** The view a state view slice builds from `events` and shows. */
+  view?: DeclData
+  /** In an automation, mapped from the trigger event or the polled row. */
+  command?: Flow
+  /** What the command's handler reads. */
+  reads: DeclData[]
+  /** What the command records; in a state view, what builds the view. */
+  events: Flow[]
   tests: TestData[]
+  /** The chapters it joined; assembly allows one. */
+  chapters: ChapterData[]
+}
+
+/** The events a slice records. A state view records none. */
+export function recorded(slice: SliceData): DeclData[] {
+  return slice.view ? [] : slice.events.map((f) => f.decl)
+}
+
+/** What the slice's calls bring back: the external events it records, which its events of ours can keep. */
+export function replies(slice: SliceData): DeclData[] {
+  return recorded(slice).filter((d) => d.external)
+}
+
+/**
+ * The source fields a flow takes, by name, by a mapping or as what a generated value is made
+ * from, and the declarations a value is generated from whole.
+ */
+export function taken({ decl, mapping }: Flow): (string | DeclData)[] {
+  return [
+    ...Object.keys(decl.fields).filter((f) => !(f in mapping)),
+    ...Object.values(mapping).flatMap((s) =>
+      "from" in s ? [s.from] : "generate" in s ? s.generate : [],
+    ),
+  ]
+}
+
+/** The events a slice reacts to: its trigger, or what builds its view. */
+export function heard(slice: SliceData): DeclData[] {
+  if (slice.view) return slice.events.map((f) => f.decl)
+  return slice.trigger ? [slice.trigger] : []
+}
+
+/** `ListCreated` -> `list-created`: an id. */
+export function slug(name: string): string {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
 }

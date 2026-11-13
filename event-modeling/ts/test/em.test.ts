@@ -7,10 +7,12 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  renameSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs"
+import { createServer } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
@@ -28,7 +30,7 @@ function em(...args: string[]) {
   })
 }
 
-test("json prints the assembled model", () => {
+test("json prints the model as spec JSON", () => {
   const run = em("json", EXAMPLE)
   assert.equal(run.status, 0, run.stderr)
   assert.deepEqual(
@@ -51,17 +53,6 @@ test("proto writes the generated files under -o", () => {
   }
 })
 
-test("render writes an SVG through event_model.py", () => {
-  const out = mkdtempSync(join(tmpdir(), "em-"))
-  try {
-    const run = em("render", EXAMPLE, "-o", join(out, "model.svg"))
-    assert.equal(run.status, 0, run.stderr)
-    assert.match(readFileSync(join(out, "model.svg"), "utf8"), /^<svg /)
-  } finally {
-    rmSync(out, { recursive: true, force: true })
-  }
-})
-
 test("init scaffolds a model that assembles, and refuses to overwrite it", () => {
   // Inside the package, so the scaffold's import of the package name resolves.
   const dir = mkdtempSync(here("../tmp-init-"))
@@ -75,10 +66,10 @@ test("init scaffolds a model that assembles, and refuses to overwrite it", () =>
     symlinkSync(here(".."), join(dir, "node_modules", "@noahseger", "event-modeling"))
     for (const f of ["index.ts", "tsconfig.json", "package.json"])
       assert.ok(existsSync(join(dir, f)), f)
-    assert.deepEqual(JSON.parse(em("json", dir).stdout).chapters, [])
+    assert.deepEqual(JSON.parse(em("json", dir).stdout), { slices: [] })
     const again = em("init", dir)
     assert.equal(again.status, 1)
-    assert.match(again.stderr, /already exists\. Run init in a new directory\./)
+    assert.match(again.stderr, /already exists, so init stopped\. Run it in an empty directory\./)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -89,44 +80,152 @@ test("an assembly error is one line and exit 1", () => {
   assert.equal(run.status, 1)
   assert.equal(
     run.stderr.trim(),
-    "slice #1 in 'Ch' uses an event that no module exports. Export it.",
+    "Ch › slice 1: this slice uses an event that isn't exported. Export it to give it a name.",
   )
 })
 
 test("a missing argument prints usage and exits 2", () => {
-  const run = em("render", EXAMPLE)
+  const run = em("proto", EXAMPLE)
   assert.equal(run.status, 2)
   assert.match(run.stderr, /^usage:/)
 })
 
-test("view serves the app, the model, and a change feed", async () => {
+test("--help prints the usage", () => {
+  const run = em("--help")
+  assert.equal(run.status, 0, run.stderr)
+  assert.match(run.stdout, /^usage:/)
+})
+
+test("proto with no service says so and exits 1", () => {
+  const dir = mkdtempSync(here("../tmp-proto-"))
+  try {
+    writeFileSync(
+      join(dir, "index.ts"),
+      `import { z } from "zod"
+import { m } from "#em"
+
+export const Start = m.command({ id: z.string() })
+export const Started = m.event({ id: z.string() })
+export const Table = m.view({ id: z.string() }).key("id")
+export const User = m.actor()
+export const Ch = m.chapter()
+m.slice().command(Start, Started).chapter(Ch).test("starts", { when: Start({ id: "1" }), then: [Started({ id: "1" })] })
+m.slice().view(Table, Started).chapter(Ch).actor(User).test("the row shows", { given: Started({ id: "1" }), then: Table({ id: "1" }) })
+export default m.model("x")
+`,
+    )
+    const run = em("proto", dir, "-o", join(dir, "out"))
+    assert.equal(run.status, 1)
+    assert.match(
+      run.stderr,
+      /^No slice has a service, so no \.proto was written\. Add \.service\(Api\)/,
+    )
+    assert.ok(!existsSync(join(dir, "out")))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+/** A finished Api service; the view has no specification and Loose is in no slice. */
+const API_DONE = `import { z } from "zod"
+import { m } from "#em"
+
+export const Api = m.service("api.v1")
+export const Start = m.command({ id: z.string() })
+export const Started = m.event({ id: z.string() })
+export const Table = m.view({ id: z.string() }).key("id")
+export const Loose = m.event({ id: z.string() })
+export const Ch = m.chapter()
+m.slice().command(Start, Started).service(Api).chapter(Ch).test("starts", { when: Start({ id: "1" }), then: [Started({ id: "1" })] })
+m.slice().view(Table, Started).chapter(Ch)
+export default m.model("x")
+`
+
+/** \`em proto\` on a model directory holding \`source\`; returns the run and the files under -o. */
+function protoOf(source: string) {
+  const dir = mkdtempSync(here("../tmp-proto-"))
+  try {
+    writeFileSync(join(dir, "index.ts"), source)
+    const run = em("proto", dir, "-o", join(dir, "out"))
+    const read = (path: string) =>
+      existsSync(join(dir, "out", path)) ? readFileSync(join(dir, "out", path), "utf8") : undefined
+    return { run, api: read("api/v1/api.proto"), board: read("board/v1/board.proto") }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+test("proto writes a finished service whatever is left to do elsewhere", () => {
+  const { run, api } = protoOf(API_DONE)
+  assert.equal(run.status, 0, run.stderr)
+  assert.match(api ?? "", /rpc Start\(StartRequest\) returns \(StartResponse\);/)
+})
+
+test("proto skips a service with an unfinished slice, says why, and exits 1", () => {
+  const { run, api, board } = protoOf(
+    `${API_DONE}export const Board = m.service("board.v1")
+export const Listing = m.view({ id: z.string() }).key("id")
+m.slice().view(Listing, Started).service(Board, "List").chapter(Ch)
+`,
+  )
+  assert.equal(run.status, 1)
+  assert.ok(api)
+  assert.equal(board, undefined)
+  assert.match(
+    run.stderr,
+    /Skipped .*board\/v1\/board\.proto\. Its service has left to do:\nCh › Listing: no specification shows this view yet\./,
+  )
+})
+
+/** `em view`, by default on a free port; resolves once it prints its URL. */
+async function view(path: string, port = ["--port", "0"]) {
   const server = spawn(process.execPath, [
     ...NODE_FLAGS,
     here("../bin/em.ts"),
     "view",
-    EXAMPLE,
-    "--port",
-    "0",
+    path,
+    ...port,
     "--no-open",
   ])
-  try {
-    const url = await new Promise<string>((resolve, reject) => {
-      let out = ""
-      server.stdout.on("data", (chunk: Buffer) => {
-        out += chunk.toString()
-        const match = out.match(/at (http:\/\/localhost:\d+)/)
-        if (match?.[1]) resolve(match[1])
-      })
-      server.stderr.on("data", (chunk: Buffer) => reject(new Error(chunk.toString())))
-      server.on("exit", (code) => reject(new Error(`exited ${code}: ${out}`)))
+  let out = ""
+  const url = await new Promise<string>((resolve, reject) => {
+    server.stdout.on("data", (chunk: Buffer) => {
+      out += chunk.toString()
+      const match = out.match(/at (http:\/\/localhost:\d+)/)
+      if (match?.[1]) resolve(match[1])
     })
+    server.stderr.on("data", (chunk: Buffer) => reject(new Error(chunk.toString())))
+    server.on("exit", (code) => reject(new Error(`exited ${code}: ${out}`)))
+  })
+  return { url, log: () => out, close: () => server.kill() }
+}
+
+/** Runs `act`, then waits for the server to say it reloaded. */
+async function reloaded(url: string, act: () => void) {
+  const reader = (await fetch(`${url}/events`)).body?.getReader()
+  act()
+  let seen = ""
+  while (!seen.includes("data: changed")) {
+    const chunk = await reader?.read()
+    if (!chunk || chunk.done) break
+    seen += new TextDecoder().decode(chunk.value)
+  }
+  await reader?.cancel()
+}
+
+test("view serves the app, the model, and a change feed", async () => {
+  const server = await view(EXAMPLE)
+  try {
+    const { url } = server
     const page = await fetch(`${url}/`)
     assert.equal(page.status, 200)
     assert.match(await page.text(), /<div id="app">/)
 
     const model = await fetch(`${url}/model.json`)
     assert.equal(model.status, 200)
-    assert.deepEqual(await model.json(), JSON.parse(readFileSync(here("./todo-app.json"), "utf8")))
+    const served = (await model.json()) as { name: string; model: unknown }
+    assert.equal(served.name, "Todo List Application")
+    assert.deepEqual(served.model, JSON.parse(readFileSync(here("./todo-app.json"), "utf8")))
 
     const feed = await fetch(`${url}/events`)
     assert.equal(feed.headers.get("content-type"), "text/event-stream")
@@ -134,7 +233,206 @@ test("view serves the app, the model, and a change feed", async () => {
 
     assert.equal((await fetch(`${url}/../package.json`)).status, 404)
   } finally {
-    server.kill()
+    server.close()
+  }
+})
+
+test("view takes a free port when 5311 is taken, and refuses a taken --port", async () => {
+  // Another `em view` may hold 5311 already; either way it is taken.
+  const other = createServer()
+  await new Promise<void>((resolve) =>
+    other.once("error", () => resolve()).listen(5311, "127.0.0.1", resolve),
+  )
+  try {
+    const server = await view(EXAMPLE, [])
+    server.close()
+    assert.doesNotMatch(server.url, /:5311$/)
+
+    const run = em("view", EXAMPLE, "--port", "5311", "--no-open")
+    assert.equal(run.status, 1)
+    assert.equal(run.stderr, "Port 5311 is in use.\n")
+  } finally {
+    other.close()
+  }
+})
+
+test("view lists a compiler error with what assembly found, until a save fixes it", async () => {
+  const dir = mkdtempSync(here("../tmp-check-"))
+  const file = join(dir, "index.ts")
+  const model = (emits: string) => `import { z } from "zod"
+import { m } from "#em"
+
+export const Games = m.stream()
+export const User = m.actor()
+export const Chess = m.service("chess.v1")
+export const StartGame = m.command({ gameId: z.string() })
+export const GameStarted = m.event({ gameId: z.string(), white: z.string(), black: z.string() }).stream(Games)
+export const Play = m.chapter()
+m.slice().command(StartGame, ${emits}).actor(User).service(Chess).chapter(Play)
+export default m.model("Chess")
+`
+  const error = "index.ts:10  GameStarted: add black, white to the command or set it in the mapping"
+  const warnings = async (url: string) =>
+    (
+      (await (await fetch(`${url}/model.json`)).json()) as { warnings?: { message: string }[] }
+    ).warnings?.map((w) => w.message) ?? []
+  writeFileSync(file, model("GameStarted"))
+  const server = await view(dir)
+  try {
+    assert.ok(server.log().includes(`\n  ${error}\n`), server.log())
+    assert.ok((await warnings(server.url)).includes(error))
+
+    // Saved the way many editors save: a hidden temporary file renamed over the model.
+    await reloaded(server.url, () => {
+      writeFileSync(
+        join(dir, ".!1!index.ts"),
+        model('GameStarted(() => ({ white: z.literal("me"), black: z.literal("you") }))'),
+      )
+      renameSync(join(dir, ".!1!index.ts"), file)
+    })
+    assert.ok(!(await warnings(server.url)).includes(error))
+    const saved = server.log().slice(server.log().indexOf("Saved"))
+    assert.ok(saved.startsWith("Saved index.ts ") && !saved.includes(error), server.log())
+
+    await reloaded(server.url, () => writeFileSync(join(dir, "extra.ts"), "export {}\n"))
+    await reloaded(server.url, () => rmSync(join(dir, "extra.ts")))
+    assert.match(server.log(), /\d Deleted extra\.ts \(/)
+  } finally {
+    server.close()
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test("view pairs each compiler error with what assembly found about the same event's fields", async () => {
+  const dir = mkdtempSync(here("../tmp-pair-"))
+  writeFileSync(
+    join(dir, "index.ts"),
+    `import { z } from "zod"
+import { m } from "#em"
+
+export const User = m.actor()
+export const Chess = m.service("chess.v1")
+export const StartGame = m.command({ gameId: z.string() })
+export const GameStarted = m.event({ gameId: z.string(), white: z.string() })
+export const Begin = m.command({ gameId: z.string() })
+export const Started = m.event({ gameId: z.string(), white: z.string() })
+export const Play = m.chapter()
+m.slice().command(StartGame, GameStarted).actor(User).service(Chess).chapter(Play)
+m.slice().command(Begin, Started).actor(User).service(Chess).chapter(Play)
+export default m.model("Chess")
+`,
+  )
+  const server = await view(dir)
+  try {
+    const { warnings = [] } = (await (await fetch(`${server.url}/model.json`)).json()) as {
+      warnings?: { message: string; element: string; slice?: string }[]
+    }
+    assert.deepEqual(
+      warnings
+        .filter((w) => w.message.includes("white"))
+        .map((w) => [w.message, w.element, w.slice]),
+      [
+        [
+          "index.ts:11  GameStarted: add white to the command or set it in the mapping",
+          "GameStarted",
+          "StartGame",
+        ],
+        [
+          "index.ts:12  Started: add white to the command or set it in the mapping",
+          "Started",
+          "Begin",
+        ],
+      ],
+    )
+  } finally {
+    server.close()
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test("view lists a mapping's source field that does not fit its target, mapped or by name", async () => {
+  const dir = mkdtempSync(here("../tmp-fit-"))
+  writeFileSync(
+    join(dir, "index.ts"),
+    `import { z } from "zod"
+import { m } from "#em"
+
+export const Notes = m.stream()
+export const Capture = m.chapter()
+export const NoteCaptured = m.event({ noteId: z.uuid(), text: z.string() }).stream(Notes)
+export const CaptureNote = m.command({ text: z.string() })
+m.slice().command(CaptureNote, NoteCaptured((c) => ({ noteId: c.text }))).chapter(Capture)
+export const NoteTaken = m.event({ noteId: z.uuid(), text: z.string() }).stream(Notes)
+export const TakeNote = m.command({ noteId: z.string(), text: z.string() })
+m.slice().command(TakeNote, NoteTaken).chapter(Capture)
+export default m.model("Notes")
+`,
+  )
+  const server = await view(dir)
+  try {
+    const { warnings = [] } = (await (await fetch(`${server.url}/model.json`)).json()) as {
+      warnings?: { message: string }[]
+    }
+    assert.deepEqual(
+      warnings.filter((w) => w.message.startsWith("index.ts:")).map((w) => w.message),
+      [
+        "index.ts:8  noteId does not fit: set it to a source field of its type, a z.literal() or m.generate()",
+        "index.ts:11  NoteTaken: the command's noteId does not fit: set it in the mapping",
+      ],
+    )
+  } finally {
+    server.close()
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test("a model that doesn't load shows the compiler's errors, not the JavaScript one", async () => {
+  const dir = mkdtempSync(here("../tmp-load-"))
+  writeFileSync(
+    join(dir, "index.ts"),
+    `import { z } from "zod"
+import { m } from "#em"
+
+m.slice().command(Retry, Retried).chapter(Ch)
+m.slice().command(Retry, Retried).chapter(Later)
+export const Received = m.event({ id: z.string() }).stream("Inbox")
+export const Sync = m.command({ id: z.string() })
+export const Synced = m.event({ id: z.string() })
+export const Failed = m.event({ id: z.string() })
+export const Ch = m.chapter()
+m.slice().command(Sync, Synced, Failed).chapter(Ch)
+m.slice().command(Sync)
+export const Retry = m.command({ id: z.string() })
+export const Retried = m.event({ id: z.string() })
+export const Later = m.chapter()
+Synced((e) => ({ id: m.generate(e.id) }))
+export const Pending = m.view({ id: z.string() })
+m.slice().view(Pending)
+m.slice().automation(Synced)
+m.slice().automation(Pending, Sync)
+export default m.model("x")
+`,
+  )
+  const server = await view(dir)
+  try {
+    const log = server.log()
+    const shown = log.slice(log.indexOf("The model didn't load:\n") + 23, log.indexOf("Showing"))
+    assert.equal(
+      shown,
+      [
+        "  index.ts: declare Retry, Retried, Ch, Later above where they are used.",
+        "  index.ts:6  Argument of type 'string' is not assignable to parameter of type 'Stream'.",
+        "  index.ts:12  Sync: this slice has no event yet. Add it to the slice's first call.",
+        "  index.ts:16  a mapper only works inside a slice's first call",
+        "  index.ts:18  Pending: this slice has no event yet. Add it to the slice's first call.",
+        "  index.ts:19  Synced: this slice has no command yet. Add it to the slice's first call.",
+        "  index.ts:20  Sync: this slice has no event yet. Add it to the slice's first call.",
+        "",
+      ].join("\n"),
+    )
+  } finally {
+    server.close()
+    rmSync(dir, { recursive: true, force: true })
   }
 })
 
@@ -159,23 +457,23 @@ test("json refuses a storm of events; --partial prints it with what is still to 
   const storm = here("./fixtures/storm")
   const strict = em("json", storm)
   assert.equal(strict.status, 1)
-  assert.match(strict.stderr, /GameStarted is in no slice yet\./)
+  assert.match(strict.stderr, /GameStarted isn't in a slice yet\./)
   const partial = em("json", "--partial", storm)
   assert.equal(partial.status, 0, partial.stderr)
   const json = JSON.parse(partial.stdout) as {
-    loose: { element: string }[]
+    loose: { title: string }[]
     warnings: { message: string }[]
   }
   assert.deepEqual(
-    json.loose.map((l) => l.element),
-    ["GameStarted(gameId)", "MoveMade(gameId, san)", "GameEnded(gameId, result)"],
+    json.loose.map((l) => l.title),
+    ["GameStarted", "MoveMade", "GameEnded"],
   )
   assert.deepEqual(
     json.warnings.map((w) => w.message),
     [
-      "GameStarted is in no slice yet.",
-      "MoveMade is in no slice yet.",
-      "GameEnded is in no slice yet.",
+      "GameStarted isn't in a slice yet.",
+      "MoveMade isn't in a slice yet.",
+      "GameEnded isn't in a slice yet.",
     ],
   )
 })
@@ -191,6 +489,47 @@ test("a directory's dependencies, hidden files and .d.ts files are not the model
     writeFileSync(join(dir, "types.d.ts"), "export declare const x: string")
     const run = em("json", "--partial", dir)
     assert.equal(run.status, 0, run.stderr)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test("view and export draw a spec JSON file, and list where it breaks the schema", async () => {
+  const dir = mkdtempSync(here("../tmp-spec-"))
+  const file = join(dir, "shop.json")
+  try {
+    const json = JSON.parse(readFileSync(here("./todo-app.json"), "utf8"))
+    writeFileSync(file, JSON.stringify(json))
+    const server = await view(file)
+    try {
+      const fetched = async () =>
+        (await (await fetch(`${server.url}/model.json`)).json()) as {
+          name: string
+          model: unknown
+          warnings: { message: string }[]
+        }
+      const valid = await fetched()
+      assert.deepEqual([valid.name, valid.model, valid.warnings], ["shop", json, []])
+      await reloaded(server.url, () => {
+        json.slices[0].sliceType = "VIEW"
+        writeFileSync(file, JSON.stringify(json))
+      })
+      const broken = await fetched()
+      assert.deepEqual(
+        broken.warnings.map((w) => w.message),
+        [
+          "shop.json/slices/0/sliceType must be equal to one of the allowed values STATE_CHANGE, STATE_VIEW, AUTOMATION, TRANSLATION",
+        ],
+      )
+      assert.match(server.log(), /1 thing left to do:\n {2}shop\.json\/slices\/0\/sliceType/)
+    } finally {
+      server.close()
+    }
+    const run = em("export", file, "-o", join(dir, "shop.html"))
+    assert.equal(run.status, 0, run.stderr)
+    const html = readFileSync(join(dir, "shop.html"), "utf8")
+    assert.match(html, /<title>shop<\/title>/)
+    assert.match(html, /shop\.json\/slices\/0\/sliceType must be equal/)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
