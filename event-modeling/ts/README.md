@@ -549,6 +549,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | Two modules exporting one name, such as `ListCreated` | Each module is compiled on its own. |
 | A column no event of the view's `m.slice().view()` calls writes | The calls can be in several modules. |
 | An optional field no slice fills | Same. |
+| A command field no event of its slice records: none carries it by name, maps it or generates from it | Each event's mapping is checked on its own, not against the slice's other events. |
 | A state view's event that lacks one of the view's key columns | Declarations are anonymous, so two events with the same fields are one type. |
 | An event nothing consumes: no `.automation()`, no state view, no `given`; for an external event no slice produces, no `.translation()` | Same. |
 | An event no slice records; a view nothing reads or builds | Same. |

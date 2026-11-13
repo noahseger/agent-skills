@@ -337,10 +337,38 @@ test("a view a value is generated from, which the slice does not read", () => {
   )
 })
 
+test("a command field no event records is left to do, and an error when strict; generating from it records it", () => {
+  const f = fixture()
+  const Created = m.event({ id: z.string(), slug: z.string() })
+  const model = (recorded: boolean) => {
+    const slice = m
+      .slice()
+      .command(
+        f.Create,
+        Created((c) => ({ slug: recorded ? m.generate(c.name) : m.generate() })),
+      )
+      .test("Create", { when: f.Create(list), then: Created({ id: "list-1", slug: "groceries" }) })
+    return { ...f, Created, ...chapters({ Ch: [slice] }), default: m.model("x") }
+  }
+  const message =
+    "Ch › Create: Create.name reaches no event. Record it in Created, or remove it from Create."
+  const json = feedOf([model(false)], { partial: true })
+  assert.ok(json.warnings?.some((w) => w.message === message))
+  assert.throws(() => feedOf([model(false)]), { message: new RegExp(message) })
+  const fixed = feedOf([model(true)], { partial: true })
+  assert.ok(!fixed.warnings?.some((w) => w.message.includes("reaches no event")))
+})
+
 test("a mapping recognises a source field, a z.literal() and m.generate(); a schema it computes is left to do", () => {
   const f = fixture()
-  const Create = m.command({ id: z.string(), name: z.string(), n: z.number() })
-  const Created = m.event({ id: z.string(), name: z.string(), label: z.string(), size: z.number() })
+  const Create = m.command({ id: z.string(), name: z.string() })
+  const Created = m.event({
+    id: z.string(),
+    name: z.string(),
+    alias: z.string(),
+    label: z.string(),
+    size: z.number(),
+  })
   const exports = { ...f, Create, Created }
   // An assembly takes the slices written since the last, so each is written afresh.
   const modules = () => {
@@ -348,11 +376,11 @@ test("a mapping recognises a source field, a z.literal() and m.generate(); a sch
       .slice()
       .command(
         Create,
-        Created((c) => ({ name: c.id, label: c.name.toUpperCase(), size: z.literal(2) })),
+        Created((c) => ({ alias: c.id, label: c.name.toUpperCase(), size: z.literal(2) })),
       )
       .test("Create", {
-        when: Create({ ...list, n: 1 }),
-        then: Created({ ...list, name: "list-1", label: "x", size: 2 }),
+        when: Create(list),
+        then: Created({ ...list, alias: "list-1", label: "x", size: 2 }),
       })
     const story = chapters({ Ch: [slice, view(exports)] })
     return [{ ...exports, ...story, default: m.model("x") }]
@@ -365,7 +393,7 @@ test("a mapping recognises a source field, a z.literal() and m.generate(); a sch
     [label],
   )
   assert.deepEqual(drawn(partial).chapters[0]?.slices[0]?.mapping, {
-    Created: { name: { from: "id" }, label: { generate: [] }, size: { value: 2 } },
+    Created: { alias: { from: "id" }, label: { generate: [] }, size: { value: 2 } },
   })
   assert.throws(() => feedOf(modules()), { message: label })
   // Two fields that share a schema are told apart.
@@ -382,7 +410,7 @@ test("a mapping recognises a source field, a z.literal() and m.generate(); a sch
     () =>
       m.slice().command(
         f.Create,
-        Created(() => ({ label: m.generate("x"), size: z.literal(0) })),
+        Created(() => ({ alias: m.generate(), label: m.generate("x"), size: z.literal(0) })),
       ),
     /m\.generate\(\) takes the source, its fields and views, such as m\.generate\(e\.pageId, Pages\), not x\./,
   )
@@ -939,7 +967,7 @@ test("an automation's trigger no specification's given has is left to do, and an
 test("an automation's mapping fills its command from the trigger", () => {
   const f = fixture()
   const Process = m.command({ id: z.string(), label: z.string() })
-  const Processed = m.event({ id: z.string() })
+  const Processed = m.event({ id: z.string(), label: z.string().optional() })
   const processor = m
     .slice("Processor")
     .automation(
@@ -963,7 +991,7 @@ test("an automation's mapping fills its command from the trigger", () => {
 test("a generated value in an automation's command is left to do, and an error when strict", () => {
   const f = fixture()
   const Process = m.command({ id: z.string(), label: z.string() })
-  const Processed = m.event({ id: z.string() })
+  const Processed = m.event({ id: z.string(), label: z.string().optional() })
   const model = () => {
     const processor = m
       .slice("Processor")
@@ -1129,7 +1157,7 @@ test("a .automation() automation polls the view", () => {
 test("a polled command's when matches the row given builds", () => {
   const f = fixture()
   const Process = m.command({ id: z.string(), label: z.string() })
-  const Processed = m.event({ id: z.string() })
+  const Processed = m.event({ id: z.string(), label: z.string().optional() })
   const processor = (label: string) =>
     m
       .slice("Processor")

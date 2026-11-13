@@ -372,6 +372,7 @@ function check(
   for (const at of located) {
     const own: Fail = (warning) => fail(warning, at.slice)
     checkFilled(at, own)
+    checkRecorded(at, own)
     checkKeys(at, own)
     checkStored(at, own)
     checkCovered(at, own)
@@ -580,6 +581,35 @@ function checkFilled({ slice, where }: Located, fail: Fail): void {
       slice.events.flatMap((flow) => filled(flow, flow.decl)),
       (f) => `Add .event() for an event that carries ${f}, or set it in a mapping.`,
     )
+}
+
+/**
+ * A command field no event records is information the system takes in and loses. It reaches an
+ * event by name, by a mapping or as what a generated value is made from; generating from the whole
+ * command uses every field.
+ */
+function checkRecorded({ slice, where }: Located, fail: Fail): void {
+  const { command, events } = slice
+  if (!command || events.length === 0) return
+  const all = Object.keys(command.decl.fields)
+  const recorded = events.flatMap(({ decl, mapping }) => [
+    ...Object.keys(decl.fields).filter((f) => !(f in mapping)),
+    ...Object.values(mapping).flatMap((s) =>
+      "from" in s
+        ? [s.from]
+        : "generate" in s
+          ? s.generate.flatMap((i) => (typeof i === "string" ? [i] : i === command.decl ? all : []))
+          : [],
+    ),
+  ])
+  const name = command.decl.name
+  for (const field of all.filter((f) => !recorded.includes(f)))
+    fail({
+      message: `${where}: ${name}.${field} reaches no event. Record it in ${events.map((e) => e.decl.name).join(" or ")}, or remove it from ${name}.`,
+      element: name ?? "",
+      slice: slice.name ?? "",
+      fields: [field],
+    })
 }
 
 /**
