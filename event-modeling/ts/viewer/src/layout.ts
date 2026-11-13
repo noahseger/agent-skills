@@ -685,28 +685,30 @@ export function layout(model: Board): Layout {
   let y = HEADER_H + NAME_H
   const nameY = HEADER_H
   const actors = new Map(model.actors.map((a) => [a.id, a]))
-  // Every actor gets a lane, used or not.
-  for (const id of [
-    ...model.actors.map((a) => a.id),
-    ...actorIds.filter((id) => !actors.has(id)),
-  ]) {
-    const slot = `actor:${id}`
-    const h = slotHeight(slot) + 2 * LANE_PAD
-    const actor = actors.get(id)
-    const label = id === "system" ? "Automations" : words(actor?.name ?? id)
-    const sub =
-      id === "system" || actor?.type === "system"
-        ? "System"
-        : actor?.type === "admin"
-          ? "Admin"
-          : actor?.type === "external"
-            ? "System"
-            : "Actor"
-    rows.push({ id: slot, label, sub, kind: "actor", y, h })
-    const top = y + LANE_PAD
-    place(slot, top)
-    y += h
+  // Every actor gets a lane, used or not; an outside system's goes beneath our streams.
+  const ids = [...model.actors.map((a) => a.id), ...actorIds.filter((id) => !actors.has(id))]
+  const outside = (id: string) => actors.get(id)?.type === "external"
+  const lanes = (ids: string[]) => {
+    for (const id of ids) {
+      const slot = `actor:${id}`
+      const h = slotHeight(slot) + 2 * LANE_PAD
+      const actor = actors.get(id)
+      const label = id === "system" ? "Automations" : words(actor?.name ?? id)
+      const sub =
+        id === "system" || actor?.type === "system"
+          ? "System"
+          : actor?.type === "admin"
+            ? "Admin"
+            : actor?.type === "external"
+              ? "System"
+              : "Actor"
+      rows.push({ id: slot, label, sub, kind: "actor", y, h })
+      const top = y + LANE_PAD
+      place(slot, top)
+      y += h
+    }
   }
+  lanes(ids.filter((id) => !outside(id)))
 
   const topH = slotHeight("middle:top")
   const bottomH = slotHeight("middle:bottom")
@@ -729,6 +731,7 @@ export function layout(model: Board): Layout {
     place(slot, top)
     y += h
   }
+  lanes(ids.filter(outside))
 
   // Edges that cross columns each get their own line, and fan out where they
   // share an end, so each one can be followed.
@@ -747,7 +750,7 @@ export function layout(model: Board): Layout {
     if (!a || !b) return
     const via = channelTop + CHANNEL_PAD + i * CHANNEL_STEP
     const sx = a.x + a.w / 2 + fanFrom(e)
-    const sy = a.kind === "event" ? a.y : a.y + a.h
+    const sy = a.kind === "event" || a.kind === "external" ? a.y : a.y + a.h
     if (b.kind !== "readModel") {
       const margin = (columns[b.column]?.x ?? 0) + 10 - fanTo(e) - FAN
       const my = b.y + b.h / 2 + fanTo(e) + FAN

@@ -202,10 +202,10 @@ test("lanes say what they are, and the system lane is the automations", () => {
   assert.deepEqual(labels, [
     "User (Actor)",
     "Automations (System)",
-    "Calendar (System)",
     // From the JSON alone, lanes come in the order the slices first name them.
     "Lists (Stream)",
     "Items (Stream)",
+    "Calendar (System)",
   ])
 })
 
@@ -386,6 +386,11 @@ test("a call's external event is drawn in the system's lane, and a later trigger
   assert.ok(!first.compact)
   const lane = called.rows.find((r) => first.y >= r.y && first.y + first.h <= r.y + r.h)
   assert.equal(lane?.id, "actor:remote")
+  assert.deepEqual(
+    called.rows.map((r) => r.id),
+    ["actor:user", "actor:system", "middle", "stream:events", "actor:remote"],
+    "an outside system's lane is beneath our streams",
+  )
   assert.ok(called.edges.some((e) => e.from === command.id && e.to === first.id))
   assert.deepEqual(later, [])
   assert.ok(called.edges.some((e) => e.from === first.id && e.to === gear.id))

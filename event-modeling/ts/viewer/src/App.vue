@@ -44,6 +44,7 @@ const LEGEND: [string, string][] = [
   ["ui", "screen"],
   ["command", "command"],
   ["event", "event"],
+  ["external", "external event"],
   ["readModel", "view"],
   ["automation", "automation"],
 ]
