@@ -526,6 +526,7 @@ export function layout(model: Board): Layout {
   const targets = new Map<number, Placed>()
   const consumers = new Map<number, { command?: Placed; gear?: Placed }>()
   const readLinks: { name: string; column: number; polls: boolean }[] = []
+  const calling: Edge[] = []
 
   for (const col of columns) {
     const s = col.slice
@@ -617,7 +618,9 @@ export function layout(model: Board): Layout {
     }
     if (!command) for (const ui of uis) for (const rm of readModels) edge(rm, ui)
     if (gear && command) edge(gear, command)
-    if (command) for (const ev of [...events, ...calls]) edge(command, ev)
+    if (command) for (const ev of events) edge(command, ev)
+    if (command)
+      for (const call of calls) calling.push({ from: command.id, to: call.id, dashed: false })
     for (const c of s.calls ?? [])
       for (const reply of calls.filter((b) => b.name === parse(c.event).name))
         for (const ev of events.filter((e) => c.kept?.includes(e.name))) edge(reply, ev)
@@ -663,7 +666,7 @@ export function layout(model: Board): Layout {
       if (source) crossing.push({ from: source.id, to: target.id, dashed: false })
     }
   }
-  edges.push(...crossing)
+  edges.push(...crossing, ...calling)
 
   const tierHeight = (tier: Placed[]) => Math.max(0, ...tier.map((b) => b.h))
   const stackHeight = (stack: Placed[][]) =>
@@ -774,6 +777,23 @@ export function layout(model: Board): Layout {
       ]
     }
   })
+
+  // A call's arrow goes down the side of the events of ours between the command and its outside
+  // event, which it would otherwise run behind, and enters the outside event from that side.
+  for (const e of calling) {
+    const a = byId.get(e.from)
+    const b = byId.get(e.to)
+    if (!a || !b) continue
+    const between = boxes.filter((x) => x.column === a.column && x.y > a.y && x.y < b.y)
+    if (between.length === 0) continue
+    const side = Math.max(...[a, b, ...between].map((x) => x.x + x.w)) + FAN
+    e.points = [
+      [a.x + a.w, a.y + a.h / 2],
+      [side, a.y + a.h / 2],
+      [side, b.y + b.h / 2],
+      [b.x + b.w, b.y + b.h / 2],
+    ]
+  }
 
   // Specifications, under the slice they belong to.
   const specs: Spec[] = []

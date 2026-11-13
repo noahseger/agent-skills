@@ -396,6 +396,44 @@ test("a call's external event is drawn in the system's lane, and a later trigger
   assert.ok(called.edges.some((e) => e.from === first.id && e.to === gear.id))
 })
 
+test("a call's arrow goes around the event of ours that keeps its reply, so each arrow shows", () => {
+  const out = layout({
+    name: "x",
+    description: "",
+    actors: [
+      { id: "user", name: "User", type: "user" },
+      { id: "remote", name: "Remote", type: "external" },
+    ],
+    aggregates: [{ id: "events", name: "Events" }],
+    chapters: [
+      {
+        name: "Ch",
+        slices: [
+          {
+            name: "Ask",
+            actor: "user",
+            aggregate: "events",
+            ui: "Ask",
+            command: "Ask(id)",
+            events: ["Kept(id, detail)"],
+            calls: [{ actor: "remote", event: "Answered(id, detail)", kept: ["Kept"] }],
+            tests: [],
+          },
+        ],
+      },
+    ],
+    notes: {},
+  })
+  const box = (name: string) => out.boxes.find((b) => b.name === name && b.kind !== "ui")
+  const [command, kept, answered] = [box("Ask"), box("Kept"), box("Answered")]
+  assert.ok(command && kept && answered)
+  const edge = (from: string, to: string) => out.edges.find((e) => e.from === from && e.to === to)
+  assert.ok(edge(command.id, kept.id))
+  assert.ok(edge(answered.id, kept.id))
+  const call = edge(command.id, answered.id)
+  assert.ok(call?.points?.every(([x]) => x >= kept.x + kept.w))
+})
+
 test("a command's outcomes stand side by side in their lane, each joined to the command", () => {
   const both = layout({
     name: "x",
