@@ -267,6 +267,19 @@ const polled: Parameters<typeof start.translation<typeof TodoList, typeof NameLi
 // @ts-expect-error ItemAdded is ours, so AddItem must still carry its title
 m.slice().command(AddItem, CartUpdated).event(ItemAdded)
 
+// The reply fills an event of ours in the same slice, by name or by a mapping that has the command's fields beside it.
+const CartKept = m.event({ listId: z.string(), unavailable: z.array(z.string()) })
+const ItemsMissing = m.event({ listId: z.string(), items: z.array(z.string()) })
+m.slice().command(AddItem, CartUpdated).event(CartKept).actor(User)
+m.slice().command(AddItem, CartUpdated).event(ItemsMissing((c) => ({ items: c.unavailable }))).event(ItemAdded((c) => ({ title: c.text })))
+m.slice().automation(ListCreated, AddItem((e) => ({ text: z.literal("") })), CartUpdated).event(CartKept)
+
+// @ts-expect-error without the reply, AddItem lacks unavailable
+m.slice().command(AddItem, ItemAdded((c) => ({ title: c.text }))).event(CartKept)
+
+// @ts-expect-error the reply's unavailable is a list, and a title a string
+m.slice().command(AddItem, CartUpdated).event(ItemAdded((c) => ({ title: c.unavailable })))
+
 // @ts-expect-error an external event isn't stored, so it builds no view
 m.slice().view(TodoList, CartUpdated)
 

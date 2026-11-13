@@ -395,7 +395,7 @@ other events, the history that shaped the state.
 
 A specification must agree with its slice's wiring. A value copied or mapped from the command, the
 trigger event, the polled row or a given event must equal the value there; a constant the mapping
-sets, the constant. A generated field, and any field of an external event, may be anything. The
+sets, the constant. A generated field, and any field of an external event or kept from one, may be anything. The
 polled row is the one `given` builds whose key columns hold what the command copied from them. A
 disagreement names the spec, the field and both values.
 
@@ -476,19 +476,23 @@ replay. Translate it into an event of ours with `.translation()`, as above, and 
 `.translation()` takes only an external event, and `.automation()` refuses one; fields flow and
 map as in an automation an event starts. An external event a slice of ours produces is published
 and needs no translation; any other no `.translation()` reads is left to do, even if a
-specification's `given` has it.
+specification's `given` has it. Translation is for an event that arrives on its own.
 
 The model says that data arrives, not how. A call to such a system is our command followed by the
-event that brings its data back, and that event's fields come from outside, so the command need
-not carry them:
+event that brings its data back, its reply. The reply's fields come from outside, so the command
+need not carry them, and an event the slice records after it keeps them in the same handler:
 
 ```ts
 export const Shop = m.external()
 export const CartUpdated = m.event({ added: z.array(Item), unavailable: z.array(Item) }).external(Shop)
 
-m.slice().automation(GroceriesToOrder, AddGroceriesToCart, CartUpdated)   // the call
-m.slice().translation(CartUpdated, RecordOrder, OrderUpdated)             // we keep what came back
+m.slice()
+  .automation(GroceriesToOrder, AddGroceriesToCart, CartUpdated)
+  .event(OrderUpdated((c) => ({ missing: c.unavailable })))
 ```
+
+Fields flow into such an event from the command and the reply by name, and a mapping's argument has
+both. Where both have a field, the command's is the one that flows.
 
 ### Streams
 
@@ -530,9 +534,9 @@ The compiler catches:
 |---|---|
 | any reference | An unknown actor, event, command, view, screen or service cannot be written, because references are values, not strings. |
 | the chain | Only a legal chain compiles; each start offers only its own steps. A slice missing part of its pattern is an error where it is written: `Expected 2 arguments, but got 1`, beside which the editor names the missing argument, such as `event`. |
-| a function | Its argument is the slice's source as schemas: the command for a handler's event, the trigger event or the polled row for an automation's command, the event in a state view. Its result must be fields of the target, each a source field that fits it, a `z.literal()` or `m.generate()`. A string format, such as `z.uuid()`, takes only that format. |
+| a function | Its argument is the slice's source as schemas: the command, plus any reply recorded before it, for a handler's event; the trigger event or the polled row for an automation's command; the event in a state view. Its result must be fields of the target, each a source field that fits it, a `z.literal()` or `m.generate()`. A string format, such as `z.uuid()`, takes only that format. |
 | a field that flows by name | It must fit its target as a mapped one does. The error names the field to set in the mapping. |
-| a command's event | Every event field the command lacks must be set by the function, or marked `m.generate()`, unless it is optional. The error names the fields. |
+| a command's event | Every event field the command, and any reply recorded before it, lacks must be set by the function, or marked `m.generate()`, unless it is optional. The error names the fields. |
 | a state view's event | An external event is refused, because it isn't stored. The error says to translate it first. |
 | what starts an automation or a translation | `.automation()` refuses an external event, and the error says to use `.translation()`; `.translation()` takes nothing else. |
 | a function outside a slice | A mapper only works inside a slice: `.event(...)`, `.command(...)` or `.view(...)`. The error says so. |
@@ -599,6 +603,7 @@ written by hand can do the same, and the viewer draws it.
 | where a mapped field's value comes from | the field's `mapping`: the source field's name, or `= ` and a JSON value. A value the handler makes is `generated: true`, and its `mapping` lists what it is made from, comma-separated: source fields and views, as `pageId, Pages`; made from nothing, it has no `mapping`. A view built from several events maps a column once per event, one line each, a generated one as `ItemAdded: generate(ItemAdded)` |
 | a system we do not own | its events have `context: "EXTERNAL"`, and `service` names the system. No `aggregate`: we never store them |
 | a call to one | the external event among the command's outbound events |
+| what an event of ours keeps from the reply | the external event pointing at it |
 | outcomes that are alternatives | no field: a command's outbound events are what it can record, and each specification's `then` says which it did |
 | what a handler reads | a view pointing at the command; one pointing at the processor is the view the automation polls |
 | a slice's note | a `storylines` entry titled with it, with no elements |

@@ -28,8 +28,11 @@ export interface BoardSlice {
   trigger?: string | string[]
   command?: string
   events?: string[]
-  /** The external events the command ends in, each with the system it comes from. */
-  calls?: { actor: string; event: string }[]
+  /**
+   * The external events the command ends in, each with the system it comes from and the events of
+   * ours that keep what it brings back.
+   */
+  calls?: { actor: string; event: string; kept?: string[] }[]
   reads?: string[]
   read_models?: string[]
   tests: BoardTest[]

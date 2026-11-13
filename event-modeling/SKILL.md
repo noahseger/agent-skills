@@ -122,7 +122,7 @@ The file is `{ "slices": [...] }`, validated by `ts/schema/eventmodeling.schema.
 - **Interfaces**: one `SCREEN` per slice with an actor, titled with the real entry point, and the actors in the slice's `actors`. The command's `apiEndpoint` says the same; `service` names an RPC service.
 - **Streams**: each event's `aggregate`. One lane per stream.
 - **Chapters**: each slice's `context`.
-- **External events**: `"context": "EXTERNAL"`, with `service` naming the system they come from. They have no `aggregate`; we never store them. A command's outbound event that is external is a call to that system.
+- **External events**: `"context": "EXTERNAL"`, with `service` naming the system they come from. They have no `aggregate`; we never store them. A command's outbound event that is external is a call to that system, and its reply: an event of ours in the same slice keeps the reply's fields, and the reply points at it. A `TRANSLATION` is for an external event that arrives on its own, not for a reply.
 - **What a handler reads**: a view with an `OUTBOUND` dependency on the command. One pointing at the processor is the view the automation polls for its work.
 - **Key columns**: `"idAttribute": true`. A list: `"cardinality": "List"`.
 - **Mapping**: a field filled by a renamed source gives the source field's name in `mapping`; `= 0` is a constant, and `"generated": true` a value the handler assigns, such as an id or a clock.

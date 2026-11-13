@@ -244,10 +244,12 @@ export function read(written: Feed): Board {
     if (command) out.command = element(command)
     const ours = recorded.filter((e) => !external(e))
     if (ours.length > 0) out.events = ours.map(element)
-    const calls = recorded.filter(external).map((e) => ({
-      actor: system(systemOf(e)),
-      event: element(e),
-    }))
+    const calls = recorded.filter(external).map((e) => {
+      const kept = e.dependencies.flatMap((d) =>
+        d.type === "OUTBOUND" && d.elementType === "EVENT" ? [d.title] : [],
+      )
+      return { actor: system(systemOf(e)), event: element(e), ...(kept.length > 0 && { kept }) }
+    })
     if (calls.length > 0) out.calls = calls
     if (reads.length > 0) out.reads = reads.map((r) => r.title)
     if (shows.length > 0) out.read_models = shows.map(element)

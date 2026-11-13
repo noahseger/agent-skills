@@ -618,6 +618,9 @@ export function layout(model: Board): Layout {
     if (!command) for (const ui of uis) for (const rm of readModels) edge(rm, ui)
     if (gear && command) edge(gear, command)
     if (command) for (const ev of [...events, ...calls]) edge(command, ev)
+    for (const c of s.calls ?? [])
+      for (const reply of calls.filter((b) => b.name === parse(c.event).name))
+        for (const ev of events.filter((e) => c.kept?.includes(e.name))) edge(reply, ev)
     consumers.set(i, { ...(command ? { command } : {}), ...(gear ? { gear } : {}) })
 
     // What a trigger points at: the automation, or the view it builds.

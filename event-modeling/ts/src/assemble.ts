@@ -19,8 +19,10 @@ import {
   META,
   type ModelData,
   recorded,
+  replies,
   type SliceData,
   type StreamData,
+  taken,
   type Warning,
 } from "./types.ts"
 
@@ -526,9 +528,9 @@ function checkGenerated({ slice, where }: Located, fail: Fail): void {
   }
 }
 
-/** The fields a flow fills: those that copy by name from `source`, and those its mapping sets. */
-function filled(flow: Flow, source: DeclData): string[] {
-  return [...Object.keys(source.fields), ...Object.keys(flow.mapping)]
+/** The fields a flow fills: those that copy by name from its sources, and those its mapping sets. */
+function filled(flow: Flow, ...sources: DeclData[]): string[] {
+  return [...sources.flatMap((s) => Object.keys(s.fields)), ...Object.keys(flow.mapping)]
 }
 
 /** The fields that may go without a value. */
@@ -567,12 +569,12 @@ function checkFilled({ slice, where }: Located, fail: Fail): void {
       [...filled(command, from), ...optional(command.decl)],
       (f) => `Add ${f} to ${from.name}, or set it in the mapping.`,
     )
-  // An external event's fields come from outside.
+  // An external event's fields come from outside, and an event of ours can keep them.
   if (command)
     for (const flow of slice.events.filter((f) => !f.decl.external))
       check(
         flow.decl,
-        [...filled(flow, command.decl), ...optional(flow.decl)],
+        [...filled(flow, command.decl, ...replies(slice)), ...optional(flow.decl)],
         (f) => `Add ${f} to ${command.decl.name}, or set it in the mapping.`,
       )
   if (view)
@@ -593,16 +595,9 @@ function checkRecorded({ slice, where }: Located, fail: Fail): void {
   // A command that produces an external event sends its fields out.
   if (!command || events.length === 0 || events.some((e) => e.decl.external)) return
   const all = Object.keys(command.decl.fields)
-  const recorded = events.flatMap(({ decl, mapping }) => [
-    ...Object.keys(decl.fields).filter((f) => !(f in mapping)),
-    ...Object.values(mapping).flatMap((s) =>
-      "from" in s
-        ? [s.from]
-        : "generate" in s
-          ? s.generate.flatMap((i) => (typeof i === "string" ? [i] : i === command.decl ? all : []))
-          : [],
-    ),
-  ])
+  const recorded = events
+    .flatMap(taken)
+    .flatMap((i) => (typeof i === "string" ? [i] : i === command.decl ? all : []))
   const name = command.decl.name
   for (const field of all.filter((f) => !recorded.includes(f)))
     fail({
@@ -627,7 +622,10 @@ function checkFilledSomewhere(located: Located[], fail: Fail): void {
     const from = slice.trigger ?? slice.polls
     add(command.decl, from ? filled(command, from) : Object.keys(command.decl.fields))
     for (const flow of slice.events)
-      add(flow.decl, flow.decl.external ? optional(flow.decl) : filled(flow, command.decl))
+      add(
+        flow.decl,
+        flow.decl.external ? optional(flow.decl) : filled(flow, command.decl, ...replies(slice)),
+      )
   }
   for (const [decl, fields] of fills) {
     const to = decl.kind === "command" ? "what issues" : "a command that records"

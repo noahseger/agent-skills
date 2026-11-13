@@ -200,6 +200,24 @@ export function recorded(slice: SliceData): DeclData[] {
   return slice.view ? [] : slice.events.map((f) => f.decl)
 }
 
+/** What the slice's calls bring back: the external events it records, which its events of ours can keep. */
+export function replies(slice: SliceData): DeclData[] {
+  return recorded(slice).filter((d) => d.external)
+}
+
+/**
+ * The source fields a flow takes, by name, by a mapping or as what a generated value is made
+ * from, and the declarations a value is generated from whole.
+ */
+export function taken({ decl, mapping }: Flow): (string | DeclData)[] {
+  return [
+    ...Object.keys(decl.fields).filter((f) => !(f in mapping)),
+    ...Object.values(mapping).flatMap((s) =>
+      "from" in s ? [s.from] : "generate" in s ? s.generate : [],
+    ),
+  ]
+}
+
 /** The events a slice reacts to: its trigger, or what builds its view. */
 export function heard(slice: SliceData): DeclData[] {
   if (slice.view) return slice.events.map((f) => f.decl)

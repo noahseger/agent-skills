@@ -16,6 +16,7 @@ import {
   type Source,
   slug,
   type TestData,
+  taken,
   type Warning,
 } from "./types.ts"
 
@@ -373,6 +374,15 @@ function sliceOf(
   link(screen, commandEl)
   for (const r of reads) link(r, commandEl)
   for (const e of events) link(commandEl, e)
+  // An event of ours that keeps a field only a reply has is drawn from that reply.
+  const sent = command?.decl.fields ?? {}
+  slice.events.forEach((keeps, k) => {
+    if (keeps.decl.external) return
+    const kept = taken(keeps).filter((i): i is string => typeof i === "string" && !(i in sent))
+    for (const [r, reply] of slice.events.entries())
+      if (reply.decl.external && kept.some((f) => f in reply.decl.fields))
+        link(events[r], events[k])
+  })
   for (const e of heardEvents) link(e, viewEl)
   link(viewEl, screen)
 

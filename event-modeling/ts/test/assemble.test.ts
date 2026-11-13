@@ -609,6 +609,48 @@ test("a call ends in the external event, whose fields come from outside", () => 
   assert.equal(asked?.events, undefined)
 })
 
+test("a call's reply fills the event of ours that keeps it, in the same slice", () => {
+  const f = fixture()
+  const Remote = m.external()
+  const Answered = m.event({ id: z.string(), detail: z.string() }).external(Remote)
+  const Ask = m.command({ id: z.string(), name: z.string() })
+  const Kept = m.event({ id: z.string(), name: z.string(), detail: z.string(), said: z.string() })
+  const ask = m
+    .slice()
+    .command(Ask, Answered)
+    .event(Kept((c) => ({ said: c.detail })))
+    .actor(f.User)
+    .service(f.Svc)
+    .test("The answer is kept", {
+      when: Ask(list),
+      then: [
+        Answered({ ...list, detail: "Two aisles over" }),
+        Kept({ ...list, detail: "Two aisles over", said: "Two aisles over" }),
+      ],
+    })
+  const model = { ...f, Remote, Answered, Ask, Kept, ...chapters({ Ch: [ask] }) }
+  const feed = feedOf([{ ...model, default: m.model("x") }], { partial: true })
+  assert.deepEqual(
+    feed.warnings?.filter((w) => w.slice === "Ask").map((w) => w.message),
+    [
+      "Ch › Ask: nothing uses Kept yet. Add .automation(Kept) or a state view's .event(Kept) where something reacts to it.",
+    ],
+  )
+  const kept = feed.model.slices[0]?.events.find((e) => e.title === "Kept")
+  assert.deepEqual(
+    kept?.dependencies.map((d) => [d.type, d.title]),
+    [
+      ["INBOUND", "Ask"],
+      ["INBOUND", "Answered"],
+    ],
+  )
+  assert.equal(kept?.fields.find((x) => x.name === "said")?.mapping, "detail")
+  const out = layout(drawn(feed))
+  const from = out.boxes.find((b) => b.name === "Answered")
+  const to = out.boxes.find((b) => b.name === "Kept" && b.column === 0)
+  assert.ok(from && to && out.edges.some((e) => e.from === from.id && e.to === to.id))
+})
+
 test("a view refuses an external event, which isn't stored", () => {
   const { f, Remote, Answered, Ask, specified } = specifiedCall()
   const projected = m
