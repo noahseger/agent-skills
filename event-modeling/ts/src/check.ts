@@ -115,16 +115,16 @@ function usedEarly(d: Diagnostic): string[] {
 const MISSING = /"add (\w+) to the ([\w -]+) or set it in the mapping"/g
 const MISFIT = /"the ([\w -]+)'s (\w+) does not fit: set it in the mapping"/g
 /** A mapping's result that is not a schema its target takes. */
-const UNFIT = /^Type '.*' is not assignable to type '(?:ZodStringFormat|ZodType)</
+const UNFIT = /^Type '.*' is not assignable to type 'Fit</
 const OUTSIDE = /"(a mapper only works inside a slice[^"]*)"/
 const UNSET = /Property '(\w+)' is missing in type '.*' but required in type 'Pick</
 /** A slice's first call and the parameter it was not given, as `em json` words what that leaves out. */
 const UNSUPPLIED: Record<string, string> = {
-  "command event": NO_EVENT,
-  "view event": NO_EVENT,
-  "automation event": NO_EVENT,
+  "command events": NO_EVENT,
+  "view events": NO_EVENT,
+  "automation events": NO_EVENT,
   "automation command": NO_COMMAND,
-  "translation event": NO_EVENT,
+  "translation events": NO_EVENT,
   "translation command": NO_COMMAND,
 }
 const LAST_OVERLOAD = "The last overload gave the following error."
@@ -165,17 +165,10 @@ function describe(d: Diagnostic, text: string, file: string): Warning {
   if (outside) return said(`${at(d.pos)}${outside}`)
   const unset = lines.map((l) => l.match(UNSET)?.[1]).find((f) => f !== undefined)
   if (unset) return said(`${at(d.pos)}the mapping must set ${unset}`)
-  // Two events in one call: `.event(A, B)`.
-  const first = text.slice(0, d.pos).match(/\.event\(\s*[\w.]+\s*,\s*$/)
-  const second = text.slice(d.pos).match(/^([\w.]+)\s*\)/)?.[1]
-  if (first && second)
-    return said(
-      `${at(d.pos)}.event() takes one event. To record ${second} too, chain .event(${second}).`,
-    )
-  // A missing argument: the compiler names its parameter, such as 'event', beside the message.
+  // A missing argument: the compiler names its parameter, such as 'events', beside the message.
   const unsupplied = d.relatedInformation
     ?.map((r) => r.text)
-    .find((t) => t.startsWith("An argument for"))
+    .find((t) => /^(An argument|Arguments) for/.test(t))
   // Named after its command or view, as `em json` names the slice.
   const core = UNSUPPLIED[`${text.slice(d.pos, d.end)} ${unsupplied?.match(/'(\w+)'/)?.[1]}`]
   const args = text.slice(d.end).match(/^\s*\(\s*([\w.]+)\s*(?:,\s*([\w.]+))?/)

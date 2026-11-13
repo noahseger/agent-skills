@@ -400,7 +400,7 @@ export const Sync = m.command({ id: z.string() })
 export const Synced = m.event({ id: z.string() })
 export const Failed = m.event({ id: z.string() })
 export const Ch = m.chapter()
-m.slice().command(Sync, Synced).event(Synced, Failed).chapter(Ch)
+m.slice().command(Sync, Synced, Failed).chapter(Ch)
 m.slice().command(Sync)
 export const Retry = m.command({ id: z.string() })
 export const Retried = m.event({ id: z.string() })
@@ -422,9 +422,8 @@ export default m.model("x")
       [
         "  index.ts: declare Retry, Retried, Ch, Later above where they are used.",
         "  index.ts:6  Argument of type 'string' is not assignable to parameter of type 'Stream'.",
-        "  index.ts:11  .event() takes one event. To record Failed too, chain .event(Failed).",
         "  index.ts:12  Sync: this slice has no event yet. Add it to the slice's first call.",
-        "  index.ts:16  a mapper only works inside a slice: .event(...), .command(...) or .view(...)",
+        "  index.ts:16  a mapper only works inside a slice's first call",
         "  index.ts:18  Pending: this slice has no event yet. Add it to the slice's first call.",
         "  index.ts:19  Synced: this slice has no command yet. Add it to the slice's first call.",
         "  index.ts:20  Sync: this slice has no event yet. Add it to the slice's first call.",

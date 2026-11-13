@@ -133,6 +133,8 @@ export const inputNames = (s: { generate: (string | DeclData)[] }): string[] =>
 export interface Flow {
   decl: DeclData
   mapping: Record<string, Source>
+  /** The declarations whose `.fields` the mapping reads. */
+  reads?: DeclData[]
 }
 
 /** A function that fills a declaration's fields; run once on probe values. */

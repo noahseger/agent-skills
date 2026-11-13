@@ -63,10 +63,17 @@ const unspecified = (f: Fixture) =>
   m.slice().command(f.Create, f.Created).actor(f.User).service(f.Svc)
 const create = (f: Fixture) =>
   unspecified(f).test("A list is created", { when: f.Create(list), then: f.Created(list) })
-const unspecifiedView = (f: Fixture) =>
-  m.slice().view(f.Table, f.Created).actor(f.User).service(f.Svc, "Get")
-const view = (f: Fixture) =>
-  unspecifiedView(f).test("A new list is a row", { given: f.Created(list), then: f.Table(list) })
+const unspecifiedView = (f: Fixture, ...events: EventDecl[]) =>
+  m
+    .slice()
+    .view(f.Table, f.Created, ...events)
+    .actor(f.User)
+    .service(f.Svc, "Get")
+const view = (f: Fixture, ...events: EventDecl[]) =>
+  unspecifiedView(f, ...events).test("A new list is a row", {
+    given: f.Created(list),
+    then: f.Table(list),
+  })
 /** A view's specification that needs no event. */
 const nothing = ["No list shows before one is created", { then: [] }] as const
 
@@ -427,12 +434,12 @@ test("a mapping recognises a source field, a z.literal() and m.generate(); a sch
   )
 })
 
-test("a column no .event() writes", () => {
+test("a column no event writes", () => {
   const f = fixture()
   const Table = m.view({ id: z.string(), name: z.string(), count: z.number() }).key("id")
   assert.throws(
     () => assembled({ ...f, Table }, [create(f), view({ ...f, Table })]),
-    /Ch › Table: Table\.count has no value\. Add \.event\(\) for an event that carries count, or set it in a mapping\./,
+    /Ch › Table: Table\.count has no value\. Add an event that carries count to the slice's first call, or set it in a mapping\./,
   )
 })
 
@@ -450,7 +457,7 @@ test("an event that carries none of the view's key columns", () => {
       then: Renamed({ name: "Chores" }),
     })
   assert.throws(
-    () => assembled({ ...f, Rename, Renamed }, [create(f), rename, view(f).event(Renamed)]),
+    () => assembled({ ...f, Rename, Renamed }, [create(f), rename, view(f, Renamed)]),
     /Ch › Table: Renamed doesn't say which Table row it changes\. Give it id, or set it in its mapping\./,
   )
 })
@@ -464,16 +471,14 @@ test("an event that carries only some of the view's key columns", () => {
   const row = { ...list, owner: "u-1" }
   const create = m
     .slice()
-    .command(Create, Created)
-    .event(Renamed)
+    .command(Create, Created, Renamed)
     .actor(f.User)
     .service(f.Svc)
     .test("A list is created", { when: Create(row), then: Created(row) })
     .test("A list is renamed", { when: Create(row), then: Renamed(list) })
   const shown = m
     .slice()
-    .view(Table, Created)
-    .event(Renamed)
+    .view(Table, Created, Renamed)
     .actor(f.User)
     .test("A list is a row", { given: [Created(row), Renamed(list)], then: Table(row) })
   const g = { ...f, Table, Create, Created, Renamed }
@@ -487,7 +492,7 @@ test("an event nothing consumes", () => {
   const f = fixture()
   assert.throws(
     () => assembled(f, [create(f)]),
-    /Ch › Create: nothing uses Created yet\. Add \.automation\(Created\) or a state view's \.event\(Created\) where something reacts to it\./,
+    /Ch › Create: nothing uses Created yet\. Add \.automation\(Created\), or add Created to a state view's first call, where something reacts to it\./,
   )
 })
 
@@ -495,7 +500,7 @@ test("an event no slice emits", () => {
   const f = fixture()
   assert.throws(
     () => assembled(f, [view(f)]),
-    /Ch › Table: nothing emits Created yet\. Add \.event\(Created\) to the slice that causes it\./,
+    /Ch › Table: nothing emits Created yet\. Add Created to the first call of the slice that causes it\./,
   )
 })
 
@@ -535,7 +540,7 @@ test("an event no slice emits is one line, at the slices that react to it", () =
     [
       {
         message:
-          "Ch › Processor, Ch › Table: nothing emits Created yet. Add .event(Created) to the slice that causes it.",
+          "Ch › Processor, Ch › Table: nothing emits Created yet. Add Created to the first call of the slice that causes it.",
         element: "Created",
         slice: "Processor",
       },
@@ -609,7 +614,7 @@ test("a call ends in the external event, whose fields come from outside", () => 
   assert.equal(asked?.events, undefined)
 })
 
-test("a call's reply fills the event of ours that keeps it, in the same slice", () => {
+test("a call's reply fills the event of ours that keeps it, in the same slice, in any order", () => {
   const f = fixture()
   const Remote = m.external()
   const Answered = m.event({ id: z.string(), detail: z.string() }).external(Remote)
@@ -617,8 +622,11 @@ test("a call's reply fills the event of ours that keeps it, in the same slice", 
   const Kept = m.event({ id: z.string(), name: z.string(), detail: z.string(), said: z.string() })
   const ask = m
     .slice()
-    .command(Ask, Answered)
-    .event(Kept((c) => ({ said: c.detail })))
+    .command(
+      Ask,
+      Kept(() => ({ said: Answered.fields.detail })),
+      Answered,
+    )
     .actor(f.User)
     .service(f.Svc)
     .test("The answer is kept", {
@@ -633,7 +641,7 @@ test("a call's reply fills the event of ours that keeps it, in the same slice", 
   assert.deepEqual(
     feed.warnings?.filter((w) => w.slice === "Ask").map((w) => w.message),
     [
-      "Ch › Ask: nothing uses Kept yet. Add .automation(Kept) or a state view's .event(Kept) where something reacts to it.",
+      "Ch › Ask: nothing uses Kept yet. Add .automation(Kept), or add Kept to a state view's first call, where something reacts to it.",
     ],
   )
   const kept = feed.model.slices[0]?.events.find((e) => e.title === "Kept")
@@ -649,6 +657,34 @@ test("a call's reply fills the event of ours that keeps it, in the same slice", 
   const from = out.boxes.find((b) => b.name === "Answered")
   const to = out.boxes.find((b) => b.name === "Kept" && b.column === 0)
   assert.ok(from && to && out.edges.some((e) => e.from === from.id && e.to === to.id))
+})
+
+test("a mapping that reads the fields of an event not in its slice is left to do, and an error when strict", () => {
+  const f = fixture()
+  const Remote = m.external()
+  const Answered = m.event({ id: z.string(), detail: z.string() }).external(Remote)
+  const Kept = m.event({ id: z.string(), name: z.string(), said: z.string() })
+  const model = () => {
+    const ask = m.slice().command(
+      f.Create,
+      Kept(() => ({ said: m.generate(Answered.fields.detail) })),
+    )
+    return { ...f, Remote, Answered, Kept, ...chapters({ Ch: [ask] }), default: m.model("x") }
+  }
+  const message =
+    "Ch › Create: Kept's mapping reads Answered.fields, but Answered isn't one of this slice's events. Add it to the slice's first call."
+  const feed = feedOf([model()], { partial: true })
+  assert.ok(feed.warnings?.some((w) => w.message === message))
+  drawn(feed)
+  const kept = feed.model.slices[0]?.events.find((e) => e.title === "Kept")
+  assert.deepEqual(
+    kept?.fields.find((x) => x.name === "said"),
+    { name: "said", type: "String", generated: true, mapping: "detail" },
+  )
+  assert.throws(
+    () => feedOf([model()]),
+    (e: Error) => e.message.includes(message),
+  )
 })
 
 test("a view refuses an external event, which isn't stored", () => {
@@ -732,14 +768,12 @@ test("an external event only a given has is still left to translate", () => {
 function outcomes() {
   const f = fixture()
   const Refused = m.event({ id: z.string() })
-  const slice = m.slice().command(f.Create, f.Created).event(Refused).actor(f.User).service(f.Svc)
+  const slice = m.slice().command(f.Create, f.Created, Refused).actor(f.User).service(f.Svc)
   const created = slice.test("A list is created", { when: f.Create(list), then: f.Created(list) })
-  const shown = unspecifiedView(f)
-    .event(Refused)
-    .test("A refused list stays as it was", {
-      given: [f.Created(list), Refused({ id: "list-1" })],
-      then: f.Table(list),
-    })
+  const shown = unspecifiedView(f, Refused).test("A refused list stays as it was", {
+    given: [f.Created(list), Refused({ id: "list-1" })],
+    then: f.Table(list),
+  })
   const model = (create: Slice) => ({
     ...f,
     Refused,
@@ -892,8 +926,7 @@ test("a specification's given may hold events its slice does not handle", () => 
   const Refused = m.event({ id: z.string() })
   const create = m
     .slice()
-    .command(f.Create, f.Created)
-    .event(Refused)
+    .command(f.Create, f.Created, Refused)
     .actor(f.User)
     .service(f.Svc)
     .test("A list is created", { when: f.Create(list), then: f.Created(list) })
@@ -943,7 +976,7 @@ test("two slices claiming one service method", () => {
     .actor(f.User)
     .service(f.Svc, "Create")
     .test("A list is renamed", { when: Rename(list), then: Renamed(list) })
-  const slices = [create(f), rename, view(f).event(Renamed)]
+  const slices = [create(f), rename, view(f, Renamed)]
   assert.throws(
     () => assembled({ ...f, Rename, Renamed }, slices),
     /Ch › Rename: Svc\/Create is already used by Ch › Create\. Name this one/,
@@ -988,12 +1021,10 @@ test("an automation's command field its trigger does not carry", () => {
 
 /** The table a created list is a row of, and stays one once processed. */
 const processedView = (f: Fixture, Processed: EventDecl<{ id: z.ZodString }>) =>
-  unspecifiedView(f)
-    .event(Processed)
-    .test("A processed list stays as it was", {
-      given: [f.Created(list), Processed({ id: "list-1" })],
-      then: f.Table(list),
-    })
+  unspecifiedView(f, Processed).test("A processed list stays as it was", {
+    given: [f.Created(list), Processed({ id: "list-1" })],
+    then: f.Table(list),
+  })
 
 test("an automation's trigger no specification's given has is left to do, and an error when strict; one a view starts has none", () => {
   const f = fixture()
@@ -1467,7 +1498,7 @@ test("a column no m.slice().view() of the view writes is reported once", () => {
   assert.deepEqual(
     json.warnings?.map((w) => w.message),
     [
-      "Ch › Table: Table.status has no value. Add .event() for an event that carries status, or set it in a mapping.",
+      "Ch › Table: Table.status has no value. Add an event that carries status to the slice's first call, or set it in a mapping.",
     ],
   )
 })
@@ -1519,7 +1550,7 @@ test("a partial assembly lists the dead ends and keeps the loose declarations in
   assert.deepEqual(json.warnings, [
     {
       message:
-        "Ch › Create: nothing uses Created yet. Add .automation(Created) or a state view's .event(Created) where something reacts to it.",
+        "Ch › Create: nothing uses Created yet. Add .automation(Created), or add Created to a state view's first call, where something reacts to it.",
       element: "Created",
       slice: "Create",
     },
@@ -1661,12 +1692,11 @@ test("a chapter a slice joins that no module exports", () => {
 
 test("a slice in no chapter is drawn after the story", () => {
   const f = fixture()
-  const Renamed = m.event({ id: z.string(), name: z.string() })
   const base = m.slice().command(f.Create, f.Created)
   base.actor(f.User)
-  base.event(Renamed).service(f.Svc)
+  base.view(f.Table).service(f.Svc)
   m.slice().view(f.Table, f.Created)
-  const json = assembleModules([{ ...f, Renamed, default: m.model("x") }], { partial: true })
+  const json = assembleModules([{ ...f, default: m.model("x") }], { partial: true })
   // The shared prefix is not a slice of its own.
   assert.deepEqual(
     json.chapters.map((c) => [c.name, c.slices.map((s) => s.name)]),
@@ -1949,14 +1979,12 @@ test("a view's rows have what given builds, matched by key", () => {
   const ListClosed = m.event({ userId: z.string(), listId: z.string() })
   const groceries = { userId: "u-1", listId: "l-1" }
   const chores = { userId: "u-1", listId: "l-2" }
-  const projection = m
-    .slice()
-    .view(
-      Lists,
-      ListCreated((e) => ({ title: e.name, items: z.literal(0), status: z.literal("open") })),
-    )
-    .event(ItemAdded((e) => ({ items: m.generate(e) })))
-    .event(ListClosed(() => ({ status: z.literal("closed") })))
+  const projection = m.slice().view(
+    Lists,
+    ListCreated((e) => ({ title: e.name, items: z.literal(0), status: z.literal("open") })),
+    ItemAdded((e) => ({ items: m.generate(e) })),
+    ListClosed(() => ({ status: z.literal("closed") })),
+  )
   const given = [
     ListCreated({ ...groceries, name: "Groceries" }),
     ListCreated({ ...chores, name: "Chores" }),

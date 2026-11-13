@@ -381,6 +381,7 @@ function check(
     checkSeen(at, own)
     checkSpecs(at, built, own)
     checkGenerated(at, own)
+    checkReads(at, own)
   }
   checkFilledSomewhere(located, fail)
   checkConnected(located, built, fail)
@@ -528,6 +529,19 @@ function checkGenerated({ slice, where }: Located, fail: Fail): void {
   }
 }
 
+/** A mapping reads `.fields` of a reply the slice brings back, so of one of the slice's events. */
+function checkReads({ slice, where }: Located, fail: Fail): void {
+  const own = slice.events.map((f) => f.decl)
+  for (const flow of flows(slice))
+    for (const read of flow.reads ?? [])
+      if (!own.includes(read))
+        fail({
+          message: `${where}: ${flow.decl.name}'s mapping reads ${read.name}.fields, but ${read.name} isn't one of this slice's events. Add it to the slice's first call.`,
+          element: flow.decl.name ?? "",
+          slice: slice.name ?? "",
+        })
+}
+
 /** The fields a flow fills: those that copy by name from its sources, and those its mapping sets. */
 function filled(flow: Flow, ...sources: DeclData[]): string[] {
   return [...sources.flatMap((s) => Object.keys(s.fields)), ...Object.keys(flow.mapping)]
@@ -581,7 +595,7 @@ function checkFilled({ slice, where }: Located, fail: Fail): void {
     check(
       view,
       slice.events.flatMap((flow) => filled(flow, flow.decl)),
-      (f) => `Add .event() for an event that carries ${f}, or set it in a mapping.`,
+      (f) => `Add an event that carries ${f} to the slice's first call, or set it in a mapping.`,
     )
 }
 
@@ -961,7 +975,7 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
         fail(
           about(
             e,
-            `${where}: nothing uses ${e.name} yet. Add .automation(${e.name}) or a state view's .event(${e.name}) where something reacts to it.`,
+            `${where}: nothing uses ${e.name} yet. Add .automation(${e.name}), or add ${e.name} to a state view's first call, where something reacts to it.`,
           ),
         )
     }
@@ -992,7 +1006,7 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
     fail({
       message: e.external
         ? `${here}: nothing translates ${e.name} yet. Add .translation(${e.name}) to make it an event of ours.`
-        : `${here}: nothing emits ${e.name} yet. Add .event(${e.name}) to the slice that causes it.`,
+        : `${here}: nothing emits ${e.name} yet. Add ${e.name} to the first call of the slice that causes it.`,
       element: e.name ?? "",
       slice: at[0]?.slice.name ?? "",
     })

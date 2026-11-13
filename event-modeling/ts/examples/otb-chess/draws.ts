@@ -140,10 +140,10 @@ m.slice()
   .view(
     PendingDrawOffer,
     DrawOffered(() => ({ status: z.literal("pending") })),
+    MovePlayed(() => ({ status: z.literal("declined") })),
+    DrawAgreed(() => ({ status: z.literal("accepted") })),
   )
   .chapter(DrawsAndResignation)
-  .event(MovePlayed(() => ({ status: z.literal("declined") })))
-  .event(DrawAgreed(() => ({ status: z.literal("accepted") })))
   .note("A move by the opponent declines the offer. FIDE 9.1.2.3.")
   .test("The offer is pending on the opponent", {
     given: drawOffered,

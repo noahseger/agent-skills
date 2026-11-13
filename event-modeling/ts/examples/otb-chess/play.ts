@@ -190,10 +190,9 @@ export const Play = m.chapter()
 export const Broadcast = m.screen()
 
 m.slice()
-  .command(PlayMove, MovePlayed)
+  .command(PlayMove, MovePlayed, GameEnded)
   .chapter(Play)
   .view(GameState)
-  .event(GameEnded)
   .actor(Player)
   .service(ChessService)
   .test("White opens with 1. e4", {
@@ -288,10 +287,8 @@ m.slice()
   })
 
 m.slice()
-  .view(GameState, GameStarted)
+  .view(GameState, GameStarted, MovePlayed, IllegalMoveRuled)
   .chapter(Play)
-  .event(MovePlayed)
-  .event(IllegalMoveRuled)
   .query({ gameId: z.string() })
   .actor(Spectator)
   .screen(Broadcast)
@@ -352,9 +349,8 @@ m.slice()
   })
 
 m.slice()
-  .view(ClockState, ClockStarted)
+  .view(ClockState, ClockStarted, ClockPressed)
   .chapter(Play)
-  .event(ClockPressed)
   .test("The clock starts with White's time running", {
     given: clockStarted,
     then: ClockState({
@@ -386,9 +382,9 @@ m.slice()
   .view(
     MoveList,
     MovePlayed(() => ({ status: z.literal("recorded") })),
+    IllegalMoveRuled(() => ({ status: z.literal("struck") })),
   )
   .chapter(Play)
-  .event(IllegalMoveRuled(() => ({ status: z.literal("struck") })))
   .query({ gameId: z.string() })
   .actor(Spectator)
   .screen(Broadcast)

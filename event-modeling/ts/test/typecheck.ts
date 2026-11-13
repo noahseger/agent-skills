@@ -48,8 +48,8 @@ m.slice().command(ListCreated, ListCreated)
 // @ts-expect-error a command is not an event
 m.slice().command(CreateList, CreateList)
 
-// @ts-expect-error a command is not an event, after the start either
-m.slice().command(CreateList, ListCreated).event(CreateList)
+// @ts-expect-error a command is not an event, in any place
+m.slice().command(CreateList, ListCreated, CreateList)
 
 // @ts-expect-error a command is not a view
 m.slice().view(CreateList, ListCreated)
@@ -65,8 +65,8 @@ m.slice().automation(CreateList, NameList, ListCreated)
 
 // --- the chain: a slice starts with its whole pattern -------------------------
 
-// @ts-expect-error a slice does not start with .event()
-m.slice().event(ListCreated)
+// @ts-expect-error there is no .event(): a slice's events are all in its first call
+m.slice().command(CreateList, ListCreated).event(ItemAdded)
 
 // @ts-expect-error a slice does not start with .actor()
 m.slice().actor(User)
@@ -122,7 +122,7 @@ m.slice().command(CreateList, ListCreated)
 m.slice().command(CreateList, ListCreated).chapter(Ch).view(TodoList).actor(User, Admin).service(TodoService)
 m.slice().command(CreateList, ListCreated).actor(User).screen(Lock).service(TodoService, "StartList").chapter(Ch)
 m.slice().view(TodoList, ListCreated).chapter(Ch)
-m.slice().view(TodoList, ListCreated).chapter(Ch).event(ItemAdded).query({ listId: z.string() }).actor(User)
+m.slice().view(TodoList, ListCreated, ItemAdded).chapter(Ch).query({ listId: z.string() }).actor(User)
 m.slice().view(TodoList, ListCreated).actor(User).screen(Lock).service(TodoService, "GetList")
 m.slice().automation(ListCreated, NameList, ListCreated).chapter(Ch).view(TodoList)
 m.slice().automation(TodoList, NameList, ListCreated).view(TodoList).chapter(Ch)
@@ -141,10 +141,13 @@ m.slice().command(AddItem, ItemAdded((c) => ({ nope: c.text })))
 m.slice().command(AddItem, ItemAdded)
 // The editor's error is the instruction: the parameter's type is the sentence.
 declare const start: SliceStart
-const said: Parameters<typeof start.command<typeof AddItem.__fields, typeof ItemAdded>>[1] = "add title to the command or set it in the mapping"
+const said: Parameters<typeof start.command<typeof AddItem.__fields, [typeof ItemAdded]>>[1] = "add title to the command or set it in the mapping"
 
-// @ts-expect-error a later outcome is checked the same
-m.slice().command(AddItem, ItemAdded((c) => ({ title: c.text }))).event(ItemAdded)
+// @ts-expect-error every event is checked the same
+m.slice().command(AddItem, ItemAdded((c) => ({ title: c.text })), ItemAdded)
+
+// @ts-expect-error wherever it is: the third of four lacks title
+m.slice().command(AddItem, ItemAdded((c) => ({ title: c.text })), ListCreated((c) => ({ name: c.text })), ItemAdded, ItemAdded((c) => ({ title: c.text })))
 
 // @ts-expect-error the mapping must set title, which AddItem lacks
 m.slice().command(AddItem, ItemAdded((c) => ({ listId: c.listId })))
@@ -163,7 +166,7 @@ ItemAdded((c) => ({ title: m.generate(c.text) }))
 
 // @ts-expect-error a mapper only works inside a slice, for a state view's event too
 ItemAdded(() => ({ itemCount: z.literal(0) }))
-m.slice().command(CreateList, ListCreated).event(ItemAdded((c) => ({ title: c.name })))
+m.slice().command(CreateList, ListCreated, ItemAdded((c) => ({ title: c.name })))
 
 // @ts-expect-error a mapping takes one argument: generate is m.generate
 m.slice().command(AddItem, ItemAdded((c, { generate }) => ({ title: generate() })))
@@ -236,7 +239,7 @@ const TextCaptured = m.event({ noteId: z.uuid(), text: z.string() })
 
 // @ts-expect-error CaptureText's noteId is a string, and TextCaptured's a uuid
 m.slice().command(CaptureText, TextCaptured)
-const misfit: Parameters<typeof start.command<typeof CaptureText.__fields, typeof TextCaptured>>[1] = "the command's noteId does not fit: set it in the mapping"
+const misfit: Parameters<typeof start.command<typeof CaptureText.__fields, [typeof TextCaptured]>>[1] = "the command's noteId does not fit: set it in the mapping"
 m.slice().command(CaptureText, TextCaptured(() => ({ noteId: m.generate() })))
 
 // --- a call ends in the external event that brings the data back -------------
@@ -262,29 +265,43 @@ m.slice().translation(ListCreated, NameList, ListCreated)
 
 // @ts-expect-error nor does a view start one
 m.slice().translation(TodoList, NameList, ListCreated)
-const polled: Parameters<typeof start.translation<typeof TodoList, typeof NameList, typeof ListCreated>>[0] = "is a view: poll it with .automation()"
+const polled: Parameters<typeof start.translation<typeof TodoList, typeof NameList, [typeof ListCreated]>>[0] = "is a view: poll it with .automation()"
 
 // @ts-expect-error ItemAdded is ours, so AddItem must still carry its title
-m.slice().command(AddItem, CartUpdated).event(ItemAdded)
+m.slice().command(AddItem, CartUpdated, ItemAdded)
 
-// The reply fills an event of ours in the same slice, by name or by a mapping that has the command's fields beside it.
+// The reply fills an event of ours in the same slice, in any order: by name, or in a mapping as CartUpdated.fields.
 const CartKept = m.event({ listId: z.string(), unavailable: z.array(z.string()) })
 const ItemsMissing = m.event({ listId: z.string(), items: z.array(z.string()) })
-m.slice().command(AddItem, CartUpdated).event(CartKept).actor(User)
-m.slice().command(AddItem, CartUpdated).event(ItemsMissing((c) => ({ items: c.unavailable }))).event(ItemAdded((c) => ({ title: c.text })))
-m.slice().automation(ListCreated, AddItem((e) => ({ text: z.literal("") })), CartUpdated).event(CartKept)
+m.slice().command(AddItem, CartUpdated, CartKept).actor(User)
+m.slice().command(AddItem, CartKept, CartUpdated)
+m.slice().command(AddItem, ItemsMissing(() => ({ items: CartUpdated.fields.unavailable })), CartUpdated, ItemAdded((c) => ({ title: c.text })))
+m.slice().automation(ListCreated, AddItem((e) => ({ text: z.literal("") })), CartUpdated, CartKept)
+m.slice().command(AddItem, CartUpdated, ItemAdded(() => ({ title: m.generate(CartUpdated.fields.unavailable) })))
 
 // @ts-expect-error without the reply, AddItem lacks unavailable
-m.slice().command(AddItem, ItemAdded((c) => ({ title: c.text }))).event(CartKept)
+m.slice().command(AddItem, ItemAdded((c) => ({ title: c.text })), CartKept)
+
+// @ts-expect-error a mapping's argument is the command alone: the reply's field is CartUpdated.fields.unavailable
+m.slice().command(AddItem, CartUpdated, ItemsMissing((c) => ({ items: c.unavailable })))
+
+// @ts-expect-error a mapping must still set what neither the command nor a reply carries
+m.slice().command(AddItem, CartUpdated, ItemsMissing((c) => ({ listId: c.listId })))
 
 // @ts-expect-error the reply's unavailable is a list, and a title a string
-m.slice().command(AddItem, CartUpdated).event(ItemAdded((c) => ({ title: c.unavailable })))
+m.slice().command(AddItem, CartUpdated, ItemAdded(() => ({ title: CartUpdated.fields.unavailable })))
+
+// @ts-expect-error a field of a declaration is a reference for a mapping, not a schema to declare with
+m.view({ unavailable: CartUpdated.fields.unavailable })
+
+// @ts-expect-error the seventeenth event is checked as the first: ItemAdded lacks title
+m.slice().command(AddItem, CartUpdated, CartKept, CartKept, CartKept, CartKept, CartKept, CartKept, CartKept, CartKept, CartKept, CartKept, CartKept, CartKept, CartKept, CartKept, CartKept, ItemAdded)
 
 // @ts-expect-error an external event isn't stored, so it builds no view
 m.slice().view(TodoList, CartUpdated)
 
-// @ts-expect-error nor after the start
-m.slice().view(TodoList, ListCreated).event(CartUpdated)
+// @ts-expect-error nor beside an event of ours
+m.slice().view(TodoList, ListCreated, CartUpdated)
 
 // --- everything is declared with m.command or m.event, so a spec can name it --
 
@@ -294,8 +311,8 @@ m.slice().command("AddItem", { text: z.string() }, ItemAdded)
 // @ts-expect-error an event is not declared in place
 m.slice().command(CreateList, "ListNamed", { name: z.string() })
 
-// @ts-expect-error a later event is not declared in place either
-m.slice().command(CreateList, ListCreated).event("ListNamed", { name: z.string() })
+// @ts-expect-error nor is a second event
+m.slice().command(CreateList, ListCreated, "ListNamed", { name: z.string() })
 
 // @ts-expect-error an automation's command is not declared in place
 m.slice().automation(ListCreated, "Archive", { listId: z.string() })
@@ -308,22 +325,22 @@ m.slice().view(TodoList, ListCreated(() => ({ done: z.literal(true) })))
 // @ts-expect-error itemCount is a number
 m.slice().view(TodoList, ListCreated(() => ({ itemCount: z.literal("0") })))
 
-// @ts-expect-error a later event is checked the same: itemCount is a number
-m.slice().view(TodoList, ListCreated).event(ItemAdded(() => ({ itemCount: z.literal("0") })))
+// @ts-expect-error every event is checked the same: itemCount is a number
+m.slice().view(TodoList, ListCreated, ItemAdded(() => ({ itemCount: z.literal("0") })))
 
 // A field that flows by name into a column must fit it.
 const Basket = m.view({ listId: z.uuid(), name: z.string() })
 
 // @ts-expect-error ListCreated's listId is a string, and Basket's a uuid
 m.slice().view(Basket, ListCreated)
-const unfit: Parameters<typeof start.view<typeof Basket.__fields, typeof ListCreated>>[1] = "the event's listId does not fit: set it in the mapping"
+const unfit: Parameters<typeof start.view<typeof Basket.__fields, [typeof ListCreated]>>[1] = "the event's listId does not fit: set it in the mapping"
 
-// @ts-expect-error after the start too
-m.slice().view(Basket, ListCreated(() => ({ listId: m.generate() }))).event(ListCreated)
+// @ts-expect-error beside a mapped event too
+m.slice().view(Basket, ListCreated(() => ({ listId: m.generate() })), ListCreated)
 
 // @ts-expect-error a mapping that leaves it to flow must set it
 m.slice().view(Basket, ListCreated(() => ({ name: z.literal("x") })))
-m.slice().view(Basket, ListCreated(() => ({ listId: m.generate() }))).event(ItemAdded(() => ({ listId: m.generate() })))
+m.slice().view(Basket, ListCreated(() => ({ listId: m.generate() })), ItemAdded(() => ({ listId: m.generate() })))
 
 // --- .test() -----------------------------------------------------------------
 
@@ -405,7 +422,7 @@ m.slice().command(CreateList, ListCreated).readModel(TodoList)
 create.test("x", { given: ListCreated({ listId: "l-1" }), when: CreateList({ listId: "l-2" }), then: [ListCreated({ listId: "l-2" })] })
 create.test("x", { given: [ListCreated({ listId: "l-1" })], when: CreateList({ listId: "l-1" }), reject: "nope" })
 m.slice().automation(ListCreated, NameList, ListCreated).test("x", { given: ListCreated({ listId: "l-1" }), when: NameList({ listId: "l-1" }), then: ListCreated({ listId: "l-1" }) })
-m.slice().view(TodoList, ListCreated(() => ({ itemCount: z.literal(0) }))).event(ItemAdded((e) => ({ itemCount: m.generate(e), name: e.title })))
+m.slice().view(TodoList, ListCreated(() => ({ itemCount: z.literal(0) })), ItemAdded((e) => ({ itemCount: m.generate(e), name: e.title })))
 inbox.test("x", { given: [ListCreated({ listId: "l-1", name: "a" }), ItemAdded({ listId: "l-1" })], when: { name: "a" }, then: [TodoList({ listId: "l-1" })] })
 m.slice().view(TodoList, ListCreated).test("x", { given: ListCreated({ listId: "l-1" }), then: TodoList({ listId: "l-1" }) })
 m.event({ noteId: z.string() }).stream(Notes)

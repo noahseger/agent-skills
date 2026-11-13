@@ -98,7 +98,7 @@ The same discipline runs in reverse — **invent nothing.** No event, view, or s
 
 Write the model as TypeScript in `ts/`, or write it directly as [event-modeling-spec](https://github.com/dilgerma/event-modeling-spec) JSON. The TypeScript emits that same JSON (`npx em json model/`), and the viewer draws either.
 
-Write TypeScript for a system you are about to build. The compiler and the assembler enforce most of this document: a reference is a value, so an unknown event cannot be written; a slice is a chain of calls that starts with its whole pattern, so an illegal or incomplete slice does not compile; a field nothing fills is an assembly error. The same model generates the protobuf for the service it describes. See `ts/README.md`.
+Write TypeScript for a system you are about to build. The compiler and the assembler enforce most of this document: a reference is a value, so an unknown event cannot be written; a slice is a chain of calls whose first takes its whole pattern, every event included, so an illegal or incomplete slice does not compile; a field nothing fills is an assembly error. The same model generates the protobuf for the service it describes. See `ts/README.md`.
 
 Keep `npx em view model/` running while you write the model: after every save its terminal lists everything left to fix, compiler errors included.
 
@@ -122,7 +122,7 @@ The file is `{ "slices": [...] }`, validated by `ts/schema/eventmodeling.schema.
 - **Interfaces**: one `SCREEN` per slice with an actor, titled with the real entry point, and the actors in the slice's `actors`. The command's `apiEndpoint` says the same; `service` names an RPC service.
 - **Streams**: each event's `aggregate`. One lane per stream.
 - **Chapters**: each slice's `context`.
-- **External events**: `"context": "EXTERNAL"`, with `service` naming the system they come from. They have no `aggregate`; we never store them. A command's outbound event that is external is a call to that system, and its reply: an event of ours in the same slice keeps the reply's fields, and the reply points at it. A `TRANSLATION` is for an external event that arrives on its own, not for a reply.
+- **External events**: `"context": "EXTERNAL"`, with `service` naming the system they come from. They have no `aggregate`; we never store them. A command's outbound event that is external is a call to that system, and its reply: an event of ours in the same slice keeps the reply's fields, by name or as `Reply.fields.x` in its mapping, and the reply points at it. A `TRANSLATION` is for an external event that arrives on its own, not for a reply.
 - **What a handler reads**: a view with an `OUTBOUND` dependency on the command. One pointing at the processor is the view the automation polls for its work.
 - **Key columns**: `"idAttribute": true`. A list: `"cardinality": "List"`.
 - **Mapping**: a field filled by a renamed source gives the source field's name in `mapping`; `= 0` is a constant, and `"generated": true` a value the handler assigns, such as an id or a clock.
@@ -217,12 +217,12 @@ The file is `{ "slices": [...] }`, validated by `ts/schema/eventmodeling.schema.
 
 ### Automations: two forms
 
-An automation issues a command with no actor. One of two things drives it. An external event is neither: `.translation(ExternalEvent, Command, Event)` turns it into an event of ours, and is a `TRANSLATION`.
+An automation issues a command with no actor. One of two things drives it. An external event is neither: `.translation(ExternalEvent, Command, Event, ...)` turns it into an event of ours, and is a `TRANSLATION`.
 
 | Form | Spec JSON | TypeScript | Use it when |
 |---|---|---|---|
-| event-driven | the event points at the processor | `.automation(Event, Command, Event)` | One event is enough to decide, and the work is quick and safe to repeat |
-| polled view | the view points at the processor | `.automation(View, Command, Event)` | The work is slow, can fail, calls another system, or must not run twice |
+| event-driven | the event points at the processor | `.automation(Event, Command, Event, ...)` | One event is enough to decide, and the work is quick and safe to repeat |
+| polled view | the view points at the processor | `.automation(View, Command, Event, ...)` | The work is slow, can fail, calls another system, or must not run twice |
 
 The polled view lists the work to do. A projection adds a row when the work becomes due and marks it done when the event that finishes it arrives. The processor reads the list on its own schedule and issues the command for each open row. The view records pending and completed work. The implementation must make retries safe.
 

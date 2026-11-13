@@ -54,8 +54,8 @@ const slices = [
     .command(
       PlaceOrder,
       OrderPlaced((c) => ({ product: c.item, placedAt: m.generate() })),
+      OrderRefused,
     )
-    .event(OrderRefused)
     .chapter(Sales)
     .actor(Clerk, Boss)
     .screen(Till)
@@ -71,22 +71,18 @@ const slices = [
     .view(
       Unpaid,
       OrderPlaced(() => ({ payments: z.literal(0), status: z.literal("open") })),
-    )
-    .chapter(Sales)
-    .event(
       PaymentRecorded((e) => ({
         product: z.literal(""),
         payments: m.generate(e),
         status: z.literal("paid"),
       })),
-    )
-    .event(
       OrderRefused(() => ({
         product: z.literal(""),
         payments: z.literal(0),
         status: z.literal("refused"),
       })),
     )
+    .chapter(Sales)
     .query({ orderId: z.string() })
     .actor(Clerk)
     .service(Shop, "ListUnpaid"),

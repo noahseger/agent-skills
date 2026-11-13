@@ -42,11 +42,10 @@ export const secondOffence = SecondIllegalMoveRuled({
 export const ArbiterRulings = m.chapter()
 
 m.slice()
-  .command(RuleIllegalMove, IllegalMoveRuled)
+  .command(RuleIllegalMove, IllegalMoveRuled, SecondIllegalMoveRuled)
   .chapter(ArbiterRulings)
   .view(MoveList)
   .view(IllegalMoveTally)
-  .event(SecondIllegalMoveRuled)
   .actor(Arbiter)
   .service(ChessService)
   .note(

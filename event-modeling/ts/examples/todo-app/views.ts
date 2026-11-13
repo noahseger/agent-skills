@@ -63,11 +63,11 @@ m.slice()
   .view(
     TodoList,
     ListCreated(() => ({ itemCount: z.literal(0), status: z.literal("open") })),
+    ItemAdded((e) => ({ itemCount: m.generate(e) })),
+    ListCompleted(() => ({ status: z.literal("completed") })),
+    ListDeleted(() => ({ status: z.literal("deleted") })),
   )
   .chapter(Views)
-  .event(ItemAdded((e) => ({ itemCount: m.generate(e) })))
-  .event(ListCompleted(() => ({ status: z.literal("completed") })))
-  .event(ListDeleted(() => ({ status: z.literal("deleted") })))
   .query({ userId: z.string() })
   .actor(User)
   .service(TodoService, "ListTodoLists")
@@ -131,10 +131,10 @@ m.slice()
   .view(
     ListItems,
     ItemAdded(() => ({ done: z.literal(false), deleted: z.literal(false) })),
+    ItemCompleted(() => ({ done: z.literal(true) })),
+    ItemDeleted(() => ({ deleted: z.literal(true) })),
   )
   .chapter(Views)
-  .event(ItemCompleted(() => ({ done: z.literal(true) })))
-  .event(ItemDeleted(() => ({ deleted: z.literal(true) })))
   .query({ listId: z.string() })
   .actor(User)
   .screen(ListScreen)
@@ -191,10 +191,10 @@ m.slice()
   .view(
     ItemSearch,
     ItemAdded(() => ({ done: z.literal(false), deleted: z.literal(false) })),
+    ItemCompleted(() => ({ done: z.literal(true) })),
+    ItemDeleted(() => ({ deleted: z.literal(true) })),
   )
   .chapter(Views)
-  .event(ItemCompleted(() => ({ done: z.literal(true) })))
-  .event(ItemDeleted(() => ({ deleted: z.literal(true) })))
   .query({ text: z.string() })
   .actor(User)
   .service(TodoService, "SearchItems")

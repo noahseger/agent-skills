@@ -266,12 +266,15 @@ m.slice("IllegalMoveForfeiter")
   })
 
 m.slice()
-  .view(GameResult, GameResigned)
+  .view(
+    GameResult,
+    GameResigned,
+    DrawAgreed,
+    BoardOutcomeAdjudicated,
+    TimeForfeited,
+    IllegalMoveForfeited,
+  )
   .chapter(Conclusion)
-  .event(DrawAgreed)
-  .event(BoardOutcomeAdjudicated)
-  .event(TimeForfeited)
-  .event(IllegalMoveForfeited)
   .note("Five ways a game ends. Each one carries the result and how it came about.")
   .test("Settled after a resignation", {
     given: gameResigned,
