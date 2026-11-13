@@ -377,16 +377,18 @@ test("a call's external event is drawn in the system's lane, and a later trigger
     ],
     notes: {},
   })
-  const [first, later] = called.boxes.filter((b) => b.name === "Answered")
+  const [first, ...later] = called.boxes.filter((b) => b.name === "Answered")
   const command = called.boxes.find((b) => b.name === "Ask" && b.kind === "command")
-  assert.ok(first && later && command)
+  const gear = called.boxes.find((b) => b.name === "Keep" && b.kind === "automation")
+  assert.ok(first && command && gear)
   assert.equal(first.kind, "external")
   assert.equal(first.column, 0)
   assert.ok(!first.compact)
   const lane = called.rows.find((r) => first.y >= r.y && first.y + first.h <= r.y + r.h)
   assert.equal(lane?.id, "actor:remote")
   assert.ok(called.edges.some((e) => e.from === command.id && e.to === first.id))
-  assert.equal(later.canonical, first.id)
+  assert.deepEqual(later, [])
+  assert.ok(called.edges.some((e) => e.from === first.id && e.to === gear.id))
 })
 
 test("a command's outcomes stand side by side in their lane, each joined to the command", () => {

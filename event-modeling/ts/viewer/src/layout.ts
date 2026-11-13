@@ -563,7 +563,9 @@ export function layout(model: Board): Layout {
         useActor(actor)
       }
     }
-    if (s.external_event) {
+    // An outside event a call already ended in triggers from there, as an event does.
+    const called = s.external_event && eventBoxes.has(parse(s.external_event).name)
+    if (s.external_event && !called) {
       external = make(i, "external", parse(s.external_event))
       into(`actor:${s.actor}`, i, external)
       useActor(s.actor)
@@ -603,6 +605,7 @@ export function layout(model: Board): Layout {
         .filter((c) => c.actor === actor)
         .map((c) => make(i, "external", parse(c.event)))
       calls.push(...ended)
+      for (const box of ended) eventBoxes.set(box.name, [...(eventBoxes.get(box.name) ?? []), box])
       into(`actor:${actor}`, i, ...ended)
       useActor(actor)
     }
@@ -619,7 +622,7 @@ export function layout(model: Board): Layout {
 
     // What a trigger points at: the automation, or the view it builds.
     const target = gear ?? readModels[0]
-    if (target && s.trigger && !s.external_event) targets.set(i, target)
+    if (target && (s.external_event ? called : s.trigger)) targets.set(i, target)
   }
 
   // Reads are dashed from the view into the automation, or else the command.
@@ -647,7 +650,7 @@ export function layout(model: Board): Layout {
   // above the streams.
   for (const col of columns) {
     const target = targets.get(col.index)
-    const trigger = col.slice.trigger
+    const trigger = col.slice.trigger ?? col.slice.external_event
     if (!target || !trigger) continue
     const names = (Array.isArray(trigger) ? trigger : [trigger]).map((t) => parse(t).name)
     for (const name of names) {
