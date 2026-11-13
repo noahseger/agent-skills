@@ -228,7 +228,7 @@ async function view(path: string): Promise<void> {
     dist: VIEWER_DIST,
     root: statSync(path).isDirectory() ? path : dirname(path),
     load: (cause) => (types ? reload(path, types, cause) : reloadSpec(path, cause)),
-    port: Number(values.port ?? 5311),
+    port: values.port === undefined ? undefined : Number(values.port),
   })
   console.log(`Showing ${path} at ${server.url}. Press Ctrl-C to stop.`)
   if (values.open) openBrowser(server.url)

@@ -12,6 +12,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs"
+import { createServer } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
@@ -176,15 +177,14 @@ m.slice().view(Listing, Started).service(Board, "List").chapter(Ch)
   )
 })
 
-/** `em view` on a free port; resolves once it prints its URL. */
-async function view(path: string) {
+/** `em view`, by default on a free port; resolves once it prints its URL. */
+async function view(path: string, port = ["--port", "0"]) {
   const server = spawn(process.execPath, [
     ...NODE_FLAGS,
     here("../bin/em.ts"),
     "view",
     path,
-    "--port",
-    "0",
+    ...port,
     "--no-open",
   ])
   let out = ""
@@ -234,6 +234,25 @@ test("view serves the app, the model, and a change feed", async () => {
     assert.equal((await fetch(`${url}/../package.json`)).status, 404)
   } finally {
     server.close()
+  }
+})
+
+test("view takes a free port when 5311 is taken, and refuses a taken --port", async () => {
+  // Another `em view` may hold 5311 already; either way it is taken.
+  const other = createServer()
+  await new Promise<void>((resolve) =>
+    other.once("error", () => resolve()).listen(5311, "127.0.0.1", resolve),
+  )
+  try {
+    const server = await view(EXAMPLE, [])
+    server.close()
+    assert.doesNotMatch(server.url, /:5311$/)
+
+    const run = em("view", EXAMPLE, "--port", "5311", "--no-open")
+    assert.equal(run.status, 1)
+    assert.equal(run.stderr, "Port 5311 is in use.\n")
+  } finally {
+    other.close()
   }
 })
 

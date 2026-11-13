@@ -13,8 +13,8 @@ export interface ServeOptions {
   root: string
   /** Assemble the model; `cause` is the save or deletion that asked for it, as `Saved index.ts`. */
   load: (cause?: string) => Promise<Snapshot>
-  /** 0 picks a free port. */
-  port: number
+  /** 0 picks a free port; without one, 5311, or a free port when 5311 is taken. */
+  port: number | undefined
 }
 
 export interface Server {
@@ -88,9 +88,17 @@ export async function serve(options: ServeOptions): Promise<Server> {
     }, 50)
   })
 
-  await new Promise<void>((resolve) => server.listen(options.port, "127.0.0.1", resolve))
+  const listen = (port: number) =>
+    new Promise<void>((resolve, reject) =>
+      server.once("error", reject).listen(port, "127.0.0.1", resolve),
+    )
+  await listen(options.port ?? 5311).catch((error: NodeJS.ErrnoException) => {
+    if (error.code !== "EADDRINUSE") throw error
+    if (options.port !== undefined) throw new Error(`Port ${options.port} is in use.`)
+    return listen(0)
+  })
   const address = server.address()
-  const port = typeof address === "object" && address ? address.port : options.port
+  const port = typeof address === "object" && address ? address.port : 0
   return {
     url: `http://localhost:${port}`,
     close() {
