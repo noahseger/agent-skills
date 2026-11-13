@@ -590,7 +590,8 @@ function checkFilled({ slice, where }: Located, fail: Fail): void {
  */
 function checkRecorded({ slice, where }: Located, fail: Fail): void {
   const { command, events } = slice
-  if (!command || events.length === 0) return
+  // A command that produces an external event sends its fields out.
+  if (!command || events.length === 0 || events.some((e) => e.decl.external)) return
   const all = Object.keys(command.decl.fields)
   const recorded = events.flatMap(({ decl, mapping }) => [
     ...Object.keys(decl.fields).filter((f) => !(f in mapping)),

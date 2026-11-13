@@ -359,6 +359,17 @@ test("a command field no event records is left to do, and an error when strict; 
   assert.ok(!fixed.warnings?.some((w) => w.message.includes("reaches no event")))
 })
 
+test("a call sends its command's fields out, so none is left unrecorded", () => {
+  const f = fixture()
+  const Remote = m.external()
+  const Answered = m.event({ id: z.string() }).external(Remote)
+  const Ask = m.command({ id: z.string(), note: z.string() })
+  const ask = m.slice().command(Ask, Answered).actor(f.User).service(f.Svc)
+  const model = { ...f, Remote, Answered, Ask, ...chapters({ Ch: [ask] }), default: m.model("x") }
+  const json = feedOf([model], { partial: true })
+  assert.ok(!json.warnings?.some((w) => w.message.includes("reaches no event")))
+})
+
 test("a mapping recognises a source field, a z.literal() and m.generate(); a schema it computes is left to do", () => {
   const f = fixture()
   const Create = m.command({ id: z.string(), name: z.string() })
