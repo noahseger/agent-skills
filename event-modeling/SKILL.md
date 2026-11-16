@@ -62,17 +62,17 @@ Two directions, both required:
    - **Command parameters** — fields the actor provides (e.g. `PlaceOrder(customerId, items)`)
    - **Trigger event** — for automation slices, the event that triggered the automation
    - **External event** — for external event slices, the inbound event from outside the system
-   - **Views the handler reads** — named on the slice with `.view()`; in spec JSON, a view pointing at the command
+   - **Views the slice queries** — `.query(View, filter)`, before the events; in spec JSON, a view pointing at the command
 
 If an event contains a field that doesn't appear in any of these sources, the model has an information gap — that field's data comes from somewhere not captured in the model. This is the most common information completeness mistake: an event field that materializes from a hidden data source.
 
 **Example — automation consuming a view:**
 
-An `OnOrderPlaced` automation triggers `ReserveInventory`. The trigger event `OrderPlaced` carries `orderId, items`. But the automation also needs current stock levels to decide which warehouse to reserve from. The slice names the `InventoryLevel` view (with `sku, available, reserved`) it reads, with `.view(InventoryLevel)`. Now `InventoryReserved(orderId, items, warehouseId)` is information complete: `orderId` and `items` come from the trigger, `warehouseId` comes from the consumed `InventoryLevel` view.
+An `InventoryReserver` automation hears `OrderPlaced(orderId, sku)` and issues `ReserveInventory(orderId, sku)`. To decide which warehouse reserves, the handler needs current stock levels, so the slice queries the `InventoryLevel` view (keyed by `sku`, with `warehouseId, available`): `.command(ReserveInventory).query(InventoryLevel, "sku")`. Now `InventoryReserved(orderId, warehouseId)` is information complete: `orderId` comes from the command, `warehouseId` from the queried row.
 
 **Example — hidden data source (antipattern):**
 
-A `StartSync` command takes `(bucket, path)` from the operator, but the `SyncStarted` event records `(bucket, path, remoteCount, localCount)`. Where do `remoteCount` and `localCount` come from? The command handler secretly reads remote and local state — but those data sources aren't declared anywhere in the slice. The fix: name the view the handler reads and say what the field is made from, as in `m.generate(c.pageId, Pages)` with `.view(Pages)`, or move the computation to a downstream automation that reads it.
+A `StartSync` command takes `(bucket, path)` from the operator, but the `SyncStarted` event records `(bucket, path, remoteCount, localCount)`. Where do `remoteCount` and `localCount` come from? The command handler secretly reads remote and local state — but those data sources aren't declared anywhere in the slice. The fix: query the view the handler reads, as in `.query(Pages, "pageId")`, so the field flows from its row, or move the computation to a downstream automation that reads it.
 
 Missing information blocks work. A field with no source might depend on another team's API with a 3-month backlog — discovering this during implementation instead of during modeling is the most expensive mistake you can make.
 
@@ -98,7 +98,7 @@ The same discipline runs in reverse — **invent nothing.** No event, view, or s
 
 Write the model as TypeScript in `ts/`, or write it directly as [event-modeling-spec](https://github.com/dilgerma/event-modeling-spec) JSON. The TypeScript emits that same JSON (`npx em json model/`), and the viewer draws either.
 
-Write TypeScript for a system you are about to build. The compiler and the assembler enforce most of this document: a reference is a value, so an unknown event cannot be written; a slice is a chain of calls whose first takes its whole pattern, every event included, so an illegal or incomplete slice does not compile; a field nothing fills is an assembly error. The same model generates the protobuf for the service it describes. See `ts/README.md`.
+Write TypeScript for a system you are about to build. The compiler and the assembler enforce most of this document: a reference is a value, so an unknown event cannot be written; a slice is a chain of calls in story order, each step typed by those before it, so an illegal slice does not compile and an incomplete one cannot join a chapter; a field nothing fills is an assembly error. The same model generates the protobuf for the service it describes. See `ts/README.md`.
 
 Keep `npx em view model/` running while you write the model: after every save its terminal lists everything left to fix, compiler errors included.
 
@@ -122,11 +122,11 @@ The file is `{ "slices": [...] }`, validated by `ts/schema/eventmodeling.schema.
 - **Interfaces**: one `SCREEN` per slice with an actor, titled with the real entry point, and the actors in the slice's `actors`. The command's `apiEndpoint` says the same; `service` names an RPC service.
 - **Streams**: each event's `aggregate`. One lane per stream.
 - **Chapters**: each slice's `context`.
-- **External events**: `"context": "EXTERNAL"`, with `service` naming the system they come from. They have no `aggregate`; we never store them. A command's outbound event that is external is a call to that system, and its reply: an event of ours in the same slice keeps the reply's fields, by name or as `Reply.fields.x` in its mapping, and the reply points at it. A `TRANSLATION` is for an external event that arrives on its own, not for a reply.
-- **What a handler reads**: a view with an `OUTBOUND` dependency on the command. One pointing at the processor is the view the automation polls for its work.
+- **External events**: `"context": "EXTERNAL"`, with `service` naming the system they come from. They have no `aggregate`; we never store them. A command's outbound event that is external is a call to that system, and its reply: an event of ours after it in the same slice keeps the reply's fields, by name or as `c.x` in its mapping, and the reply points at it. A `TRANSLATION` is for an external event that arrives on its own, not for a reply.
+- **What a slice queries**: a view with an `OUTBOUND` dependency on the command; a field taken from its row has the `mapping` `View(filter columns).column`, as `InventoryLevel(sku).warehouseId`. One pointing at the processor is the view the automation polls for its work.
 - **Key columns**: `"idAttribute": true`. A list: `"cardinality": "List"`.
 - **Mapping**: a field filled by a renamed source gives the source field's name in `mapping`; `= 0` is a constant, and `"generated": true` a value the handler assigns, such as an id or a clock.
-- **Specifications**: `given`, `when` and `then` steps, each with one example in `examples`. A refusal is a `SPEC_ERROR` step titled with the reason. A state view's `when` is a `SPEC_COMMAND` step titled with its screen, holding the query's values; its `then`, `SPEC_READMODEL` rows.
+- **Specifications**: `given`, `when` and `then` steps, each with one example in `examples`. A refusal is a `SPEC_ERROR` step titled with the reason. A state view's `when` is a `SPEC_COMMAND` step titled with its screen, holding the request's values; its `then`, `SPEC_READMODEL` rows.
 - **Notes**: an element's `description`.
 
 ```json
@@ -175,7 +175,7 @@ The file is `{ "slices": [...] }`, validated by `ts/schema/eventmodeling.schema.
         { "id": "e2", "title": "OrderPlaced", "type": "EVENT", "aggregate": "Orders", "fields": [],
           "dependencies": [{ "id": "p1", "type": "OUTBOUND", "title": "InventoryReserver", "elementType": "AUTOMATION" }] },
         { "id": "e3", "title": "InventoryReserved", "type": "EVENT", "aggregate": "Inventory",
-          "fields": [{ "name": "orderId", "type": "UUID" }, { "name": "warehouseId", "type": "String" }],
+          "fields": [{ "name": "orderId", "type": "UUID" }, { "name": "warehouseId", "type": "String", "mapping": "InventoryLevel(sku).warehouseId" }],
           "dependencies": [{ "id": "c2", "type": "INBOUND", "title": "ReserveInventory", "elementType": "COMMAND" }] }
       ],
       "processors": [
@@ -184,7 +184,7 @@ The file is `{ "slices": [...] }`, validated by `ts/schema/eventmodeling.schema.
       ],
       "commands": [
         { "id": "c2", "title": "ReserveInventory", "type": "COMMAND",
-          "fields": [{ "name": "orderId", "type": "UUID" }],
+          "fields": [{ "name": "orderId", "type": "UUID" }, { "name": "sku", "type": "String" }],
           "dependencies": [{ "id": "e3", "type": "OUTBOUND", "title": "InventoryReserved", "elementType": "EVENT" }] }
       ],
       "readmodels": [
@@ -404,7 +404,7 @@ Event models are living documents. When production reveals gaps:
 - **Dead-end events** — events that don't feed any view or trigger any automation
 - **Invented view names** — views should use domain terms the team already uses. If you can't name it from the domain vocabulary, it may not be a real concept.
 - **Inline projections** — putting views as outputs of state change slices instead of giving each view its own State View slice: the events it subscribes to, the view it builds, and the screen that shows it. State Change slices produce events; State View slices project events into views.
-- **Hidden data sources in events** — an event field that doesn't trace to any input within the slice (command, trigger, external event, or a view the handler reads). Example: `SyncStarted(bucket, path, remoteCount)` where `remoteCount` comes from querying an external system that isn't declared as a consumed view. Fix: name the view on the slice and say what the field is made from (`m.generate(c.pageId, Pages)` with `.view(Pages)`), or move the computation to a downstream automation that reads it.
+- **Hidden data sources in events** — an event field that doesn't trace to any input within the slice (command, trigger, external event, or a view the handler reads). Example: `SyncStarted(bucket, path, remoteCount)` where `remoteCount` comes from querying an external system that isn't declared as a consumed view. Fix: query the view on the slice (`.query(Pages, "pageId")`) so the field flows from its row, or move the computation to a downstream automation that reads it.
 - **"Design" language** — saying "design the views" or "architect the commands." Event modeling captures what happens; it doesn't prescribe what should happen.
 - **Dead-end state** — a view that tracks a condition the domain reacts to (a count nearing a limit, a status, a deadline) with no slice that consumes it. The same defect as a dead-end event, one level up.
 - **Punting a known rule** — flagging a real, traceable domain rule as an optional add-on instead of modeling it. Deferring a rule you already understand just moves the work to a more expensive phase. Model it; report what you modeled.

@@ -125,9 +125,10 @@ export const gameResigned = GameResigned({
 export const DrawsAndResignation = m.chapter()
 
 m.slice()
-  .command(OfferDraw, DrawOffered)
+  .command(OfferDraw)
+  .query(GameState, "gameId")
+  .event(DrawOffered)
   .chapter(DrawsAndResignation)
-  .view(GameState)
   .actor(Player)
   .service(ChessService)
   .test("White offers a draw on move 21", {
@@ -137,12 +138,10 @@ m.slice()
   })
 
 m.slice()
-  .view(
-    PendingDrawOffer,
-    DrawOffered(() => ({ status: z.literal("pending") })),
-    MovePlayed(() => ({ status: z.literal("declined") })),
-    DrawAgreed(() => ({ status: z.literal("accepted") })),
-  )
+  .view(PendingDrawOffer)
+  .event(DrawOffered, () => ({ status: z.literal("pending") }))
+  .event(MovePlayed, () => ({ status: z.literal("declined") }))
+  .event(DrawAgreed, () => ({ status: z.literal("accepted") }))
   .chapter(DrawsAndResignation)
   .note("A move by the opponent declines the offer. FIDE 9.1.2.3.")
   .test("The offer is pending on the opponent", {
@@ -174,9 +173,10 @@ m.slice()
   })
 
 m.slice()
-  .command(AcceptDraw, DrawAgreed)
+  .command(AcceptDraw)
+  .query(PendingDrawOffer, "gameId")
+  .event(DrawAgreed)
   .chapter(DrawsAndResignation)
-  .view(PendingDrawOffer)
   .actor(Player)
   .service(ChessService)
   .test("Black accepts the pending draw offer", {
@@ -201,9 +201,10 @@ m.slice()
   })
 
 m.slice()
-  .command(Resign, GameResigned)
+  .command(Resign)
+  .query(GameState, "gameId")
+  .event(GameResigned)
   .chapter(DrawsAndResignation)
-  .view(GameState)
   .actor(Player)
   .service(ChessService)
   .test("Black resigns a lost endgame", {

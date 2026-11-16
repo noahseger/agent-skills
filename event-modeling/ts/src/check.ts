@@ -3,7 +3,6 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
 import { API, type Diagnostic, DiagnosticCategory, type Snapshot } from "typescript/unstable/async"
 
-import { NO_COMMAND, NO_EVENT } from "./assemble.ts"
 import type { Warning } from "./types.ts"
 
 export interface Checker {
@@ -112,21 +111,14 @@ function usedEarly(d: Diagnostic): string[] {
   return name === undefined ? [] : [name]
 }
 
-const MISSING = /"add (\w+) to the ([\w -]+) or set it in the mapping"/g
-const MISFIT = /"the ([\w -]+)'s (\w+) does not fit: set it in the mapping"/g
+const MISSING = /"add (\w+) to a step before (\S+) or set it in the mapping"/g
+const MISFIT = /"the (event's )?(\w+)( before \S+)? does not fit: set it in the mapping"/g
 /** A mapping's result that is not a schema its target takes. */
-const UNFIT = /^Type '.*' is not assignable to type 'Fit</
-const OUTSIDE = /"(a mapper only works inside a slice[^"]*)"/
+const UNFIT = /^Type '.*' is not assignable to type '(?:Fit<|ZodType<|ZodStringFormat<)/
 const UNSET = /Property '(\w+)' is missing in type '.*' but required in type 'Pick</
-/** A slice's first call and the parameter it was not given, as `em json` words what that leaves out. */
-const UNSUPPLIED: Record<string, string> = {
-  "command events": NO_EVENT,
-  "view events": NO_EVENT,
-  "automation events": NO_EVENT,
-  "automation command": NO_COMMAND,
-  "translation events": NO_EVENT,
-  "translation command": NO_COMMAND,
-}
+/** Any other sentence the package's types put where a step goes wrong. */
+const INSTRUCTION =
+  /"((?:add |the |key column |start with |comes from |is a view|is ours|isn't stored|no one |an automation )[^"]*)"/
 const LAST_OVERLOAD = "The last overload gave the following error."
 
 /** `file:line  message`. The package's own type errors become the instruction they carry. */
@@ -134,14 +126,15 @@ function describe(d: Diagnostic, text: string, file: string): Warning {
   const said = (message: string): Warning => ({ message, element: "" })
   const at = (pos: number) => `${file}:${text.slice(0, pos).split("\n").length}  `
   const lines = messages(d)
-  // One sentence per field the source lacks.
+  const target = text.slice(d.pos, d.end)
+  const element = target.match(/\w+$/)?.[0] ?? ""
+  // One sentence per field the step lacks.
   const missing = [...d.text.matchAll(MISSING)]
   if (missing[0]) {
     const fields = missing.flatMap((f) => (f[1] ? [f[1]] : []))
-    const target = text.slice(d.pos, d.end)
     return {
-      message: `${at(d.pos)}${target}: add ${fields.join(", ")} to the ${missing[0][2]} or set it in the mapping`,
-      element: target.match(/\w+$/)?.[0] ?? "",
+      message: `${at(d.pos)}${target}: add ${fields.join(", ")} to a step before ${missing[0][2]} or set it in the mapping`,
+      element,
       fields,
     }
   }
@@ -149,31 +142,21 @@ function describe(d: Diagnostic, text: string, file: string): Warning {
   const misfit = [...d.text.matchAll(MISFIT)]
   if (misfit[0]) {
     const fields = misfit.flatMap((f) => (f[2] ? [f[2]] : []))
-    const target = text.slice(d.pos, d.end)
     const them = fields.length > 1 ? "do not fit: set them" : "does not fit: set it"
     return {
-      message: `${at(d.pos)}${target}: the ${misfit[0][1]}'s ${fields.join(", ")} ${them} in the mapping`,
-      element: target.match(/\w+$/)?.[0] ?? "",
+      message: `${at(d.pos)}${target}: the ${misfit[0][1] ?? ""}${fields.join(", ")}${misfit[0][3] ?? ""} ${them} in the mapping`,
+      element,
       fields,
     }
   }
   if (UNFIT.test(d.text))
     return said(
-      `${at(d.pos)}${text.slice(d.pos, d.end)} does not fit: set it to a source field of its type, a z.literal() or m.generate()`,
+      `${at(d.pos)}${target} does not fit: set it to a field of its type, a z.literal() or m.generate()`,
     )
-  const outside = lines.map((l) => l.match(OUTSIDE)?.[1]).find((m) => m !== undefined)
-  if (outside) return said(`${at(d.pos)}${outside}`)
   const unset = lines.map((l) => l.match(UNSET)?.[1]).find((f) => f !== undefined)
   if (unset) return said(`${at(d.pos)}the mapping must set ${unset}`)
-  // A missing argument: the compiler names its parameter, such as 'events', beside the message.
-  const unsupplied = d.relatedInformation
-    ?.map((r) => r.text)
-    .find((t) => /^(An argument|Arguments) for/.test(t))
-  // Named after its command or view, as `em json` names the slice.
-  const core = UNSUPPLIED[`${text.slice(d.pos, d.end)} ${unsupplied?.match(/'(\w+)'/)?.[1]}`]
-  const args = text.slice(d.end).match(/^\s*\(\s*([\w.]+)\s*(?:,\s*([\w.]+))?/)
-  if (core && args) return said(`${at(d.pos)}${args[2] ?? args[1]}: ${core}`)
-  if (unsupplied) return said(`${at(d.pos)}${d.text} ${unsupplied}`)
+  const instruction = lines.map((l) => l.match(INSTRUCTION)?.[1]).find((m) => m !== undefined)
+  if (instruction) return said(`${at(d.pos)}${instruction}`)
   // A failed overload call heads a chain; the last overload's reason is the line after it.
   const last = lines.indexOf(LAST_OVERLOAD)
   return said(`${at(d.pos)}${(last >= 0 ? lines[last + 1] : lines[0]) ?? ""}`)

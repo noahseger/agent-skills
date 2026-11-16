@@ -119,15 +119,13 @@ export const gameStarted = GameStarted({
 export const GameSetup = m.chapter()
 
 m.slice("ReceivePairing")
-  .translation(
-    PairingPublished,
-    StartGame,
-    GameStarted(() => ({
-      fen: z.literal(START_FEN),
-      sideToMove: z.literal("white"),
-      ply: z.literal(0),
-    })),
-  )
+  .translation(PairingPublished)
+  .command(StartGame)
+  .event(GameStarted, () => ({
+    fen: z.literal(START_FEN),
+    sideToMove: z.literal("white"),
+    ply: z.literal(0),
+  }))
   .chapter(GameSetup)
   .note("The pairing is translated, never stored. The starting position is ours to supply.")
   .test("Round 5 board 1 pairing starts a classical game", {
@@ -146,7 +144,8 @@ m.slice("ReceivePairing")
   })
 
 m.slice()
-  .view(GamePairing, GameStarted)
+  .view(GamePairing)
+  .event(GameStarted)
   .chapter(GameSetup)
   .test("Pairing identity available after the game starts", {
     given: gameStarted,
@@ -160,15 +159,13 @@ m.slice()
   })
 
 m.slice("ClockStarter")
-  .automation(
-    GameStarted,
-    StartClock,
-    ClockStarted((c) => ({
-      whiteTimeMs: m.generate(c.baseMinutes),
-      blackTimeMs: m.generate(c.baseMinutes),
-      runningSide: z.literal("white"),
-    })),
-  )
+  .automation(GameStarted)
+  .command(StartClock)
+  .event(ClockStarted, (c) => ({
+    whiteTimeMs: m.generate(c.baseMinutes),
+    blackTimeMs: m.generate(c.baseMinutes),
+    runningSide: z.literal("white"),
+  }))
   .chapter(GameSetup)
   .test("White's clock starts at 90 minutes", {
     given: gameStarted,

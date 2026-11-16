@@ -116,9 +116,9 @@ export interface Warning {
 }
 
 /**
- * Where a mapping function got one target field from. A generated value lists what it is made
- * from: source fields by name, the source and views by declaration, or, from JSON, by name.
- * `built` marks one the mapping computed instead, which is left to do.
+ * Where a mapping function got one target field from: a field before its step, by name; a constant;
+ * or a generated value, with what it is made from: fields by name, or, in a state view, the event by
+ * declaration. `built` marks one the mapping computed instead, which is left to do.
  */
 export type Source =
   | { from: string }
@@ -129,22 +129,22 @@ export type Source =
 export const inputNames = (s: { generate: (string | DeclData)[] }): string[] =>
   s.generate.map((i) => (typeof i === "string" ? i : (i.name ?? "")))
 
-/** A declaration a slice uses; `mapping` lists only fields not copied by name. */
+/** The fields before a step, each with the declaration it comes from. */
+export type Context = Record<string, DeclData>
+
+/**
+ * A declaration a slice uses; `mapping` lists only fields not copied by name. A query is one too:
+ * the view, whose mapping is the filter, every column it names.
+ */
 export interface Flow {
   decl: DeclData
   mapping: Record<string, Source>
-  /** The declarations whose `.fields` the mapping reads. */
-  reads?: DeclData[]
+  /** What its step can read: by name, or in the mapping. */
+  context: Context
 }
 
 /** A function that fills a declaration's fields; run once on probe values. */
-export type MapFn = (source: never) => object
-
-/** A declaration called with a function, before a slice knows its source. */
-export interface MappedData {
-  decl: DeclData
-  map: MapFn
-}
+export type MapFn = (context: never) => object
 
 export interface ExampleData {
   decl: DeclData
@@ -161,10 +161,10 @@ export interface TestData {
   name: string
   given: ExampleData[]
   when?: ExampleData
-  /** A state view's `when`: the values its query is asked with. */
-  query?: Record<string, unknown>
+  /** A state view's `when`: the values its request is asked with. */
+  request?: Record<string, unknown>
   then: ClauseData[]
-  /** What Zod refused in an example or the query, with where in it. */
+  /** What Zod refused in an example or the request, with where in it. */
   invalid?: { decl: DeclData; message: string }[]
 }
 
@@ -180,16 +180,18 @@ export interface SliceData {
   system?: ActorData
   service?: { service: ServiceData; method?: string }
   /** A state view's request fields. */
-  query?: Fields
+  request?: Fields
   /** What starts an automation: an event, or a view it polls for work. */
   trigger?: DeclData
   polls?: DeclData
   /** The view a state view slice builds from `events` and shows. */
   view?: DeclData
-  /** In an automation, mapped from the trigger event or the polled row. */
+  /** In an automation, mapped from what is before it. */
   command?: Flow
-  /** What the command's handler reads. */
-  reads: DeclData[]
+  /** The views the slice queries, in order, each with its filter. */
+  reads: Flow[]
+  /** How many of `reads` an automation queries before its command: it issues one per row. */
+  beforeCommand?: number
   /** What the command records; in a state view, what builds the view. */
   events: Flow[]
   tests: TestData[]
@@ -202,22 +204,16 @@ export function recorded(slice: SliceData): DeclData[] {
   return slice.view ? [] : slice.events.map((f) => f.decl)
 }
 
-/** What the slice's calls bring back: the external events it records, which its events of ours can keep. */
-export function replies(slice: SliceData): DeclData[] {
-  return recorded(slice).filter((d) => d.external)
-}
-
-/**
- * The source fields a flow takes, by name, by a mapping or as what a generated value is made
- * from, and the declarations a value is generated from whole.
- */
-export function taken({ decl, mapping }: Flow): (string | DeclData)[] {
-  return [
-    ...Object.keys(decl.fields).filter((f) => !(f in mapping)),
-    ...Object.values(mapping).flatMap((s) =>
-      "from" in s ? [s.from] : "generate" in s ? s.generate : [],
-    ),
-  ]
+/** The fields of `from` a flow takes: by name, by a mapping, or as what a generated value is made from. */
+export function taken({ decl, mapping, context }: Flow, from: DeclData): string[] {
+  const named = Object.keys(decl.fields).filter((f) => !(f in mapping))
+  const inputs = Object.values(mapping).flatMap((s) =>
+    "from" in s ? [s.from] : "generate" in s ? s.generate : [],
+  )
+  return [...named, ...inputs].flatMap((i) => {
+    if (typeof i !== "string") return i === from ? Object.keys(from.fields) : []
+    return context[i] === from ? [i] : []
+  })
 }
 
 /** The events a slice reacts to: its trigger, or what builds its view. */

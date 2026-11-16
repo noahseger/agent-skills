@@ -256,7 +256,7 @@ export function read(written: Feed): Board {
     if (reads.length > 0) out.reads = reads.map((r) => r.title)
     if (shows.length > 0) out.read_models = shows.map(element)
     if (shows.length > 0 && screen && (screen.fields ?? []).length > 0)
-      out.query = screen.fields.map((f) => f.name)
+      out.request = screen.fields.map((f) => f.name)
     if (polled) out.polls = polled.title
     const note = s.storylines?.[0]?.title
     if (note !== undefined) out.note = note

@@ -1,7 +1,13 @@
 // The arbiter rules on an illegal move and keeps count of them per player.
 
 import { m, z } from "#em"
-import { IllegalMoveRuled, illegalMoveRuled, MoveList, RuleIllegalMove } from "./play.ts"
+import {
+  IllegalMoveRuled,
+  illegalMoveRuled,
+  MoveList,
+  MovePlayed,
+  RuleIllegalMove,
+} from "./play.ts"
 import { Arbiter, ChessService, Game } from "./setup.ts"
 
 // How many illegal moves each side has made. FIDE 7.5.5 escalates on the second.
@@ -33,6 +39,20 @@ export const secondIllegalMoveRuled = IllegalMoveRuled({
   sideToMove: "white",
 })
 
+// White's king steps onto its own pawn: the move the arbiter strikes second.
+const kingIntoOwnPawn = MovePlayed({
+  gameId: "otb-2024-ct-r5-b1",
+  ply: 44,
+  san: "Kf2",
+  fromSquare: "g1",
+  toSquare: "f2",
+  piece: "king",
+  fen: "r5k1/pp3ppp/2p5/8/8/2P2N2/PP3KPP/R7 b - - 7 22",
+  sideToMove: "black",
+  isCheck: false,
+  isCapture: false,
+})
+
 export const secondOffence = SecondIllegalMoveRuled({
   gameId: "otb-2024-ct-r5-b1",
   offendingSide: "white",
@@ -42,10 +62,12 @@ export const secondOffence = SecondIllegalMoveRuled({
 export const ArbiterRulings = m.chapter()
 
 m.slice()
-  .command(RuleIllegalMove, IllegalMoveRuled, SecondIllegalMoveRuled)
+  .command(RuleIllegalMove)
+  .query(MoveList, (c) => ({ gameId: c.gameId, ply: c.ply }))
+  .query(IllegalMoveTally, (c) => ({ gameId: c.gameId, offendingSide: c.offendingSide }))
+  .event(IllegalMoveRuled)
+  .event(SecondIllegalMoveRuled)
   .chapter(ArbiterRulings)
-  .view(MoveList)
-  .view(IllegalMoveTally)
   .actor(Arbiter)
   .service(ChessService)
   .note(
@@ -66,7 +88,7 @@ m.slice()
     then: illegalMoveRuled,
   })
   .test("A second illegal move by the same player carries the loss", {
-    given: illegalMoveRuled,
+    given: [illegalMoveRuled, kingIntoOwnPawn],
     when: RuleIllegalMove({
       gameId: "otb-2024-ct-r5-b1",
       ply: 44,
@@ -81,10 +103,8 @@ m.slice()
   })
 
 m.slice()
-  .view(
-    IllegalMoveTally,
-    IllegalMoveRuled((e) => ({ illegalMoveCount: m.generate(e) })),
-  )
+  .view(IllegalMoveTally)
+  .event(IllegalMoveRuled, (e) => ({ illegalMoveCount: m.generate(e) }))
   .chapter(ArbiterRulings)
   .test("One ruling puts the offender on one illegal move", {
     given: illegalMoveRuled,

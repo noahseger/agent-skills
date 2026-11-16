@@ -51,11 +51,9 @@ const order = { orderId: "o-1", item: "Tea" }
 const slices = [
   m
     .slice()
-    .command(
-      PlaceOrder,
-      OrderPlaced((c) => ({ product: c.item, placedAt: m.generate() })),
-      OrderRefused,
-    )
+    .command(PlaceOrder)
+    .event(OrderPlaced, (c) => ({ product: c.item, placedAt: m.generate() }))
+    .event(OrderRefused)
     .chapter(Sales)
     .actor(Clerk, Boss)
     .screen(Till)
@@ -68,34 +66,35 @@ const slices = [
     .test("A banned item is refused", { when: PlaceOrder(order), reject: "banned item" }),
   m
     .slice()
-    .view(
-      Unpaid,
-      OrderPlaced(() => ({ payments: z.literal(0), status: z.literal("open") })),
-      PaymentRecorded((e) => ({
-        product: z.literal(""),
-        payments: m.generate(e),
-        status: z.literal("paid"),
-      })),
-      OrderRefused(() => ({
-        product: z.literal(""),
-        payments: z.literal(0),
-        status: z.literal("refused"),
-      })),
-    )
+    .view(Unpaid)
+    .event(OrderPlaced, () => ({ payments: z.literal(0), status: z.literal("open") }))
+    .event(PaymentRecorded, (e) => ({
+      product: z.literal(""),
+      payments: m.generate(e),
+      status: z.literal("paid"),
+    }))
+    .event(OrderRefused, () => ({
+      product: z.literal(""),
+      payments: z.literal(0),
+      status: z.literal("refused"),
+    }))
+    .request({ orderId: z.string() })
     .chapter(Sales)
-    .query({ orderId: z.string() })
     .actor(Clerk)
     .service(Shop, "ListUnpaid"),
-  m.slice("Charger").automation(Unpaid, ChargeCard, CardCharged).chapter(Sales),
+  m.slice("Charger").automation(Unpaid).command(ChargeCard).event(CardCharged).chapter(Sales),
   m
     .slice()
-    .translation(
-      CardCharged,
-      RecordPayment((e) => ({ paid: e.amount })),
-      PaymentRecorded,
-    )
-    .view(Unpaid),
-  m.slice("Refunder").automation(PaymentRecorded, Refund, OrderRefused).chapter(Sales),
+    .translation(CardCharged)
+    .command(RecordPayment, (c) => ({ paid: c.amount }))
+    .query(Unpaid, "orderId")
+    .event(PaymentRecorded),
+  m
+    .slice("Refunder")
+    .automation(PaymentRecorded)
+    .command(Refund)
+    .event(OrderRefused)
+    .chapter(Sales),
 ]
 const exports = {
   ...{ Clerk, Boss, Shop, Till, Orders, Payments, Bank, Sales, Loose },
@@ -233,7 +232,7 @@ test("a state view slice: events in, its view, a screen out", () => {
   assert.deepEqual(
     view?.screens[0]?.fields.map((f) => f.name),
     ["orderId"],
-    "a view's screen asks for the query",
+    "a view's screen asks for the request",
   )
   const drawn = read(feed).chapters[0]?.slices[1]
   assert.deepEqual(

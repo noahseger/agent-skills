@@ -551,10 +551,10 @@ export function layout(model: Board): Layout {
         const ui = make(
           i,
           "ui",
-          { name: s.screen ?? method, fields: s.query ?? [], keys: [] },
+          { name: s.screen ?? method, fields: s.request ?? [], keys: [] },
           {
             ...(service === undefined ? {} : { detail: service }),
-            form: s.command ? commandFields : (s.query ?? []),
+            form: s.command ? commandFields : (s.request ?? []),
             ...(s.command ? { button: parse(s.command).name } : {}),
             ...(shown === undefined ? {} : { table: shown }),
           },
@@ -827,7 +827,7 @@ export function layout(model: Board): Layout {
           const lines = parsed.lines.flatMap((l) => wrap(l, SPEC_LINE_CHARS, SPEC_INDENT))
           const { name, error } = parsed
           const h = lines.length > 0 ? SPEC_CARD_TITLE + lines.length * SPEC_LINE_H + 6 : 26
-          // A view's when is the query its screen asks.
+          // A view's when is the request its screen asks.
           const asked = word === "when" && !col.slice.command
           step.cards.push({
             kind: error ? "error" : asked ? "ui" : (kinds.get(name) ?? "command"),

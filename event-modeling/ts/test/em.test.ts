@@ -109,8 +109,8 @@ export const Started = m.event({ id: z.string() })
 export const Table = m.view({ id: z.string() }).key("id")
 export const User = m.actor()
 export const Ch = m.chapter()
-m.slice().command(Start, Started).chapter(Ch).test("starts", { when: Start({ id: "1" }), then: [Started({ id: "1" })] })
-m.slice().view(Table, Started).chapter(Ch).actor(User).test("the row shows", { given: Started({ id: "1" }), then: Table({ id: "1" }) })
+m.slice().command(Start).event(Started).chapter(Ch).test("starts", { when: Start({ id: "1" }), then: [Started({ id: "1" })] })
+m.slice().view(Table).event(Started).chapter(Ch).actor(User).test("the row shows", { given: Started({ id: "1" }), then: Table({ id: "1" }) })
 export default m.model("x")
 `,
     )
@@ -136,8 +136,8 @@ export const Started = m.event({ id: z.string() })
 export const Table = m.view({ id: z.string() }).key("id")
 export const Loose = m.event({ id: z.string() })
 export const Ch = m.chapter()
-m.slice().command(Start, Started).service(Api).chapter(Ch).test("starts", { when: Start({ id: "1" }), then: [Started({ id: "1" })] })
-m.slice().view(Table, Started).chapter(Ch)
+m.slice().command(Start).event(Started).service(Api).chapter(Ch).test("starts", { when: Start({ id: "1" }), then: [Started({ id: "1" })] })
+m.slice().view(Table).event(Started).chapter(Ch)
 export default m.model("x")
 `
 
@@ -165,7 +165,7 @@ test("proto skips a service with an unfinished slice, says why, and exits 1", ()
   const { run, api, board } = protoOf(
     `${API_DONE}export const Board = m.service("board.v1")
 export const Listing = m.view({ id: z.string() }).key("id")
-m.slice().view(Listing, Started).service(Board, "List").chapter(Ch)
+m.slice().view(Listing).event(Started).service(Board, "List").chapter(Ch)
 `,
   )
   assert.equal(run.status, 1)
@@ -268,10 +268,11 @@ export const Chess = m.service("chess.v1")
 export const StartGame = m.command({ gameId: z.string() })
 export const GameStarted = m.event({ gameId: z.string(), white: z.string(), black: z.string() }).stream(Games)
 export const Play = m.chapter()
-m.slice().command(StartGame, ${emits}).actor(User).service(Chess).chapter(Play)
+m.slice().command(StartGame).event(${emits}).actor(User).service(Chess).chapter(Play)
 export default m.model("Chess")
 `
-  const error = "index.ts:10  GameStarted: add black, white to the command or set it in the mapping"
+  const error =
+    "index.ts:10  GameStarted: add black, white to a step before .event() or set it in the mapping"
   const warnings = async (url: string) =>
     (
       (await (await fetch(`${url}/model.json`)).json()) as { warnings?: { message: string }[] }
@@ -286,7 +287,7 @@ export default m.model("Chess")
     await reloaded(server.url, () => {
       writeFileSync(
         join(dir, ".!1!index.ts"),
-        model('GameStarted(() => ({ white: z.literal("me"), black: z.literal("you") }))'),
+        model('GameStarted, () => ({ white: z.literal("me"), black: z.literal("you") })'),
       )
       renameSync(join(dir, ".!1!index.ts"), file)
     })
@@ -317,8 +318,8 @@ export const GameStarted = m.event({ gameId: z.string(), white: z.string() })
 export const Begin = m.command({ gameId: z.string() })
 export const Started = m.event({ gameId: z.string(), white: z.string() })
 export const Play = m.chapter()
-m.slice().command(StartGame, GameStarted).actor(User).service(Chess).chapter(Play)
-m.slice().command(Begin, Started).actor(User).service(Chess).chapter(Play)
+m.slice().command(StartGame).event(GameStarted).actor(User).service(Chess).chapter(Play)
+m.slice().command(Begin).event(Started).actor(User).service(Chess).chapter(Play)
 export default m.model("Chess")
 `,
   )
@@ -333,12 +334,12 @@ export default m.model("Chess")
         .map((w) => [w.message, w.element, w.slice]),
       [
         [
-          "index.ts:11  GameStarted: add white to the command or set it in the mapping",
+          "index.ts:11  GameStarted: add white to a step before .event() or set it in the mapping",
           "GameStarted",
           "StartGame",
         ],
         [
-          "index.ts:12  Started: add white to the command or set it in the mapping",
+          "index.ts:12  Started: add white to a step before .event() or set it in the mapping",
           "Started",
           "Begin",
         ],
@@ -361,10 +362,10 @@ export const Notes = m.stream()
 export const Capture = m.chapter()
 export const NoteCaptured = m.event({ noteId: z.uuid(), text: z.string() }).stream(Notes)
 export const CaptureNote = m.command({ text: z.string() })
-m.slice().command(CaptureNote, NoteCaptured((c) => ({ noteId: c.text }))).chapter(Capture)
+m.slice().command(CaptureNote).event(NoteCaptured, (c) => ({ noteId: c.text })).chapter(Capture)
 export const NoteTaken = m.event({ noteId: z.uuid(), text: z.string() }).stream(Notes)
 export const TakeNote = m.command({ noteId: z.string(), text: z.string() })
-m.slice().command(TakeNote, NoteTaken).chapter(Capture)
+m.slice().command(TakeNote).event(NoteTaken).chapter(Capture)
 export default m.model("Notes")
 `,
   )
@@ -376,8 +377,8 @@ export default m.model("Notes")
     assert.deepEqual(
       warnings.filter((w) => w.message.startsWith("index.ts:")).map((w) => w.message),
       [
-        "index.ts:8  noteId does not fit: set it to a source field of its type, a z.literal() or m.generate()",
-        "index.ts:11  NoteTaken: the command's noteId does not fit: set it in the mapping",
+        "index.ts:8  noteId does not fit: set it to a field of its type, a z.literal() or m.generate()",
+        "index.ts:11  NoteTaken: the noteId before .event() does not fit: set it in the mapping",
       ],
     )
   } finally {
@@ -393,23 +394,23 @@ test("a model that doesn't load shows the compiler's errors, not the JavaScript 
     `import { z } from "zod"
 import { m } from "#em"
 
-m.slice().command(Retry, Retried).chapter(Ch)
-m.slice().command(Retry, Retried).chapter(Later)
+m.slice().command(Retry).event(Retried).chapter(Ch)
+m.slice().command(Retry).event(Retried).chapter(Later)
 export const Received = m.event({ id: z.string() }).stream("Inbox")
 export const Sync = m.command({ id: z.string() })
 export const Synced = m.event({ id: z.string() })
 export const Failed = m.event({ id: z.string() })
 export const Ch = m.chapter()
-m.slice().command(Sync, Synced, Failed).chapter(Ch)
-m.slice().command(Sync)
+m.slice().command(Sync).event(Synced).event(Failed).chapter(Ch)
+m.slice().command(Sync).chapter(Ch)
 export const Retry = m.command({ id: z.string() })
 export const Retried = m.event({ id: z.string() })
 export const Later = m.chapter()
-Synced((e) => ({ id: m.generate(e.id) }))
 export const Pending = m.view({ id: z.string() })
-m.slice().view(Pending)
-m.slice().automation(Synced)
-m.slice().automation(Pending, Sync)
+m.slice().command(Sync).query(Pending, "id").event(Synced).chapter(Ch)
+m.slice().view(Pending).chapter(Ch)
+m.slice().automation(Synced).chapter(Ch)
+m.slice().automation(Pending).command(Sync).chapter(Ch)
 export default m.model("x")
 `,
   )
@@ -422,11 +423,11 @@ export default m.model("x")
       [
         "  index.ts: declare Retry, Retried, Ch, Later above where they are used.",
         "  index.ts:6  Argument of type 'string' is not assignable to parameter of type 'Stream'.",
-        "  index.ts:12  Sync: this slice has no event yet. Add it to the slice's first call.",
-        "  index.ts:16  a mapper only works inside a slice's first call",
-        "  index.ts:18  Pending: this slice has no event yet. Add it to the slice's first call.",
-        "  index.ts:19  Synced: this slice has no command yet. Add it to the slice's first call.",
-        "  index.ts:20  Sync: this slice has no event yet. Add it to the slice's first call.",
+        "  index.ts:12  add .event() before .chapter()",
+        "  index.ts:17  the view has no .key(): many rows: only an automation reads them, before its .command()",
+        "  index.ts:18  add .event() before .chapter()",
+        "  index.ts:19  add .command() and .event() before .chapter()",
+        "  index.ts:20  add .event() before .chapter()",
         "",
       ].join("\n"),
     )

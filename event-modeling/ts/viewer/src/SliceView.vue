@@ -182,7 +182,7 @@ function cardClass(b: Box) {
           <dl>
             <template v-if="actor"><dt>Actor</dt><dd>{{ actor }}</dd></template>
             <template v-if="slice.ui"><dt>Service</dt><dd>{{ slice.ui }}</dd></template>
-            <template v-if="slice.query?.length"><dt>Query</dt><dd>{{ slice.query.join(", ") }}</dd></template>
+            <template v-if="slice.request?.length"><dt>Request</dt><dd>{{ slice.request.join(", ") }}</dd></template>
             <template v-if="slice.polls">
               <dt>Polls</dt>
               <dd><button type="button" class="ref" @click="follow(slice.polls)">{{ slice.polls }}</button></dd>

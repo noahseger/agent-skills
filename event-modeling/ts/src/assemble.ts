@@ -19,9 +19,9 @@ import {
   META,
   type ModelData,
   recorded,
-  replies,
   type SliceData,
   type StreamData,
+  type TestData,
   taken,
   type Warning,
 } from "./types.ts"
@@ -152,7 +152,7 @@ function drawnElsewhere(first: SliceData, later: SliceData): Warning[] {
   const chapter = (s: SliceData) => s.chapters.map((c) => c.name).join(" and ") || undefined
   const actors = (s: SliceData) => s.actors.map((a) => a.name).join(" and ") || undefined
   const method = (s: SliceData) => s.service && `${s.service.service.name}/${s.service.method}`
-  const query = (s: SliceData) => (s.query ? Object.keys(s.query).join(", ") : undefined)
+  const request = (s: SliceData) => (s.request ? Object.keys(s.request).join(", ") : undefined)
   const quoted = (text: string | undefined) => (text === undefined ? undefined : show(text))
   const differs: [string | undefined, string | undefined, string, string, string][] = [
     [chapter(later), chapter(first), "names chapter", "drawn in", "drawn in no chapter"],
@@ -160,7 +160,7 @@ function drawnElsewhere(first: SliceData, later: SliceData): Warning[] {
     [actors(later), actors(first), "names actor", "seen by", "seen by no one"],
     [later.screen?.name, first.screen?.name, "names screen", "shown on", "shown on no screen"],
     [method(later), method(first), "names method", "served by", "served by no method"],
-    [query(later), query(first), "asks with", "asked with", "asked with nothing"],
+    [request(later), request(first), "asks with", "asked with", "asked with nothing"],
     [
       quoted(later.note),
       quoted(first.note),
@@ -381,24 +381,19 @@ function check(
     checkSeen(at, own)
     checkSpecs(at, built, own)
     checkGenerated(at, own)
-    checkReads(at, own)
   }
   checkFilledSomewhere(located, fail)
   checkConnected(located, built, fail)
   checkMethods(located, conflict)
 }
 
-/** `em view` words the compiler's error for the same slice the same way. */
-export const NO_COMMAND = "this slice has no command yet. Add it to the slice's first call."
-export const NO_EVENT = "this slice has no event yet. Add it to the slice's first call."
-
-/** What a slice's first call left out. `em json` runs the model without the compiler. */
+/** What a slice left out. `em json` runs the model without the compiler. */
 function missingCore(slice: SliceData): string | undefined {
   const { command, trigger, polls, view, events } = slice
   if (!command && !trigger && !polls && !view)
-    return "this slice is empty. Give its first call what starts it."
-  if ((trigger || polls) && !command) return NO_COMMAND
-  if ((command || view) && events.length === 0) return NO_EVENT
+    return "this slice is empty. Start it with .command(), .view(), .automation() or .translation()."
+  if ((trigger || polls) && !command) return "this slice has no command yet. Add .command()."
+  if ((command || view) && events.length === 0) return "this slice has no event yet. Add .event()."
   return undefined
 }
 
@@ -468,8 +463,8 @@ function used(slice: SliceData): [keyof typeof KIND_LABEL, { name?: string }][] 
     out.push(["event", e])
     if (e.external) out.push(["external", e.external])
   }
-  const reads = [...slice.reads, slice.polls, slice.view, ...flows(slice).flatMap(generatedFrom)]
-  for (const r of reads) if (r) out.push(["view", r])
+  for (const r of [...slice.reads.map((q) => q.decl), slice.polls, slice.view])
+    if (r) out.push(["view", r])
   for (const t of slice.tests) {
     for (const c of [...t.given, t.when, ...t.then])
       if (c && "decl" in c) out.push([c.decl.kind, c.decl])
@@ -483,19 +478,10 @@ const flows = (slice: SliceData): Flow[] => [
   ...slice.events,
 ]
 
-/** The views a flow's generated values are made from. */
-const generatedFrom = (flow: Flow): DeclData[] =>
-  Object.values(flow.mapping).flatMap((s) =>
-    "generate" in s
-      ? s.generate.filter((i): i is DeclData => typeof i !== "string" && i.kind === "view")
-      : [],
-  )
-
 /**
  * A mapping copies a field, sets a constant or says what a value is made from. One that computes a
- * value is drawn as generated and left to do: what it computes is the handler's, not the model's. A
- * view a value is made from is one the handler reads. An automation's command makes nothing:
- * it is filled from what starts it.
+ * value is drawn as generated and left to do: what it computes is the handler's, not the model's. An
+ * automation's command makes nothing: it is filled from what is before it.
  */
 function checkGenerated({ slice, where }: Located, fail: Fail): void {
   const from = slice.trigger ?? slice.polls
@@ -510,41 +496,19 @@ function checkGenerated({ slice, where }: Located, fail: Fail): void {
         })
         continue
       }
-      if (from && flow === slice.command && "generate" in s) {
+      if (from && flow === slice.command && "generate" in s)
         fail({
-          message: `${where}: ${target} is generated, but an automation's command is filled from ${from.name}. Add ${field} to ${from.name}, or generate it in an event ${flow.decl.name} records.`,
+          message: `${where}: ${target} is generated, but an automation's command is filled from what is before it. Add ${field} to ${from.name} or a view it queries, or generate it in an event ${flow.decl.name} records.`,
           element: flow.decl.name ?? "",
           slice: slice.name ?? "",
         })
-        continue
-      }
-      for (const input of "generate" in s ? s.generate : [])
-        if (typeof input !== "string" && input.kind === "view" && !slice.reads.includes(input))
-          fail({
-            message: `${where}: ${target} is generated from ${input.name}, which this slice doesn't read yet. Add .view(${input.name}).`,
-            element: input.name ?? "",
-            slice: slice.name ?? "",
-          })
     }
   }
 }
 
-/** A mapping reads `.fields` of a reply the slice brings back, so of one of the slice's events. */
-function checkReads({ slice, where }: Located, fail: Fail): void {
-  const own = slice.events.map((f) => f.decl)
-  for (const flow of flows(slice))
-    for (const read of flow.reads ?? [])
-      if (!own.includes(read))
-        fail({
-          message: `${where}: ${flow.decl.name}'s mapping reads ${read.name}.fields, but ${read.name} isn't one of this slice's events. Add it to the slice's first call.`,
-          element: flow.decl.name ?? "",
-          slice: slice.name ?? "",
-        })
-}
-
-/** The fields a flow fills: those that copy by name from its sources, and those its mapping sets. */
-function filled(flow: Flow, ...sources: DeclData[]): string[] {
-  return [...sources.flatMap((s) => Object.keys(s.fields)), ...Object.keys(flow.mapping)]
+/** The fields a flow fills: those that copy by name from before its step, and those its mapping sets. */
+function filled(flow: Flow): string[] {
+  return [...Object.keys(flow.context), ...Object.keys(flow.mapping)]
 }
 
 /** The fields that may go without a value. */
@@ -576,26 +540,25 @@ function checkFilled({ slice, where }: Located, fail: Fail): void {
     }
   }
   const { command, view } = slice
-  const from = slice.trigger ?? slice.polls
-  if (command && from)
+  if (command && (slice.trigger || slice.polls))
     check(
       command.decl,
-      [...filled(command, from), ...optional(command.decl)],
-      (f) => `Add ${f} to ${from.name}, or set it in the mapping.`,
+      [...filled(command), ...optional(command.decl)],
+      (f) => `Add ${f} to a step before .command() or set it in the mapping.`,
     )
   // An external event's fields come from outside, and an event of ours can keep them.
   if (command)
     for (const flow of slice.events.filter((f) => !f.decl.external))
       check(
         flow.decl,
-        [...filled(flow, command.decl, ...replies(slice)), ...optional(flow.decl)],
-        (f) => `Add ${f} to ${command.decl.name}, or set it in the mapping.`,
+        [...filled(flow), ...optional(flow.decl)],
+        (f) => `Add ${f} to a step before .event() or set it in the mapping.`,
       )
   if (view)
     check(
       view,
-      slice.events.flatMap((flow) => filled(flow, flow.decl)),
-      (f) => `Add an event that carries ${f} to the slice's first call, or set it in a mapping.`,
+      slice.events.flatMap(filled),
+      (f) => `Add .event() with an event that carries ${f}, or set it in a mapping.`,
     )
 }
 
@@ -609,9 +572,7 @@ function checkRecorded({ slice, where }: Located, fail: Fail): void {
   // A command that produces an external event sends its fields out.
   if (!command || events.length === 0 || events.some((e) => e.decl.external)) return
   const all = Object.keys(command.decl.fields)
-  const recorded = events
-    .flatMap(taken)
-    .flatMap((i) => (typeof i === "string" ? [i] : i === command.decl ? all : []))
+  const recorded = events.flatMap((e) => taken(e, command.decl))
   const name = command.decl.name
   for (const field of all.filter((f) => !recorded.includes(f)))
     fail({
@@ -633,13 +594,10 @@ function checkFilledSomewhere(located: Located[], fail: Fail): void {
   for (const { slice } of located) {
     const { command } = slice
     if (!command) continue
-    const from = slice.trigger ?? slice.polls
-    add(command.decl, from ? filled(command, from) : Object.keys(command.decl.fields))
+    const automated = slice.trigger || slice.polls
+    add(command.decl, automated ? filled(command) : Object.keys(command.decl.fields))
     for (const flow of slice.events)
-      add(
-        flow.decl,
-        flow.decl.external ? optional(flow.decl) : filled(flow, command.decl, ...replies(slice)),
-      )
+      add(flow.decl, flow.decl.external ? optional(flow.decl) : filled(flow))
   }
   for (const [decl, fields] of fills) {
     const to = decl.kind === "command" ? "what issues" : "a command that records"
@@ -655,7 +613,7 @@ function checkFilledSomewhere(located: Located[], fail: Fail): void {
 function checkKeys({ slice, where }: Located, fail: Fail): void {
   if (!slice.view || slice.view.keys.length === 0) return
   for (const flow of slice.events) {
-    const carried = filled(flow, flow.decl)
+    const carried = filled(flow)
     const missing = slice.view.keys.filter((k) => !carried.includes(k))
     if (missing.length > 0) {
       fail({
@@ -751,7 +709,7 @@ function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
       for (const c of then) {
         const matched = rowsLike(rows, view, c.data)
         const built = matched.length === 1 && matched[0] ? valuesOf(matched[0]) : {}
-        if (excluded({ ...built, ...c.data }, t.query ?? {}))
+        if (excluded({ ...built, ...c.data }, t.request ?? {}))
           said(
             `then has ${view.name} ${rowName(view, c.data)}, but when excludes it. Remove it from then.`,
             view.name ?? "",
@@ -766,47 +724,133 @@ function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
       for (const row of rows) {
         const data = valuesOf(row)
         if (then.some((c) => rowsLike([row], view, c.data).length > 0)) continue
-        if (excluded(data, t.query ?? {})) continue
-        const unless = t.query ? " and when does not exclude it" : ""
+        if (excluded(data, t.request ?? {})) continue
+        const unless = t.request ? " and when does not exclude it" : ""
         said(
           `given builds ${view.name} ${rowName(view, data)}, but then leaves it out${unless}. Add it to then.`,
           view.name ?? "",
         )
       }
     } else if (command) {
-      const trigger = t.given.find((g) => g.decl === slice.trigger)
-      if (t.when && trigger)
-        compare(t.when, "when", (f) =>
-          source(command, f, trigger, `${trigger.decl.name} in given has`),
-        )
-      const { polls } = slice
-      // A command that copies no key column names no row, so there is none to look for.
-      const keyed = t.when && polls ? polledKey(command, t.when, polls) : {}
-      if (t.when && polls && Object.keys(keyed).length > 0) {
-        const rows = rowsLike(project(polls, built.get(polls) ?? [], t.given), polls, keyed)
-        const row = rows[0]
-        const picks = `${where} › "${t.name}": when is for the ${polls.name} row ${rowName(polls, keyed)}`
-        const said = (message: string) =>
-          fail({ message, element: polls.name ?? "", slice: slice.name ?? "" })
-        if (!row) said(`${picks}, but given builds no such row. Add the event that does.`)
-        else if (rows.length > 1)
-          said(
-            `${picks}, but given builds ${rows.length} such rows. Copy every key column into ${command.decl.name}.`,
-          )
-        else {
-          const data = valuesOf(row)
-          compare(t.when, "when", (f) =>
-            source(command, f, { decl: polls, data }, `the ${polls.name} row given builds has`),
-          )
-        }
-      }
-      const when = t.when
-      for (const c of t.then) {
-        if (!("decl" in c) || c.decl.external || !when) continue
-        const flow = slice.events.find((e) => e.decl === c.decl)
-        if (flow) compare(c, "then", (f) => source(flow, f, when, "when sends"))
-      }
+      checkHandled(slice, t, built, compare, (message, element) =>
+        fail({ message: `${where} › "${t.name}": ${message}`, element, slice: slice.name ?? "" }),
+      )
     }
+  }
+}
+
+type Compare = (
+  example: ExampleData,
+  clause: "when" | "then",
+  expected: (field: string) => Expected | undefined,
+) => void
+
+/**
+ * A handler's specification, step by step: what given holds for the trigger, the polled row and
+ * each row a query picks, and what when sends, is what flows into the command and its events. A
+ * query picks the rows given builds that its filter selects; with none, an automation issues
+ * nothing and a command is refused.
+ */
+function checkHandled(
+  slice: SliceData,
+  t: TestData,
+  built: Built,
+  compare: Compare,
+  said: (message: string, element: string) => void,
+): void {
+  const { command, trigger, polls } = slice
+  const when = t.when
+  if (!command || !when) return
+  // What each declaration before a step holds here, and how a message says so. A reply is anything.
+  const known = new Map<DeclData, { data: Record<string, unknown>; has: string }>()
+  known.set(command.decl, { data: when.data, has: "when sends" })
+  const given = t.given.find((g) => g.decl === trigger)
+  if (given) known.set(given.decl, { data: given.data, has: `${given.decl.name} in given has` })
+  const expected = (flow: Flow, field: string): Expected | undefined => {
+    const s = flow.mapping[field] ?? (field in flow.context ? { from: field } : undefined)
+    if (s === undefined) return undefined
+    if ("value" in s)
+      return { value: s.value, says: `${flow.decl.name}'s mapping sets ${show(s.value)}` }
+    if ("generate" in s) return undefined
+    const from = flow.context[s.from]
+    const at = from && known.get(from)
+    if (!at) return undefined
+    const value = at.data[s.from]
+    const renamed = s.from === field ? "" : `${s.from} `
+    return { value, says: `${at.has} ${renamed}${show(value)}` }
+  }
+  // Whether when agrees with what flows into the command from `decl`.
+  const agrees = (decl: DeclData) =>
+    Object.entries(when.data).every(([f, shown]) => {
+      const s = command.mapping[f] ?? { from: f }
+      const e = "from" in s && command.context[s.from] === decl ? expected(command, f) : undefined
+      return e?.value === undefined || shown === undefined || isDeepStrictEqual(shown, e.value)
+    })
+  // A command that copies no key column names no polled row, so there is none to look for.
+  const keyed = polls ? polledKey(command, when, polls) : {}
+  if (polls && Object.keys(keyed).length > 0) {
+    const rows = rowsLike(project(polls, built.get(polls) ?? [], t.given), polls, keyed)
+    const picks = `when is for the ${polls.name} row ${rowName(polls, keyed)}`
+    if (!rows[0])
+      said(`${picks}, but given builds no such row. Add the event that does.`, polls.name ?? "")
+    else if (rows.length > 1)
+      said(
+        `${picks}, but given builds ${rows.length} such rows. Copy every key column into ${command.decl.name}.`,
+        polls.name ?? "",
+      )
+    else
+      known.set(polls, { data: valuesOf(rows[0]), has: `the ${polls.name} row given builds has` })
+  }
+  for (const [i, q] of slice.reads.entries()) {
+    const view = q.decl
+    const views = built.get(view)
+    // Nothing builds it: assembly says so once, for the model.
+    if (!views) continue
+    const filter: Record<string, unknown> = {}
+    for (const column of Object.keys(q.mapping)) {
+      const e = expected(q, column)
+      if (e?.value !== undefined) filter[column] = e.value
+    }
+    const rows = project(view, views, t.given).filter((r) =>
+      Object.entries(filter).every(([k, v]) => isDeepStrictEqual(r.values[k]?.value, v)),
+    )
+    const has = `the ${view.name} row given builds has`
+    if (rows.length === 0) {
+      const none = `given builds no ${view.name} row with ${show(filter)}`
+      if (i < (slice.beforeCommand ?? 0))
+        said(
+          `${none}, so the automation issues no ${command.decl.name}. Add the event that builds it.`,
+          view.name ?? "",
+        )
+      else if (!t.then.some((c) => !("decl" in c)))
+        said(
+          `${none}, so ${command.decl.name} is refused. Add the event that builds it, or reject.`,
+          view.name ?? "",
+        )
+      continue
+    }
+    // Of several rows, the command is for one: the one when agrees with.
+    const row =
+      rows.length === 1
+        ? rows[0]
+        : rows.find((r) => {
+            known.set(view, { data: valuesOf(r), has })
+            return agrees(view)
+          })
+    if (row) known.set(view, { data: valuesOf(row), has })
+    else {
+      known.delete(view)
+      said(
+        `when is for none of the ${rows.length} ${view.name} rows with ${show(filter)} that given builds.`,
+        view.name ?? "",
+      )
+    }
+  }
+  compare(when, "when", (f) => expected(command, f))
+  for (const c of t.then) {
+    if (!("decl" in c) || c.decl.external) continue
+    const flow = slice.events.find((e) => e.decl === c.decl)
+    if (flow) compare(c, "then", (f) => expected(flow, f))
   }
 }
 
@@ -830,7 +874,8 @@ function polledKey(command: Flow, when: ExampleData, view: DeclData): Record<str
   const keyed: Record<string, unknown> = {}
   for (const field of Object.keys(command.decl.fields)) {
     const s = command.mapping[field] ?? { from: field }
-    if ("from" in s && view.keys.includes(s.from)) keyed[s.from] = when.data[field]
+    if ("from" in s && command.context[s.from] === view && view.keys.includes(s.from))
+      keyed[s.from] = when.data[field]
   }
   return keyed
 }
@@ -930,7 +975,7 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
     for (const t of slice.tests) for (const g of t.given) add(assuming, g.decl, at)
     // A state view someone sees, or that serves a method, is read there.
     if (slice.view && (slice.actors.length > 0 || slice.service)) read.add(slice.view)
-    for (const r of [...slice.reads, slice.polls]) if (r) read.add(r)
+    for (const r of [...slice.reads.map((q) => q.decl), slice.polls]) if (r) read.add(r)
   }
   const consumed = new Set([...reacting.keys(), ...assuming.keys()])
   for (const { slice, where } of located) {
@@ -975,7 +1020,7 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
         fail(
           about(
             e,
-            `${where}: nothing uses ${e.name} yet. Add .automation(${e.name}), or add ${e.name} to a state view's first call, where something reacts to it.`,
+            `${where}: nothing uses ${e.name} yet. Add .automation(${e.name}), or .event(${e.name}) to a state view, where something reacts to it.`,
           ),
         )
     }
@@ -984,15 +1029,15 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
       fail(
         about(
           view,
-          `${where}: nothing reads ${view.name} yet. Add .actor() for who sees it, or .view(${view.name}) or .automation(${view.name}) where it's needed.`,
+          `${where}: nothing reads ${view.name} yet. Add .actor() for who sees it, or .query(${view.name}, …) or .automation(${view.name}) where it's needed.`,
         ),
       )
-    for (const r of [...slice.reads, slice.polls]) {
+    for (const r of [...slice.reads.map((q) => q.decl), slice.polls]) {
       if (r && !built.has(r))
         fail(
           about(
             r,
-            `${where}: nothing fills ${r.name} yet. Add a state view, m.slice().view(${r.name}, Event).`,
+            `${where}: nothing fills ${r.name} yet. Add a state view, m.slice().view(${r.name}).event(Event).`,
           ),
         )
     }
@@ -1006,7 +1051,7 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
     fail({
       message: e.external
         ? `${here}: nothing translates ${e.name} yet. Add .translation(${e.name}) to make it an event of ours.`
-        : `${here}: nothing emits ${e.name} yet. Add ${e.name} to the first call of the slice that causes it.`,
+        : `${here}: nothing emits ${e.name} yet. Add .event(${e.name}) to the slice that causes it.`,
       element: e.name ?? "",
       slice: at[0]?.slice.name ?? "",
     })

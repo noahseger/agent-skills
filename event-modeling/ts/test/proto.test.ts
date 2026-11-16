@@ -49,7 +49,7 @@ function source(model: Chapters): string {
 }
 
 const stateChange = (Create: ReturnType<typeof m.command>) =>
-  m.slice().command(Create, m.event({})).actor(User).service(Svc)
+  m.slice().command(Create).event(m.event({})).actor(User).service(Svc)
 
 test("field numbers follow declaration order", () => {
   const Create = m.command({ userId: z.string(), listId: z.string(), name: z.string() })
@@ -114,15 +114,17 @@ test("a type outside the table stops its service, naming the declaration and the
   )
   const Table = m.view({ id: z.string(), amount: z.bigint() }).key("id")
   assert.match(
-    source(modelOf({ Table }, m.slice().view(Table, Created).actor(User).service(Svc, "Get"))),
+    source(
+      modelOf({ Table }, m.slice().view(Table).event(Created).actor(User).service(Svc, "Get")),
+    ),
     /^Table\.amount can't become protobuf/,
   )
 })
 
-test("a view with no .query() has an empty request", () => {
+test("a view with no .request() has an empty request", () => {
   const Table = m.view({ id: z.string() }).key("id")
   const proto = source(
-    modelOf({ Table }, m.slice().view(Table, Created).actor(User).service(Svc, "Get")),
+    modelOf({ Table }, m.slice().view(Table).event(Created).actor(User).service(Svc, "Get")),
   )
   assert.match(proto, /rpc Get\(GetRequest\) returns \(GetResponse\);/)
   assert.match(
@@ -133,15 +135,15 @@ test("a view with no .query() has an empty request", () => {
 
 test("a service with no procedures produces no file", () => {
   const Table = m.view({ id: z.string() }).key("id")
-  assert.deepEqual(generateProto(modelOf({ Table }, m.slice().view(Table, Created))), [])
+  assert.deepEqual(generateProto(modelOf({ Table }, m.slice().view(Table).event(Created))), [])
 })
 
 test("a slice without a service has no procedure", () => {
   const Table = m.view({ id: z.string() }).key("id")
   const Create = m.command({ id: z.string() })
   const slices = [
-    m.slice().view(Table, Created).actor(User),
-    m.slice().command(Create, m.event({})),
+    m.slice().view(Table).event(Created).actor(User),
+    m.slice().command(Create).event(m.event({})),
   ]
   assert.deepEqual(generateProto(modelOf({ Table, Create }, ...slices)), [])
 })
@@ -153,8 +155,9 @@ test("two state views on one screen are two methods, each returning its own view
   const view = (view: typeof Lists, method: string) =>
     m
       .slice()
-      .view(view, Created)
-      .query({ listId: z.string() })
+      .view(view)
+      .event(Created)
+      .request({ listId: z.string() })
       .actor(User)
       .screen(Board)
       .service(Svc, method)
@@ -169,19 +172,21 @@ test("two state views on one screen are two methods, each returning its own view
   )
 })
 
-test("a query that names every key column returns one row, not a list", () => {
+test("a request that names every key column returns one row, not a list", () => {
   const fields = { userId: z.string(), id: z.string(), name: z.string() }
   const [Table, Rows] = [m.view(fields).key("userId", "id"), m.view(fields).key("userId", "id")]
   const one = m
     .slice()
-    .view(Table, Created)
-    .query({ userId: z.string(), id: z.string() })
+    .view(Table)
+    .event(Created)
+    .request({ userId: z.string(), id: z.string() })
     .actor(User)
     .service(Svc, "Get")
   const many = m
     .slice()
-    .view(Rows, Created)
-    .query({ userId: z.string() })
+    .view(Rows)
+    .event(Created)
+    .request({ userId: z.string() })
     .actor(User)
     .service(Svc, "List")
   const proto = source(modelOf({ Table, Rows }, one, many))

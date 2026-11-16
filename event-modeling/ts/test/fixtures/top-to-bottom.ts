@@ -21,7 +21,8 @@ export const Inbox = m
   .key("noteId")
 
 m.slice()
-  .command(CreateNote, NoteCreated)
+  .command(CreateNote)
+  .event(NoteCreated)
   .chapter(Capture)
   .actor(Writer)
   .service(NoteService)
@@ -31,12 +32,10 @@ m.slice()
   })
 
 m.slice()
-  .view(
-    Inbox,
-    NoteCreated(() => ({ status: z.literal("inbox") })),
-  )
+  .view(Inbox)
+  .event(NoteCreated, () => ({ status: z.literal("inbox") }))
+  .request({ status: z.string() })
   .chapter(Capture)
-  .query({ status: z.string() })
   .actor(Writer)
   .service(NoteService, "ListInbox")
   .test("A new note is in the inbox", {
@@ -51,7 +50,8 @@ export const FileNote = m.command({ noteId: z.string() })
 export const NoteFiled = m.event({ noteId: z.string() }).stream(Notes)
 
 m.slice()
-  .command(FileNote, NoteFiled)
+  .command(FileNote)
+  .event(NoteFiled)
   .chapter(Filing)
   .actor(Writer)
   .service(NoteService)
@@ -61,11 +61,9 @@ m.slice()
   })
 
 m.slice()
-  .view(
-    Inbox,
-    NoteFiled(() => ({ status: z.literal("filed") })),
-  )
-  .query({ status: z.string() })
+  .view(Inbox)
+  .event(NoteFiled, () => ({ status: z.literal("filed") }))
+  .request({ status: z.string() })
   .test("A filed note leaves the inbox", {
     given: [
       NoteCreated({ noteId: "note-1", text: "Call the plumber" }),

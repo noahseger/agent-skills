@@ -2,8 +2,21 @@
 
 import { m, z } from "#em"
 import { DrawAgreed, drawAgreed, GameResigned, gameResigned, Result, Termination } from "./draws.ts"
-import { ClockPressed, ClockState, GameEnded, GameState, MATE_FEN, mated } from "./play.ts"
-import { IllegalMoveTally, SecondIllegalMoveRuled, secondOffence } from "./rulings.ts"
+import {
+  ClockPressed,
+  ClockState,
+  GameEnded,
+  GameState,
+  illegalMoveRuled,
+  MATE_FEN,
+  mated,
+} from "./play.ts"
+import {
+  IllegalMoveTally,
+  SecondIllegalMoveRuled,
+  secondIllegalMoveRuled,
+  secondOffence,
+} from "./rulings.ts"
 import {
   Arbiter,
   ChessService,
@@ -146,9 +159,10 @@ const resultRecorded = ResultRecorded({
 export const Conclusion = m.chapter()
 
 m.slice()
-  .command(ClaimFlagFall, TimeForfeited)
+  .command(ClaimFlagFall)
+  .query(ClockState, "gameId")
+  .event(TimeForfeited)
   .chapter(Conclusion)
-  .view(ClockState)
   .actor(Player)
   .service(ChessService)
   .test("White claims Black's fallen flag", {
@@ -183,16 +197,14 @@ m.slice()
   })
 
 m.slice("OutcomeAdjudicator")
-  .automation(
-    GameEnded,
-    AdjudicateOutcome((e) => ({ termination: e.ending })),
-    BoardOutcomeAdjudicated((c) => ({ result: m.generate(c.termination, GameState) })),
-  )
+  .automation(GameEnded)
+  .command(AdjudicateOutcome, (c) => ({ termination: c.ending }))
+  .query(GameState, "gameId")
+  .event(BoardOutcomeAdjudicated, (c) => ({ result: m.generate(c.termination, c.sideToMove) }))
   .chapter(Conclusion)
-  .view(GameState)
   .note("The move that ended the game says how. This turns that into a result.")
   .test("Checkmate on the board ends the game", {
-    given: mated,
+    given: [gameStarted, mated],
     when: AdjudicateOutcome({
       gameId: "otb-2024-ct-r5-b1",
       ply: 7,
@@ -202,12 +214,15 @@ m.slice("OutcomeAdjudicator")
     then: checkmate,
   })
   .test("Stalemate on the board draws the game", {
-    given: GameEnded({
-      gameId: "otb-2024-ct-r5-b1",
-      ply: 103,
-      fen: STALEMATE_FEN,
-      ending: "stalemate",
-    }),
+    given: [
+      gameStarted,
+      GameEnded({
+        gameId: "otb-2024-ct-r5-b1",
+        ply: 103,
+        fen: STALEMATE_FEN,
+        ending: "stalemate",
+      }),
+    ],
     when: AdjudicateOutcome({
       gameId: "otb-2024-ct-r5-b1",
       ply: 103,
@@ -223,12 +238,15 @@ m.slice("OutcomeAdjudicator")
     }),
   })
   .test("A capture leaving king against king is a dead position", {
-    given: GameEnded({
-      gameId: "otb-2024-ct-r5-b1",
-      ply: 88,
-      fen: BARE_KINGS_FEN,
-      ending: "dead_position",
-    }),
+    given: [
+      gameStarted,
+      GameEnded({
+        gameId: "otb-2024-ct-r5-b1",
+        ply: 88,
+        fen: BARE_KINGS_FEN,
+        ending: "dead_position",
+      }),
+    ],
     when: AdjudicateOutcome({
       gameId: "otb-2024-ct-r5-b1",
       ply: 88,
@@ -245,18 +263,16 @@ m.slice("OutcomeAdjudicator")
   })
 
 m.slice("IllegalMoveForfeiter")
-  .automation(
-    SecondIllegalMoveRuled,
-    ForfeitGame,
-    IllegalMoveForfeited((c) => ({
-      result: m.generate(c.offendingSide),
-      termination: z.literal("illegal_move_forfeit"),
-    })),
-  )
+  .automation(SecondIllegalMoveRuled)
+  .command(ForfeitGame)
+  .query(IllegalMoveTally, (c) => ({ gameId: c.gameId, offendingSide: c.offendingSide }))
+  .event(IllegalMoveForfeited, (c) => ({
+    result: m.generate(c.offendingSide),
+    termination: z.literal("illegal_move_forfeit"),
+  }))
   .chapter(Conclusion)
-  .view(IllegalMoveTally)
   .test("The second illegal move forfeits the game", {
-    given: secondOffence,
+    given: [illegalMoveRuled, secondIllegalMoveRuled, secondOffence],
     when: ForfeitGame({
       gameId: "otb-2024-ct-r5-b1",
       offendingSide: "white",
@@ -266,14 +282,12 @@ m.slice("IllegalMoveForfeiter")
   })
 
 m.slice()
-  .view(
-    GameResult,
-    GameResigned,
-    DrawAgreed,
-    BoardOutcomeAdjudicated,
-    TimeForfeited,
-    IllegalMoveForfeited,
-  )
+  .view(GameResult)
+  .event(GameResigned)
+  .event(DrawAgreed)
+  .event(BoardOutcomeAdjudicated)
+  .event(TimeForfeited)
+  .event(IllegalMoveForfeited)
   .chapter(Conclusion)
   .note("Five ways a game ends. Each one carries the result and how it came about.")
   .test("Settled after a resignation", {
@@ -318,10 +332,11 @@ m.slice()
   })
 
 m.slice()
-  .command(RecordResult, ResultRecorded)
+  .command(RecordResult)
+  .query(GameResult, "gameId")
+  .query(GamePairing, "gameId")
+  .event(ResultRecorded)
   .chapter(Conclusion)
-  .view(GameResult)
-  .view(GamePairing)
   .actor(Arbiter)
   .service(ChessService)
   .test("The arbiter records the signed draw on the pairing sheet", {
@@ -339,9 +354,10 @@ m.slice()
   })
 
 m.slice()
-  .view(GameRecord, ResultRecorded)
+  .view(GameRecord)
+  .event(ResultRecorded)
+  .request({ round: z.number().int() })
   .chapter(Conclusion)
-  .query({ round: z.number().int() })
   .actor(Spectator)
   .service(ChessService, "GetCrosstable")
   .note("The finished games of a round.")

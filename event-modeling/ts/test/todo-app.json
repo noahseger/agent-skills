@@ -2221,9 +2221,9 @@
               "elementType": "AUTOMATION"
             },
             {
-              "id": "list-completer:readmodel:list-items",
+              "id": "list-completer:readmodel:todo-list",
               "type": "INBOUND",
-              "title": "ListItems",
+              "title": "TodoList",
               "elementType": "READMODEL"
             },
             {
@@ -2291,31 +2291,31 @@
       ],
       "readmodels": [
         {
-          "id": "list-completer:readmodel:list-items",
-          "title": "ListItems",
+          "id": "list-completer:readmodel:todo-list",
+          "title": "TodoList",
           "type": "READMODEL",
           "fields": [
+            {
+              "name": "userId",
+              "type": "String",
+              "idAttribute": true
+            },
             {
               "name": "listId",
               "type": "String",
               "idAttribute": true
             },
             {
-              "name": "itemId",
-              "type": "String",
-              "idAttribute": true
-            },
-            {
-              "name": "title",
+              "name": "name",
               "type": "String"
             },
             {
-              "name": "done",
-              "type": "Boolean"
+              "name": "itemCount",
+              "type": "Int"
             },
             {
-              "name": "deleted",
-              "type": "Boolean"
+              "name": "status",
+              "type": "String"
             }
           ],
           "dependencies": [
@@ -2360,6 +2360,18 @@
           "given": [
             {
               "id": "list-completer:spec:0:given:0",
+              "title": "ListCreated",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "listId": "list-1",
+                  "userId": "u-1",
+                  "name": "Groceries"
+                }
+              ]
+            },
+            {
+              "id": "list-completer:spec:0:given:1",
               "title": "ItemAdded",
               "type": "SPEC_EVENT",
               "examples": [
@@ -2372,7 +2384,7 @@
               ]
             },
             {
-              "id": "list-completer:spec:0:given:1",
+              "id": "list-completer:spec:0:given:2",
               "title": "ItemCompleted",
               "type": "SPEC_EVENT",
               "examples": [

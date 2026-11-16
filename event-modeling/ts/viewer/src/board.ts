@@ -37,7 +37,7 @@ export interface BoardSlice {
   reads?: string[]
   read_models?: string[]
   tests: BoardTest[]
-  query?: string[]
+  request?: string[]
   polls?: string
   note?: string
   /** Per event or command, the fields a mapping filled and where each came from. */

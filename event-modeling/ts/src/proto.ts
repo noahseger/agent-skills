@@ -125,9 +125,9 @@ function methodOf(slice: SliceData): Method {
     return { name, messages: [request, empty(`${name}Response`)] }
   }
   const shown = slice.view
-  // A query that names every key column of the view picks one row.
-  const query = new Set(Object.keys(slice.query ?? {}))
-  const one = shown && shown.keys.length > 0 && shown.keys.every((k) => query.has(k))
+  // A request that names every key column of the view picks one row.
+  const request = new Set(Object.keys(slice.request ?? {}))
+  const one = shown && shown.keys.length > 0 && shown.keys.every((k) => request.has(k))
   const response: Message = {
     name: `${name}Response`,
     fields: shown
@@ -145,7 +145,7 @@ function methodOf(slice: SliceData): Method {
   return {
     name,
     messages: [
-      toMessage(`${name}Request`, slice.query ?? {}),
+      toMessage(`${name}Request`, slice.request ?? {}),
       ...(shown ? [toMessage(shown.name ?? "", shown.fields)] : []),
       response,
     ],

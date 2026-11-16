@@ -3909,6 +3909,25 @@
                   "sideToMove": "white"
                 }
               ]
+            },
+            {
+              "id": "rule-illegal-move:spec:1:given:1",
+              "title": "MovePlayed",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "gameId": "otb-2024-ct-r5-b1",
+                  "ply": 44,
+                  "san": "Kf2",
+                  "fromSquare": "g1",
+                  "toSquare": "f2",
+                  "piece": "king",
+                  "fen": "r5k1/pp3ppp/2p5/8/8/2P2N2/PP3KPP/R7 b - - 7 22",
+                  "sideToMove": "black",
+                  "isCheck": false,
+                  "isCapture": false
+                }
+              ]
             }
           ],
           "when": [
@@ -4544,7 +4563,7 @@
               "name": "result",
               "type": "String",
               "generated": true,
-              "mapping": "termination, GameState"
+              "mapping": "termination, sideToMove"
             },
             {
               "name": "termination",
@@ -4628,6 +4647,26 @@
           "given": [
             {
               "id": "outcome-adjudicator:spec:0:given:0",
+              "title": "GameStarted",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "gameId": "otb-2024-ct-r5-b1",
+                  "round": 5,
+                  "boardNumber": 1,
+                  "whitePlayerId": "gm-carlsen",
+                  "blackPlayerId": "gm-nepo",
+                  "timeControl": "classical",
+                  "baseMinutes": 90,
+                  "incrementSeconds": 30,
+                  "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+                  "sideToMove": "white",
+                  "ply": 0
+                }
+              ]
+            },
+            {
+              "id": "outcome-adjudicator:spec:0:given:1",
               "title": "GameEnded",
               "type": "SPEC_EVENT",
               "examples": [
@@ -4680,6 +4719,26 @@
           "given": [
             {
               "id": "outcome-adjudicator:spec:1:given:0",
+              "title": "GameStarted",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "gameId": "otb-2024-ct-r5-b1",
+                  "round": 5,
+                  "boardNumber": 1,
+                  "whitePlayerId": "gm-carlsen",
+                  "blackPlayerId": "gm-nepo",
+                  "timeControl": "classical",
+                  "baseMinutes": 90,
+                  "incrementSeconds": 30,
+                  "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+                  "sideToMove": "white",
+                  "ply": 0
+                }
+              ]
+            },
+            {
+              "id": "outcome-adjudicator:spec:1:given:1",
               "title": "GameEnded",
               "type": "SPEC_EVENT",
               "examples": [
@@ -4732,6 +4791,26 @@
           "given": [
             {
               "id": "outcome-adjudicator:spec:2:given:0",
+              "title": "GameStarted",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "gameId": "otb-2024-ct-r5-b1",
+                  "round": 5,
+                  "boardNumber": 1,
+                  "whitePlayerId": "gm-carlsen",
+                  "blackPlayerId": "gm-nepo",
+                  "timeControl": "classical",
+                  "baseMinutes": 90,
+                  "incrementSeconds": 30,
+                  "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+                  "sideToMove": "white",
+                  "ply": 0
+                }
+              ]
+            },
+            {
+              "id": "outcome-adjudicator:spec:2:given:1",
               "title": "GameEnded",
               "type": "SPEC_EVENT",
               "examples": [
@@ -4968,6 +5047,40 @@
           "given": [
             {
               "id": "illegal-move-forfeiter:spec:0:given:0",
+              "title": "IllegalMoveRuled",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "gameId": "otb-2024-ct-r5-b1",
+                  "ply": 32,
+                  "offendingSide": "white",
+                  "illegalMoveCount": 1,
+                  "addedTimeMs": 120000,
+                  "penalty": "opponent_time_added",
+                  "fen": "r4rk1/pp3ppp/2p5/8/8/2P2N2/PP3PPP/R4RK1 w - - 4 17",
+                  "sideToMove": "white"
+                }
+              ]
+            },
+            {
+              "id": "illegal-move-forfeiter:spec:0:given:1",
+              "title": "IllegalMoveRuled",
+              "type": "SPEC_EVENT",
+              "examples": [
+                {
+                  "gameId": "otb-2024-ct-r5-b1",
+                  "ply": 44,
+                  "offendingSide": "white",
+                  "illegalMoveCount": 2,
+                  "addedTimeMs": 0,
+                  "penalty": "loss",
+                  "fen": "r5k1/pp3ppp/2p5/8/8/2P2N2/PP3PPP/R5K1 w - - 6 22",
+                  "sideToMove": "white"
+                }
+              ]
+            },
+            {
+              "id": "illegal-move-forfeiter:spec:0:given:2",
               "title": "SecondIllegalMoveRuled",
               "type": "SPEC_EVENT",
               "examples": [

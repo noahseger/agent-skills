@@ -190,16 +190,24 @@ function mappingOf(source: Source): string {
   return `generate(${inputNames(source).join(", ")})`
 }
 
-/** A declaration's fields, each with where the slice gets its value. */
-function mappedFields(decl: DeclData, mapping: Record<string, Source> = {}): SpecField[] {
+/**
+ * A declaration's fields, each with where the slice gets its value. A field from a row a query picks
+ * says which, `View(filter columns).column`, by name too.
+ */
+function mappedFields({ decl, mapping, context }: Flow, reads: Flow[]): SpecField[] {
   return fieldsOf(decl.fields, decl.keys).map((f) => {
-    const source = mapping[f.name]
+    const source = mapping[f.name] ?? (f.name in context ? { from: f.name } : undefined)
     if (!source) return f
     if ("generate" in source) {
       const inputs = inputNames(source)
       return { ...f, generated: true, ...(inputs.length > 0 && { mapping: inputs.join(", ") }) }
     }
-    return { ...f, mapping: mappingOf(source) }
+    if ("from" in source) {
+      const read = reads.find((q) => q.decl === context[source.from])
+      const filter = read && Object.keys(read.mapping).join(", ")
+      if (read) return { ...f, mapping: `${read.decl.name}(${filter}).${source.from}` }
+    }
+    return f.name in mapping ? { ...f, mapping: mappingOf(source) } : f
   })
 }
 
@@ -334,14 +342,14 @@ function sliceOf(
   const method = service?.method ?? command?.decl.name ?? view?.name ?? ""
   const endpoint = service ? { service: service.service.name ?? "", apiEndpoint: method } : {}
 
-  const commandEl = command && element(command.decl, mappedFields(command.decl, command.mapping))
+  const commandEl = command && element(command.decl, mappedFields(command, slice.reads))
   if (commandEl && !trigger && !polls) Object.assign(commandEl, endpoint)
-  const events = view
-    ? []
-    : slice.events.map((f) => element(f.decl, mappedFields(f.decl, f.mapping)))
+  const events = view ? [] : slice.events.map((f) => element(f.decl, mappedFields(f, slice.reads)))
   const heardEvents = view ? slice.events.map((f) => element(f.decl, fieldsOf(f.decl.fields))) : []
   const triggerEl = trigger && element(trigger, fieldsOf(trigger.fields))
-  const reads = slice.reads.map((r) => element(r, fieldsOf(r.fields, r.keys)))
+  const reads = [...new Set(slice.reads.map((q) => q.decl))].map((r) =>
+    element(r, fieldsOf(r.fields, r.keys)),
+  )
   const pollsEl = polls && element(polls, fieldsOf(polls.fields, polls.keys))
   const viewEl = view && element(view, projectedFields(view, slice.events), endpoint)
   const processor: SpecElement | undefined =
@@ -362,7 +370,7 @@ function sliceOf(
           id: idOf("SCREEN", asked),
           title: asked,
           type: "SCREEN",
-          fields: command ? fieldsOf(command.decl.fields) : fieldsOf(slice.query ?? {}),
+          fields: command ? fieldsOf(command.decl.fields) : fieldsOf(slice.request ?? {}),
           dependencies: [],
           ...(slice.screen?.note !== undefined && { description: slice.screen.note }),
         }
@@ -375,13 +383,10 @@ function sliceOf(
   for (const r of reads) link(r, commandEl)
   for (const e of events) link(commandEl, e)
   // An event of ours that keeps a field only a reply has is drawn from that reply.
-  const sent = command?.decl.fields ?? {}
   slice.events.forEach((keeps, k) => {
     if (keeps.decl.external) return
-    const kept = taken(keeps).filter((i): i is string => typeof i === "string" && !(i in sent))
     for (const [r, reply] of slice.events.entries())
-      if (reply.decl.external && kept.some((f) => f in reply.decl.fields))
-        link(events[r], events[k])
+      if (reply.decl.external && taken(keeps, reply.decl).length > 0) link(events[r], events[k])
   })
   for (const e of heardEvents) link(e, viewEl)
   link(viewEl, screen)
@@ -415,7 +420,7 @@ function step(c: ClauseData, id: string): SpecStep {
   return { id, title: c.decl.name ?? "", type: STEP[c.decl.kind], examples: [c.data] }
 }
 
-/** A state view's query is asked from its screen, as a command is sent from one: so `asked` titles it. */
+/** A state view's request is asked from its screen, as a command is sent from one: so `asked` titles it. */
 function specification(
   t: TestData,
   id: string,
@@ -431,8 +436,8 @@ function specification(
     given: t.given.map((c, i) => step(c, `${id}:given:${i}`)),
     when: t.when
       ? [step(t.when, when)]
-      : t.query
-        ? [{ id: when, title: asked, type: "SPEC_COMMAND", examples: [t.query] }]
+      : t.request
+        ? [{ id: when, title: asked, type: "SPEC_COMMAND", examples: [t.request] }]
         : [],
     then: t.then.map((c, i) => step(c, `${id}:then:${i}`)),
     linkedId,

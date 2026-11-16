@@ -136,7 +136,7 @@ const mentions = (clause: string) =>
       <dd>{{ column.label }}</dd>
       <template v-if="actor"><dt>Actor</dt><dd>{{ actor }}</dd></template>
       <template v-if="slice.ui"><dt>Service</dt><dd>{{ slice.ui }}</dd></template>
-      <template v-if="slice.query?.length"><dt>Query</dt><dd>{{ slice.query.join(", ") }}</dd></template>
+      <template v-if="slice.request?.length"><dt>Request</dt><dd>{{ slice.request.join(", ") }}</dd></template>
       <template v-if="slice.polls"><dt>Polls</dt><dd>{{ slice.polls }}</dd></template>
       <template v-if="slice.reads?.length"><dt>Reads</dt><dd>{{ slice.reads.join(", ") }}</dd></template>
       <template v-if="triggers"><dt>On</dt><dd>{{ triggers }}</dd></template>

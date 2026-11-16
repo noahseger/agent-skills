@@ -173,7 +173,7 @@ test("an automation is in its actor's lane, and reads are drawn back from the vi
     "no reference card when the view is drawn in full",
   )
   const search = out.boxes.find(
-    (b) => b.name === "ListItems" && b.kind === "readModel" && !b.compact,
+    (b) => b.name === "TodoList" && b.kind === "readModel" && !b.compact,
   )
   assert.ok(search)
   const reads = out.edges.find((e) => e.from === search.id && e.to === gear.id)
@@ -192,8 +192,8 @@ test("an automation is in its actor's lane, and reads are drawn back from the vi
 test("a view nothing draws in full still gets a reference card", () => {
   const copy: Board = JSON.parse(JSON.stringify(model))
   for (const c of copy.chapters)
-    c.slices = c.slices.filter((s) => !s.read_models?.some((r) => r.startsWith("ListItems")))
-  const ref = layout(copy).boxes.find((b) => b.name === "ListItems")
+    c.slices = c.slices.filter((s) => !s.read_models?.some((r) => r.startsWith("TodoList")))
+  const ref = layout(copy).boxes.find((b) => b.name === "TodoList")
   assert.ok(ref?.compact && ref.canonical === undefined)
 })
 

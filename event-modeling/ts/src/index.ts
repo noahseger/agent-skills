@@ -9,6 +9,7 @@ export { z }
 import {
   type ActorData,
   type ChapterData,
+  type Context,
   type DeclData,
   type DeclKind,
   DRAFTS,
@@ -17,13 +18,11 @@ import {
   type Fields,
   type Flow,
   type MapFn,
-  type MappedData,
   META,
   type ModelData,
   type ScreenData,
   type ServiceData,
   type SliceData,
-  type Source,
   type StreamData,
   type TestData,
 } from "./types.ts"
@@ -36,27 +35,17 @@ type Needed<T extends Fields> = {
   [K in keyof T]: undefined extends z.input<T[K]> ? never : K
 }[keyof T]
 
-declare const REF: unique symbol
-
-/**
- * A field of a declaration, as `.fields` gives it: a mapping's result or an input to
- * `m.generate()`, never a schema to declare a field with.
- */
-export interface FieldRef<S extends z.ZodType = z.ZodType> {
-  readonly [REF]: S
-}
-
 /**
  * What a target field takes: a string format takes only that format, and any other type any schema
- * with its output, or a reference to a field that does.
+ * with its output.
  */
-type Fit<T extends z.ZodType> = Schema<T> | FieldRef<Schema<T>>
-type Schema<T extends z.ZodType> =
+type Fit<T extends z.ZodType> =
   T extends z.ZodStringFormat<infer F> ? z.ZodStringFormat<F> : z.ZodType<z.output<T>>
 
 /**
- * A mapping's result: for each target field, a source field, a `z.literal()` or `m.generate()`. It
- * must set the fields in `Set`. One object type, so a result with no target field is refused.
+ * A mapping's result: for each target field, a field before the step, a `z.literal()` or
+ * `m.generate()`. It must set the fields in `Set`. One object type, so a result with no target
+ * field is refused.
  */
 type Out<T extends Fields, Set extends keyof T = never> = {
   [K in keyof (Partial<T> & Pick<T, Set>)]: Fit<T[K]>
@@ -80,65 +69,6 @@ type Unfilled<S extends Fields, T extends Fields> =
   | (Exclude<Needed<T>, keyof S> & string)
   | Misfit<S, T>
 
-/**
- * The declaration `A`, or, where `S` lacks a field it needs, the instruction to fix that: the editor
- * says the parameter's type is the sentence. `From` names `S` in it. An external event's fields come
- * from outside, so it always passes. `Use` is the mapped form; a mapping is typed against it while
- * `A` is still being inferred, which is what types the mapping's arguments.
- */
-type FilledBy<S extends Fields, A, From extends string, Use> = [A] extends [never]
-  ? Use
-  : A extends ExternalEventDecl
-    ? A
-    : A extends Decl<DeclKind, infer T>
-      ? [Unfilled<S, T>] extends [never]
-        ? A
-        : [Misfit<S, T>] extends [never]
-          ? `add ${Unfilled<S, T>} to the ${From} or set it in the mapping`
-          : `the ${From}'s ${Misfit<S, T>} does not fit: set it in the mapping`
-      : Use
-
-/** A use where a handler fills the declaration from `S`'s fields. */
-export interface Into<S extends Fields> {
-  readonly source: S
-}
-
-/** A use in a state view, where the event fills the view `R`'s columns. */
-export interface Onto<R extends Fields> {
-  readonly view: R
-}
-
-/** A use as one of a handler's events: the mapping reads the command `C`; the slice checks the rest. */
-export interface Within<C extends Fields> {
-  readonly within: C
-}
-
-export type Place = Into<Fields> | Onto<Fields> | Within<Fields>
-
-/**
- * The function a declaration with fields `F` is called with, typed by where the slice uses it. Its
- * argument is the source's schemas, so each result is a schema the target field takes. A handler's
- * event's sets fields of the event, `O`, and the slice checks what it leaves unset; an automation's
- * command's must set every field its source lacks or has in a type that does not fit; a state
- * view's sets any columns, and must set those its event has in a type that does not fit.
- */
-export type Mapper<F extends Fields, P, O = unknown> =
-  P extends Within<infer C>
-    ? (command: C) => { [K in keyof O]: K extends keyof F ? Fit<F[K]> : never }
-    : P extends Onto<infer R>
-      ? (event: F) => Out<R, Misfit<F, R>>
-      : P extends Into<infer S>
-        ? (source: S) => Out<F, Unfilled<S, F>>
-        : never
-
-/**
- * A function where an example's data goes is a mapper outside a slice. No result has this key, so
- * the compiler's error names the fix; the parameters are typed, so that error is the only one.
- */
-type SliceMapper = (source: Record<string, unknown>) => {
-  readonly "a mapper only works inside a slice's first call": never
-}
-
 // ---------------------------------------------------------------------------
 // Declarations
 // ---------------------------------------------------------------------------
@@ -149,28 +79,10 @@ export interface Example<K extends DeclKind = DeclKind, F extends Fields = Field
   readonly __fields: F
 }
 
-/** A declaration called with a function: its use in a slice, filling what does not flow by name. */
-export interface Mapped<K extends DeclKind, F extends Fields, P extends Place, S = PropertyKey> {
-  readonly [META]: MappedData
-  readonly __kind: K
-  readonly __fields: F
-  readonly __place: P
-  /** The fields the mapping sets. */
-  readonly __set: S
-}
-
 export interface Decl<K extends DeclKind, F extends Fields> {
-  /**
-   * With data, an example for a given, when or then clause; Zod checks the values. With a function,
-   * its use in a slice, filling the fields its source does not carry by name. One signature, not two
-   * overloads, so the compiler's error is about the form written. The slice step decides `P`.
-   */
-  <P extends Place = never, O = unknown>(
-    arg: [P] extends [never] ? Partial<Infer<F>> | SliceMapper : Mapper<F, P, O>,
-  ): [P] extends [never] ? Example<K, F> : Mapped<K, F, P, keyof O>
+  /** An example for a given, when or then clause; Zod checks the values. */
+  (data: Partial<Infer<F>>): Example<K, F>
   readonly [META]: DeclData
-  /** Its fields, for a mapping in the same slice to read: `PageCreated.fields.pageId`. */
-  readonly fields: { readonly [K in keyof F]: FieldRef<F[K]> }
   readonly __kind: K
   readonly __fields: F
   note(text: string): this
@@ -183,35 +95,30 @@ export interface EventDecl<F extends Fields = Fields> extends Decl<"event", F> {
   external(system: External): ExternalEventDecl<F>
 }
 export type CommandDecl<F extends Fields = Fields> = Decl<"command", F>
-export interface ViewDecl<F extends Fields = Fields> extends Decl<"view", F> {
+
+/** A view, with the key columns the compiler knows, so `.query()` can count the rows it reads. */
+export interface ViewDecl<F extends Fields = Fields, K extends string = string>
+  extends Decl<"view", F> {
+  readonly __key: K
   /** The columns that identify a row. */
-  key(...columns: (keyof F & string)[]): this
+  key<const Ks extends (keyof F & string)[]>(...columns: Ks): ViewDecl<F, Ks[number]>
 }
 
 /** An event of a system we do not own, as `.external()` returns it. */
 export interface ExternalEventDecl<F extends Fields = Fields> extends EventDecl<F> {
-  /** A state view and an automation refuse an event with these keys, so the error names the fix. */
-  readonly "isn't stored: translate it into an event of ours, then project that": true
-  readonly "comes from outside: start its slice with .translation()": true
+  /** Tells it from an event of ours, which has the same fields. */
+  readonly __external: true
 }
 
 function decl<K extends DeclKind, F extends Fields>(kind: K, fields: F): Decl<K, F> {
   const data: DeclData = { kind, fields, keys: [] }
-  // A function makes a use for a slice; anything else is an example, which Zod checks once the
-  // specification it is in has filled its generated values.
-  const call = (arg: object): object =>
-    typeof arg === "function"
-      ? { [META]: { decl: data, map: arg as MapFn } }
-      : {
-          [META]: { decl: data, data: arg as Record<string, unknown> },
-          __kind: kind,
-          __fields: fields,
-        }
+  // Zod checks an example once the specification it is in has filled its generated values.
+  const call = (arg: Record<string, unknown>): Example<K, F> =>
+    ({ [META]: { decl: data, data: arg }, __kind: kind, __fields: fields }) as Example<K, F>
   const declared = Object.assign(call as Decl<K, F>, {
     [META]: data,
     __kind: kind,
     __fields: fields,
-    fields: copies(fields, data),
     // Mutating is safe: .note() and .key() are called before anything else holds the declaration.
     note(text: string) {
       data.note = text
@@ -239,14 +146,14 @@ function command<F extends Fields>(fields: F): CommandDecl<F> {
   return decl("command", fields)
 }
 
-function view<F extends Fields>(fields: F): ViewDecl<F> {
+function view<F extends Fields>(fields: F): ViewDecl<F, never> {
   const declared = decl("view", fields)
   return Object.assign(declared, {
     key(...columns: string[]) {
       declared[META].keys = columns
       return declared
     },
-  }) as ViewDecl<F>
+  }) as unknown as ViewDecl<F, never>
 }
 
 export interface Actor {
@@ -355,85 +262,71 @@ function chapter(): Chapter {
 // Mapping functions
 // ---------------------------------------------------------------------------
 
-// A mapping runs once, on a copy of each source field's schema, to learn which fills each target.
+// A mapping runs once, on a copy of each field's schema before its step, to learn which fills each target.
 const SOURCE = Symbol("source")
 const GENERATE = Symbol("generate")
-/** The declarations whose `.fields` a generated value is made from. */
-const READS = Symbol("reads")
 
 /** Each copy's field name. A copy per field, so two fields that share a schema stay apart. */
 const FIELDS = new WeakMap<object, string>()
 
-/** The declaration whose `.fields` a copy came from. */
-const OWNER = new WeakMap<object, DeclData>()
-
-/** A copy of each field's schema, marked with its name and, for `.fields`, its declaration. */
-function copies(fields: Fields, owner?: DeclData): Fields {
+/** A copy of each field's schema in the context, marked with its name. */
+function copies(context: Context): Fields {
   return Object.fromEntries(
-    Object.entries(fields).map(([f, schema]) => {
-      const copy = schema.clone()
+    Object.entries(context).map(([f, from]) => {
+      const copy = (from.fields[f] ?? z.unknown()).clone()
       FIELDS.set(copy, f)
-      if (owner) OWNER.set(copy, owner)
       return [f, copy]
     }),
   )
 }
 
-/** The declarations whose `.fields` a value reads. */
-function owners(value: unknown): DeclData[] {
-  if (typeof value !== "object" || value === null) return []
-  if (isGenerated(value)) return value[READS]
-  const owner = OWNER.get(value)
-  return owner ? [owner] : []
+/** The fields of `decl`, each from `decl`. */
+function contextOf(decl: DeclData): Context {
+  return Object.fromEntries(Object.keys(decl.fields).map((f) => [f, decl]))
 }
 
 interface Generated {
   readonly [GENERATE]: (string | DeclData)[]
-  readonly [READS]: DeclData[]
 }
 
 function isGenerated(value: unknown): value is Generated {
   return typeof value === "object" && value !== null && GENERATE in value
 }
 
-/** A source field by its name; the source, or a view, by its declaration. */
+/** A field by its name; a state view's event, whole, by its declaration. */
 function input(value: unknown): string | DeclData {
   const field = typeof value === "object" && value !== null ? FIELDS.get(value) : undefined
   if (field !== undefined) return field
   const source = (value as { [SOURCE]?: DeclData } | undefined)?.[SOURCE]
   if (source) return source
-  const decl = (value as Partial<ViewDecl> | undefined)?.[META]
-  if (decl?.kind === "view") return decl
   throw new Error(
-    `m.generate() takes the source, its fields and views, such as m.generate(e.pageId, Pages), not ${String(value)}.`,
+    `m.generate() takes fields of the mapping's argument, such as m.generate(c.title), not ${String(value)}.`,
   )
 }
 
 /**
- * A value the handler makes: from the source, such as `m.generate(e)` for a count, its fields, such
- * as `m.generate(c.title)`, and the views the slice names with `.view()`, such as
- * `m.generate(e.pageId, Pages)`; from nothing, `m.generate()`, it is an id or a clock. In a
- * specification, `m.generate()` is a value of its field's type that no other generated value has.
- * It returns a marker, so the probe can tell it from a source field or a constant.
+ * A value the handler makes: from fields before its step, such as `m.generate(c.title)`; in a state
+ * view, from the event, such as `m.generate(e)` for a count; from nothing, `m.generate()`, it is an
+ * id or a clock. In a specification, `m.generate()` is a value of its field's type that no other
+ * generated value has. It returns a marker, so the probe can tell it from a field or a constant.
  */
 function generate<T = never>(...inputs: unknown[]): T {
-  return { [GENERATE]: inputs.map(input), [READS]: inputs.flatMap(owners) } as T
+  return { [GENERATE]: inputs.map(input) } as T
 }
 
 /**
- * What a mapping put in each target: a source field, a constant from `z.literal()`, or a generated
- * value. Anything else, such as a field's schema changed by a Zod method, is computed, and marked
- * `built` for assembly to report.
+ * What a mapping put in each target: a field before its step, a constant from `z.literal()`, or a
+ * generated value. Anything else, such as a field's schema changed by a Zod method, is computed, and
+ * marked `built` for assembly to report. `whole` is what `m.generate(e)` stands for.
  */
-function probe(decl: DeclData, from: DeclData, map: MapFn): Flow {
-  const source = { ...copies(from.fields), [SOURCE]: from }
-  const mapping: Record<string, Source> = {}
-  const reads: DeclData[] = []
-  for (const [field, value] of Object.entries(map(source as never))) {
-    reads.push(...owners(value))
+function probe(decl: DeclData, context: Context, map?: MapFn, whole?: DeclData): Flow {
+  const flow: Flow = { decl, mapping: {}, context }
+  if (!map) return flow
+  const c = { ...copies(context), ...(whole && { [SOURCE]: whole }) }
+  for (const [field, value] of Object.entries(map(c as never))) {
     const from = typeof value === "object" && value !== null ? FIELDS.get(value) : undefined
     const def = (value as { _zod?: { def?: { type?: string; values?: unknown[] } } })?._zod?.def
-    mapping[field] = isGenerated(value)
+    flow.mapping[field] = isGenerated(value)
       ? { generate: value[GENERATE] }
       : from !== undefined
         ? { from }
@@ -441,27 +334,164 @@ function probe(decl: DeclData, from: DeclData, map: MapFn): Flow {
           ? { value: def.values[0] }
           : { generate: [], built: true }
   }
-  return { decl, mapping, ...(reads.length > 0 && { reads: [...new Set(reads)] }) }
-}
-
-type Used = { readonly [META]: DeclData | MappedData }
-
-/** A declaration as a slice uses it: as it is, or called with a function that reads `source`. */
-function flow(use: Used, source?: DeclData): Flow {
-  const data = use[META]
-  if (!("map" in data)) return { decl: data, mapping: {} }
-  return probe(data.decl, source ?? data.decl, data.map)
+  return flow
 }
 
 // ---------------------------------------------------------------------------
 // The slice chain
 // ---------------------------------------------------------------------------
 
-/** A started slice, of any pattern. */
-export interface Slice {
+type Flat<T> = { [K in keyof T]: T[K] } & {}
+/** The context after a step: everything before it, and what it adds that is not there yet. */
+type Joined<A extends Fields, B extends Fields> = Flat<A & Omit<B, keyof A>>
+type FieldsOf<A> = A extends { readonly __fields: infer F extends Fields } ? F : never
+
+// biome-ignore lint/suspicious/noExplicitAny: any command's fields
+type AnyCommand = CommandDecl<any>
+// biome-ignore lint/suspicious/noExplicitAny: any event's fields
+type AnyEvent = EventDecl<any>
+// biome-ignore lint/suspicious/noExplicitAny: any view's columns
+type AnyView = ViewDecl<any, string>
+
+/** `A` as written, or, where the context leaves a field of it unfilled, the instruction. */
+type Filled<Ctx extends Fields, A, Step extends string> = A extends ExternalEventDecl
+  ? A
+  : [Unfilled<Ctx, FieldsOf<A>>] extends [never]
+    ? A
+    : [Misfit<Ctx, FieldsOf<A>>] extends [never]
+      ? `add ${Unfilled<Ctx, FieldsOf<A>>} to a step before ${Step} or set it in the mapping`
+      : `the ${Misfit<Ctx, FieldsOf<A>>} before ${Step} does not fit: set it in the mapping`
+
+/** The mapping a step takes: `c` is the context, and it must set what the context leaves unfilled. */
+type Mapping<Ctx extends Fields, A> = (c: Ctx) => Out<FieldsOf<A>, Unfilled<Ctx, FieldsOf<A>>>
+
+/** One row, when the filter names every key column; otherwise many. A view with no key is many. */
+type Rows<K extends string, Cols> = [K] extends [never]
+  ? "many"
+  : [Exclude<K, Cols>] extends [never]
+    ? "one"
+    : "many"
+
+type Many = "many rows: only an automation reads them, before its .command()"
+
+/** Why a filter picks many rows. A view written in the call is typed before its `.key()` is known. */
+type Unpicked<K extends string, Cols> = [K] extends [never]
+  ? `the view has no .key(): ${Many}`
+  : string extends K
+    ? `the view has no .key(): ${Many}`
+    : `key column ${Exclude<K, Cols>} is not in the filter: ${Many}`
+
+/** The filter's columns, or the instruction. `Fan` says whether many rows are allowed here. */
+type Filter<Ctx extends Fields, V, F, Fan extends boolean> =
+  V extends ViewDecl<infer R, infer K>
+    ? F extends string
+      ? F extends keyof R
+        ? F extends keyof Ctx
+          ? [Misfit<Pick<Ctx, F>, R>] extends [never]
+            ? Rows<K, F> extends "one"
+              ? F
+              : Fan extends true
+                ? F
+                : Unpicked<K, F>
+            : `the ${F} before .query() does not fit the column: map it`
+          : `add ${F} to a step before .query(), or map it: (c) => ({ ${F}: c.… })`
+        : `the view has no column ${F}`
+      : F extends (c: Ctx) => infer O
+        ? [Exclude<keyof O, keyof R>] extends [never]
+          ? [O] extends [{ [C in keyof O]: C extends keyof R ? Fit<R[C]> : never }]
+            ? Rows<K, keyof O> extends "one"
+              ? F
+              : Fan extends true
+                ? F
+                : (c: Ctx) => Unpicked<K, keyof O>
+            : (c: Ctx) => { [C in keyof O]: C extends keyof R ? Fit<R[C]> : never }
+          : (c: Ctx) => `the view has no column ${Exclude<keyof O, keyof R> & string}`
+        : never
+    : never
+
+/** A column name, or a mapping from the context to columns; `Filter` checks which. */
+type FilterArg<Ctx extends Fields> = string | ((c: Ctx) => object)
+
+/** What an incomplete slice offers in place of `.chapter()` and `.test()`: the instruction. */
+interface Gate<Msg extends string> {
+  chapter(chapter: Msg): never
+  test(name: string, spec: Msg): never
+}
+
+/** A translation's start: an external event, or, for anything else, the instruction to fix it. */
+type Translated<E> = E extends ExternalEventDecl
+  ? E
+  : E extends { readonly __kind: "view" }
+    ? "is a view: poll it with .automation()"
+    : "is ours: start its slice with .automation()"
+
+/** A slice at any step: what assembly reads. */
+interface Step {
   readonly [META]: SliceData
+}
+
+/** A complete slice. */
+export interface Slice extends Step {
   /** The chapter it is drawn in; without one, it is drawn under "Not in a chapter yet". */
   chapter(chapter: Chapter): this
+}
+
+/** A slice is written in story order, each step typed by those before it. */
+export interface Start extends Step {
+  /** State change: the command an actor issues. */
+  command<A extends AnyCommand>(command: A): Commanded<FieldsOf<A>, FieldsOf<A>, "change">
+  /** State view: the view its events build. */
+  view<V extends AnyView>(view: V): Viewing<FieldsOf<V>>
+  /** Automation: an event of ours as it happens, or each row of a view it polls. */
+  automation<T extends AnyEvent | AnyView>(
+    trigger: T extends ExternalEventDecl
+      ? "comes from outside: start its slice with .translation()"
+      : T,
+  ): Triggered<FieldsOf<T>>
+  /** Translation: an external event, which becomes a command. */
+  translation<E extends AnyEvent | AnyView>(external: Translated<E>): Triggered<FieldsOf<E>, false>
+  chapter(chapter: "start with .command(), .view(), .automation() or .translation()"): never
+}
+
+/** What starts an automation or a translation is known; the command is not yet. */
+export interface Triggered<Ctx extends Fields, Fan extends boolean = true>
+  extends Step,
+    Gate<"add .command() and .event() before .chapter()"> {
+  /** Reads a view: the row's columns join the context. Many rows, one command each. */
+  query<V extends AnyView, const F extends FilterArg<Ctx>>(
+    view: V,
+    filter: Filter<Ctx, V, F, Fan>,
+  ): Triggered<Joined<Ctx, FieldsOf<V>>, Fan>
+  /** The command it issues. The handler sees only the command, so the context is its fields. */
+  command<A extends AnyCommand>(
+    command: Filled<Ctx, A, ".command()">,
+  ): Commanded<FieldsOf<A>, FieldsOf<A>, "automation">
+  command<A extends AnyCommand>(
+    command: A,
+    map: Mapping<Ctx, A>,
+  ): Commanded<FieldsOf<A>, FieldsOf<A>, "automation">
+}
+
+/** An external event's fields are a reply: they join the context. An event of ours is an outcome. */
+type Kept<Ctx extends Fields, A> = A extends ExternalEventDecl<infer R> ? Joined<Ctx, R> : Ctx
+
+/** The command is issued; no event yet. */
+export interface Commanded<Ctx extends Fields, C extends Fields, P extends "change" | "automation">
+  extends Step,
+    Gate<"add .event() before .chapter()"> {
+  /** What the handler reads: one row, so the filter names every key column. Its columns join the context. */
+  query<V extends AnyView, const F extends FilterArg<Ctx>>(
+    view: V,
+    filter: Filter<Ctx, V, F, false>,
+  ): Commanded<Joined<Ctx, FieldsOf<V>>, C, P>
+  /** What it records. An external event is a call, and the event that brings its data back. */
+  event<A extends AnyEvent>(
+    event: Filled<Ctx, A, ".event()">,
+  ): Handled<Kept<Ctx, A>, C, FieldsOf<A>, P>
+  event<A extends AnyEvent>(
+    event: A,
+    map: Mapping<Ctx, A>,
+  ): Handled<Kept<Ctx, A>, C, FieldsOf<A>, P>
 }
 
 /** Exactly one of `then`, the events recorded, or `reject`, why the command is refused. */
@@ -470,172 +500,75 @@ export type Spec<C extends Fields, Em extends Fields> = {
   when: Example<"command", C>
 } & ({ then: OneOrMany<Example<"event", Em>>; reject?: never } | { reject: string; then?: never })
 
+/** A complete slice that handles a command: the command and at least one event. */
+export interface Handled<
+  Ctx extends Fields,
+  C extends Fields,
+  Em extends Fields,
+  P extends "change" | "automation",
+> extends Slice {
+  /** Another event it can record: outcomes are alternatives, and each specification says which. */
+  event<A extends AnyEvent>(
+    event: Filled<Ctx, A, ".event()">,
+  ): Handled<Kept<Ctx, A>, C, Em | FieldsOf<A>, P>
+  event<A extends AnyEvent>(
+    event: A,
+    map: Mapping<Ctx, A>,
+  ): Handled<Kept<Ctx, A>, C, Em | FieldsOf<A>, P>
+  chapter(chapter: Chapter): this
+  test(name: string, spec: Spec<C, Em> | (() => Spec<C, Em>)): this
+  /** Who issues the command; for an automation, the machine of ours that runs it, without one the first declared, or else System. */
+  actor(...actors: P extends "change" ? [Actor, ...Actor[]] : [SystemActor]): this
+  /** Where the actors see it; without one, the command's form is drawn as their screen. */
+  screen(screen: P extends "change" ? Screen : "no one sees an automation"): this
+  /** The method is named after the command unless given. */
+  service(
+    service: P extends "change" ? Service : "an automation has no method",
+    method?: string,
+  ): this
+  note(text: string): this
+}
+
+/** The view's event as written, or the instruction. */
+type Projected<R extends Fields, A> = A extends ExternalEventDecl
+  ? "isn't stored: translate it into an event of ours, then project that"
+  : [Misfit<FieldsOf<A>, R>] extends [never]
+    ? A
+    : `the event's ${Misfit<FieldsOf<A>, R>} does not fit: set it in the mapping`
+
+/** A state view's mapping: its argument is the event's fields, and it sets columns. */
+type ViewMapping<R extends Fields, A> = (e: FieldsOf<A>) => Out<R, Misfit<FieldsOf<A>, R>>
+
+/** The view is known; no event builds it yet. */
+export interface Viewing<R extends Fields> extends Step, Gate<"add .event() before .chapter()"> {
+  /** An event that builds it. Each projects on its own, so a mapping reads only its event. */
+  event<A extends AnyEvent>(event: Projected<R, A>): Viewed<R, Record<never, never>>
+  event<A extends AnyEvent>(event: A, map: ViewMapping<R, A>): Viewed<R, Record<never, never>>
+}
+
 /**
- * A state view's example: `given` builds the rows, `when` holds the query's values, and `then` the
- * rows the screen shows. One with no query has no `when`, and a view cannot reject an event.
+ * A state view's example: `given` builds the rows, `when` holds the request's values, and `then` the
+ * rows the screen shows. One with no request has no `when`, and a view cannot reject an event.
  */
 export type ViewSpec<Q extends Fields, R extends Fields> = {
   given?: OneOrMany<Example<"event">>
   then: OneOrMany<Example<"view", R>>
 } & ([keyof Q] extends [never] ? { when?: never } : { when: z.input<z.ZodObject<Q>> })
 
-type Actors = [Actor, ...Actor[]]
-
-/** The fields an external event `A` brings back to the slice that called it: its reply. */
-type Reply<A> = A extends ExternalEventDecl<infer F> ? F : Record<never, never>
-
-/** What an event of ours is filled from: the command's fields, and the replies' the command lacks. */
-type Sent<C extends Fields, R extends Fields> = Omit<R, keyof C> & C
-
-/** An event as a handler's slice takes it: as declared, or mapped from the command `C`. */
-// biome-ignore lint/suspicious/noExplicitAny: any event's fields
-type Handled<C extends Fields> = EventDecl<any> | Mapped<"event", any, Within<C>>
-
-type Intersect<U> = (U extends unknown ? (u: U) => void : never) extends (u: infer I) => void
-  ? I
-  : never
-
-/** What all of a slice's external events bring back. */
-type Replies<Es extends readonly unknown[]> = Intersect<Reply<Es[number]>> & Record<never, never>
-
-/** Of the fields `Of` names, those event `A` does not set in its mapping. */
-type Unset<A, Of> = A extends Mapped<"event", Fields, Place, infer Set> ? Exclude<Of, Set> : Of
-
-/**
- * Event `A` filled from `S`, the command's fields and the slice's replies: `A` as written or, where
- * `S` leaves a field unset, the instruction to fix it. An external event's fields come from outside.
- */
-type Outcome<S extends Fields, A> = A extends ExternalEventDecl
-  ? A
-  : A extends { readonly __fields: infer F extends Fields }
-    ? [Unset<A, Unfilled<S, F>>] extends [never]
-      ? A
-      : [Unset<A, Misfit<S, F>>] extends [never]
-        ? `add ${Unset<A, Unfilled<S, F>> & string} to the command or set it in the mapping`
-        : `the command's ${Unset<A, Misfit<S, F>> & string} does not fit: set it in the mapping`
-    : A
-
-/**
- * A handler's events, each checked against the command `C` and every reply in the slice. One
- * argument does not see another; this sees them all, once they are inferred.
- */
-type Outcomes<C extends Fields, Es extends readonly unknown[]> = [Es] extends [never]
-  ? readonly Handled<C>[]
-  : { [K in keyof Es]: Outcome<Sent<C, Replies<Es>>, Es[K]> }
-
-/** An automation's command, filled from its trigger `T`: `Command`, or `Command(map)`. */
-type Issue<T extends Fields, A> = FilledBy<T, A, "trigger", Mapped<"command", Fields, Into<T>>>
-
-// biome-ignore lint/suspicious/noExplicitAny: any event's fields
-type AnyEvent = EventDecl<any> | Mapped<"event", any, Place>
-// biome-ignore lint/suspicious/noExplicitAny: any command's fields
-type AnyCommand = CommandDecl<any> | Mapped<"command", any, Place>
-
-/**
- * An event of ours that builds the view `R`: `Event`, or `Event(map)` to fill columns the event does
- * not carry by name or carries in a type that does not fit. Otherwise, the instruction to fix it.
- */
-type ViewedEvent<R extends Fields, A> = A extends ExternalEventDecl
-  ? "isn't stored: translate it into an event of ours, then project that"
-  : A extends EventDecl<infer E>
-    ? [Misfit<E, R>] extends [never]
-      ? A
-      : `the event's ${Misfit<E, R>} does not fit: set it in the mapping`
-    : A
-
-/** A state view's events, each as written or the instruction to fix it. */
-type Viewed<R extends Fields, Es extends readonly unknown[]> = [Es] extends [never]
-  ? // biome-ignore lint/suspicious/noExplicitAny: any event's fields
-    readonly (EventDecl<any> | Mapped<"event", any, Onto<R>>)[]
-  : { [K in keyof Es]: ViewedEvent<R, Es[K]> }
-
-/** A slice's events: at least one, in any order. */
-type Events = readonly [AnyEvent, ...AnyEvent[]]
-
-/** What starts an automation: an event of ours, or a view it polls. */
-type Started<T extends Fields> =
-  | (EventDecl<T> & {
-      readonly "comes from outside: start its slice with .translation()"?: never
-    })
-  | ViewDecl<T>
-
-/** A translation's start: an external event, or, for anything else, the instruction to fix it. */
-type Translated<E> = E extends {
-  readonly "comes from outside: start its slice with .translation()": true
-}
-  ? E
-  : E extends { readonly __kind: "view" }
-    ? "is a view: poll it with .automation()"
-    : "is ours: start its slice with .automation()"
-
-/**
- * A slice starts with its whole pattern, all its events included, so an incomplete one does not
- * compile where it is written. A handler's events are what it can record, in any order; an external
- * one is a call, and what it brings back an event of ours in the same slice can keep.
- */
-export interface SliceStart {
-  /** State change: the command an actor issues, and the events it records. */
-  command<C extends Fields, const Es extends Events>(
-    command: CommandDecl<C>,
-    ...events: Outcomes<C, Es>
-  ): StateChange<C, Es[number]["__fields"]>
-  /** State view: the view, and the events that build it. */
-  view<R extends Fields, const Es extends Events>(
-    view: ViewDecl<R>,
-    ...events: Viewed<R, Es>
-  ): StateView<Record<never, never>, R>
-  /**
-   * Automation: what starts it, the command it issues, and the events it records. An event starts it
-   * as it happens; a view, polled on the automation's own schedule, starts it once per row.
-   */
-  automation<T extends Fields, I extends AnyCommand, const Es extends Events>(
-    trigger: Started<T>,
-    command: Issue<T, I>,
-    ...events: Outcomes<I["__fields"], Es>
-  ): Automation<I["__fields"], Es[number]["__fields"]>
-  /** Translation: an external event, the command it becomes, and the events of ours that record it. */
-  translation<
-    E extends { readonly __fields: Fields },
-    I extends AnyCommand,
-    const Es extends Events,
-  >(
-    external: Translated<E>,
-    command: Issue<E["__fields"], I>,
-    ...events: Outcomes<I["__fields"], Es>
-  ): Automation<I["__fields"], Es[number]["__fields"]>
-}
-
-export interface StateView<Q extends Fields, R extends Fields> extends Slice {
+/** A complete state view: the view and at least one event. */
+export interface Viewed<R extends Fields, Q extends Fields> extends Slice {
+  event<A extends AnyEvent>(event: Projected<R, A>): Viewed<R, Q>
+  event<A extends AnyEvent>(event: A, map: ViewMapping<R, A>): Viewed<R, Q>
   /** The request fields; without them the request is empty. */
-  query<F extends Fields>(fields: F): StateView<F, R>
-  actor(...actors: Actors): StateView<Q, R>
+  request<F extends Fields>(fields: F): Viewed<R, F>
+  chapter(chapter: Chapter): this
+  test(name: string, spec: ViewSpec<Q, R> | (() => ViewSpec<Q, R>)): this
+  actor(...actors: [Actor, ...Actor[]]): this
   /** Where the actors see it; without one, the view's table is drawn as their screen. */
-  screen(screen: Screen): StateView<Q, R>
+  screen(screen: Screen): this
   /** A state view has no command to name its method after. */
-  service(service: Service, method: string): StateView<Q, R>
-  test(name: string, spec: ViewSpec<Q, R> | (() => ViewSpec<Q, R>)): StateView<Q, R>
-  note(text: string): StateView<Q, R>
-}
-
-export interface StateChange<C extends Fields, Em extends Fields> extends Slice {
-  /** What the handler reads to decide; once per view. */
-  view(view: ViewDecl): StateChange<C, Em>
-  actor(...actors: Actors): StateChange<C, Em>
-  /** Where the actors see it; without one, the command's form is drawn as their screen. */
-  screen(screen: Screen): StateChange<C, Em>
-  /** The method is named after the command unless given. */
-  service(service: Service, method?: string): StateChange<C, Em>
-  test(name: string, spec: Spec<C, Em> | (() => Spec<C, Em>)): StateChange<C, Em>
-  note(text: string): StateChange<C, Em>
-}
-
-export interface Automation<C extends Fields, Em extends Fields> extends Slice {
-  /** What the handler reads to decide; once per view. */
-  view(view: ViewDecl): Automation<C, Em>
-  /** The machine of ours that runs it; without one, the first declared, or else System. */
-  actor(actor: SystemActor): Automation<C, Em>
-  test(name: string, spec: Spec<C, Em> | (() => Spec<C, Em>)): Automation<C, Em>
-  note(text: string): Automation<C, Em>
+  service(service: Service, method: string): this
+  note(text: string): this
 }
 
 function many<T>(clauses: OneOrMany<T> | undefined): T[] {
@@ -651,7 +584,7 @@ interface AnySpec {
 }
 
 /**
- * A state view's `when` is its query's values, which Zod checks as it checks an example's. Each
+ * A state view's `when` is its request's values, which Zod checks as it checks an example's. Each
  * generated value, at any depth, becomes one value wherever the specification uses it, so the check
  * compares it as any other. A value Zod refuses is kept as written and left to do.
  */
@@ -688,7 +621,7 @@ function testData(name: string, spec: AnySpec, view?: SliceData): TestData {
     given: many(spec.given).map(example),
     then: spec.reject === undefined ? many(spec.then).map(example) : [{ message: spec.reject }],
   }
-  if (view?.view && spec.when) test.query = check(view.view, view.query ?? {}, spec.when)
+  if (view?.view && spec.when) test.request = check(view.view, view.request ?? {}, spec.when)
   else if (spec.when) test.when = example(spec.when as Example)
   if (invalid.length > 0) test.invalid = invalid
   return test
@@ -725,18 +658,53 @@ function sample(schema: z.ZodType | undefined, seed: string): unknown {
   return values.find((v) => v !== undefined && schema?.safeParse(v).success) ?? uuid
 }
 
-// Each step copies, so a shared chain prefix can start several slices. The
-// steps nothing extends are the slices, in the order written, so assembly finds every one.
-function chain(data: SliceData) {
+// Each step copies, so a shared chain prefix can start several slices. The steps nothing extends are
+// the slices, in the order written, so assembly finds every one. Every step is offered at runtime,
+// whatever the compiler allows, so a model with errors is still drawn as far as it goes.
+function chain(data: SliceData, context: Context) {
   DRAFTS.add(data)
-  const next = (patch: Partial<SliceData>) => {
+  const next = (patch: Partial<SliceData>, after: Context = context) => {
     DRAFTS.delete(data)
-    return chain({ ...data, ...patch })
+    return chain({ ...data, ...patch }, after)
   }
   return {
     [META]: data,
-    view: (view: ViewDecl) => next({ reads: [...data.reads, view[META]] }),
-    query: (fields: Fields) => next({ query: fields }),
+    command: (command: CommandDecl, map?: MapFn) => {
+      const decl = command[META]
+      // An actor fills a state change's command; an automation's is filled from what is before it.
+      const issued = data.trigger || data.polls ? probe(decl, context, map) : probe(decl, {})
+      return next({ command: issued, beforeCommand: data.reads.length }, contextOf(decl))
+    },
+    view: (view: ViewDecl) => next({ view: view[META] }, {}),
+    automation: (trigger: EventDecl | ViewDecl) => {
+      const decl = trigger[META]
+      return next({ [decl.kind === "view" ? "polls" : "trigger"]: decl }, contextOf(decl))
+    },
+    translation: (external: EventDecl) =>
+      next({ trigger: external[META] }, contextOf(external[META])),
+    // The row's columns join the context, as an external event's fields do, where it lacks them.
+    query: (view: ViewDecl, filter: string | MapFn) => {
+      const decl = view[META]
+      // A state view's request, as it was once written, is no view.
+      if (!decl) return next({})
+      const read =
+        typeof filter === "string"
+          ? { decl, mapping: { [filter]: { from: filter } }, context }
+          : probe(decl, context, filter)
+      return next({ reads: [...data.reads, read] }, { ...contextOf(decl), ...context })
+    },
+    // A state view's event projects on its own. An external event is a reply, so its fields join the
+    // context; an event of ours is an outcome, and the next is an alternative to it.
+    event: (event: EventDecl, map?: MapFn) => {
+      const decl = event[META]
+      if (data.view)
+        return next({ events: [...data.events, probe(decl, contextOf(decl), map, decl)] })
+      return next(
+        { events: [...data.events, probe(decl, context, map)] },
+        decl.external ? { ...contextOf(decl), ...context } : context,
+      )
+    },
+    request: (fields: Fields) => next({ request: fields }),
     // An automation is run by one machine of ours, and no one sees it.
     actor: (first: Actor, ...rest: Actor[]) =>
       next(
@@ -762,42 +730,11 @@ function chain(data: SliceData) {
   }
 }
 
-/** A column of the diagram. Pass a name only when the one it would take misleads. */
-function slice(name?: string): SliceStart {
-  const empty: SliceData = {
-    actors: [],
-    reads: [],
-    events: [],
-    tests: [],
-    chapters: [],
-  }
+/** A column of the diagram, written in story order. Pass a name only when the one it would take misleads. */
+function slice(name?: string): Start {
+  const empty: SliceData = { actors: [], reads: [], events: [], tests: [], chapters: [] }
   if (name !== undefined) empty.name = name
-  // A command's events read the command; an automation's command reads what starts it. A missing
-  // argument is the compiler's error to report; the slice keeps what it has, so it is still drawn.
-  const handled = (from: Partial<SliceData>, command?: Used, events: Used[] = []) => {
-    const source = from.trigger ?? from.polls
-    const issued = command && flow(command, source)
-    return chain({
-      ...empty,
-      ...from,
-      ...(issued && { command: issued }),
-      events: events.map((e) => flow(e, issued?.decl)),
-    })
-  }
-  const start = {
-    command: (command?: Used, ...events: Used[]) => handled({}, command, events),
-    view: (view?: ViewDecl, ...events: Used[]) =>
-      chain({ ...empty, ...(view && { view: view[META] }), events: events.map((e) => flow(e)) }),
-    automation: (trigger?: EventDecl | ViewDecl, command?: Used, ...events: Used[]) =>
-      handled(
-        trigger ? { [trigger[META].kind === "view" ? "polls" : "trigger"]: trigger[META] } : {},
-        command,
-        events,
-      ),
-    translation: (external?: EventDecl, command?: Used, ...events: Used[]) =>
-      handled(external ? { trigger: external[META] } : {}, command, events),
-  }
-  return start as unknown as SliceStart
+  return chain(empty, {}) as unknown as Start
 }
 
 // ---------------------------------------------------------------------------

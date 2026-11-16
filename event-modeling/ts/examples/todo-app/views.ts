@@ -60,15 +60,13 @@ const eggs = ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-2", titl
 export const Views = m.chapter()
 
 m.slice()
-  .view(
-    TodoList,
-    ListCreated(() => ({ itemCount: z.literal(0), status: z.literal("open") })),
-    ItemAdded((e) => ({ itemCount: m.generate(e) })),
-    ListCompleted(() => ({ status: z.literal("completed") })),
-    ListDeleted(() => ({ status: z.literal("deleted") })),
-  )
+  .view(TodoList)
+  .event(ListCreated, () => ({ itemCount: z.literal(0), status: z.literal("open") }))
+  .event(ItemAdded, (e) => ({ itemCount: m.generate(e) }))
+  .event(ListCompleted, () => ({ status: z.literal("completed") }))
+  .event(ListDeleted, () => ({ status: z.literal("deleted") }))
+  .request({ userId: z.string() })
   .chapter(Views)
-  .query({ userId: z.string() })
   .actor(User)
   .service(TodoService, "ListTodoLists")
   .test("A new list shows with no items", {
@@ -128,14 +126,12 @@ m.slice()
   })
 
 m.slice()
-  .view(
-    ListItems,
-    ItemAdded(() => ({ done: z.literal(false), deleted: z.literal(false) })),
-    ItemCompleted(() => ({ done: z.literal(true) })),
-    ItemDeleted(() => ({ deleted: z.literal(true) })),
-  )
+  .view(ListItems)
+  .event(ItemAdded, () => ({ done: z.literal(false), deleted: z.literal(false) }))
+  .event(ItemCompleted, () => ({ done: z.literal(true) }))
+  .event(ItemDeleted, () => ({ deleted: z.literal(true) }))
+  .request({ listId: z.string() })
   .chapter(Views)
-  .query({ listId: z.string() })
   .actor(User)
   .screen(ListScreen)
   .service(TodoService, "GetList")
@@ -188,14 +184,12 @@ m.slice()
   })
 
 m.slice()
-  .view(
-    ItemSearch,
-    ItemAdded(() => ({ done: z.literal(false), deleted: z.literal(false) })),
-    ItemCompleted(() => ({ done: z.literal(true) })),
-    ItemDeleted(() => ({ deleted: z.literal(true) })),
-  )
+  .view(ItemSearch)
+  .event(ItemAdded, () => ({ done: z.literal(false), deleted: z.literal(false) }))
+  .event(ItemCompleted, () => ({ done: z.literal(true) }))
+  .event(ItemDeleted, () => ({ deleted: z.literal(true) }))
+  .request({ text: z.string() })
   .chapter(Views)
-  .query({ text: z.string() })
   .actor(User)
   .service(TodoService, "SearchItems")
   .test("An added item shows as not done", {
@@ -235,11 +229,13 @@ m.slice()
 export const Automations = m.chapter()
 
 m.slice("ListCompleter")
-  .automation(ItemCompleted, CompleteList, ListCompleted)
+  .automation(ItemCompleted)
+  .command(CompleteList)
+  .query(TodoList, (c) => ({ userId: c.userId, listId: c.listId }))
+  .event(ListCompleted)
   .chapter(Automations)
-  .view(ListItems)
   .test("List completes when every item is done", {
-    given: [milk, milkDone],
+    given: [groceries, milk, milkDone],
     when: CompleteList({ userId: "u-1", listId: "list-1" }),
     then: ListCompleted({ userId: "u-1", listId: "list-1" }),
   })
@@ -259,11 +255,9 @@ export const TaskScheduled = m
 export const Integrations = m.chapter()
 
 m.slice()
-  .translation(
-    TaskScheduled,
-    AddItem,
-    ItemAdded((c) => ({ title: c.text })),
-  )
+  .translation(TaskScheduled)
+  .command(AddItem)
+  .event(ItemAdded, (c) => ({ title: c.text }))
   .chapter(Integrations)
   .test("A scheduled task becomes an item", {
     given: [
