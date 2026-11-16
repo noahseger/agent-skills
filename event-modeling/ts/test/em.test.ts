@@ -423,11 +423,7 @@ export default m.model("x")
       [
         "  index.ts: declare Retry, Retried, Ch, Later above where they are used.",
         "  index.ts:6  Argument of type 'string' is not assignable to parameter of type 'Stream'.",
-        "  index.ts:12  add .event() before .chapter()",
         "  index.ts:17  the view has no .key(): many rows: only an automation reads them, before its .command()",
-        "  index.ts:18  add .event() before .chapter()",
-        "  index.ts:19  add .command() and .event() before .chapter()",
-        "  index.ts:20  add .event() before .chapter()",
         "",
       ].join("\n"),
     )

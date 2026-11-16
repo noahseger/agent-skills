@@ -98,7 +98,7 @@ The same discipline runs in reverse — **invent nothing.** No event, view, or s
 
 Write the model as TypeScript in `ts/`, or write it directly as [event-modeling-spec](https://github.com/dilgerma/event-modeling-spec) JSON. The TypeScript emits that same JSON (`npx em json model/`), and the viewer draws either.
 
-Write TypeScript for a system you are about to build. The compiler and the assembler enforce most of this document: a reference is a value, so an unknown event cannot be written; a slice is a chain of calls in story order, each step typed by those before it, so an illegal slice does not compile and an incomplete one cannot join a chapter; a field nothing fills is an assembly error. The same model generates the protobuf for the service it describes. See `ts/README.md`.
+Write TypeScript for a system you are about to build. The compiler and the assembler enforce most of this document: a reference is a value, so an unknown event cannot be written; a slice is a chain of calls in story order, each step typed by those before it, so an illegal slice does not compile and an incomplete one is drawn with what it lacks; a field nothing fills is an assembly error. The same model generates the protobuf for the service it describes. See `ts/README.md`.
 
 Keep `npx em view model/` running while you write the model: after every save its terminal lists everything left to fix, compiler errors included.
 

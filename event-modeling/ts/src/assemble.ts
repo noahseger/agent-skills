@@ -75,11 +75,9 @@ export function loadModules(
   DRAFTS.clear()
   const warnings: Warning[] = []
   const unfinished = new Map<SliceData, string[]>()
-  const note = (slice: SliceData, message: string) =>
-    unfinished.set(slice, [...(unfinished.get(slice) ?? []), message])
   const fail: Fail = (warning, of) => {
     warnings.push(warning)
-    if (of) note(of, warning.message)
+    if (of) unfinished.set(of, [...(unfinished.get(of) ?? []), warning.message])
   }
   // Two things claiming one name, chapter or method: a partial assembly keeps the first and draws on.
   const conflict: Fail = options.partial
@@ -100,7 +98,7 @@ export function loadModules(
     if (chapter) chapter.slices.push(s)
     else unchaptered.push(s)
   }
-  check(chapters, unchaptered, declared, fileOf, fail, conflict, options.partial ? note : undefined)
+  check(chapters, unchaptered, declared, fileOf, fail, conflict)
   for (const s of unchaptered) {
     const name = s.name ?? "A slice"
     fail({ message: `${name} isn't in a chapter yet.`, element: "", slice: s.name ?? "" }, s)
@@ -354,25 +352,17 @@ function check(
   fileOf: Map<object, string>,
   fail: Fail,
   conflict: Fail,
-  /** Only a partial assembly passes it. */
-  note?: (slice: SliceData, message: string) => void,
 ): void {
   const located = [
     ...chapters.flatMap((chapter) => locate(chapter.name, chapter.slices)),
     ...locate(undefined, unchaptered),
   ]
-  // The compiler reports it where the slice is written, so a partial model only draws it and
-  // keeps it out of the proto.
-  for (const { slice, where } of located) {
-    const missing = missingCore(slice)
-    if (!missing) continue
-    if (!note) throw new Error(`${where}: ${missing}`)
-    note(slice, `${where}: ${missing}`)
-  }
   checkDeclaredOnce(located, declared, fileOf, conflict)
   const built = builtOf(located)
   for (const at of located) {
     const own: Fail = (warning) => fail(warning, at.slice)
+    checkCore(at, own)
+    checkThrown(at, own)
     checkFilled(at, own)
     checkRecorded(at, own)
     checkKeys(at, own)
@@ -387,14 +377,33 @@ function check(
   checkMethods(located, conflict)
 }
 
-/** What a slice left out. `em json` runs the model without the compiler. */
-function missingCore(slice: SliceData): string | undefined {
+/** What a slice still being written lacks: the compiler allows it, so the slice is drawn as far as it goes. */
+function checkCore({ slice, where }: Located, fail: Fail): void {
   const { command, trigger, polls, view, events } = slice
-  if (!command && !trigger && !polls && !view)
-    return "this slice is empty. Start it with .command(), .view(), .automation() or .translation()."
-  if ((trigger || polls) && !command) return "this slice has no command yet. Add .command()."
-  if ((command || view) && events.length === 0) return "this slice has no event yet. Add .event()."
-  return undefined
+  const from = trigger ?? polls
+  const said = (message: string) =>
+    fail({ message: `${where}: ${message}`, element: "", slice: slice.name ?? "" })
+  if (!command && !from && !view)
+    said("empty. Start it with .command(), .view(), .automation() or .translation().")
+  else if (from && !command)
+    said(
+      `no command yet. Add .command() after .${from.external ? "translation" : "automation"}(${from.name}).`,
+    )
+  else if (events.length === 0)
+    said(
+      `no event yet. Add .event() after ${command ? `.command(${command.decl.name})` : `.view(${view?.name})`}.`,
+    )
+}
+
+/** A mapping that threw is drawn as no mapping, and what it threw is left to do. */
+function checkThrown({ slice, where }: Located, fail: Fail): void {
+  for (const flow of [...flows(slice), ...slice.reads])
+    if (flow.threw !== undefined)
+      fail({
+        message: `${where}: ${flow.decl.name}'s mapping threw: ${flow.threw}`,
+        element: flow.decl.name ?? "",
+        slice: slice.name ?? "",
+      })
 }
 
 /** `chapter` is undefined for the slices in none yet. */
@@ -418,7 +427,13 @@ function locate(chapter: string | undefined, slices: SliceData[]): Located[] {
 
 /** What heads a slice's column: its name, or else what it is named after. */
 function heading(slice: SliceData): string | undefined {
-  return slice.name ?? slice.command?.decl.name ?? slice.view?.name ?? slice.polls?.name
+  return (
+    slice.name ??
+    slice.command?.decl.name ??
+    slice.view?.name ??
+    slice.polls?.name ??
+    slice.trigger?.name
+  )
 }
 
 /** Two modules can export one name, except for a lane, which they share. */
@@ -506,8 +521,12 @@ function checkGenerated({ slice, where }: Located, fail: Fail): void {
   }
 }
 
-/** The fields a flow fills: those that copy by name from before its step, and those its mapping sets. */
+/**
+ * The fields a flow fills: those that copy by name from before its step, and those its mapping sets.
+ * What a mapping that threw sets is unknown, so it is taken to set them all, and only the throw is left to do.
+ */
 function filled(flow: Flow): string[] {
+  if (flow.threw !== undefined) return Object.keys(flow.decl.fields)
   return [...Object.keys(flow.context), ...Object.keys(flow.mapping)]
 }
 

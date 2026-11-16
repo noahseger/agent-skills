@@ -141,6 +141,8 @@ export interface Flow {
   mapping: Record<string, Source>
   /** What its step can read: by name, or in the mapping. */
   context: Context
+  /** What its mapping threw, which leaves the mapping empty. */
+  threw?: string
 }
 
 /** A function that fills a declaration's fields; run once on probe values. */

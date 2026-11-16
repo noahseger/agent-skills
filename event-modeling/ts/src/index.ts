@@ -323,7 +323,15 @@ function probe(decl: DeclData, context: Context, map?: MapFn, whole?: DeclData):
   const flow: Flow = { decl, mapping: {}, context }
   if (!map) return flow
   const c = { ...copies(context), ...(whole && { [SOURCE]: whole }) }
-  for (const [field, value] of Object.entries(map(c as never))) {
+  let result: object
+  try {
+    result = map(c as never)
+  } catch (error) {
+    // The picture never refuses a model: the step is drawn, and what threw is left to do.
+    flow.threw = error instanceof Error ? error.message : String(error)
+    return flow
+  }
+  for (const [field, value] of Object.entries(result)) {
     const from = typeof value === "object" && value !== null ? FIELDS.get(value) : undefined
     const def = (value as { _zod?: { def?: { type?: string; values?: unknown[] } } })?._zod?.def
     flow.mapping[field] = isGenerated(value)
@@ -412,9 +420,8 @@ type Filter<Ctx extends Fields, V, F, Fan extends boolean> =
 /** A column name, or a mapping from the context to columns; `Filter` checks which. */
 type FilterArg<Ctx extends Fields> = string | ((c: Ctx) => object)
 
-/** What an incomplete slice offers in place of `.chapter()` and `.test()`: the instruction. */
+/** What a slice with no event yet offers in place of `.test()`: the instruction. */
 interface Gate<Msg extends string> {
-  chapter(chapter: Msg): never
   test(name: string, spec: Msg): never
 }
 
@@ -430,10 +437,33 @@ interface Step {
   readonly [META]: SliceData
 }
 
-/** A complete slice. */
+/** A slice past its first step. Until it is complete it is drawn as far as it goes, and left to do. */
 export interface Slice extends Step {
   /** The chapter it is drawn in; without one, it is drawn under "Not in a chapter yet". */
   chapter(chapter: Chapter): this
+  note(text: string): this
+}
+
+/** A slice that issues a command: an actor's, or an automation's. */
+interface Issuing<P extends "change" | "automation"> extends Slice {
+  /** Who issues the command; for an automation, the machine of ours that runs it, without one the first declared, or else System. */
+  actor(...actors: P extends "change" ? [Actor, ...Actor[]] : [SystemActor]): this
+  /** Where the actors see it; without one, the command's form is drawn as their screen. */
+  screen(screen: P extends "change" ? Screen : "no one sees an automation"): this
+  /** The method is named after the command unless given. */
+  service(
+    service: P extends "change" ? Service : "an automation has no method",
+    method?: string,
+  ): this
+}
+
+/** A state view. */
+interface Showing extends Slice {
+  actor(...actors: [Actor, ...Actor[]]): this
+  /** Where the actors see it; without one, the view's table is drawn as their screen. */
+  screen(screen: Screen): this
+  /** A state view has no command to name its method after. */
+  service(service: Service, method: string): this
 }
 
 /** A slice is written in story order, each step typed by those before it. */
@@ -455,8 +485,8 @@ export interface Start extends Step {
 
 /** What starts an automation or a translation is known; the command is not yet. */
 export interface Triggered<Ctx extends Fields, Fan extends boolean = true>
-  extends Step,
-    Gate<"add .command() and .event() before .chapter()"> {
+  extends Issuing<"automation">,
+    Gate<"add .command() and .event() before .test()"> {
   /** Reads a view: the row's columns join the context. Many rows, one command each. */
   query<V extends AnyView, const F extends FilterArg<Ctx>>(
     view: V,
@@ -477,8 +507,8 @@ type Kept<Ctx extends Fields, A> = A extends ExternalEventDecl<infer R> ? Joined
 
 /** The command is issued; no event yet. */
 export interface Commanded<Ctx extends Fields, C extends Fields, P extends "change" | "automation">
-  extends Step,
-    Gate<"add .event() before .chapter()"> {
+  extends Issuing<P>,
+    Gate<"add .event() before .test()"> {
   /** What the handler reads: one row, so the filter names every key column. Its columns join the context. */
   query<V extends AnyView, const F extends FilterArg<Ctx>>(
     view: V,
@@ -506,7 +536,7 @@ export interface Handled<
   C extends Fields,
   Em extends Fields,
   P extends "change" | "automation",
-> extends Slice {
+> extends Issuing<P> {
   /** Another event it can record: outcomes are alternatives, and each specification says which. */
   event<A extends AnyEvent>(
     event: Filled<Ctx, A, ".event()">,
@@ -515,18 +545,7 @@ export interface Handled<
     event: A,
     map: Mapping<Ctx, A>,
   ): Handled<Kept<Ctx, A>, C, Em | FieldsOf<A>, P>
-  chapter(chapter: Chapter): this
   test(name: string, spec: Spec<C, Em> | (() => Spec<C, Em>)): this
-  /** Who issues the command; for an automation, the machine of ours that runs it, without one the first declared, or else System. */
-  actor(...actors: P extends "change" ? [Actor, ...Actor[]] : [SystemActor]): this
-  /** Where the actors see it; without one, the command's form is drawn as their screen. */
-  screen(screen: P extends "change" ? Screen : "no one sees an automation"): this
-  /** The method is named after the command unless given. */
-  service(
-    service: P extends "change" ? Service : "an automation has no method",
-    method?: string,
-  ): this
-  note(text: string): this
 }
 
 /** The view's event as written, or the instruction. */
@@ -540,7 +559,7 @@ type Projected<R extends Fields, A> = A extends ExternalEventDecl
 type ViewMapping<R extends Fields, A> = (e: FieldsOf<A>) => Out<R, Misfit<FieldsOf<A>, R>>
 
 /** The view is known; no event builds it yet. */
-export interface Viewing<R extends Fields> extends Step, Gate<"add .event() before .chapter()"> {
+export interface Viewing<R extends Fields> extends Showing, Gate<"add .event() before .test()"> {
   /** An event that builds it. Each projects on its own, so a mapping reads only its event. */
   event<A extends AnyEvent>(event: Projected<R, A>): Viewed<R, Record<never, never>>
   event<A extends AnyEvent>(event: A, map: ViewMapping<R, A>): Viewed<R, Record<never, never>>
@@ -556,19 +575,12 @@ export type ViewSpec<Q extends Fields, R extends Fields> = {
 } & ([keyof Q] extends [never] ? { when?: never } : { when: z.input<z.ZodObject<Q>> })
 
 /** A complete state view: the view and at least one event. */
-export interface Viewed<R extends Fields, Q extends Fields> extends Slice {
+export interface Viewed<R extends Fields, Q extends Fields> extends Showing {
   event<A extends AnyEvent>(event: Projected<R, A>): Viewed<R, Q>
   event<A extends AnyEvent>(event: A, map: ViewMapping<R, A>): Viewed<R, Q>
   /** The request fields; without them the request is empty. */
   request<F extends Fields>(fields: F): Viewed<R, F>
-  chapter(chapter: Chapter): this
   test(name: string, spec: ViewSpec<Q, R> | (() => ViewSpec<Q, R>)): this
-  actor(...actors: [Actor, ...Actor[]]): this
-  /** Where the actors see it; without one, the view's table is drawn as their screen. */
-  screen(screen: Screen): this
-  /** A state view has no command to name its method after. */
-  service(service: Service, method: string): this
-  note(text: string): this
 }
 
 function many<T>(clauses: OneOrMany<T> | undefined): T[] {

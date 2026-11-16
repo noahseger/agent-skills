@@ -64,12 +64,14 @@ the calls that can come next.
 | automation | the trigger: an event of ours, or a view it polls | `.automation(Event).command(Command).event(Event)` or `.automation(View)…` | An event, or a row of work, causes a command. No actor is involved. |
 | translation | the external event | `.translation(ExternalEvent).command(Command).event(Event)` | An event from outside becomes an event of ours. No actor is involved. |
 
-A slice is complete once it has its command and an event, or its view and an event. Before then,
-`.chapter()` and `.test()` refuse it and say what to add. `.event()` again adds an event the command
-can record. `.query()` reads a view, before the events. `.request()` gives a state view its request
-fields, `.test()` adds a specification, and `.chapter()` puts the slice in a chapter. A complete
-state change or state view also takes `.actor()`, `.screen()` and `.service()`, and needs none of
-them. An automation or a translation takes `.actor()` for the system actor that runs it.
+A slice is complete once it has its command and an event, or its view and an event. Before then it
+compiles, is drawn as far as it goes, and what it lacks is left to do; `.test()` waits for its
+events. `.event()` again adds an event the command can record. `.query()` reads a view, before the
+events. `.request()` gives a state view its request fields, `.test()` adds a specification, and
+`.chapter()` puts the slice in a chapter. A state change or state view also takes `.actor()`,
+`.screen()` and `.service()`, and needs none of them. An automation or a translation takes
+`.actor()` for the system actor that runs it. `.chapter()`, `.actor()`, `.screen()`, `.service()`
+and `.note()` can come anywhere after the first step.
 
 ## Quickstart
 
@@ -540,7 +542,7 @@ The model, `export default m.model("Name", { description })`, lists nothing. The
 declaration, and every slice, by walking the directory.
 
 A chapter is a heading on the timeline, declared once with `m.chapter()` and named by its export,
-like a stream. A slice joins it with `.chapter()`, once it is complete, and joins at most
+like a stream. A slice joins it with `.chapter()`, complete or not, and joins at most
 one. `.chapter()` takes the chapter, not its name, so a typo does not compile. A chapter no slice
 has joined yet is drawn as a title with no columns, and is left to do. A slice in no chapter is
 drawn after the story under "Not in a chapter yet", and is left to do until it joins one. Two
@@ -561,7 +563,7 @@ The compiler catches:
 | Where | What |
 |---|---|
 | any reference | An unknown actor, event, command, view, screen or service cannot be written, because references are values, not strings. |
-| the chain | Only a legal chain compiles; each step offers only what can come next. `.chapter()` and `.test()` refuse an incomplete slice and say what to add, such as `add .event() before .chapter()`. `.actor()`, `.screen()`, `.service()` and `.note()` exist only on a complete slice. |
+| the chain | Only a legal chain compiles; each step offers only what can come next. `.test()` refuses a slice with no event yet and says what to add, such as `add .event() before .test()`. |
 | a mapping | Its argument is the fields before its step as schemas: what starts the slice, the rows it queries, the command and the replies; in a state view, the event. Its result must be fields of the target, each a field that fits it, a `z.literal()` or `m.generate()`. A string format, such as `z.uuid()`, takes only that format. |
 | a field that flows by name | It must fit its target as a mapped one does. The error names the field to set in the mapping. |
 | a step's command or event | Every field no step before it carries must be set by its mapping, or marked `m.generate()`, unless it is optional. The error names the fields. |
@@ -581,7 +583,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | Two modules exporting one name, such as `ListCreated` | Each module is compiled on its own. |
 | A column no event of the view's `m.slice().view()` calls writes | The calls can be in several modules. |
 | An optional field no slice fills | Same. |
-| A slice with no command, or no event | Only `.chapter()` and `.test()` refuse an incomplete slice, and a slice need not call either. |
+| A slice with no command, or no event | An incomplete slice compiles, so it can be drawn while it is written. |
 | A command field no event of its slice records: none carries it by name, maps it or generates from it, and none is external | Each event's mapping is checked on its own, not against the slice's other events. |
 | A state view's event that lacks one of the view's key columns | Declarations are anonymous, so two events with the same fields are one type. |
 | An event nothing consumes: no `.automation()`, no state view, no `given`; for an external event no slice produces, no `.translation()` | Same. |
@@ -598,6 +600,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | A queried row `given` does not build, in a specification that does not `reject`; in an automation, before its command, any specification | Same. |
 | A state view's row that `given` does not build, or a built row `then` leaves out and the request does not exclude | Same. |
 | A mapping's result that is a schema but no source field, such as `c.title.toUpperCase()` | A Zod method returns a schema of the same type. |
+| A mapping that throws, such as `m.generate()` given something other than a field: its slice is drawn without the mapping | The mapping runs when the model does. |
 | `m.generate()` in an automation's command | `m.generate()` is one function, wherever it is called. |
 
 Naming is yours: the conventions above are not checked.

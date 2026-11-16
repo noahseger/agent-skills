@@ -90,28 +90,28 @@ m.slice().command(CreateList).event(ListCreated).query(TodoList, "listId")
 // @ts-expect-error a state view reads nothing: its events build it
 m.slice().view(TodoList).query(TodoList, "listId")
 
-// An incomplete slice joins no chapter and takes no specification: .chapter() and .test() say what is missing.
+// An incomplete slice compiles and is drawn as far as it goes. From its first step it takes a chapter, an
+// actor, a screen, a service and a note, each keeping its stage; .test() waits for its events.
 
 // @ts-expect-error a slice not yet started joins no chapter
 m.slice().chapter(Ch)
 
-// @ts-expect-error a state change records an event
 m.slice().command(CreateList).chapter(Ch)
-
-// @ts-expect-error an automation issues a command
 m.slice().automation(ListCreated).chapter(Ch)
-
-// @ts-expect-error an automation's command records an event
 m.slice().automation(ListCreated).command(NameList).chapter(Ch)
-
-// @ts-expect-error a state view is built by an event
 m.slice().view(TodoList).chapter(Ch)
+m.slice().command(CreateList).chapter(Ch).actor(User).screen(Lock).service(TodoService).note("x").event(ListCreated)
+m.slice().automation(ListCreated).chapter(Ch).actor(Syncer).command(NameList).event(ListCreated)
+m.slice().view(TodoList).chapter(Ch).actor(User).service(TodoService, "GetList").event(ListCreated)
 
 // @ts-expect-error a state change with no event has no specification yet
 m.slice().command(CreateList).test("x", { when: CreateList({ listId: "l-1" }), then: [] })
 
-// @ts-expect-error nor an actor: .actor(), .screen(), .service() and .note() wait for a complete slice
-m.slice().command(CreateList).actor(User)
+// @ts-expect-error nor an automation with no command
+m.slice().automation(ListCreated).test("x", { when: NameList({ listId: "l-1" }), then: [] })
+
+// @ts-expect-error a machine of ours runs an automation, not a person, from its first step
+m.slice().automation(ListCreated).actor(User)
 
 // @ts-expect-error a state view shows a view
 m.slice().view()

@@ -399,17 +399,6 @@ test("a mapping recognises a source field, a z.literal() and m.generate(); a sch
     .event(Paired, (c) => ({ a: c.b, b: c.a }))
   assert.deepEqual(swapped[META].events[0]?.mapping, { a: { from: "b" }, b: { from: "a" } })
   DRAFTS.delete(swapped[META])
-  const started = m.slice().command(f.Create)
-  assert.throws(
-    () =>
-      started.event(Created, () => ({
-        alias: m.generate(),
-        label: m.generate("x"),
-        size: z.literal(0),
-      })),
-    /m\.generate\(\) takes fields of the mapping's argument, such as m\.generate\(c\.title\), not x\./,
-  )
-  DRAFTS.delete(started[META])
 })
 
 test("a column no event writes", () => {
@@ -1688,11 +1677,14 @@ test("a slice in no chapter is drawn after the story", () => {
   )
 })
 
-test("a slice missing part of its core is drawn with the rest; strict assembly refuses it", () => {
+test("a slice missing part of its core is drawn with the rest and says what it lacks; strict assembly refuses it", () => {
   const f = fixture()
-  // @ts-expect-error the compiler reports the missing event where the slice is written
-  const incomplete = m.slice().command(f.Create).actor(f.User)
-  const slices = [create(f), incomplete, view(f)]
+  const slices = [
+    create(f),
+    m.slice().command(f.Create).actor(f.User),
+    m.slice().automation(f.Created),
+    view(f),
+  ]
   const json = assembleModules([{ ...f, ...chapters({ Ch: slices }), default: m.model("x") }], {
     partial: true,
   })
@@ -1701,13 +1693,55 @@ test("a slice missing part of its core is drawn with the rest; strict assembly r
     [
       ["Create", "Create(id, name)", ["Created(id, name)"]],
       ["Create", "Create(id, name)", undefined],
+      ["Created", undefined, undefined],
       ["Table", undefined, undefined],
+    ],
+  )
+  assert.deepEqual(
+    json.warnings?.filter((w) => / no (event|command) yet\./.test(w.message)),
+    [
+      {
+        message: "Ch › Create: no event yet. Add .event() after .command(Create).",
+        element: "",
+        slice: "Create",
+      },
+      {
+        message: "Ch › Created: no command yet. Add .command() after .automation(Created).",
+        element: "",
+        slice: "Created",
+      },
     ],
   )
   assert.ok(layout(json).boxes.length > 0)
   assert.throws(
     () => assembled(f, slices),
-    /^Error: Ch › Create: this slice has no event yet\. Add \.event\(\)\.$/,
+    /Ch › Create: no event yet\. Add \.event\(\) after \.command\(Create\)\./,
+  )
+})
+
+test("a mapping that throws is left to do, naming its slice, which is drawn whole", () => {
+  const f = fixture()
+  const throws = m
+    .slice()
+    .command(f.Create)
+    .event(f.Created, () => ({ id: m.generate("id") }))
+  const json = assembleModules(
+    [{ ...f, ...chapters({ Ch: [throws, view(f)] }), default: m.model("x") }],
+    { partial: true },
+  )
+  assert.deepEqual(
+    json.chapters[0]?.slices.map((s) => [s.name, s.command, s.events]),
+    [
+      ["Create", "Create(id, name)", ["Created(id, name)"]],
+      ["Table", undefined, undefined],
+    ],
+  )
+  assert.deepEqual(
+    json.warnings?.filter((w) => w.slice === "Create").map((w) => w.message),
+    [
+      "Ch › Create: Created's mapping threw: m.generate() takes fields of the mapping's argument, such as m.generate(c.title), not id.",
+      "Ch › Create: no specification shows Created yet. Add a .test whose then has Created(...).",
+    ],
   )
 })
 
