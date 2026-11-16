@@ -11,6 +11,7 @@ import {
   type Fields,
   type Flow,
   inputNames,
+  origin,
   recorded,
   type SliceData,
   type Source,
@@ -152,14 +153,17 @@ function sourceOf(source: Source): string {
 
 /**
  * Where each field of `target` a step sets gets its value. A field from a row a query picks says
- * which, `View(filter columns).column`, by name too.
+ * which, `View(filter columns).column`, by name too. Of `reads`, the queries before the step, a
+ * view queried again is its last.
  */
-function mappingOf({ mapping, context }: Flow, target: Fields, reads: Flow[]) {
+function mappingOf(flow: Flow, target: Fields, reads: Flow[]) {
+  const { mapping, context } = flow
   const out: Record<string, string> = {}
   for (const field of Object.keys(target)) {
     const source = mapping[field] ?? (field in context ? { from: field } : undefined)
     if (!source) continue
-    const read = "from" in source ? reads.find((q) => q.decl === context[source.from]) : undefined
+    const read =
+      "from" in source ? reads.findLast((q) => q.decl === origin(flow, source)) : undefined
     if (read)
       out[field] = `${read.decl.name}(${Object.keys(read.mapping).join(", ")}).${sourceOf(source)}`
     else if (field in mapping) out[field] = sourceOf(source)
@@ -298,7 +302,8 @@ function sliceOf(
   // A state view's events each fill the view; a state change's steps each fill their own element.
   const steps = [...(command ? [command] : []), ...slice.events].flatMap(
     (f): [string, Record<string, string>][] => {
-      const mapping = mappingOf(f, (view ?? f.decl).fields, slice.reads)
+      const before = f === command ? slice.reads.slice(0, slice.beforeCommand) : slice.reads
+      const mapping = mappingOf(f, (view ?? f.decl).fields, before)
       return Object.keys(mapping).length > 0 ? [[f.decl.name ?? "", mapping]] : []
     },
   )
@@ -332,11 +337,11 @@ function sliceOf(
   link(screen, commandEl)
   for (const r of reads) link(r, commandEl)
   for (const e of events) link(commandEl, e)
-  // An event of ours that keeps a field only a reply has is drawn from that reply.
+  // An event of ours that keeps a field of an outside event the call got back is drawn from it.
   slice.events.forEach((keeps, k) => {
     if (keeps.decl.external) return
-    for (const [r, reply] of slice.events.entries())
-      if (reply.decl.external && taken(keeps, reply.decl).length > 0) link(events[r], events[k])
+    for (const [r, got] of slice.events.entries())
+      if (got.decl.external && taken(keeps, got.decl).length > 0) link(events[r], events[k])
   })
   for (const e of heardEvents) link(e, viewEl)
   link(viewEl, screen)

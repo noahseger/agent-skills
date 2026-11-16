@@ -121,7 +121,7 @@ export interface Warning {
  * declaration. `built` marks one the mapping computed instead, which is left to do.
  */
 export type Source =
-  | { from: string }
+  | { from: string; decl?: DeclData }
   | { generate: (string | DeclData)[]; built?: true }
   | { value: unknown }
 
@@ -199,6 +199,8 @@ export interface SliceData {
   tests: TestData[]
   /** The chapters it joined; assembly allows one. */
   chapters: ChapterData[]
+  /** Each declaration a call took, with the name its `{ Name }` gave; none for a bare declaration. */
+  named: [string | undefined, DeclData][]
 }
 
 /** The events a slice records. A state view records none. */
@@ -207,15 +209,18 @@ export function recorded(slice: SliceData): DeclData[] {
 }
 
 /** The fields of `from` a flow takes: by name, by a mapping, or as what a generated value is made from. */
-export function taken({ decl, mapping, context }: Flow, from: DeclData): string[] {
-  const named = Object.keys(decl.fields).filter((f) => !(f in mapping))
-  const inputs = Object.values(mapping).flatMap((s) =>
-    "from" in s ? [s.from] : "generate" in s ? s.generate : [],
-  )
-  return [...named, ...inputs].flatMap((i) => {
-    if (typeof i !== "string") return i === from ? Object.keys(from.fields) : []
-    return context[i] === from ? [i] : []
+export function taken(flow: Flow, from: DeclData): string[] {
+  const { decl, mapping, context } = flow
+  const named = Object.keys(decl.fields).filter((f) => !(f in mapping) && context[f] === from)
+  const mapped = Object.values(mapping).flatMap((s) => {
+    if ("from" in s) return origin(flow, s) === from ? [s.from] : []
+    if (!("generate" in s)) return []
+    return s.generate.flatMap((i) => {
+      if (typeof i !== "string") return i === from ? Object.keys(from.fields) : []
+      return context[i] === from ? [i] : []
+    })
   })
+  return [...named, ...mapped]
 }
 
 /** The events a slice reacts to: its trigger, or what builds its view. */
@@ -232,3 +237,7 @@ export function slug(name: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
 }
+
+/** The declaration a mapped field came from: the one its mapping read, or the one that carries it by name. */
+export const origin = (flow: Flow, s: { from: string; decl?: DeclData }): DeclData | undefined =>
+  s.decl ?? flow.context[s.from]

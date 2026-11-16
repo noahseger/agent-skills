@@ -396,7 +396,7 @@ test("a call's external event is drawn in the system's lane, and a later trigger
   assert.ok(called.edges.some((e) => e.from === first.id && e.to === gear.id))
 })
 
-test("a call's arrow goes around the event of ours that keeps its reply, so each arrow shows", () => {
+test("a call's arrow goes around the event of ours that keeps what it got back, so each arrow shows", () => {
   const out = layout({
     name: "x",
     description: "",

@@ -62,17 +62,17 @@ Two directions, both required:
    - **Command parameters** — fields the actor provides (e.g. `PlaceOrder(customerId, items)`)
    - **Trigger event** — for automation slices, the event that triggered the automation
    - **External event** — for external event slices, the inbound event from outside the system
-   - **Views the slice queries** — `.query(View, filter)`, before the events; in spec JSON, a view pointing at the command
+   - **Views the slice queries** — `.query({ View }, filter)`, before the events; in spec JSON, a view pointing at the command
 
 If an event contains a field that doesn't appear in any of these sources, the model has an information gap — that field's data comes from somewhere not captured in the model. This is the most common information completeness mistake: an event field that materializes from a hidden data source.
 
 **Example — automation consuming a view:**
 
-An `InventoryReserver` automation hears `OrderPlaced(orderId, sku)` and issues `ReserveInventory(orderId, sku)`. To decide which warehouse reserves, the handler needs current stock levels, so the slice queries the `InventoryLevel` view (keyed by `sku`, with `warehouseId, available`): `.command(ReserveInventory).query(InventoryLevel, "sku")`. Now `InventoryReserved(orderId, warehouseId)` is information complete: `orderId` comes from the command, `warehouseId` from the queried row.
+An `InventoryReserver` automation hears `OrderPlaced(orderId, sku)` and issues `ReserveInventory(orderId, sku)`. To decide which warehouse reserves, the handler needs current stock levels, so the slice queries the `InventoryLevel` view (keyed by `sku`, with `warehouseId, available`): `.command({ ReserveInventory }).query({ InventoryLevel }, "sku")`. Now `InventoryReserved(orderId, warehouseId)` is information complete: `orderId` comes from the command, `warehouseId` from the queried row.
 
 **Example — hidden data source (antipattern):**
 
-A `StartSync` command takes `(bucket, path)` from the operator, but the `SyncStarted` event records `(bucket, path, remoteCount, localCount)`. Where do `remoteCount` and `localCount` come from? The command handler secretly reads remote and local state — but those data sources aren't declared anywhere in the slice. The fix: query the view the handler reads, as in `.query(Pages, "pageId")`, so the field flows from its row, or move the computation to a downstream automation that reads it.
+A `StartSync` command takes `(bucket, path)` from the operator, but the `SyncStarted` event records `(bucket, path, remoteCount, localCount)`. Where do `remoteCount` and `localCount` come from? The command handler secretly reads remote and local state — but those data sources aren't declared anywhere in the slice. The fix: query the view the handler reads, as in `.query({ Pages }, "pageId")`, so the field flows from its row, or move the computation to a downstream automation that reads it.
 
 Missing information blocks work. A field with no source might depend on another team's API with a 3-month backlog — discovering this during implementation instead of during modeling is the most expensive mistake you can make.
 
@@ -122,7 +122,7 @@ The file is `{ "slices": [...] }`, validated by `ts/schema/eventmodeling.schema.
 - **Interfaces**: one `SCREEN` per slice with an actor, titled with the real entry point, and the actors in the slice's `actors`. The command's `apiEndpoint` says the same; `service` names an RPC service.
 - **Streams**: each event's `aggregate`. One lane per stream.
 - **Chapters**: each slice's `context`.
-- **External events**: `"context": "EXTERNAL"`, with `service` naming the system they come from. They have no `aggregate`; we never store them. A command's outbound event that is external is a call to that system, and its reply: an event of ours after it in the same slice keeps the reply's fields, by name or as `c.x` in its mapping, and the reply points at it. A `TRANSLATION` is for an external event that arrives on its own, not for a reply.
+- **External events**: `"context": "EXTERNAL"`, with `service` naming the system they come from. They have no `aggregate`; we never store them. A command's outbound event that is external is a call to that system and the outside event the call gets back: an event of ours after it in the same slice keeps that event's fields, by name or as `c.CartUpdated.unavailable` in its mapping, and the external event points at it. A `TRANSLATION` is for an external event that arrives on its own, not for one a call gets back.
 - **What a slice queries**: a view with an `OUTBOUND` dependency on the command; a field taken from its row is mapped from `View(filter columns).column`, as `InventoryLevel(sku).warehouseId`. One pointing at the processor is the view the automation polls for its work.
 - **Key columns**: the element's `"key": ["sku"]`.
 - **Mapping**: the slice's `mappings`, by element, then field: a renamed source's name; `= 0`, a constant; `generate()`, a value the handler assigns, such as an id or a clock.
@@ -216,12 +216,12 @@ The file is `{ "slices": [...] }`, validated by `ts/schema/eventmodeling.schema.
 
 ### Automations: two forms
 
-An automation issues a command with no actor. One of two things drives it. An external event is neither: `.translation(ExternalEvent, Command, Event, ...)` turns it into an event of ours, and is a `TRANSLATION`.
+An automation issues a command with no actor. One of two things drives it. An external event is neither: `.translation({ ExternalEvent }).command({ Command })…` turns it into an event of ours, and is a `TRANSLATION`.
 
 | Form | Spec JSON | TypeScript | Use it when |
 |---|---|---|---|
-| event-driven | the event points at the processor | `.automation(Event, Command, Event, ...)` | One event is enough to decide, and the work is quick and safe to repeat |
-| polled view | the view points at the processor | `.automation(View, Command, Event, ...)` | The work is slow, can fail, calls another system, or must not run twice |
+| event-driven | the event points at the processor | `.automation({ Event }).command({ Command })…` | One event is enough to decide, and the work is quick and safe to repeat |
+| polled view | the view points at the processor | `.automation({ View }).command({ Command })…` | The work is slow, can fail, calls another system, or must not run twice |
 
 The polled view lists the work to do. A projection adds a row when the work becomes due and marks it done when the event that finishes it arrives. The processor reads the list on its own schedule and issues the command for each open row. The view records pending and completed work. The implementation must make retries safe.
 
@@ -403,7 +403,7 @@ Event models are living documents. When production reveals gaps:
 - **Dead-end events** — events that don't feed any view or trigger any automation
 - **Invented view names** — views should use domain terms the team already uses. If you can't name it from the domain vocabulary, it may not be a real concept.
 - **Inline projections** — putting views as outputs of state change slices instead of giving each view its own State View slice: the events it subscribes to, the view it builds, and the screen that shows it. State Change slices produce events; State View slices project events into views.
-- **Hidden data sources in events** — an event field that doesn't trace to any input within the slice (command, trigger, external event, or a view the handler reads). Example: `SyncStarted(bucket, path, remoteCount)` where `remoteCount` comes from querying an external system that isn't declared as a consumed view. Fix: query the view on the slice (`.query(Pages, "pageId")`) so the field flows from its row, or move the computation to a downstream automation that reads it.
+- **Hidden data sources in events** — an event field that doesn't trace to any input within the slice (command, trigger, external event, or a view the handler reads). Example: `SyncStarted(bucket, path, remoteCount)` where `remoteCount` comes from querying an external system that isn't declared as a consumed view. Fix: query the view on the slice (`.query({ Pages }, "pageId")`) so the field flows from its row, or move the computation to a downstream automation that reads it.
 - **"Design" language** — saying "design the views" or "architect the commands." Event modeling captures what happens; it doesn't prescribe what should happen.
 - **Dead-end state** — a view that tracks a condition the domain reacts to (a count nearing a limit, a status, a deadline) with no slice that consumes it. The same defect as a dead-end event, one level up.
 - **Punting a known rule** — flagging a real, traceable domain rule as an optional add-on instead of modeling it. Deferring a rule you already understand just moves the work to a more expensive phase. Model it; report what you modeled.

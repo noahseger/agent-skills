@@ -46,23 +46,26 @@ diagram shows them as words. Any declaration accepts `.note("...")`.
 the same way. Zod types the example data in specifications and the generated messages.
 
 **A slice is written in story order.** Each call is a step: what starts it, the views it reads, the
-command, the events it records. Fields flow by name from step to step. When the names differ, or a
-value has to be set, the step's second argument is a mapping:
-`.event(ItemAdded, (c) => ({ title: c.text }))`. Its argument holds every field before the step as
-schemas, so `c.text` is the `z.string()` declared for `text`, and the editor refuses one that does
-not fit its target: a `z.string()` does not fit a `z.uuid()`. A field that flows by name must fit
-too. A constant is `z.literal("open")`. A step that lacks a field is an error on that step, worded
-as the fix: `add title to a step before .event() or set it in the mapping`. The editor offers only
-the calls that can come next.
+command, the events it records. Each call takes its declaration as `{ Name }`, so the compiler knows
+its name: `.event({ ItemAdded })`. Fields flow by name from step to step. When the names differ, or
+a value has to be set, the step's second argument is a mapping:
+`.event({ ItemAdded }, (c) => ({ title: c.AddItem.text }))`. Its argument holds each declaration
+before the step by its name, with its fields as schemas, so `c.AddItem.text` is the `z.string()`
+declared for `text`, and the editor refuses one that does not fit its target: a `z.string()` does
+not fit a `z.uuid()`. A field that flows by name must fit too, and only one declaration before the step
+may carry it; where two do, the mapping says which. A constant is `z.literal("open")`. A step that
+lacks a field is an error on that step, worded as the fix:
+`add title to a step before .event() or set it in the mapping`. The editor offers only the calls
+that can come next.
 
 ## The slice patterns
 
 | Pattern | Starts with | Chain | Meaning |
 |---|---|---|---|
-| state change | the command | `.command(Command).event(Event)` | An actor issues a command and events are recorded. |
-| state view | the view | `.view(View).event(Event)` | Our events build a view, and an actor reads it. |
-| automation | the trigger: an event of ours, or a view it polls | `.automation(Event).command(Command).event(Event)` or `.automation(View)…` | An event, or a row of work, causes a command. No actor is involved. |
-| translation | the external event | `.translation(ExternalEvent).command(Command).event(Event)` | An event from outside becomes an event of ours. No actor is involved. |
+| state change | the command | `.command({ Command }).event({ Event })` | An actor issues a command and events are recorded. |
+| state view | the view | `.view({ View }).event({ Event })` | Our events build a view, and an actor reads it. |
+| automation | the trigger: an event of ours, or a view it polls | `.automation({ Event }).command({ Command }).event({ Event })` or `.automation({ View })…` | An event, or a row of work, causes a command. No actor is involved. |
+| translation | the external event | `.translation({ ExternalEvent }).command({ Command }).event({ Event })` | An event from outside becomes an event of ours. No actor is involved. |
 
 A slice is complete once it has its command and an event, or its view and an event. Before then it
 compiles, is drawn as far as it goes, and what it lacks is left to do; `.test()` waits for its
@@ -146,8 +149,8 @@ export const ListCreated = m
 const groceries = ListCreated({ userId: "u-1", listId: "list-1", name: "Groceries" })
 
 m.slice()
-  .command(CreateList)
-  .event(ListCreated)
+  .command({ CreateList })
+  .event({ ListCreated })
   .chapter(ListManagement)
   .actor(User)
   .service(TodoService)
@@ -183,8 +186,8 @@ export const ItemAdded = m
 const milk = ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-1", title: "Milk" })
 
 m.slice()
-  .command(AddItem)
-  .event(ItemAdded, (c) => ({ title: c.text }))
+  .command({ AddItem })
+  .event({ ItemAdded }, (c) => ({ title: c.AddItem.text }))
   .chapter(ListManagement)
   .actor(User)
   .service(TodoService)
@@ -209,9 +212,9 @@ export const TodoList = m
   .key("userId", "listId")
 
 m.slice()
-  .view(TodoList)
-  .event(ListCreated, () => ({ itemCount: z.literal(0) }))
-  .event(ItemAdded, (e) => ({ itemCount: m.generate(e) }))
+  .view({ TodoList })
+  .event({ ListCreated }, () => ({ itemCount: z.literal(0) }))
+  .event({ ItemAdded }, (c) => ({ itemCount: m.generate(c.ItemAdded) }))
   .request({ userId: z.string() })
   .chapter(Views)
   .actor(User)
@@ -229,9 +232,10 @@ m.slice()
 ```
 
 `ListCreated` fills `userId`, `listId` and `name`; the mapping sets `itemCount`. Each event builds
-the view on its own, so a state view's mapping reads only its event. `m.generate(e)` says the count
-is made from the `ItemAdded` events seen for the row. An event finds its row by the key columns, so
-each event a state view names must carry every one: `ItemAdded` carries `userId` for that reason.
+the view on its own, so a state view's mapping reads only its event. `m.generate(c.ItemAdded)` says
+the count is made from the `ItemAdded` events seen for the row. An event finds its row by the key
+columns, so each event a state view names must carry every one: `ItemAdded` carries `userId` for
+that reason.
 
 `.request()` declares the request. A state view has no command to name its method after, so
 `.service()` names it.
@@ -318,8 +322,8 @@ A field declared `.optional()` may go unfilled in a slice, as long as another sl
 ```ts
 export const NoteShared = m.event({ noteId: z.uuid(), imageUri: z.string().optional() })
 
-m.slice().command(ShareText).event(NoteShared)    // ShareText has no imageUri
-m.slice().command(ShareImage).event(NoteShared)   // ShareImage carries it
+m.slice().command({ ShareText }).event({ NoteShared })    // ShareText has no imageUri
+m.slice().command({ ShareImage }).event({ NoteShared })   // ShareImage carries it
 ```
 
 An optional field no slice fills is left to do. The same holds for an automation's command. A
@@ -329,35 +333,39 @@ A value the handler makes has no field to copy. Say what it is made from with `m
 before its step. From nothing, it is an id or a clock. A specification may give it any value.
 
 ```ts
-.command(AddNote).event(NoteAdded, (c) => ({ noteId: m.generate(), slug: m.generate(c.title) }))
+.command({ AddNote }).event({ NoteAdded }, (c) => ({ noteId: m.generate(), slug: m.generate(c.AddNote.title) }))
 ```
 
 An automation's command is filled from what is before it, so a value generated there is left to do.
 
 A mapping only copies, sets constants and says what a value is made from; it computes nothing. A
-string built from a field, such as `` `${c.title}!` ``, or arithmetic, such as `c.minutes * 60`, is
-not a schema, so the editor refuses it. A schema changed by a Zod method, such as
-`c.title.toUpperCase()`, is not a source field: it is drawn as generated and left to do, with the
-fix: `m.generate(c.title)`.
+string built from a field, such as `` `${c.AddNote.title}!` ``, or arithmetic, such as
+`c.SetTimer.minutes * 60`, is not a schema, so the editor refuses it. A schema changed by a Zod
+method, such as `c.AddNote.title.toUpperCase()`, is not a source field: it is drawn as generated and
+left to do, with the fix: `m.generate(c.AddNote.title)`.
 
-The events of `.command(AddItem).event(ItemAdded).event(ListFull)` are what the command can
-produce, not a sequence; the diagram draws them side by side. Each specification's `then` says
+The events of `.command({ AddItem }).event({ ItemAdded }).event({ ListFull })` are what the command
+can produce, not a sequence; the diagram draws them side by side. Each specification's `then` says
 which happened. So an event of ours does not pass its fields to the next.
 
 ### Queries
 
-`.query(View, filter)` reads rows of a view. The filter is always stated: a column, which takes the
-value of the field of the same name before the step, or a mapping from those fields to columns.
+`.query({ View }, filter)` reads rows of a view. The filter is always stated: a column, which takes
+the value of the field of the same name before the step, or a mapping from those fields to columns.
 
 ```ts
-.command(RecordChange).query(Pages, "pageId").event(ChangeRecorded)
-.query(CartsWithProducts, (c) => ({ productId: c.changedProductId }))
+.command({ RecordChange }).query({ Pages }, "pageId").event({ ChangeRecorded })
+.automation({ ProductRepriced }).query({ CartsWithProducts }, (c) => ({ productId: c.ProductRepriced.changedProductId }))
 ```
 
-The row's columns join the fields that flow on, except where an earlier step has a field of the same
-name: `ChangeRecorded.noteId` comes from the `Pages` row. A filter that names every key column picks
-one row. One that does not picks many, which only an automation reads, before its command: it
-issues the command once per row. A view with no `.key()` always gives many.
+The row joins the mapping's argument, as `c.Pages`, and its columns flow on by name:
+`ChangeRecorded.noteId` comes from the `Pages` row. A filter column holds the value of its namesake
+before the step, so the two are one source. Any other field the row shares with a step before it
+flows from neither, and the mapping says which. A view queried again replaces its earlier row.
+
+A filter that names every key column picks one row. One that does not picks many, which only an
+automation reads, before its command: it issues the command once per row. A view with no `.key()`
+always gives many.
 
 A command whose row is missing is refused, and an automation that finds no row issues nothing; a
 specification has to agree, as [Specifications](#specifications) says.
@@ -366,7 +374,7 @@ specification has to agree, as [Specifications](#specifications) says.
 
 `.actor()` takes any number of actors, and each is drawn with a screen. Without one the slice has
 no screen; without `.service()` it has no service method. When the handler reads a view to
-decide, query it: `.command(FileNote).query(Inbox, "noteId").event(NoteFiled)`.
+decide, query it: `.command({ FileNote }).query({ Inbox }, "noteId").event({ NoteFiled })`.
 
 The screen shows the command's form or the view's table, titled with the service method. To
 say which screen the actor is on, declare it once, `export const LockScreen = m.screen()`, and name
@@ -391,9 +399,9 @@ slice, which is drawn where the first one is: in its chapter, seen by its actors
 served by its method. A later call that names another of those is left to do.
 
 ```ts
-m.slice().view(Inbox).event(NoteCreated, () => ({ status: z.literal("inbox") })).chapter(Capture)
+m.slice().view({ Inbox }).event({ NoteCreated }, () => ({ status: z.literal("inbox") })).chapter(Capture)
 // further down the file: adds NoteFiled to the Inbox slice in Capture
-m.slice().view(Inbox).event(NoteFiled, () => ({ status: z.literal("filed") })).chapter(Capture)
+m.slice().view({ Inbox }).event({ NoteFiled }, () => ({ status: z.literal("filed") })).chapter(Capture)
 ```
 
 A view an automation polls, or a slice queries, is built by a state view like any other, which then
@@ -453,23 +461,27 @@ starts it once per row. From the eventsourcing book's cart:
 ```ts
 // A price change archives the product from every cart that holds it.
 m.slice("ArchiveItemScheduler")
-  .automation(PriceChanged)
-  .query(CartsWithProducts, "productId")
-  .command(ArchiveItem)
-  .event(ItemArchived, (c) => ({ itemId: m.generate(c.productId) }))
+  .automation({ PriceChanged })
+  .query({ CartsWithProducts }, "productId")
+  .command({ ArchiveItem })
+  .query({ CartsWithProducts }, (c) => ({
+    aggregateId: c.ArchiveItem.aggregateId,
+    productId: c.ArchiveItem.productId,
+  }))
+  .event({ ItemArchived })
 ```
 
 The processor hears `PriceChanged`, queries the carts that hold the product, and issues one
 `ArchiveItem` per row, its `aggregateId` from the row and its `productId` from the event. The
-handler sees only the command: from `.command()` on, the fields that flow are the command's, so
-`ItemArchived.itemId`, which only the row had, is the handler's to make. An automation's column is
-headed by a gear as well as its command, so it is the one slice that usually takes a name. Name it
-for what it does.
+handler sees only the command: from `.command()` on, the mapping's argument holds the command and
+the rows queried after it. So the handler reads the one row its command is for, and
+`ItemArchived.itemId` flows from that row. An automation's column is headed by a gear as well as
+its command, so it is the one slice that usually takes a name. Name it for what it does.
 
 The second form polls a view of the work to do. From a hotel model:
 
 ```ts
-m.slice("PaymentProcessor").automation(PaymentsToProcess).command(ProcessPayment).event(PaymentSucceeded)
+m.slice("PaymentProcessor").automation({ PaymentsToProcess }).command({ ProcessPayment }).event({ PaymentSucceeded })
 ```
 
 A view as the trigger runs on the processor's own schedule, and the command's fields come from the
@@ -487,9 +499,9 @@ export const TaskScheduled = m
   .external(Calendar)
 
 m.slice()
-  .translation(TaskScheduled)
-  .command(AddItem)
-  .event(ItemAdded, (c) => ({ title: c.text }))
+  .translation({ TaskScheduled })
+  .command({ AddItem })
+  .event({ ItemAdded }, (c) => ({ title: c.AddItem.text }))
   .chapter(Integrations)
 ```
 
@@ -505,24 +517,24 @@ map as in an automation an event starts, but it reads one row at most. An extern
 and needs no translation; any other no `.translation()` reads is left to do, even if a
 specification's `given` has it. Translation is for an event that arrives on its own.
 
-The model says that data arrives, not how. A call to such a system is our command and the event
-that brings its data back, its reply, in one slice. The reply's fields come from outside, so the
-command need not carry them, and an event of ours after it keeps them:
+The model says that data arrives, not how. A call to such a system is our command and the outside
+event the call gets back, in one slice. That event's fields come from outside, so the command need
+not carry them, and an event of ours after it keeps them:
 
 ```ts
 export const Shop = m.external()
 export const CartUpdated = m.event({ added: z.array(Item), unavailable: z.array(Item) }).external(Shop)
 
 m.slice()
-  .automation(GroceriesToOrder)
-  .command(AddGroceriesToCart)
-  .event(CartUpdated)
-  .event(OrderUpdated, (c) => ({ missing: c.unavailable }))
+  .automation({ GroceriesToOrder })
+  .command({ AddGroceriesToCart })
+  .event({ CartUpdated })
+  .event({ OrderUpdated }, (c) => ({ missing: c.CartUpdated.unavailable }))
 ```
 
-A reply's fields join the fields that flow on, by name or in a mapping as `c.unavailable`. Where
-the command and a reply both have a field, the command's flows. So the reply comes before the event
-that keeps it.
+The outside event joins the mapping's argument, as `c.CartUpdated`, and its fields flow on by name.
+So it comes before the event that keeps it. A field the command carries too flows from neither, and
+the mapping says which.
 
 ### Streams
 
@@ -564,8 +576,9 @@ The compiler catches:
 |---|---|
 | any reference | An unknown actor, event, command, view, screen or service cannot be written, because references are values, not strings. |
 | the chain | Only a legal chain compiles; each step offers only what can come next. `.test()` refuses a slice with no event yet and says what to add, such as `add .event() before .test()`. |
-| a mapping | Its argument is the fields before its step as schemas: what starts the slice, the rows it queries, the command and the replies; in a state view, the event. Its result must be fields of the target, each a field that fits it, a `z.literal()` or `m.generate()`. A string format, such as `z.uuid()`, takes only that format. |
-| a field that flows by name | It must fit its target as a mapped one does. The error names the field to set in the mapping. |
+| a step's declaration | It is `{ Name }`. A bare declaration has no name the compiler knows, and is refused; so is an object of two. |
+| a mapping | Its argument holds each declaration before its step by name, with its fields as schemas: what starts the slice, the rows it queries, the command and the outside events it gets back; in a state view, the event. Its result must be fields of the target, each a field that fits it, a `z.literal()` or `m.generate()`. A string format, such as `z.uuid()`, takes only that format. |
+| a field that flows by name | It must fit its target as a mapped one does, and only one declaration before the step may carry it; a filter column and its namesake are one. The error names the field to set in the mapping, and where two carry it, both. |
 | a step's command or event | Every field no step before it carries must be set by its mapping, or marked `m.generate()`, unless it is optional. The error names the fields. |
 | an automation's command | The handler sees only the command: from `.command()` on, what starts the automation and the rows queried before it no longer flow. |
 | `.query()` | The filter names columns of the view, each from a field before the step that fits it. A filter that does not name every key column picks many rows, which only an automation reads, before its command. |
@@ -580,6 +593,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | What | Why the compiler cannot |
 |---|---|
 | A declaration used in a slice that no module exports, or one exported under two names | It has no name until it is exported. |
+| A call that renames its declaration, as `{ Note: CaptureNote }` | The declaration's type carries its fields, not its name. |
 | Two modules exporting one name, such as `ListCreated` | Each module is compiled on its own. |
 | A column no event of the view's `m.slice().view()` calls writes | The calls can be in several modules. |
 | An optional field no slice fills | Same. |
@@ -599,7 +613,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | A specification value that is not what flows in: from `when`, the trigger in `given`, or the events that build the row or a queried row | Example values are data, not types. |
 | A queried row `given` does not build, in a specification that does not `reject`; in an automation, before its command, any specification | Same. |
 | A state view's row that `given` does not build, or a built row `then` leaves out and the request does not exclude | Same. |
-| A mapping's result that is a schema but no source field, such as `c.title.toUpperCase()` | A Zod method returns a schema of the same type. |
+| A mapping's result that is a schema but no source field, such as `c.AddNote.title.toUpperCase()` | A Zod method returns a schema of the same type. |
 | A mapping that throws, such as `m.generate()` given something other than a field: its slice is drawn without the mapping | The mapping runs when the model does. |
 | `m.generate()` in an automation's command | `m.generate()` is one function, wherever it is called. |
 
@@ -623,7 +637,7 @@ Naming is yours: the conventions above are not checked.
 | an actor | the slice's `actors`. An admin is tagged `admin`, a machine of ours `system`. An automation's, or a state view's no one sees, is the system actor that runs it |
 | fields | the element's `fields`: Zod's `z.toJSONSchema()` of them, less `$schema`, a `pattern` beside a `format`, and an integer's safe-integer bounds. `.describe()` is a field's `description` |
 | `.key()` | the element's `key` |
-| a mapping | the slice's `mappings`, by the element of the step it is on, then by field: the source field's name, `= ` and a JSON value, or `generate(<inputs>)`. A field from a queried row, by name too, is `View(filter columns).column`, as `CartsWithProducts(productId).aggregateId`. A state view's are on its events, and set the view's columns |
+| a mapping | the slice's `mappings`, by the element of the step it is on, then by field: the source field's name, `= ` and a JSON value, or `generate(<inputs>)`. A field from a queried row, by name too, is `View(filter columns).column`, as `CartsWithProducts(productId).aggregateId`; of a view queried twice, the row before the step. A state view's are on its events, and set the view's columns |
 | a note | an element's `description` |
 | a specification | a `Specification`: `given`, `when` and `then` steps, each an example in `examples`. A `reject` is a `SPEC_ERROR` step titled with the reason. A state view's request values are a `SPEC_COMMAND` step titled with its screen, the request it is asked from, as a command is sent from one |
 
@@ -634,7 +648,7 @@ follows; a model written by hand can do the same, and the viewer draws it.
 |---|---|
 | a system we do not own | its events have `context: "EXTERNAL"`, and `service` names the system. No `aggregate`: we never store them |
 | a call to one | the external event among the command's outbound events |
-| what an event of ours keeps from the reply | the external event pointing at it |
+| what an event of ours keeps from the outside event a call gets back | the external event pointing at it |
 | outcomes that are alternatives | no field: a command's outbound events are what it can record, and each specification's `then` says which it did |
 | what a slice queries | the view pointing at the command; one pointing at the processor is the view the automation polls |
 | a slice's note | a `storylines` entry titled with it, with no elements |

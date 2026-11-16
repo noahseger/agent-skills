@@ -1381,6 +1381,17 @@
           "linkedId": "play-move"
         }
       ],
+      "mappings": {
+        "MovePlayed": {
+          "ply": "ply",
+          "fen": "fen",
+          "sideToMove": "sideToMove"
+        },
+        "GameEnded": {
+          "ply": "ply",
+          "fen": "fen"
+        }
+      },
       "actors": [
         {
           "name": "Player",
@@ -2175,6 +2186,13 @@
           "linkedId": "press-clock"
         }
       ],
+      "mappings": {
+        "ClockPressed": {
+          "whiteTimeMs": "whiteTimeMs",
+          "blackTimeMs": "blackTimeMs",
+          "runningSide": "runningSide"
+        }
+      },
       "storylines": [
         {
           "id": "press-clock:note",
@@ -3084,6 +3102,11 @@
           "linkedId": "offer-draw"
         }
       ],
+      "mappings": {
+        "DrawOffered": {
+          "ply": "ply"
+        }
+      },
       "actors": [
         {
           "name": "Player",
@@ -3836,6 +3859,11 @@
           "linkedId": "accept-draw"
         }
       ],
+      "mappings": {
+        "DrawAgreed": {
+          "offeringSide": "offeringSide"
+        }
+      },
       "actors": [
         {
           "name": "Player",
@@ -4682,6 +4710,15 @@
           "linkedId": "rule-illegal-move"
         }
       ],
+      "mappings": {
+        "IllegalMoveRuled": {
+          "illegalMoveCount": "illegalMoveCount",
+          "sideToMove": "sideToMove"
+        },
+        "SecondIllegalMoveRuled": {
+          "illegalMoveCount": "illegalMoveCount"
+        }
+      },
       "storylines": [
         {
           "id": "rule-illegal-move:note",
@@ -5727,6 +5764,8 @@
           "termination": "ending"
         },
         "BoardOutcomeAdjudicated": {
+          "ply": "ply",
+          "fen": "fen",
           "result": "generate(termination, sideToMove)"
         }
       },
@@ -6052,6 +6091,7 @@
       ],
       "mappings": {
         "IllegalMoveForfeited": {
+          "illegalMoveCount": "illegalMoveCount",
           "result": "generate(offendingSide)",
           "termination": "= \"illegal_move_forfeit\""
         }
@@ -7012,6 +7052,16 @@
           "linkedId": "record-result"
         }
       ],
+      "mappings": {
+        "ResultRecorded": {
+          "round": "round",
+          "boardNumber": "boardNumber",
+          "whitePlayerId": "whitePlayerId",
+          "blackPlayerId": "blackPlayerId",
+          "result": "result",
+          "termination": "termination"
+        }
+      },
       "actors": [
         {
           "name": "Arbiter",

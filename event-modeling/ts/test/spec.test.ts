@@ -56,9 +56,9 @@ const order = { orderId: "o-1", item: "Tea" }
 const slices = [
   m
     .slice()
-    .command(PlaceOrder)
-    .event(OrderPlaced, (c) => ({ product: c.item, placedAt: m.generate() }))
-    .event(OrderRefused)
+    .command({ PlaceOrder })
+    .event({ OrderPlaced }, (c) => ({ product: c.PlaceOrder.item, placedAt: m.generate() }))
+    .event({ OrderRefused })
     .chapter(Sales)
     .actor(Clerk, Boss)
     .screen(Till)
@@ -71,14 +71,14 @@ const slices = [
     .test("A banned item is refused", { when: PlaceOrder(order), reject: "banned item" }),
   m
     .slice()
-    .view(Unpaid)
-    .event(OrderPlaced, () => ({ payments: z.literal(0), status: z.literal("open") }))
-    .event(PaymentRecorded, (e) => ({
+    .view({ Unpaid })
+    .event({ OrderPlaced }, () => ({ payments: z.literal(0), status: z.literal("open") }))
+    .event({ PaymentRecorded }, (c) => ({
       product: z.literal(""),
-      payments: m.generate(e),
+      payments: m.generate(c.PaymentRecorded),
       status: z.literal("paid"),
     }))
-    .event(OrderRefused, () => ({
+    .event({ OrderRefused }, () => ({
       product: z.literal(""),
       payments: z.literal(0),
       status: z.literal("refused"),
@@ -87,18 +87,23 @@ const slices = [
     .chapter(Sales)
     .actor(Clerk)
     .service(Shop, "ListUnpaid"),
-  m.slice("Charger").automation(Unpaid).command(ChargeCard).event(CardCharged).chapter(Sales),
+  m
+    .slice("Charger")
+    .automation({ Unpaid })
+    .command({ ChargeCard })
+    .event({ CardCharged })
+    .chapter(Sales),
   m
     .slice()
-    .translation(CardCharged)
-    .command(RecordPayment, (c) => ({ paid: c.amount }))
-    .query(Unpaid, "orderId")
-    .event(PaymentRecorded),
+    .translation({ CardCharged })
+    .command({ RecordPayment }, (c) => ({ paid: c.CardCharged.amount }))
+    .query({ Unpaid }, "orderId")
+    .event({ PaymentRecorded }),
   m
     .slice("Refunder")
-    .automation(PaymentRecorded)
-    .command(Refund)
-    .event(OrderRefused)
+    .automation({ PaymentRecorded })
+    .command({ Refund })
+    .event({ OrderRefused })
     .chapter(Sales),
 ]
 const exports = {

@@ -190,10 +190,14 @@ export const Play = m.chapter()
 export const Broadcast = m.screen()
 
 m.slice()
-  .command(PlayMove)
-  .query(GameState, "gameId")
-  .event(MovePlayed)
-  .event(GameEnded)
+  .command({ PlayMove })
+  .query({ GameState }, "gameId")
+  .event({ MovePlayed }, (c) => ({
+    ply: c.PlayMove.ply,
+    fen: c.PlayMove.fen,
+    sideToMove: c.PlayMove.sideToMove,
+  }))
+  .event({ GameEnded }, (c) => ({ ply: c.PlayMove.ply, fen: c.PlayMove.fen }))
   .chapter(Play)
   .actor(Player)
   .service(ChessService)
@@ -289,10 +293,10 @@ m.slice()
   })
 
 m.slice()
-  .view(GameState)
-  .event(GameStarted)
-  .event(MovePlayed)
-  .event(IllegalMoveRuled)
+  .view({ GameState })
+  .event({ GameStarted })
+  .event({ MovePlayed })
+  .event({ IllegalMoveRuled })
   .request({ gameId: z.string() })
   .chapter(Play)
   .actor(Spectator)
@@ -321,9 +325,13 @@ m.slice()
   })
 
 m.slice()
-  .command(PressClock)
-  .query(ClockState, "gameId")
-  .event(ClockPressed)
+  .command({ PressClock })
+  .query({ ClockState }, "gameId")
+  .event({ ClockPressed }, (c) => ({
+    whiteTimeMs: c.PressClock.whiteTimeMs,
+    blackTimeMs: c.PressClock.blackTimeMs,
+    runningSide: c.PressClock.runningSide,
+  }))
   .chapter(Play)
   .actor(Player)
   .service(ChessService)
@@ -355,9 +363,9 @@ m.slice()
   })
 
 m.slice()
-  .view(ClockState)
-  .event(ClockStarted)
-  .event(ClockPressed)
+  .view({ ClockState })
+  .event({ ClockStarted })
+  .event({ ClockPressed })
   .chapter(Play)
   .test("The clock starts with White's time running", {
     given: clockStarted,
@@ -387,9 +395,9 @@ m.slice()
   })
 
 m.slice()
-  .view(MoveList)
-  .event(MovePlayed, () => ({ status: z.literal("recorded") }))
-  .event(IllegalMoveRuled, () => ({ status: z.literal("struck") }))
+  .view({ MoveList })
+  .event({ MovePlayed }, () => ({ status: z.literal("recorded") }))
+  .event({ IllegalMoveRuled }, () => ({ status: z.literal("struck") }))
   .request({ gameId: z.string() })
   .chapter(Play)
   .actor(Spectator)

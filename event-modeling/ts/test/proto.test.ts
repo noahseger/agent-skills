@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
 import { z } from "zod"
-import { m, type Slice } from "#em"
+import { m, type Slice, type Viewing } from "#em"
 
 import { load } from "../src/assemble.ts"
 import { generateProto } from "../src/proto.ts"
@@ -27,6 +27,8 @@ const User = m.actor()
 const Svc = m.service("t.v1")
 /** What builds each state view's view; the generator never reads it. */
 const Created = m.event({ id: z.string() })
+/** What a state change records; the generator never reads it. */
+const Done = m.event({})
 
 type Slices = Slice[]
 
@@ -49,7 +51,7 @@ function source(model: Chapters): string {
 }
 
 const stateChange = (Create: ReturnType<typeof m.command>) =>
-  m.slice().command(Create).event(m.event({})).actor(User).service(Svc)
+  m.slice().command({ Create }).event({ Done }).actor(User).service(Svc)
 
 test("field numbers follow declaration order", () => {
   const Create = m.command({ userId: z.string(), listId: z.string(), name: z.string() })
@@ -123,7 +125,10 @@ test("a type outside the table stops its service, naming the declaration and the
   const Table = m.view({ id: z.string(), amount: z.bigint() }).key("id")
   assert.match(
     source(
-      modelOf({ Table }, m.slice().view(Table).event(Created).actor(User).service(Svc, "Get")),
+      modelOf(
+        { Table },
+        m.slice().view({ Table }).event({ Created }).actor(User).service(Svc, "Get"),
+      ),
     ),
     /^Table\.amount can't become protobuf/,
   )
@@ -132,7 +137,10 @@ test("a type outside the table stops its service, naming the declaration and the
 test("a view with no .request() has an empty request", () => {
   const Table = m.view({ id: z.string() }).key("id")
   const proto = source(
-    modelOf({ Table }, m.slice().view(Table).event(Created).actor(User).service(Svc, "Get")),
+    modelOf(
+      { Table },
+      m.slice().view({ Table }).event({ Created }).actor(User).service(Svc, "Get"),
+    ),
   )
   assert.match(proto, /rpc Get\(GetRequest\) returns \(GetResponse\);/)
   assert.match(
@@ -143,15 +151,18 @@ test("a view with no .request() has an empty request", () => {
 
 test("a service with no procedures produces no file", () => {
   const Table = m.view({ id: z.string() }).key("id")
-  assert.deepEqual(generateProto(modelOf({ Table }, m.slice().view(Table).event(Created))), [])
+  assert.deepEqual(
+    generateProto(modelOf({ Table }, m.slice().view({ Table }).event({ Created }))),
+    [],
+  )
 })
 
 test("a slice without a service has no procedure", () => {
   const Table = m.view({ id: z.string() }).key("id")
   const Create = m.command({ id: z.string() })
   const slices = [
-    m.slice().view(Table).event(Created).actor(User),
-    m.slice().command(Create).event(m.event({})),
+    m.slice().view({ Table }).event({ Created }).actor(User),
+    m.slice().command({ Create }).event({ Done }),
   ]
   assert.deepEqual(generateProto(modelOf({ Table, Create }, ...slices)), [])
 })
@@ -160,16 +171,20 @@ test("two state views on one screen are two methods, each returning its own view
   const Lists = m.view({ id: z.string() }).key("id")
   const Items = m.view({ id: z.string(), listId: z.string() }).key("id")
   const Board = m.screen()
-  const view = (view: typeof Lists, method: string) =>
-    m
-      .slice()
-      .view(view)
-      .event(Created)
+  const view = (shown: Viewing<typeof Lists.__fields>, method: string) =>
+    shown
+      .event({ Created })
       .request({ listId: z.string() })
       .actor(User)
       .screen(Board)
       .service(Svc, method)
-  const proto = source(modelOf({ Lists, Items }, view(Lists, "Get"), view(Items, "GetItems")))
+  const proto = source(
+    modelOf(
+      { Lists, Items },
+      view(m.slice().view({ Lists }), "Get"),
+      view(m.slice().view({ Items }), "GetItems"),
+    ),
+  )
   assert.match(
     proto,
     /message Lists \{[\s\S]*message GetResponse \{\n {2}repeated Lists lists = 1;\n\}/,
@@ -185,15 +200,15 @@ test("a request that names every key column returns one row, not a list", () => 
   const [Table, Rows] = [m.view(fields).key("userId", "id"), m.view(fields).key("userId", "id")]
   const one = m
     .slice()
-    .view(Table)
-    .event(Created)
+    .view({ Table })
+    .event({ Created })
     .request({ userId: z.string(), id: z.string() })
     .actor(User)
     .service(Svc, "Get")
   const many = m
     .slice()
-    .view(Rows)
-    .event(Created)
+    .view({ Rows })
+    .event({ Created })
     .request({ userId: z.string() })
     .actor(User)
     .service(Svc, "List")

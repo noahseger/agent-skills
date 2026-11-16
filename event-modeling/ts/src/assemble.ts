@@ -18,6 +18,7 @@ import {
   heard,
   META,
   type ModelData,
+  origin,
   recorded,
   type SliceData,
   type StreamData,
@@ -138,6 +139,7 @@ function oneSlicePerView(drafts: SliceData[], fail: Fail): SliceData[] {
       ...s,
       events: all.flatMap((c) => c.events),
       tests: all.flatMap((c) => c.tests),
+      named: all.flatMap((c) => c.named),
     }
     for (const later of all.slice(1)) for (const w of drawnElsewhere(s, later)) fail(w, merged)
     return [merged]
@@ -362,6 +364,7 @@ function check(
   for (const at of located) {
     const own: Fail = (warning) => fail(warning, at.slice)
     checkCore(at, own)
+    checkNamed(at, own)
     checkThrown(at, own)
     checkFilled(at, own)
     checkRecorded(at, own)
@@ -387,12 +390,26 @@ function checkCore({ slice, where }: Located, fail: Fail): void {
     said("empty. Start it with .command(), .view(), .automation() or .translation().")
   else if (from && !command)
     said(
-      `no command yet. Add .command() after .${from.external ? "translation" : "automation"}(${from.name}).`,
+      `no command yet. Add .command() after .${from.external ? "translation" : "automation"}({ ${from.name} }).`,
     )
   else if (events.length === 0)
     said(
-      `no event yet. Add .event() after ${command ? `.command(${command.decl.name})` : `.view(${view?.name})`}.`,
+      `no event yet. Add .event() after ${command ? `.command({ ${command.decl.name} })` : `.view({ ${view?.name} })`}.`,
     )
+}
+
+/** Each call names its declaration by the key of `{ Name }`, which must be the name it is exported as. */
+function checkNamed({ slice, where }: Located, fail: Fail): void {
+  for (const [key, decl] of slice.named)
+    if (decl.name !== undefined && key !== decl.name)
+      fail({
+        message:
+          key === undefined
+            ? `${where}: pass ${decl.name} as { ${decl.name} }, so the compiler knows its name.`
+            : `${where}: { ${key}: ${decl.name} } renames ${decl.name}. Write { ${decl.name} }: a mapping reads it as c.${decl.name}.`,
+        element: decl.name,
+        slice: slice.name ?? "",
+      })
 }
 
 /** A mapping that threw is drawn as no mapping, and what it threw is left to do. */
@@ -595,7 +612,7 @@ function checkRecorded({ slice, where }: Located, fail: Fail): void {
   // A query after the command filters by its fields, which uses them.
   for (const read of slice.reads.slice(slice.beforeCommand))
     for (const s of Object.values(read.mapping))
-      if ("from" in s && read.context[s.from] === command.decl) recorded.push(s.from)
+      if ("from" in s && origin(read, s) === command.decl) recorded.push(s.from)
   const name = command.decl.name
   for (const field of all.filter((f) => !recorded.includes(f)))
     fail({
@@ -784,7 +801,8 @@ function checkHandled(
   const { command, trigger, polls } = slice
   const when = t.when
   if (!command || !when) return
-  // What each declaration before a step holds here, and how a message says so. A reply is anything.
+  // What each declaration before a step holds here, and how a message says so. An outside event the
+  // call gets back may hold anything.
   const known = new Map<DeclData, { data: Record<string, unknown>; has: string }>()
   known.set(command.decl, { data: when.data, has: "when sends" })
   const given = t.given.find((g) => g.decl === trigger)
@@ -795,7 +813,7 @@ function checkHandled(
     if ("value" in s)
       return { value: s.value, says: `${flow.decl.name}'s mapping sets ${show(s.value)}` }
     if ("generate" in s) return undefined
-    const from = flow.context[s.from]
+    const from = origin(flow, s)
     const at = from && known.get(from)
     if (!at) return undefined
     const value = at.data[s.from]
@@ -806,7 +824,7 @@ function checkHandled(
   const agrees = (decl: DeclData) =>
     Object.entries(when.data).every(([f, shown]) => {
       const s = command.mapping[f] ?? { from: f }
-      const e = "from" in s && command.context[s.from] === decl ? expected(command, f) : undefined
+      const e = "from" in s && origin(command, s) === decl ? expected(command, f) : undefined
       return e?.value === undefined || shown === undefined || isDeepStrictEqual(shown, e.value)
     })
   // A command that copies no key column names no polled row, so there is none to look for.
@@ -824,6 +842,7 @@ function checkHandled(
     else
       known.set(polls, { data: valuesOf(rows[0]), has: `the ${polls.name} row given builds has` })
   }
+  const before = slice.beforeCommand ?? 0
   for (const [i, q] of slice.reads.entries()) {
     const view = q.decl
     const views = built.get(view)
@@ -840,12 +859,15 @@ function checkHandled(
     const has = `the ${view.name} row given builds has`
     if (rows.length === 0) {
       const none = `given builds no ${view.name} row with ${show(filter)}`
-      if (i < (slice.beforeCommand ?? 0))
+      if (i < before) {
         said(
           `${none}, so the automation issues no ${command.decl.name}. Add the event that builds it.`,
           view.name ?? "",
         )
-      else if (!t.then.some((c) => !("decl" in c)))
+        // No command is issued, so the handler reads nothing.
+        break
+      }
+      if (!t.then.some((c) => !("decl" in c)))
         said(
           `${none}, so ${command.decl.name} is refused. Add the event that builds it, or reject.`,
           view.name ?? "",
@@ -867,6 +889,7 @@ function checkHandled(
         `when is for none of the ${rows.length} ${view.name} rows with ${show(filter)} that given builds.`,
         view.name ?? "",
       )
+      if (i < before) break
     }
   }
   compare(when, "when", (f) => expected(command, f))
@@ -897,7 +920,7 @@ function polledKey(command: Flow, when: ExampleData, view: DeclData): Record<str
   const keyed: Record<string, unknown> = {}
   for (const field of Object.keys(command.decl.fields)) {
     const s = command.mapping[field] ?? { from: field }
-    if ("from" in s && command.context[s.from] === view && view.keys.includes(s.from))
+    if ("from" in s && origin(command, s) === view && view.keys.includes(s.from))
       keyed[s.from] = when.data[field]
   }
   return keyed
@@ -1043,7 +1066,7 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
         fail(
           about(
             e,
-            `${where}: nothing uses ${e.name} yet. Add .automation(${e.name}), or .event(${e.name}) to a state view, where something reacts to it.`,
+            `${where}: nothing uses ${e.name} yet. Add .automation({ ${e.name} }), or .event({ ${e.name} }) to a state view, where something reacts to it.`,
           ),
         )
     }
@@ -1052,7 +1075,7 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
       fail(
         about(
           view,
-          `${where}: nothing reads ${view.name} yet. Add .actor() for who sees it, or .query(${view.name}, …) or .automation(${view.name}) where it's needed.`,
+          `${where}: nothing reads ${view.name} yet. Add .actor() for who sees it, or .query({ ${view.name} }, …) or .automation({ ${view.name} }) where it's needed.`,
         ),
       )
     for (const r of [...slice.reads.map((q) => q.decl), slice.polls]) {
@@ -1060,7 +1083,7 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
         fail(
           about(
             r,
-            `${where}: nothing fills ${r.name} yet. Add a state view, m.slice().view(${r.name}).event(Event).`,
+            `${where}: nothing fills ${r.name} yet. Add a state view, m.slice().view({ ${r.name} }).event({ Event }).`,
           ),
         )
     }
@@ -1073,8 +1096,8 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
     const here = at.map((a) => a.where).join(", ")
     fail({
       message: e.external
-        ? `${here}: nothing translates ${e.name} yet. Add .translation(${e.name}) to make it an event of ours.`
-        : `${here}: nothing emits ${e.name} yet. Add .event(${e.name}) to the slice that causes it.`,
+        ? `${here}: nothing translates ${e.name} yet. Add .translation({ ${e.name} }) to make it an event of ours.`
+        : `${here}: nothing emits ${e.name} yet. Add .event({ ${e.name} }) to the slice that causes it.`,
       element: e.name ?? "",
       slice: at[0]?.slice.name ?? "",
     })

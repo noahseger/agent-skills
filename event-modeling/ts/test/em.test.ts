@@ -109,8 +109,8 @@ export const Started = m.event({ id: z.string() })
 export const Table = m.view({ id: z.string() }).key("id")
 export const User = m.actor()
 export const Ch = m.chapter()
-m.slice().command(Start).event(Started).chapter(Ch).test("starts", { when: Start({ id: "1" }), then: [Started({ id: "1" })] })
-m.slice().view(Table).event(Started).chapter(Ch).actor(User).test("the row shows", { given: Started({ id: "1" }), then: Table({ id: "1" }) })
+m.slice().command({ Start }).event({ Started }).chapter(Ch).test("starts", { when: Start({ id: "1" }), then: [Started({ id: "1" })] })
+m.slice().view({ Table }).event({ Started }).chapter(Ch).actor(User).test("the row shows", { given: Started({ id: "1" }), then: Table({ id: "1" }) })
 export default m.model("x")
 `,
     )
@@ -136,8 +136,8 @@ export const Started = m.event({ id: z.string() })
 export const Table = m.view({ id: z.string() }).key("id")
 export const Loose = m.event({ id: z.string() })
 export const Ch = m.chapter()
-m.slice().command(Start).event(Started).service(Api).chapter(Ch).test("starts", { when: Start({ id: "1" }), then: [Started({ id: "1" })] })
-m.slice().view(Table).event(Started).chapter(Ch)
+m.slice().command({ Start }).event({ Started }).service(Api).chapter(Ch).test("starts", { when: Start({ id: "1" }), then: [Started({ id: "1" })] })
+m.slice().view({ Table }).event({ Started }).chapter(Ch)
 export default m.model("x")
 `
 
@@ -165,7 +165,7 @@ test("proto skips a service with an unfinished slice, says why, and exits 1", ()
   const { run, api, board } = protoOf(
     `${API_DONE}export const Board = m.service("board.v1")
 export const Listing = m.view({ id: z.string() }).key("id")
-m.slice().view(Listing).event(Started).service(Board, "List").chapter(Ch)
+m.slice().view({ Listing }).event({ Started }).service(Board, "List").chapter(Ch)
 `,
   )
   assert.equal(run.status, 1)
@@ -268,7 +268,7 @@ export const Chess = m.service("chess.v1")
 export const StartGame = m.command({ gameId: z.string() })
 export const GameStarted = m.event({ gameId: z.string(), white: z.string(), black: z.string() }).stream(Games)
 export const Play = m.chapter()
-m.slice().command(StartGame).event(${emits}).actor(User).service(Chess).chapter(Play)
+m.slice().command({ StartGame }).event({ ${emits}).actor(User).service(Chess).chapter(Play)
 export default m.model("Chess")
 `
   const error =
@@ -277,7 +277,7 @@ export default m.model("Chess")
     (
       (await (await fetch(`${url}/model.json`)).json()) as { warnings?: { message: string }[] }
     ).warnings?.map((w) => w.message) ?? []
-  writeFileSync(file, model("GameStarted"))
+  writeFileSync(file, model("GameStarted }"))
   const server = await view(dir)
   try {
     assert.ok(server.log().includes(`\n  ${error}\n`), server.log())
@@ -287,7 +287,7 @@ export default m.model("Chess")
     await reloaded(server.url, () => {
       writeFileSync(
         join(dir, ".!1!index.ts"),
-        model('GameStarted, () => ({ white: z.literal("me"), black: z.literal("you") })'),
+        model('GameStarted }, () => ({ white: z.literal("me"), black: z.literal("you") })'),
       )
       renameSync(join(dir, ".!1!index.ts"), file)
     })
@@ -318,8 +318,8 @@ export const GameStarted = m.event({ gameId: z.string(), white: z.string() })
 export const Begin = m.command({ gameId: z.string() })
 export const Started = m.event({ gameId: z.string(), white: z.string() })
 export const Play = m.chapter()
-m.slice().command(StartGame).event(GameStarted).actor(User).service(Chess).chapter(Play)
-m.slice().command(Begin).event(Started).actor(User).service(Chess).chapter(Play)
+m.slice().command({ StartGame }).event({ GameStarted }).actor(User).service(Chess).chapter(Play)
+m.slice().command({ Begin }).event({ Started }).actor(User).service(Chess).chapter(Play)
 export default m.model("Chess")
 `,
   )
@@ -351,7 +351,7 @@ export default m.model("Chess")
   }
 })
 
-test("view lists a mapping's source field that does not fit its target, mapped or by name", async () => {
+test("view lists a field the mapping must set: one that does not fit, mapped or by name, or that two steps carry", async () => {
   const dir = mkdtempSync(here("../tmp-fit-"))
   writeFileSync(
     join(dir, "index.ts"),
@@ -362,10 +362,15 @@ export const Notes = m.stream()
 export const Capture = m.chapter()
 export const NoteCaptured = m.event({ noteId: z.uuid(), text: z.string() }).stream(Notes)
 export const CaptureNote = m.command({ text: z.string() })
-m.slice().command(CaptureNote).event(NoteCaptured, (c) => ({ noteId: c.text })).chapter(Capture)
+m.slice().command({ CaptureNote }).event({ NoteCaptured }, (c) => ({ noteId: c.CaptureNote.text })).chapter(Capture)
 export const NoteTaken = m.event({ noteId: z.uuid(), text: z.string() }).stream(Notes)
 export const TakeNote = m.command({ noteId: z.string(), text: z.string() })
-m.slice().command(TakeNote).event(NoteTaken).chapter(Capture)
+m.slice().command({ TakeNote }).event({ NoteTaken }).chapter(Capture)
+export const Wiki = m.external()
+export const PageMade = m.event({ noteId: z.uuid() }).external(Wiki)
+export const LinkNote = m.command({ noteId: z.uuid() })
+export const NoteLinked = m.event({ noteId: z.uuid() }).stream(Notes)
+m.slice().command({ LinkNote }).event({ PageMade }).event({ NoteLinked }).chapter(Capture)
 export default m.model("Notes")
 `,
   )
@@ -379,6 +384,7 @@ export default m.model("Notes")
       [
         "index.ts:8  noteId does not fit: set it to a field of its type, a z.literal() or m.generate()",
         "index.ts:11  NoteTaken: the noteId before .event() does not fit: set it in the mapping",
+        "index.ts:16  NoteLinked: noteId comes from LinkNote and PageMade: set it in the mapping",
       ],
     )
   } finally {
@@ -394,23 +400,23 @@ test("a model that doesn't load shows the compiler's errors, not the JavaScript 
     `import { z } from "zod"
 import { m } from "#em"
 
-m.slice().command(Retry).event(Retried).chapter(Ch)
-m.slice().command(Retry).event(Retried).chapter(Later)
+m.slice().command({ Retry }).event({ Retried }).chapter(Ch)
+m.slice().command({ Retry }).event({ Retried }).chapter(Later)
 export const Received = m.event({ id: z.string() }).stream("Inbox")
 export const Sync = m.command({ id: z.string() })
 export const Synced = m.event({ id: z.string() })
 export const Failed = m.event({ id: z.string() })
 export const Ch = m.chapter()
-m.slice().command(Sync).event(Synced).event(Failed).chapter(Ch)
-m.slice().command(Sync).chapter(Ch)
+m.slice().command({ Sync }).event({ Synced }).event({ Failed }).chapter(Ch)
+m.slice().command({ Sync }).chapter(Ch)
 export const Retry = m.command({ id: z.string() })
 export const Retried = m.event({ id: z.string() })
 export const Later = m.chapter()
 export const Pending = m.view({ id: z.string() })
-m.slice().command(Sync).query(Pending, "id").event(Synced).chapter(Ch)
-m.slice().view(Pending).chapter(Ch)
-m.slice().automation(Synced).chapter(Ch)
-m.slice().automation(Pending).command(Sync).chapter(Ch)
+m.slice().command({ Sync }).query({ Pending }, "id").event({ Synced }).chapter(Ch)
+m.slice().view({ Pending }).chapter(Ch)
+m.slice().automation({ Synced }).chapter(Ch)
+m.slice().automation({ Pending }).command({ Sync }).chapter(Ch)
 export default m.model("x")
 `,
   )

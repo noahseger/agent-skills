@@ -113,12 +113,13 @@ function usedEarly(d: Diagnostic): string[] {
 
 const MISSING = /"add (\w+) to a step before (\S+) or set it in the mapping"/g
 const MISFIT = /"the (event's )?(\w+)( before \S+)? does not fit: set it in the mapping"/g
+const SHARED = /"(\w+) comes from ([^"]+): set it in the mapping"/g
 /** A mapping's result that is not a schema its target takes. */
 const UNFIT = /^Type '.*' is not assignable to type '(?:Fit<|ZodType<|ZodStringFormat<)/
 const UNSET = /Property '(\w+)' is missing in type '.*' but required in type 'Pick</
 /** Any other sentence the package's types put where a step goes wrong. */
 const INSTRUCTION =
-  /"((?:add |the |key column |start with |comes from |is a view|is ours|isn't stored|no one |an automation )[^"]*)"/
+  /"((?:add |the |key column |start with |pass |\w+ is an? |is a view|is ours|isn't stored|no one |an automation )[^"]*)"/
 const LAST_OVERLOAD = "The last overload gave the following error."
 
 /** `file:line  message`. The package's own type errors become the instruction they carry. */
@@ -126,7 +127,8 @@ function describe(d: Diagnostic, text: string, file: string): Warning {
   const said = (message: string): Warning => ({ message, element: "" })
   const at = (pos: number) => `${file}:${text.slice(0, pos).split("\n").length}  `
   const lines = messages(d)
-  const target = text.slice(d.pos, d.end)
+  // A call's `{ Name }` is named by its name.
+  const target = text.slice(d.pos, d.end).replace(/^\{\s*(\w+)\s*\}$/, "$1")
   const element = target.match(/\w+$/)?.[0] ?? ""
   // One sentence per field the step lacks.
   const missing = [...d.text.matchAll(MISSING)]
@@ -145,6 +147,17 @@ function describe(d: Diagnostic, text: string, file: string): Warning {
     const them = fields.length > 1 ? "do not fit: set them" : "does not fit: set it"
     return {
       message: `${at(d.pos)}${target}: the ${misfit[0][1] ?? ""}${fields.join(", ")}${misfit[0][3] ?? ""} ${them} in the mapping`,
+      element,
+      fields,
+    }
+  }
+  // One sentence per field that two declarations before the step carry.
+  const shared = [...d.text.matchAll(SHARED)]
+  if (shared[0]) {
+    const fields = shared.flatMap((f) => (f[1] ? [f[1]] : []))
+    const from = shared.map((f) => `${f[1]} comes from ${f[2]}`).join(", ")
+    return {
+      message: `${at(d.pos)}${target}: ${from}: set ${fields.length > 1 ? "them" : "it"} in the mapping`,
       element,
       fields,
     }

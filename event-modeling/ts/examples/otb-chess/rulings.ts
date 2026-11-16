@@ -62,11 +62,19 @@ export const secondOffence = SecondIllegalMoveRuled({
 export const ArbiterRulings = m.chapter()
 
 m.slice()
-  .command(RuleIllegalMove)
-  .query(MoveList, (c) => ({ gameId: c.gameId, ply: c.ply }))
-  .query(IllegalMoveTally, (c) => ({ gameId: c.gameId, offendingSide: c.offendingSide }))
-  .event(IllegalMoveRuled)
-  .event(SecondIllegalMoveRuled)
+  .command({ RuleIllegalMove })
+  .query({ MoveList }, (c) => ({ gameId: c.RuleIllegalMove.gameId, ply: c.RuleIllegalMove.ply }))
+  .query({ IllegalMoveTally }, (c) => ({
+    gameId: c.RuleIllegalMove.gameId,
+    offendingSide: c.RuleIllegalMove.offendingSide,
+  }))
+  .event({ IllegalMoveRuled }, (c) => ({
+    illegalMoveCount: c.RuleIllegalMove.illegalMoveCount,
+    sideToMove: c.RuleIllegalMove.sideToMove,
+  }))
+  .event({ SecondIllegalMoveRuled }, (c) => ({
+    illegalMoveCount: c.RuleIllegalMove.illegalMoveCount,
+  }))
   .chapter(ArbiterRulings)
   .actor(Arbiter)
   .service(ChessService)
@@ -103,8 +111,8 @@ m.slice()
   })
 
 m.slice()
-  .view(IllegalMoveTally)
-  .event(IllegalMoveRuled, (e) => ({ illegalMoveCount: m.generate(e) }))
+  .view({ IllegalMoveTally })
+  .event({ IllegalMoveRuled }, (c) => ({ illegalMoveCount: m.generate(c.IllegalMoveRuled) }))
   .chapter(ArbiterRulings)
   .test("One ruling puts the offender on one illegal move", {
     given: illegalMoveRuled,

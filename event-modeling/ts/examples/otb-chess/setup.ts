@@ -119,9 +119,9 @@ export const gameStarted = GameStarted({
 export const GameSetup = m.chapter()
 
 m.slice("ReceivePairing")
-  .translation(PairingPublished)
-  .command(StartGame)
-  .event(GameStarted, () => ({
+  .translation({ PairingPublished })
+  .command({ StartGame })
+  .event({ GameStarted }, () => ({
     fen: z.literal(START_FEN),
     sideToMove: z.literal("white"),
     ply: z.literal(0),
@@ -144,8 +144,8 @@ m.slice("ReceivePairing")
   })
 
 m.slice()
-  .view(GamePairing)
-  .event(GameStarted)
+  .view({ GamePairing })
+  .event({ GameStarted })
   .chapter(GameSetup)
   .test("Pairing identity available after the game starts", {
     given: gameStarted,
@@ -159,11 +159,11 @@ m.slice()
   })
 
 m.slice("ClockStarter")
-  .automation(GameStarted)
-  .command(StartClock)
-  .event(ClockStarted, (c) => ({
-    whiteTimeMs: m.generate(c.baseMinutes),
-    blackTimeMs: m.generate(c.baseMinutes),
+  .automation({ GameStarted })
+  .command({ StartClock })
+  .event({ ClockStarted }, (c) => ({
+    whiteTimeMs: m.generate(c.StartClock.baseMinutes),
+    blackTimeMs: m.generate(c.StartClock.baseMinutes),
     runningSide: z.literal("white"),
   }))
   .chapter(GameSetup)
