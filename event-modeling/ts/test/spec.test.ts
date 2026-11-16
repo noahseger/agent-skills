@@ -26,7 +26,12 @@ const PlaceOrder = m.command({
   note: z.string().optional(),
 })
 const OrderPlaced = m
-  .event({ orderId: z.string(), product: z.string(), lines: Lines, placedAt: z.string() })
+  .event({
+    orderId: z.string(),
+    product: z.string(),
+    lines: Lines,
+    placedAt: z.string().describe("When the till took it"),
+  })
   .stream(Orders)
   .note("One per order.")
 const OrderRefused = m.event({ orderId: z.string() }).stream(Orders)
@@ -44,7 +49,7 @@ const Unpaid = m
     status: z.string(),
   })
   .key("orderId")
-const Loose = m.event({ id: z.string() }).stream(Orders)
+const Loose = m.event({ id: z.uuid() }).stream(Orders)
 
 const Sales = m.chapter().note("Where money comes in.")
 const order = { orderId: "o-1", item: "Tea" }
@@ -138,7 +143,7 @@ test("a state change: a screen per slice, the endpoint on the command, events in
   const [screen] = place.screens
   assert.equal(screen?.title, "Till")
   assert.equal(screen?.description, "By the door.")
-  assert.deepEqual(titles(screen?.fields.map((f) => ({ title: f.name }))), [
+  assert.deepEqual(Object.keys(screen?.fields.properties ?? {}), [
     "orderId",
     "item",
     "lines",
@@ -146,7 +151,7 @@ test("a state change: a screen per slice, the endpoint on the command, events in
   ])
   const [command] = place.commands
   assert.deepEqual([command?.service, command?.apiEndpoint], ["Shop", "Order"])
-  assert.equal(command?.fields.find((f) => f.name === "note")?.optional, true)
+  assert.equal(command?.fields.required?.includes("note"), false)
   assert.deepEqual(
     command?.dependencies.map((d) => [d.type, d.title]),
     [
@@ -166,43 +171,42 @@ test("a state change: a screen per slice, the endpoint on the command, events in
   assert.deepEqual(place.storylines?.[0]?.title, "The till takes the order.")
 })
 
-test("a mapping says where each field comes from: a field, generated, or = a value", () => {
-  const placed = place?.events[0]?.fields
-  assert.deepEqual(placed, [
-    { name: "orderId", type: "String" },
-    { name: "product", type: "String", mapping: "item" },
-    {
-      name: "lines",
-      type: "Custom",
-      subfields: [
-        { name: "sku", type: "String" },
-        { name: "gift", type: "Boolean", optional: true },
-      ],
-      cardinality: "List",
+test("an element's fields are Zod's JSON Schema, less what repeats a format, with its key", () => {
+  const lines = {
+    type: "array",
+    items: {
+      type: "object",
+      properties: { sku: { type: "string" }, gift: { type: "boolean" } },
+      required: ["sku"],
     },
-    { name: "placedAt", type: "String", generated: true },
-  ])
-  assert.deepEqual(translate?.commands[0]?.fields[1], {
-    name: "paid",
-    type: "Int",
-    mapping: "amount",
+  }
+  assert.deepEqual(place?.events[0]?.fields, {
+    type: "object",
+    properties: {
+      orderId: { type: "string" },
+      product: { type: "string" },
+      lines,
+      placedAt: { type: "string", description: "When the till took it" },
+    },
+    required: ["orderId", "product", "lines", "placedAt"],
   })
-  // A view several events build maps a column once per event.
-  const columns = Object.fromEntries((view?.readmodels[0]?.fields ?? []).map((f) => [f.name, f]))
-  assert.deepEqual(columns.orderId, { name: "orderId", type: "String", idAttribute: true })
-  assert.deepEqual(columns.lines, {
-    name: "lines",
-    type: "Custom",
-    subfields: [
-      { name: "sku", type: "String" },
-      { name: "gift", type: "Boolean", optional: true },
-    ],
-    cardinality: "List",
+  assert.deepEqual(charge?.events[0]?.fields.properties?.amount, { type: "integer" })
+  assert.deepEqual(feed.loose?.[0]?.fields.properties?.id, { type: "string", format: "uuid" })
+  assert.deepEqual(view?.readmodels[0]?.key, ["orderId"])
+  assert.equal(place?.commands[0]?.key, undefined)
+})
+
+test("a slice's mappings say where each field a step sets comes from: a field, generated, or = a value", () => {
+  assert.deepEqual(place?.mappings, {
+    OrderPlaced: { product: "item", placedAt: "generate()" },
   })
-  assert.equal(
-    columns.payments?.mapping,
-    "OrderPlaced: = 0\nPaymentRecorded: generate(PaymentRecorded)\nOrderRefused: = 0",
-  )
+  assert.deepEqual(translate?.mappings, { RecordPayment: { paid: "amount" } })
+  // A view several events build is mapped once per event.
+  assert.deepEqual(view?.mappings, {
+    OrderPlaced: { payments: "= 0", status: '= "open"' },
+    PaymentRecorded: { product: '= ""', payments: "generate(PaymentRecorded)", status: '= "paid"' },
+    OrderRefused: { product: '= ""', payments: "= 0", status: '= "refused"' },
+  })
   const board = read(feed)
   const slice = (i: number) => board.chapters.flatMap((c) => c.slices)[i]
   assert.deepEqual(slice(0)?.mapping, {
@@ -230,7 +234,7 @@ test("a state view slice: events in, its view, a screen out", () => {
     ],
   )
   assert.deepEqual(
-    view?.screens[0]?.fields.map((f) => f.name),
+    Object.keys(view?.screens[0]?.fields.properties ?? {}),
     ["orderId"],
     "a view's screen asks for the request",
   )
@@ -321,10 +325,36 @@ test("what the spec has no place for travels beside it, to the viewer", () => {
   assert.deepEqual(board.loose?.[0], { kind: "event", element: "Loose(id)", aggregate: "orders" })
 })
 
-test("the viewer has each element's fields as the JSON types them", () => {
+test("the viewer types each field from its schema: format, enum, list, nested, optional, described", () => {
   const board = read(feed)
-  assert.deepEqual(board.fields?.PlaceOrder, place?.commands[0]?.fields)
-  assert.equal(board.fields?.Unpaid?.[0]?.idAttribute, true)
+  assert.deepEqual(board.fields?.OrderPlaced?.slice(2), [
+    {
+      name: "lines",
+      type: "object[]",
+      fields: [
+        { name: "sku", type: "string" },
+        { name: "gift", type: "boolean", optional: true },
+      ],
+    },
+    { name: "placedAt", type: "string", description: "When the till took it" },
+  ])
+  const at = { type: "string", format: "date-time" }
+  const kind = { type: "string", enum: ["a", "b"] }
+  const element = {
+    id: "e",
+    title: "Noted",
+    type: "EVENT" as const,
+    fields: { type: "object", properties: { id: { type: "string", format: "uuid" }, at, kind } },
+    key: ["id"],
+    dependencies: [],
+  }
+  const drawn = read({ name: "x", model: { slices: [] }, loose: [element] })
+  assert.deepEqual(drawn.fields?.Noted, [
+    { name: "id", type: "uuid", optional: true },
+    { name: "at", type: "date-time", optional: true },
+    { name: "kind", type: "a | b", optional: true },
+  ])
+  assert.equal(drawn.loose?.[0]?.element, "Noted(*id, at, kind)")
 })
 
 test("a model from elsewhere draws from the spec alone", () => {
@@ -336,19 +366,19 @@ test("a model from elsewhere draws from the spec alone", () => {
           id: "s",
           title: "Order",
           sliceType: "STATE_CHANGE",
-          commands: [{ id: "c", title: "Order", type: "COMMAND", fields: [], dependencies: [] }],
+          commands: [{ id: "c", title: "Order", type: "COMMAND", fields: {}, dependencies: [] }],
           events: [
             {
               id: "e",
               title: "Ordered",
               type: "EVENT",
               aggregate: "Cart",
-              fields: [{ name: "id", type: "UUID" }],
+              fields: { type: "object", properties: { id: { type: "string" } } },
               dependencies: [],
             },
           ],
           readmodels: [],
-          screens: [{ id: "u", title: "Cart", type: "SCREEN", fields: [], dependencies: [] }],
+          screens: [{ id: "u", title: "Cart", type: "SCREEN", fields: {}, dependencies: [] }],
           processors: [],
           tables: [],
           specifications: [],

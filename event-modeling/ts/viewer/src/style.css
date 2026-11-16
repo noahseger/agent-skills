@@ -809,9 +809,14 @@ svg .warn-dot {
 }
 
 .detail td.hint {
+  padding-left: 12px;
   color: var(--muted);
   text-align: right;
   font-size: 12px;
+}
+
+.detail td.hint .said {
+  text-align: left;
 }
 
 .detail dl {

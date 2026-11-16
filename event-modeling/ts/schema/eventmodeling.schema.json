@@ -1,5 +1,5 @@
 {
-  "$comment": "Vendored from https://github.com/dilgerma/event-modeling-spec/blob/724059e9bc9bec09d72c15991d1ca205c7b7966c/eventmodeling.schema.json",
+  "$comment": "Diverged from https://github.com/dilgerma/event-modeling-spec/blob/724059e9bc9bec09d72c15991d1ca205c7b7966c/eventmodeling.schema.json: fields are one object's JSON Schema, not a Field list; an element names its key; a slice's mappings say where each field a step sets comes from.",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
@@ -70,6 +70,13 @@
           "type": "array",
           "items": { "$ref": "#/$defs/Specification" }
         },
+        "mappings": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          }
+        },
         "storylines": {
           "type": "array",
           "items": { "$ref": "#/$defs/Storyline" }
@@ -109,10 +116,8 @@
         "context": { "type": "string", "enum": ["INTERNAL", "EXTERNAL"] },
         "slice": { "type": "string" },
         "title": { "type": "string" },
-        "fields": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/Field" }
-        },
+        "fields": { "$ref": "#/$defs/Fields" },
+        "key": { "type": "array", "items": { "type": "string" } },
         "type": {
           "type": "string",
           "enum": ["COMMAND", "EVENT", "READMODEL", "SCREEN", "AUTOMATION"]
@@ -157,10 +162,7 @@
       "properties": {
         "id": { "type": "string" },
         "title": { "type": "string" },
-        "fields": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/Field" }
-        }
+        "fields": { "$ref": "#/$defs/Fields" }
       },
       "required": ["id", "title", "fields"],
       "additionalProperties": false
@@ -208,10 +210,7 @@
           "type": "string",
           "enum": ["SPEC_EVENT", "SPEC_COMMAND", "SPEC_READMODEL", "SPEC_ERROR"]
         },
-        "fields": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/Field" }
-        },
+        "fields": { "$ref": "#/$defs/Fields" },
         "linkedId": { "type": "string" },
         "expectEmptyList": { "type": "boolean" }
       },
@@ -267,47 +266,9 @@
       "additionalProperties": false
     },
 
-    "Field": {
-      "type": "object",
-      "properties": {
-        "name": { "type": "string" },
-        "type": {
-          "type": "string",
-          "enum": [
-            "String",
-            "Boolean",
-            "Double",
-            "Decimal",
-            "Long",
-            "Custom",
-            "Date",
-            "DateTime",
-            "UUID",
-            "Int",
-            "Number"
-          ]
-        },
-        "example": {
-          "oneOf": [{ "type": "string" }, { "type": "object" }]
-        },
-        "subfields": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/Field" }
-        },
-        "mapping": { "type": "string" },
-        "optional": { "type": "boolean" },
-        "technicalAttribute": { "type": "boolean" },
-        "generated": { "type": "boolean" },
-        "idAttribute": { "type": "boolean" },
-        "pii": { "type": "boolean" },
-        "schema": { "type": "string" },
-        "cardinality": {
-          "type": "string",
-          "enum": ["List", "Single"]
-        }
-      },
-      "required": ["name", "type"],
-      "additionalProperties": false
+    "Fields": {
+      "$comment": "An object's JSON Schema, as Zod's z.toJSONSchema() writes it",
+      "type": "object"
     }
   }
 }

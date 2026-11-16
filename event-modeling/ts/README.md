@@ -607,11 +607,11 @@ Naming is yours: the conventions above are not checked.
 
 ## The JSON
 
-`em json` prints the model as JSON that validates against the
-[event-modeling-spec](https://github.com/dilgerma/event-modeling-spec) JSON Schema, vendored in
-`schema/eventmodeling.schema.json`. `test/todo-app.json` is the todo example's.
+`em json` prints the model as JSON that validates against `schema/eventmodeling.schema.json`, the
+[event-modeling-spec](https://github.com/dilgerma/event-modeling-spec)'s schema with its own
+`fields`, `key` and `mappings`. `test/todo-app.json` is the todo example's.
 
-| Ours | The spec's |
+| Ours | The JSON's |
 |---|---|
 | a slice | a `Slice`, in story order, with `index`. A state change is `STATE_CHANGE`; an `.automation()` is `AUTOMATION`; a `.translation()` is `TRANSLATION`; a state view is `STATE_VIEW`, the spec's pattern of events in, view out, to the screen |
 | a chapter | the slice's `context`. A slice in no chapter has none |
@@ -621,18 +621,17 @@ Naming is yours: the conventions above are not checked.
 | `.service()` | `service` and `apiEndpoint` on the command, or on the view a state view shows |
 | a stream | each event's `aggregate`, and the slice's `aggregates`: the streams it records into. A slice that records nothing names none |
 | an actor | the slice's `actors`. An admin is tagged `admin`, a machine of ours `system`. An automation's, or a state view's no one sees, is the system actor that runs it |
-| `.key()` | `idAttribute: true` on each column it names |
-| `.optional()`, `z.array()`, `z.object()` | `optional`, `cardinality: "List"`, `subfields` |
+| fields | the element's `fields`: Zod's `z.toJSONSchema()` of them, less `$schema`, a `pattern` beside a `format`, and an integer's safe-integer bounds. `.describe()` is a field's `description` |
+| `.key()` | the element's `key` |
+| a mapping | the slice's `mappings`, by the element of the step it is on, then by field: the source field's name, `= ` and a JSON value, or `generate(<inputs>)`. A field from a queried row, by name too, is `View(filter columns).column`, as `CartsWithProducts(productId).aggregateId`. A state view's are on its events, and set the view's columns |
 | a note | an element's `description` |
 | a specification | a `Specification`: `given`, `when` and `then` steps, each an example in `examples`. A `reject` is a `SPEC_ERROR` step titled with the reason. A state view's request values are a `SPEC_COMMAND` step titled with its screen, the request it is asked from, as a command is sent from one |
 
-The schema allows no property it does not name, at any level, so the JSON adds no keys. Where it
-needs to say what the spec has no field for, it uses a field the spec has, as follows. A model
-written by hand can do the same, and the viewer draws it.
+The schema allows no property it does not name. The rest is said with properties it has, as
+follows; a model written by hand can do the same, and the viewer draws it.
 
 | What | Where |
 |---|---|
-| where a mapped field's value comes from | the field's `mapping`: the source field's name, or `= ` and a JSON value. A field from a queried row, by name too, is `View(filter columns).column`, as `CartsWithProducts(productId).aggregateId`. A value the handler makes is `generated: true`, and its `mapping` lists the fields it is made from, comma-separated, as `title, pageId`; made from nothing, it has no `mapping`. A view built from several events maps a column once per event, one line each, a generated one as `ItemAdded: generate(ItemAdded)` |
 | a system we do not own | its events have `context: "EXTERNAL"`, and `service` names the system. No `aggregate`: we never store them |
 | a call to one | the external event among the command's outbound events |
 | what an event of ours keeps from the reply | the external event pointing at it |
@@ -676,6 +675,7 @@ appending a field is compatible and reordering one is not; `buf breaking` report
 | `z.object({...})` | a nested message |
 | `z.record(z.string(), T)` | `map<string, T>`, never `optional` |
 | `.optional()` | `optional` |
+| `.describe()` | a `//` comment above the field |
 
 Any other Zod type is an error that names the declaration and the field. The todo example's output
 is `examples/proto`.

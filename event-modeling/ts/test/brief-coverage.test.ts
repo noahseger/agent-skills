@@ -13,7 +13,7 @@ const here = (path: string) => fileURLToPath(new URL(path, import.meta.url))
 
 const { slices } = (await assemble(here("../examples/todo-app"))).model
 
-const fields = (el: SpecElement | undefined) => (el?.fields ?? []).map((f) => f.name)
+const fields = (el: SpecElement | undefined) => Object.keys(el?.fields.properties ?? {})
 const served = (el: SpecElement | undefined) => el && `${el.service}/${el.apiEndpoint}`
 
 /** The state-change slice whose command is `command`, or fails. */

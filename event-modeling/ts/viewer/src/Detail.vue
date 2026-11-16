@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import type { SpecField } from "../../src/spec.ts"
-import type { Board } from "./board.ts"
+import type { Board, BoardField } from "./board.ts"
 import { type Box, type Column, type Layout, parse, parseClause, source } from "./layout.ts"
 
 const props = defineProps<{
@@ -34,16 +33,16 @@ const fields = computed(() => {
   return full ? { fields: full.fields, keys: full.keys } : { fields: [], keys: [] }
 })
 
-// Each field with its type, then its subfields beneath it, indented.
+// Each field with its type, then an object's own fields beneath it, indented.
 const rows = computed(() => {
   const typed = props.box ? (props.model.fields?.[props.box.name] ?? []) : []
-  const flat = (f: SpecField, depth: number): { f: SpecField; depth: number }[] => [
+  const flat = (f: BoardField, depth: number): { f: BoardField; depth: number }[] => [
     { f, depth },
-    ...(f.subfields ?? []).flatMap((s) => flat(s, depth + 1)),
+    ...(f.fields ?? []).flatMap((s) => flat(s, depth + 1)),
   ]
   return fields.value.fields.flatMap((name) => {
     const f = typed.find((t) => t.name === name)
-    return f ? flat(f, 0) : [{ f: { name, type: "" } as SpecField, depth: 0 }]
+    return f ? flat(f, 0) : [{ f: { name, type: "" }, depth: 0 }]
   })
 })
 
@@ -121,10 +120,11 @@ const mentions = (clause: string) =>
       <table>
         <tr v-for="({ f, depth }, i) in rows" :key="i">
           <td class="name" :style="{ paddingLeft: `${depth * 14}px` }">{{ f.name }}{{ f.optional ? "?" : "" }}</td>
-          <td class="type">{{ f.type }}{{ f.cardinality === "List" ? "[]" : "" }}</td>
+          <td class="type">{{ f.type }}</td>
           <td class="hint">
             <template v-if="depth === 0 && fields.keys.includes(f.name)">key</template>
             <template v-else-if="depth === 0 && mapping?.[f.name]">{{ source(mapping[f.name]!) }}</template>
+            <div v-if="f.description" class="said">{{ f.description }}</div>
           </td>
         </tr>
       </table>

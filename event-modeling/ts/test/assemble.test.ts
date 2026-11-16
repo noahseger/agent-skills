@@ -209,10 +209,7 @@ test("m.generate() records what a value is made from, and a specification gives 
   const exports = { ...f, Created }
   const story = chapters({ Ch: [slice, view(exports)] })
   const feed = feedOf([{ ...exports, ...story, default: m.model("x") }])
-  assert.deepEqual(
-    feed.model.slices[0]?.events[0]?.fields.find((field) => field.name === "at"),
-    { name: "at", type: "String", generated: true, mapping: "id, name" },
-  )
+  assert.deepEqual(feed.model.slices[0]?.mappings, { Created: { at: "generate(id, name)" } })
   assert.deepEqual(drawn(feed).chapters[0]?.slices[0]?.mapping, {
     Created: { at: { generate: ["id", "name"] } },
   })
@@ -633,7 +630,7 @@ test("a call's reply fills an event of ours after it, in the same slice", () => 
       ["INBOUND", "Answered"],
     ],
   )
-  assert.equal(kept?.fields.find((x) => x.name === "said")?.mapping, "detail")
+  assert.equal(feed.model.slices[0]?.mappings?.Kept?.said, "detail")
   const out = layout(drawn(feed))
   const from = out.boxes.find((b) => b.name === "Answered")
   const to = out.boxes.find((b) => b.name === "Kept" && b.column === 0)
@@ -2143,13 +2140,9 @@ test("the book's ArchiveItem slice: a price change archives the item in the cart
   drawn(feed)
   const slice = feed.model.slices.find((s) => s.title === "ArchiveItemScheduler")
   const command = slice?.commands[0]
-  assert.deepEqual(
-    command?.fields.map((f) => [f.name, f.mapping]),
-    [
-      ["aggregateId", "CartsWithProducts(productId).aggregateId"],
-      ["productId", undefined],
-    ],
-  )
+  assert.deepEqual(slice?.mappings?.[command?.title ?? ""], {
+    aggregateId: "CartsWithProducts(productId).aggregateId",
+  })
   const read = slice?.readmodels.find((r) => r.title === "CartsWithProducts")
   assert.deepEqual(
     read?.dependencies.map((d) => [d.type, d.title]),

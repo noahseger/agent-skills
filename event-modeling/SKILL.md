@@ -78,7 +78,7 @@ Missing information blocks work. A field with no source might depend on another 
 
 A TypeScript model is checked in both directions as it assembles: a field nothing fills, or a column no event writes, is an error that names the slice. A model written as JSON is checked against the schema only, so the tracing is yours.
 
-**A command lists what the actor sends.** When the handler renames a field or computes one, say where it comes from in the field's `mapping` (see "Spec JSON") instead of padding the command with output fields. Every event field then traces either by name or through the mapping.
+**A command lists what the actor sends.** When the handler renames a field or computes one, say where it comes from in the slice's `mappings` (see "Spec JSON") instead of padding the command with output fields. Every event field then traces either by name or through the mapping.
 
 ## Finish the Model
 
@@ -110,7 +110,7 @@ Name events as facts, usually in the past tense (`OrderPlaced`), and commands as
 
 ### Spec JSON
 
-The file is `{ "slices": [...] }`, validated by `ts/schema/eventmodeling.schema.json`. Each slice lists its elements by kind, each element its `fields`, and `dependencies` point along the arrows. `ts/README.md` ("The JSON") maps every concept; these are the ones an extraction needs.
+The file is `{ "slices": [...] }`, validated by `ts/schema/eventmodeling.schema.json`. Each slice lists its elements by kind, each element its `fields` as one object's JSON Schema, and `dependencies` point along the arrows. `ts/README.md` ("The JSON") maps every concept; these are the ones an extraction needs.
 
 | `sliceType` | Elements | Meaning |
 |---|---|---|
@@ -123,9 +123,9 @@ The file is `{ "slices": [...] }`, validated by `ts/schema/eventmodeling.schema.
 - **Streams**: each event's `aggregate`. One lane per stream.
 - **Chapters**: each slice's `context`.
 - **External events**: `"context": "EXTERNAL"`, with `service` naming the system they come from. They have no `aggregate`; we never store them. A command's outbound event that is external is a call to that system, and its reply: an event of ours after it in the same slice keeps the reply's fields, by name or as `c.x` in its mapping, and the reply points at it. A `TRANSLATION` is for an external event that arrives on its own, not for a reply.
-- **What a slice queries**: a view with an `OUTBOUND` dependency on the command; a field taken from its row has the `mapping` `View(filter columns).column`, as `InventoryLevel(sku).warehouseId`. One pointing at the processor is the view the automation polls for its work.
-- **Key columns**: `"idAttribute": true`. A list: `"cardinality": "List"`.
-- **Mapping**: a field filled by a renamed source gives the source field's name in `mapping`; `= 0` is a constant, and `"generated": true` a value the handler assigns, such as an id or a clock.
+- **What a slice queries**: a view with an `OUTBOUND` dependency on the command; a field taken from its row is mapped from `View(filter columns).column`, as `InventoryLevel(sku).warehouseId`. One pointing at the processor is the view the automation polls for its work.
+- **Key columns**: the element's `"key": ["sku"]`.
+- **Mapping**: the slice's `mappings`, by element, then field: a renamed source's name; `= 0`, a constant; `generate()`, a value the handler assigns, such as an id or a clock.
 - **Specifications**: `given`, `when` and `then` steps, each with one example in `examples`. A refusal is a `SPEC_ERROR` step titled with the reason. A state view's `when` is a `SPEC_COMMAND` step titled with its screen, holding the request's values; its `then`, `SPEC_READMODEL` rows.
 - **Notes**: an element's `description`.
 
@@ -139,24 +139,21 @@ The file is `{ "slices": [...] }`, validated by `ts/schema/eventmodeling.schema.
       "sliceType": "STATE_CHANGE",
       "actors": [{ "name": "Customer", "authRequired": true }],
       "screens": [
-        { "id": "s1", "title": "POST /v1/orders", "type": "SCREEN", "fields": [],
+        { "id": "s1", "title": "POST /v1/orders", "type": "SCREEN", "fields": {},
           "dependencies": [{ "id": "c1", "type": "OUTBOUND", "title": "PlaceOrder", "elementType": "COMMAND" }] }
       ],
       "commands": [
         { "id": "c1", "title": "PlaceOrder", "type": "COMMAND", "apiEndpoint": "POST /v1/orders",
-          "fields": [{ "name": "customerId", "type": "String" }, { "name": "items", "type": "String", "cardinality": "List" }],
+          "fields": { "type": "object", "properties": { "customerId": { "type": "string" }, "items": { "type": "array", "items": { "type": "string" } } }, "required": ["customerId", "items"] },
           "dependencies": [{ "id": "e1", "type": "OUTBOUND", "title": "OrderPlaced", "elementType": "EVENT" }] }
       ],
       "events": [
         { "id": "e1", "title": "OrderPlaced", "type": "EVENT", "aggregate": "Orders",
-          "fields": [
-            { "name": "orderId", "type": "UUID", "generated": true },
-            { "name": "customerId", "type": "String" },
-            { "name": "items", "type": "String", "cardinality": "List" }
-          ],
+          "fields": { "type": "object", "properties": { "orderId": { "type": "string", "format": "uuid" }, "customerId": { "type": "string" }, "items": { "type": "array", "items": { "type": "string" } } }, "required": ["orderId", "customerId", "items"] },
           "dependencies": [{ "id": "c1", "type": "INBOUND", "title": "PlaceOrder", "elementType": "COMMAND" }] }
       ],
       "readmodels": [], "processors": [], "tables": [],
+      "mappings": { "OrderPlaced": { "orderId": "generate()" } },
       "specifications": [
         { "id": "t1", "title": "Customer places an order with two items", "linkedId": "place-order",
           "given": [],
@@ -172,27 +169,28 @@ The file is `{ "slices": [...] }`, validated by `ts/schema/eventmodeling.schema.
       "context": "Fulfillment",
       "sliceType": "AUTOMATION",
       "events": [
-        { "id": "e2", "title": "OrderPlaced", "type": "EVENT", "aggregate": "Orders", "fields": [],
+        { "id": "e2", "title": "OrderPlaced", "type": "EVENT", "aggregate": "Orders", "fields": {},
           "dependencies": [{ "id": "p1", "type": "OUTBOUND", "title": "InventoryReserver", "elementType": "AUTOMATION" }] },
         { "id": "e3", "title": "InventoryReserved", "type": "EVENT", "aggregate": "Inventory",
-          "fields": [{ "name": "orderId", "type": "UUID" }, { "name": "warehouseId", "type": "String", "mapping": "InventoryLevel(sku).warehouseId" }],
+          "fields": { "type": "object", "properties": { "orderId": { "type": "string", "format": "uuid" }, "warehouseId": { "type": "string" } }, "required": ["orderId", "warehouseId"] },
           "dependencies": [{ "id": "c2", "type": "INBOUND", "title": "ReserveInventory", "elementType": "COMMAND" }] }
       ],
       "processors": [
-        { "id": "p1", "title": "InventoryReserver", "type": "AUTOMATION", "fields": [],
+        { "id": "p1", "title": "InventoryReserver", "type": "AUTOMATION", "fields": {},
           "dependencies": [{ "id": "c2", "type": "OUTBOUND", "title": "ReserveInventory", "elementType": "COMMAND" }] }
       ],
       "commands": [
         { "id": "c2", "title": "ReserveInventory", "type": "COMMAND",
-          "fields": [{ "name": "orderId", "type": "UUID" }, { "name": "sku", "type": "String" }],
+          "fields": { "type": "object", "properties": { "orderId": { "type": "string", "format": "uuid" }, "sku": { "type": "string" } }, "required": ["orderId", "sku"] },
           "dependencies": [{ "id": "e3", "type": "OUTBOUND", "title": "InventoryReserved", "elementType": "EVENT" }] }
       ],
       "readmodels": [
         { "id": "r1", "title": "InventoryLevel", "type": "READMODEL",
-          "fields": [{ "name": "sku", "type": "String", "idAttribute": true }, { "name": "warehouseId", "type": "String" }],
+          "fields": { "type": "object", "properties": { "sku": { "type": "string" }, "warehouseId": { "type": "string" } }, "required": ["sku", "warehouseId"] }, "key": ["sku"],
           "dependencies": [{ "id": "c2", "type": "OUTBOUND", "title": "ReserveInventory", "elementType": "COMMAND" }] }
       ],
-      "screens": [], "tables": [], "specifications": []
+      "screens": [], "tables": [], "specifications": [],
+      "mappings": { "InventoryReserved": { "warehouseId": "InventoryLevel(sku).warehouseId" } }
     },
     {
       "id": "confirm-payment",
@@ -201,15 +199,16 @@ The file is `{ "slices": [...] }`, validated by `ts/schema/eventmodeling.schema.
       "sliceType": "TRANSLATION",
       "events": [
         { "id": "e4", "title": "PaymentReceived", "type": "EVENT", "context": "EXTERNAL", "service": "PaymentProvider",
-          "fields": [{ "name": "orderId", "type": "UUID" }, { "name": "amount", "type": "Decimal" }],
+          "fields": { "type": "object", "properties": { "orderId": { "type": "string", "format": "uuid" }, "amount": { "type": "number" } }, "required": ["orderId", "amount"] },
           "dependencies": [{ "id": "p2", "type": "OUTBOUND", "title": "PaymentConfirmer", "elementType": "AUTOMATION" }] },
         { "id": "e5", "title": "PaymentConfirmed", "type": "EVENT", "aggregate": "Orders",
-          "fields": [{ "name": "orderId", "type": "UUID" }, { "name": "paid", "type": "Decimal", "mapping": "amount" }],
+          "fields": { "type": "object", "properties": { "orderId": { "type": "string", "format": "uuid" }, "paid": { "type": "number" } }, "required": ["orderId", "paid"] },
           "dependencies": [] }
       ],
-      "processors": [{ "id": "p2", "title": "PaymentConfirmer", "type": "AUTOMATION", "fields": [], "dependencies": [] }],
-      "commands": [{ "id": "c3", "title": "ConfirmPayment", "type": "COMMAND", "fields": [{ "name": "orderId", "type": "UUID" }, { "name": "amount", "type": "Decimal" }], "dependencies": [] }],
-      "readmodels": [], "screens": [], "tables": [], "specifications": []
+      "processors": [{ "id": "p2", "title": "PaymentConfirmer", "type": "AUTOMATION", "fields": {}, "dependencies": [] }],
+      "commands": [{ "id": "c3", "title": "ConfirmPayment", "type": "COMMAND", "fields": { "type": "object", "properties": { "orderId": { "type": "string", "format": "uuid" }, "amount": { "type": "number" } }, "required": ["orderId", "amount"] }, "dependencies": [] }],
+      "readmodels": [], "screens": [], "tables": [], "specifications": [],
+      "mappings": { "PaymentConfirmed": { "paid": "amount" } }
     }
   ]
 }

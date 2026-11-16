@@ -3,21 +3,48 @@
 // slices in order. Pure, so it is tested without a browser.
 import type {
   Feed,
+  JsonSchema,
   SpecActor,
   SpecElement,
-  SpecField,
   SpecSlice,
   SpecStep,
 } from "../../src/spec.ts"
 import { type Source, slug } from "../../src/types.ts"
-import type { Board, BoardActor, BoardSlice, BoardTest, Loose } from "./board.ts"
+import type { Board, BoardActor, BoardField, BoardSlice, BoardTest, Loose } from "./board.ts"
 
 const SYSTEM: BoardActor = { id: "system", name: "System", type: "system" }
 
+const names = (el: SpecElement) => Object.keys(el.fields.properties ?? {})
+
 /** `Name(field, *key)`. */
 function element(el: SpecElement): string {
-  const fields = (el.fields ?? []).map((f) => (f.idAttribute ? `*${f.name}` : f.name))
+  const fields = names(el).map((f) => (el.key?.includes(f) ? `*${f}` : f))
   return fields.length > 0 ? `${el.title}(${fields.join(", ")})` : el.title
+}
+
+/** Each property, an object's own beneath it. */
+function fieldsOf(schema: JsonSchema): BoardField[] {
+  return Object.entries(schema.properties ?? {}).map(([name, s]) => {
+    let leaf = s
+    let lists = ""
+    while (leaf.type === "array") {
+      leaf = leaf.items ?? {}
+      lists += "[]"
+    }
+    const type = leaf.enum
+      ? leaf.enum.join(" | ")
+      : leaf.const !== undefined
+        ? JSON.stringify(leaf.const)
+        : (leaf.format ?? leaf.type ?? "any")
+    const fields = fieldsOf(leaf)
+    return {
+      name,
+      type: type + lists,
+      ...(!schema.required?.includes(name) && { optional: true }),
+      ...(s.description !== undefined && { description: s.description }),
+      ...(fields.length > 0 && { fields }),
+    }
+  })
 }
 
 function value(v: unknown): string {
@@ -45,13 +72,8 @@ function test(spec: SpecSlice["specifications"][number]): BoardTest {
   }
 }
 
-/**
- * The grammar `spec.ts` writes: a source field's name, `= <JSON>`, or, per event in a projection,
- * `generate(<inputs>)`; a generated field's, what it is made from, comma-separated.
- */
-function source(field: SpecField, text: string | undefined): Source | undefined {
-  if (field.generated) return { generate: text ? text.split(", ") : [] }
-  if (text === undefined) return undefined
+/** The grammar `spec.ts` writes: a source field's name, `= <JSON>`, or `generate(<inputs>)`. */
+function source(text: string): Source {
   const generated = /^generate\((.*)\)$/.exec(text)
   if (generated) return { generate: generated[1] ? generated[1].split(", ") : [] }
   if (text.startsWith("=")) {
@@ -62,30 +84,6 @@ function source(field: SpecField, text: string | undefined): Source | undefined 
     }
   }
   return { from: text }
-}
-
-/** The fields an element's mapping fills, by name. */
-function mapped(el: SpecElement): Record<string, Source> {
-  const out: Record<string, Source> = {}
-  for (const f of el.fields ?? []) {
-    const s = source(f, f.mapping)
-    if (s) out[f.name] = s
-  }
-  return out
-}
-
-/** A view a projection builds says, per column, `Event: source` once per event. */
-function projected(rm: SpecElement, events: SpecElement[]): Record<string, Record<string, Source>> {
-  const out: Record<string, Record<string, Source>> = {}
-  for (const f of rm.fields ?? []) {
-    for (const line of (f.mapping ?? "").split("\n").filter((l) => l.length > 0)) {
-      const named = /^(\w+): (.*)$/.exec(line)
-      const event = named?.[1] ?? events[0]?.title ?? ""
-      const s = source(f, named ? named[2] : line)
-      if (s) out[event] = { ...out[event], [f.name]: s }
-    }
-  }
-  return out
 }
 
 const points = (el: SpecElement, type: string) =>
@@ -122,17 +120,17 @@ function parts(s: SpecSlice) {
   return { command, trigger, polled, heard, recorded, projection, shows, reads }
 }
 
+const isObject = (x: unknown): x is object => typeof x === "object" && x !== null
+
 /** The objects in what should be a list of them; anything else in a file that breaks the schema is skipped. */
 function list<T>(written: unknown): T[] {
-  return Array.isArray(written)
-    ? written.filter((x): x is T => typeof x === "object" && x !== null)
-    : []
+  return Array.isArray(written) ? written.filter((x): x is T => isObject(x)) : []
 }
 
 const elements = (written: unknown): SpecElement[] =>
   list<SpecElement>(written).map((el) => ({
     ...el,
-    fields: list(el.fields),
+    fields: isObject(el.fields) ? el.fields : {},
     dependencies: list(el.dependencies),
   }))
 
@@ -193,10 +191,10 @@ export function read(written: Feed): Board {
 
   const notes: Record<string, string> = {}
   for (const c of feed.chapters ?? []) if (c.note !== undefined) notes[c.name] = c.note
-  const fields: Record<string, SpecField[]> = {}
+  const fields: Record<string, BoardField[]> = {}
   const noted = (el: SpecElement) => {
     if (el.description !== undefined) notes[el.title] = el.description
-    if (el.fields.length > 0) fields[el.title] = el.fields
+    if (names(el).length > 0) fields[el.title] = fieldsOf(el.fields)
   }
 
   const boardSlice = (s: SpecSlice): BoardSlice => {
@@ -255,20 +253,23 @@ export function read(written: Feed): Board {
     if (calls.length > 0) out.calls = calls
     if (reads.length > 0) out.reads = reads.map((r) => r.title)
     if (shows.length > 0) out.read_models = shows.map(element)
-    if (shows.length > 0 && screen && (screen.fields ?? []).length > 0)
-      out.request = screen.fields.map((f) => f.name)
+    if (shows.length > 0 && screen && names(screen).length > 0) out.request = names(screen)
     if (polled) out.polls = polled.title
     const note = s.storylines?.[0]?.title
     if (note !== undefined) out.note = note
 
-    const mapping = projection
-      ? projected(projection, heard)
-      : Object.fromEntries(
-          [...(command ? [command] : []), ...recorded]
-            .map((el): [string, Record<string, Source>] => [el.title, mapped(el)])
-            .filter(([, m]) => Object.keys(m).length > 0),
-        )
-    if (Object.keys(mapping).length > 0) out.mapping = mapping
+    const mapping = Object.entries(isObject(s.mappings) ? s.mappings : {}).map(
+      ([step, fields]): [string, Record<string, Source>] => [
+        step,
+        Object.fromEntries(
+          Object.entries(isObject(fields) ? fields : {}).map(([f, text]) => [
+            f,
+            source(String(text)),
+          ]),
+        ),
+      ],
+    )
+    if (mapping.length > 0) out.mapping = Object.fromEntries(mapping)
     return out
   }
 

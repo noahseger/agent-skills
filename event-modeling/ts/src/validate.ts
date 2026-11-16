@@ -1,4 +1,4 @@
-// Checks a model against the vendored event-modeling-spec JSON Schema.
+// Checks a model against schema/eventmodeling.schema.json.
 import { existsSync, readFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"

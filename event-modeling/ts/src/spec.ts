@@ -24,29 +24,16 @@ import {
 
 export type SliceType = "STATE_CHANGE" | "STATE_VIEW" | "AUTOMATION" | "TRANSLATION"
 export type ElementType = "COMMAND" | "EVENT" | "READMODEL" | "SCREEN" | "AUTOMATION"
-export type FieldType =
-  | "String"
-  | "Boolean"
-  | "Double"
-  | "Decimal"
-  | "Long"
-  | "Custom"
-  | "Date"
-  | "DateTime"
-  | "UUID"
-  | "Int"
-  | "Number"
-
-export interface SpecField {
-  name: string
-  type: FieldType
-  subfields?: SpecField[]
-  /** Where the value comes from; the README's "The JSON" section has the grammar. */
-  mapping?: string
-  optional?: boolean
-  generated?: boolean
-  idAttribute?: boolean
-  cardinality?: "List" | "Single"
+/** A JSON Schema, as much of `z.toJSONSchema`'s output as is read. */
+export interface JsonSchema {
+  type?: string
+  format?: string
+  enum?: unknown[]
+  const?: unknown
+  description?: string
+  items?: JsonSchema
+  properties?: Record<string, JsonSchema>
+  required?: string[]
 }
 
 export interface Dependency {
@@ -60,7 +47,10 @@ export interface SpecElement {
   id: string
   title: string
   type: ElementType
-  fields: SpecField[]
+  /** One object's JSON Schema, as Zod writes it. */
+  fields: JsonSchema
+  /** The fields that pick one row of a view. */
+  key?: string[]
   dependencies: Dependency[]
   description?: string
   aggregate?: string
@@ -106,6 +96,8 @@ export interface SpecSlice {
   processors: SpecElement[]
   tables: unknown[]
   specifications: Specification[]
+  /** Per step, where each field its mapping sets gets its value; the README's "The JSON" section has the grammar. */
+  mappings?: Record<string, Record<string, string>>
   storylines?: { id: string; title: string; elements: SpecElement[] }[]
   actors?: SpecActor[]
   aggregates?: string[]
@@ -137,89 +129,42 @@ export interface Feed {
 
 // --- From the assembled model ----------------------------------------------------
 
-/** As much of `z.toJSONSchema`'s output as the field types read. */
-interface JsonSchema {
-  type?: string
-  format?: string
-  items?: JsonSchema
-  properties?: Record<string, JsonSchema>
-  required?: string[]
-}
-
-function fieldType(schema: JsonSchema): FieldType {
-  if (schema.type === "integer") return "Int"
-  if (schema.type === "number") return "Double"
-  if (schema.type === "boolean") return "Boolean"
-  if (schema.type !== "string") return "Custom"
-  if (schema.format === "uuid") return "UUID"
-  if (schema.format === "date-time") return "DateTime"
-  if (schema.format === "date") return "Date"
-  return "String"
-}
-
-function specField(name: string, schema: JsonSchema, optional: boolean): SpecField {
-  const list = schema.type === "array"
-  const leaf = (list ? schema.items : schema) ?? {}
-  const sub = Object.entries(leaf.properties ?? {}).map(([n, s]) =>
-    specField(n, s, !(leaf.required ?? []).includes(n)),
-  )
-  return {
-    name,
-    type: fieldType(leaf),
-    ...(sub.length > 0 && { subfields: sub }),
-    ...(optional && { optional }),
-    ...(list && { cardinality: "List" as const }),
-  }
-}
-
-function fieldsOf(fields: Fields, keys: string[] = []): SpecField[] {
-  return Object.entries(fields).map(([name, schema]) => {
-    let json: JsonSchema = {}
-    try {
-      json = z.toJSONSchema(schema, { io: "input", unrepresentable: "any" }) as JsonSchema
-    } catch {}
-    const field = specField(name, json, schema.safeParse(undefined).success)
-    return keys.includes(name) ? { ...field, idAttribute: true } : field
+/** Zod's JSON Schema of the fields, less what only repeats a format or a type. */
+function fieldsOf(fields: Fields): JsonSchema {
+  const { $schema, ...schema } = z.toJSONSchema(z.object(fields), {
+    io: "input",
+    unrepresentable: "any",
+    override: ({ jsonSchema: s }) => {
+      if (s.format !== undefined) delete s.pattern
+      if (s.minimum === Number.MIN_SAFE_INTEGER) delete s.minimum
+      if (s.maximum === Number.MAX_SAFE_INTEGER) delete s.maximum
+    },
   })
+  return schema as JsonSchema
 }
 
 /** The source field's name, `= <JSON>`, or `generate(<inputs>)`. */
-function mappingOf(source: Source): string {
+function sourceOf(source: Source): string {
   if ("from" in source) return source.from
   if ("value" in source) return `= ${JSON.stringify(source.value)}`
   return `generate(${inputNames(source).join(", ")})`
 }
 
 /**
- * A declaration's fields, each with where the slice gets its value. A field from a row a query picks
- * says which, `View(filter columns).column`, by name too.
+ * Where each field of `target` a step sets gets its value. A field from a row a query picks says
+ * which, `View(filter columns).column`, by name too.
  */
-function mappedFields({ decl, mapping, context }: Flow, reads: Flow[]): SpecField[] {
-  return fieldsOf(decl.fields, decl.keys).map((f) => {
-    const source = mapping[f.name] ?? (f.name in context ? { from: f.name } : undefined)
-    if (!source) return f
-    if ("generate" in source) {
-      const inputs = inputNames(source)
-      return { ...f, generated: true, ...(inputs.length > 0 && { mapping: inputs.join(", ") }) }
-    }
-    if ("from" in source) {
-      const read = reads.find((q) => q.decl === context[source.from])
-      const filter = read && Object.keys(read.mapping).join(", ")
-      if (read) return { ...f, mapping: `${read.decl.name}(${filter}).${source.from}` }
-    }
-    return f.name in mapping ? { ...f, mapping: mappingOf(source) } : f
-  })
-}
-
-/** A view built from several events maps each column once per event: `Event: source`. */
-function projectedFields(decl: DeclData, flows: Flow[]): SpecField[] {
-  return fieldsOf(decl.fields, decl.keys).map((f) => {
-    const lines = flows.flatMap(({ decl: event, mapping }) => {
-      const source = mapping[f.name]
-      return source ? [`${event.name}: ${mappingOf(source)}`] : []
-    })
-    return lines.length > 0 ? { ...f, mapping: lines.join("\n") } : f
-  })
+function mappingOf({ mapping, context }: Flow, target: Fields, reads: Flow[]) {
+  const out: Record<string, string> = {}
+  for (const field of Object.keys(target)) {
+    const source = mapping[field] ?? (field in context ? { from: field } : undefined)
+    if (!source) continue
+    const read = "from" in source ? reads.find((q) => q.decl === context[source.from]) : undefined
+    if (read)
+      out[field] = `${read.decl.name}(${Object.keys(read.mapping).join(", ")}).${sourceOf(source)}`
+    else if (field in mapping) out[field] = sourceOf(source)
+  }
+  return out
 }
 
 const TYPE: Record<DeclData["kind"], ElementType> = {
@@ -255,7 +200,8 @@ function looseElement(
     id,
     title: decl.name ?? "",
     type: TYPE[decl.kind],
-    fields: fieldsOf(decl.fields, decl.keys),
+    fields: fieldsOf(decl.fields),
+    ...(decl.keys.length > 0 && { key: decl.keys }),
     dependencies: [],
     ...(decl.note !== undefined && { description: decl.note }),
     ...(decl.kind === "event" && placeOf(decl, streamOf)),
@@ -318,9 +264,8 @@ function sliceOf(
     title: el.title,
     elementType: el.type,
   })
-  const element = (decl: DeclData, fields: SpecField[], extra: Partial<SpecElement> = {}) => ({
+  const element = (decl: DeclData, extra: Partial<SpecElement> = {}) => ({
     ...looseElement(decl, streamOf, idOf(TYPE[decl.kind], decl.name ?? "")),
-    fields,
     ...extra,
   })
   const link = (from: SpecElement | undefined, to: SpecElement | undefined) => {
@@ -342,23 +287,28 @@ function sliceOf(
   const method = service?.method ?? command?.decl.name ?? view?.name ?? ""
   const endpoint = service ? { service: service.service.name ?? "", apiEndpoint: method } : {}
 
-  const commandEl = command && element(command.decl, mappedFields(command, slice.reads))
+  const commandEl = command && element(command.decl)
   if (commandEl && !trigger && !polls) Object.assign(commandEl, endpoint)
-  const events = view ? [] : slice.events.map((f) => element(f.decl, mappedFields(f, slice.reads)))
-  const heardEvents = view ? slice.events.map((f) => element(f.decl, fieldsOf(f.decl.fields))) : []
-  const triggerEl = trigger && element(trigger, fieldsOf(trigger.fields))
-  const reads = [...new Set(slice.reads.map((q) => q.decl))].map((r) =>
-    element(r, fieldsOf(r.fields, r.keys)),
+  const events = view ? [] : slice.events.map((f) => element(f.decl))
+  const heardEvents = view ? slice.events.map((f) => element(f.decl)) : []
+  const triggerEl = trigger && element(trigger)
+  const reads = [...new Set(slice.reads.map((q) => q.decl))].map((r) => element(r))
+  const pollsEl = polls && element(polls)
+  const viewEl = view && element(view, endpoint)
+  // A state view's events each fill the view; a state change's steps each fill their own element.
+  const steps = [...(command ? [command] : []), ...slice.events].flatMap(
+    (f): [string, Record<string, string>][] => {
+      const mapping = mappingOf(f, (view ?? f.decl).fields, slice.reads)
+      return Object.keys(mapping).length > 0 ? [[f.decl.name ?? "", mapping]] : []
+    },
   )
-  const pollsEl = polls && element(polls, fieldsOf(polls.fields, polls.keys))
-  const viewEl = view && element(view, projectedFields(view, slice.events), endpoint)
   const processor: SpecElement | undefined =
     trigger || polls
       ? {
           id: idOf("AUTOMATION", name),
           title: name,
           type: "AUTOMATION",
-          fields: [],
+          fields: fieldsOf({}),
           dependencies: [],
         }
       : undefined
@@ -407,6 +357,7 @@ function sliceOf(
     processors: processor ? [processor] : [],
     tables: [],
     specifications: slice.tests.map((t, i) => specification(t, `${id}:spec:${i}`, name, id, asked)),
+    ...(steps.length > 0 && { mappings: Object.fromEntries(steps) }),
     ...(slice.note !== undefined && {
       storylines: [{ id: `${id}:note`, title: slice.note, elements: [] }],
     }),

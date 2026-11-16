@@ -15,6 +15,8 @@ interface Field {
   type: string
   number: number
   label: "" | "repeated " | "optional "
+  /** Its `.describe()`, the comment above it. */
+  description?: string
 }
 
 interface Message {
@@ -33,6 +35,7 @@ interface Method {
 /** As much of `z.toJSONSchema`'s output as the mapping reads. */
 interface JsonSchema {
   type?: string
+  description?: string
   items?: JsonSchema
   properties?: Record<string, JsonSchema>
   required?: string[]
@@ -93,6 +96,7 @@ function message(name: string, schema: JsonSchema, where: string): Message {
       number: msg.fields.length + 1,
       // proto3 has no optional repeated field or map.
       label: repeated ? "repeated " : required.has(field) || map ? "" : "optional ",
+      ...(property.description !== undefined && { description: property.description }),
     })
   }
   return msg
@@ -157,7 +161,10 @@ function render(msg: Message, indent = ""): string {
   return [
     `${indent}message ${msg.name} {`,
     ...msg.nested.map((n) => render(n, `${indent}  `)),
-    ...msg.fields.map((f) => `${indent}  ${f.label}${f.type} ${f.name} = ${f.number};`),
+    ...msg.fields.flatMap((f) => [
+      ...(f.description?.split("\n").map((line) => `${indent}  // ${line}`) ?? []),
+      `${indent}  ${f.label}${f.type} ${f.name} = ${f.number};`,
+    ]),
     `${indent}}`,
   ].join("\n")
 }

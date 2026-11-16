@@ -11,20 +11,25 @@
           "id": "create-list:command:create-list",
           "title": "CreateList",
           "type": "COMMAND",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            },
-            {
-              "name": "name",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "userId",
+              "listId",
+              "name"
+            ]
+          },
           "dependencies": [
             {
               "id": "create-list:screen:create-list",
@@ -48,20 +53,25 @@
           "id": "create-list:event:list-created",
           "title": "ListCreated",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "listId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "listId": {
+                "type": "string"
+              },
+              "userId": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
             },
-            {
-              "name": "userId",
-              "type": "String"
-            },
-            {
-              "name": "name",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "listId",
+              "userId",
+              "name"
+            ]
+          },
           "dependencies": [
             {
               "id": "create-list:command:create-list",
@@ -80,20 +90,25 @@
           "id": "create-list:screen:create-list",
           "title": "CreateList",
           "type": "SCREEN",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            },
-            {
-              "name": "name",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "userId",
+              "listId",
+              "name"
+            ]
+          },
           "dependencies": [
             {
               "id": "create-list:command:create-list",
@@ -205,24 +220,29 @@
           "id": "add-item:command:add-item",
           "title": "AddItem",
           "type": "COMMAND",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              },
+              "itemId": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            },
-            {
-              "name": "itemId",
-              "type": "String"
-            },
-            {
-              "name": "text",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "userId",
+              "listId",
+              "itemId",
+              "text"
+            ]
+          },
           "dependencies": [
             {
               "id": "add-item:screen:list-screen",
@@ -246,25 +266,29 @@
           "id": "add-item:event:item-added",
           "title": "ItemAdded",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              },
+              "itemId": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            },
-            {
-              "name": "itemId",
-              "type": "String"
-            },
-            {
-              "name": "title",
-              "type": "String",
-              "mapping": "text"
-            }
-          ],
+            "required": [
+              "userId",
+              "listId",
+              "itemId",
+              "title"
+            ]
+          },
           "dependencies": [
             {
               "id": "add-item:command:add-item",
@@ -282,24 +306,29 @@
           "id": "add-item:screen:list-screen",
           "title": "ListScreen",
           "type": "SCREEN",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              },
+              "itemId": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            },
-            {
-              "name": "itemId",
-              "type": "String"
-            },
-            {
-              "name": "text",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "userId",
+              "listId",
+              "itemId",
+              "text"
+            ]
+          },
           "dependencies": [
             {
               "id": "add-item:command:add-item",
@@ -433,6 +462,11 @@
           "linkedId": "add-item"
         }
       ],
+      "mappings": {
+        "ItemAdded": {
+          "title": "text"
+        }
+      },
       "actors": [
         {
           "name": "User",
@@ -454,20 +488,25 @@
           "id": "complete-item:command:complete-item",
           "title": "CompleteItem",
           "type": "COMMAND",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              },
+              "itemId": {
+                "type": "string"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            },
-            {
-              "name": "itemId",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "userId",
+              "listId",
+              "itemId"
+            ]
+          },
           "dependencies": [
             {
               "id": "complete-item:screen:list-screen",
@@ -491,20 +530,25 @@
           "id": "complete-item:event:item-completed",
           "title": "ItemCompleted",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              },
+              "itemId": {
+                "type": "string"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            },
-            {
-              "name": "itemId",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "userId",
+              "listId",
+              "itemId"
+            ]
+          },
           "dependencies": [
             {
               "id": "complete-item:command:complete-item",
@@ -522,20 +566,25 @@
           "id": "complete-item:screen:list-screen",
           "title": "ListScreen",
           "type": "SCREEN",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              },
+              "itemId": {
+                "type": "string"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            },
-            {
-              "name": "itemId",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "userId",
+              "listId",
+              "itemId"
+            ]
+          },
           "dependencies": [
             {
               "id": "complete-item:command:complete-item",
@@ -620,16 +669,21 @@
           "id": "delete-item:command:delete-item",
           "title": "DeleteItem",
           "type": "COMMAND",
-          "fields": [
-            {
-              "name": "listId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "listId": {
+                "type": "string"
+              },
+              "itemId": {
+                "type": "string"
+              }
             },
-            {
-              "name": "itemId",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "listId",
+              "itemId"
+            ]
+          },
           "dependencies": [
             {
               "id": "delete-item:screen:list-screen",
@@ -653,16 +707,21 @@
           "id": "delete-item:event:item-deleted",
           "title": "ItemDeleted",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "listId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "listId": {
+                "type": "string"
+              },
+              "itemId": {
+                "type": "string"
+              }
             },
-            {
-              "name": "itemId",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "listId",
+              "itemId"
+            ]
+          },
           "dependencies": [
             {
               "id": "delete-item:command:delete-item",
@@ -680,16 +739,21 @@
           "id": "delete-item:screen:list-screen",
           "title": "ListScreen",
           "type": "SCREEN",
-          "fields": [
-            {
-              "name": "listId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "listId": {
+                "type": "string"
+              },
+              "itemId": {
+                "type": "string"
+              }
             },
-            {
-              "name": "itemId",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "listId",
+              "itemId"
+            ]
+          },
           "dependencies": [
             {
               "id": "delete-item:command:delete-item",
@@ -772,16 +836,21 @@
           "id": "delete-list:command:delete-list",
           "title": "DeleteList",
           "type": "COMMAND",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "userId",
+              "listId"
+            ]
+          },
           "dependencies": [
             {
               "id": "delete-list:screen:delete-list",
@@ -805,16 +874,21 @@
           "id": "delete-list:event:list-deleted",
           "title": "ListDeleted",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "userId",
+              "listId"
+            ]
+          },
           "dependencies": [
             {
               "id": "delete-list:command:delete-list",
@@ -832,16 +906,21 @@
           "id": "delete-list:screen:delete-list",
           "title": "DeleteList",
           "type": "SCREEN",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "userId",
+              "listId"
+            ]
+          },
           "dependencies": [
             {
               "id": "delete-list:command:delete-list",
@@ -924,20 +1003,25 @@
           "id": "todo-list:event:list-created",
           "title": "ListCreated",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "listId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "listId": {
+                "type": "string"
+              },
+              "userId": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
             },
-            {
-              "name": "userId",
-              "type": "String"
-            },
-            {
-              "name": "name",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "listId",
+              "userId",
+              "name"
+            ]
+          },
           "dependencies": [
             {
               "id": "todo-list:readmodel:todo-list",
@@ -953,24 +1037,29 @@
           "id": "todo-list:event:item-added",
           "title": "ItemAdded",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              },
+              "itemId": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            },
-            {
-              "name": "itemId",
-              "type": "String"
-            },
-            {
-              "name": "title",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "userId",
+              "listId",
+              "itemId",
+              "title"
+            ]
+          },
           "dependencies": [
             {
               "id": "todo-list:readmodel:todo-list",
@@ -985,16 +1074,21 @@
           "id": "todo-list:event:list-completed",
           "title": "ListCompleted",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "userId",
+              "listId"
+            ]
+          },
           "dependencies": [
             {
               "id": "todo-list:readmodel:todo-list",
@@ -1009,16 +1103,21 @@
           "id": "todo-list:event:list-deleted",
           "title": "ListDeleted",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "userId",
+              "listId"
+            ]
+          },
           "dependencies": [
             {
               "id": "todo-list:readmodel:todo-list",
@@ -1035,31 +1134,41 @@
           "id": "todo-list:readmodel:todo-list",
           "title": "TodoList",
           "type": "READMODEL",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String",
-              "idAttribute": true
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "itemCount": {
+                "type": "integer"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "completed",
+                  "deleted"
+                ]
+              }
             },
-            {
-              "name": "listId",
-              "type": "String",
-              "idAttribute": true
-            },
-            {
-              "name": "name",
-              "type": "String"
-            },
-            {
-              "name": "itemCount",
-              "type": "Int",
-              "mapping": "ListCreated: = 0\nItemAdded: generate(ItemAdded)"
-            },
-            {
-              "name": "status",
-              "type": "String",
-              "mapping": "ListCreated: = \"open\"\nListCompleted: = \"completed\"\nListDeleted: = \"deleted\""
-            }
+            "required": [
+              "userId",
+              "listId",
+              "name",
+              "itemCount",
+              "status"
+            ]
+          },
+          "key": [
+            "userId",
+            "listId"
           ],
           "dependencies": [
             {
@@ -1102,12 +1211,17 @@
           "id": "todo-list:screen:list-todo-lists",
           "title": "ListTodoLists",
           "type": "SCREEN",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
-            }
-          ],
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "userId"
+            ]
+          },
           "dependencies": [
             {
               "id": "todo-list:readmodel:todo-list",
@@ -1422,6 +1536,21 @@
           "linkedId": "todo-list"
         }
       ],
+      "mappings": {
+        "ListCreated": {
+          "itemCount": "= 0",
+          "status": "= \"open\""
+        },
+        "ItemAdded": {
+          "itemCount": "generate(ItemAdded)"
+        },
+        "ListCompleted": {
+          "status": "= \"completed\""
+        },
+        "ListDeleted": {
+          "status": "= \"deleted\""
+        }
+      },
       "actors": [
         {
           "name": "User",
@@ -1441,24 +1570,29 @@
           "id": "list-items:event:item-added",
           "title": "ItemAdded",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              },
+              "itemId": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            },
-            {
-              "name": "itemId",
-              "type": "String"
-            },
-            {
-              "name": "title",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "userId",
+              "listId",
+              "itemId",
+              "title"
+            ]
+          },
           "dependencies": [
             {
               "id": "list-items:readmodel:list-items",
@@ -1473,20 +1607,25 @@
           "id": "list-items:event:item-completed",
           "title": "ItemCompleted",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              },
+              "itemId": {
+                "type": "string"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            },
-            {
-              "name": "itemId",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "userId",
+              "listId",
+              "itemId"
+            ]
+          },
           "dependencies": [
             {
               "id": "list-items:readmodel:list-items",
@@ -1501,16 +1640,21 @@
           "id": "list-items:event:item-deleted",
           "title": "ItemDeleted",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "listId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "listId": {
+                "type": "string"
+              },
+              "itemId": {
+                "type": "string"
+              }
             },
-            {
-              "name": "itemId",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "listId",
+              "itemId"
+            ]
+          },
           "dependencies": [
             {
               "id": "list-items:readmodel:list-items",
@@ -1527,31 +1671,36 @@
           "id": "list-items:readmodel:list-items",
           "title": "ListItems",
           "type": "READMODEL",
-          "fields": [
-            {
-              "name": "listId",
-              "type": "String",
-              "idAttribute": true
+          "fields": {
+            "type": "object",
+            "properties": {
+              "listId": {
+                "type": "string"
+              },
+              "itemId": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "done": {
+                "type": "boolean"
+              },
+              "deleted": {
+                "type": "boolean"
+              }
             },
-            {
-              "name": "itemId",
-              "type": "String",
-              "idAttribute": true
-            },
-            {
-              "name": "title",
-              "type": "String"
-            },
-            {
-              "name": "done",
-              "type": "Boolean",
-              "mapping": "ItemAdded: = false\nItemCompleted: = true"
-            },
-            {
-              "name": "deleted",
-              "type": "Boolean",
-              "mapping": "ItemAdded: = false\nItemDeleted: = true"
-            }
+            "required": [
+              "listId",
+              "itemId",
+              "title",
+              "done",
+              "deleted"
+            ]
+          },
+          "key": [
+            "listId",
+            "itemId"
           ],
           "dependencies": [
             {
@@ -1588,12 +1737,17 @@
           "id": "list-items:screen:list-screen",
           "title": "ListScreen",
           "type": "SCREEN",
-          "fields": [
-            {
-              "name": "listId",
-              "type": "String"
-            }
-          ],
+          "fields": {
+            "type": "object",
+            "properties": {
+              "listId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "listId"
+            ]
+          },
           "dependencies": [
             {
               "id": "list-items:readmodel:list-items",
@@ -1830,6 +1984,18 @@
           "linkedId": "list-items"
         }
       ],
+      "mappings": {
+        "ItemAdded": {
+          "done": "= false",
+          "deleted": "= false"
+        },
+        "ItemCompleted": {
+          "done": "= true"
+        },
+        "ItemDeleted": {
+          "deleted": "= true"
+        }
+      },
       "actors": [
         {
           "name": "User",
@@ -1849,24 +2015,29 @@
           "id": "item-search:event:item-added",
           "title": "ItemAdded",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              },
+              "itemId": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            },
-            {
-              "name": "itemId",
-              "type": "String"
-            },
-            {
-              "name": "title",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "userId",
+              "listId",
+              "itemId",
+              "title"
+            ]
+          },
           "dependencies": [
             {
               "id": "item-search:readmodel:item-search",
@@ -1881,20 +2052,25 @@
           "id": "item-search:event:item-completed",
           "title": "ItemCompleted",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              },
+              "itemId": {
+                "type": "string"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            },
-            {
-              "name": "itemId",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "userId",
+              "listId",
+              "itemId"
+            ]
+          },
           "dependencies": [
             {
               "id": "item-search:readmodel:item-search",
@@ -1909,16 +2085,21 @@
           "id": "item-search:event:item-deleted",
           "title": "ItemDeleted",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "listId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "listId": {
+                "type": "string"
+              },
+              "itemId": {
+                "type": "string"
+              }
             },
-            {
-              "name": "itemId",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "listId",
+              "itemId"
+            ]
+          },
           "dependencies": [
             {
               "id": "item-search:readmodel:item-search",
@@ -1935,30 +2116,35 @@
           "id": "item-search:readmodel:item-search",
           "title": "ItemSearch",
           "type": "READMODEL",
-          "fields": [
-            {
-              "name": "itemId",
-              "type": "String",
-              "idAttribute": true
+          "fields": {
+            "type": "object",
+            "properties": {
+              "itemId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "done": {
+                "type": "boolean"
+              },
+              "deleted": {
+                "type": "boolean"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            },
-            {
-              "name": "title",
-              "type": "String"
-            },
-            {
-              "name": "done",
-              "type": "Boolean",
-              "mapping": "ItemAdded: = false\nItemCompleted: = true"
-            },
-            {
-              "name": "deleted",
-              "type": "Boolean",
-              "mapping": "ItemAdded: = false\nItemDeleted: = true"
-            }
+            "required": [
+              "itemId",
+              "listId",
+              "title",
+              "done",
+              "deleted"
+            ]
+          },
+          "key": [
+            "itemId"
           ],
           "dependencies": [
             {
@@ -1995,12 +2181,17 @@
           "id": "item-search:screen:search-items",
           "title": "SearchItems",
           "type": "SCREEN",
-          "fields": [
-            {
-              "name": "text",
-              "type": "String"
-            }
-          ],
+          "fields": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "text"
+            ]
+          },
           "dependencies": [
             {
               "id": "item-search:readmodel:item-search",
@@ -2185,6 +2376,18 @@
           "linkedId": "item-search"
         }
       ],
+      "mappings": {
+        "ItemAdded": {
+          "done": "= false",
+          "deleted": "= false"
+        },
+        "ItemCompleted": {
+          "done": "= true"
+        },
+        "ItemDeleted": {
+          "deleted": "= true"
+        }
+      },
       "actors": [
         {
           "name": "User",
@@ -2203,16 +2406,21 @@
           "id": "list-completer:command:complete-list",
           "title": "CompleteList",
           "type": "COMMAND",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "userId",
+              "listId"
+            ]
+          },
           "dependencies": [
             {
               "id": "list-completer:automation:list-completer",
@@ -2240,20 +2448,25 @@
           "id": "list-completer:event:item-completed",
           "title": "ItemCompleted",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              },
+              "itemId": {
+                "type": "string"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            },
-            {
-              "name": "itemId",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "userId",
+              "listId",
+              "itemId"
+            ]
+          },
           "dependencies": [
             {
               "id": "list-completer:automation:list-completer",
@@ -2268,16 +2481,21 @@
           "id": "list-completer:event:list-completed",
           "title": "ListCompleted",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "userId",
+              "listId"
+            ]
+          },
           "dependencies": [
             {
               "id": "list-completer:command:complete-list",
@@ -2294,29 +2512,41 @@
           "id": "list-completer:readmodel:todo-list",
           "title": "TodoList",
           "type": "READMODEL",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String",
-              "idAttribute": true
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "itemCount": {
+                "type": "integer"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "completed",
+                  "deleted"
+                ]
+              }
             },
-            {
-              "name": "listId",
-              "type": "String",
-              "idAttribute": true
-            },
-            {
-              "name": "name",
-              "type": "String"
-            },
-            {
-              "name": "itemCount",
-              "type": "Int"
-            },
-            {
-              "name": "status",
-              "type": "String"
-            }
+            "required": [
+              "userId",
+              "listId",
+              "name",
+              "itemCount",
+              "status"
+            ]
+          },
+          "key": [
+            "userId",
+            "listId"
           ],
           "dependencies": [
             {
@@ -2334,7 +2564,10 @@
           "id": "list-completer:automation:list-completer",
           "title": "ListCompleter",
           "type": "AUTOMATION",
-          "fields": [],
+          "fields": {
+            "type": "object",
+            "properties": {}
+          },
           "dependencies": [
             {
               "id": "list-completer:event:item-completed",
@@ -2440,24 +2673,29 @@
           "id": "add-item:command:add-item",
           "title": "AddItem",
           "type": "COMMAND",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              },
+              "itemId": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            },
-            {
-              "name": "itemId",
-              "type": "String"
-            },
-            {
-              "name": "text",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "userId",
+              "listId",
+              "itemId",
+              "text"
+            ]
+          },
           "dependencies": [
             {
               "id": "add-item:automation:add-item",
@@ -2479,24 +2717,29 @@
           "id": "add-item:event:task-scheduled",
           "title": "TaskScheduled",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              },
+              "itemId": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            },
-            {
-              "name": "itemId",
-              "type": "String"
-            },
-            {
-              "name": "text",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "userId",
+              "listId",
+              "itemId",
+              "text"
+            ]
+          },
           "dependencies": [
             {
               "id": "add-item:automation:add-item",
@@ -2512,25 +2755,29 @@
           "id": "add-item:event:item-added",
           "title": "ItemAdded",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "userId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "userId": {
+                "type": "string"
+              },
+              "listId": {
+                "type": "string"
+              },
+              "itemId": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
             },
-            {
-              "name": "listId",
-              "type": "String"
-            },
-            {
-              "name": "itemId",
-              "type": "String"
-            },
-            {
-              "name": "title",
-              "type": "String",
-              "mapping": "text"
-            }
-          ],
+            "required": [
+              "userId",
+              "listId",
+              "itemId",
+              "title"
+            ]
+          },
           "dependencies": [
             {
               "id": "add-item:command:add-item",
@@ -2549,7 +2796,10 @@
           "id": "add-item:automation:add-item",
           "title": "AddItem",
           "type": "AUTOMATION",
-          "fields": [],
+          "fields": {
+            "type": "object",
+            "properties": {}
+          },
           "dependencies": [
             {
               "id": "add-item:event:task-scheduled",
@@ -2632,6 +2882,11 @@
           "linkedId": "add-item"
         }
       ],
+      "mappings": {
+        "ItemAdded": {
+          "title": "text"
+        }
+      },
       "aggregates": [
         "Items"
       ]

@@ -11,40 +11,45 @@
           "id": "receive-pairing:command:start-game",
           "title": "StartGame",
           "type": "COMMAND",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "round": {
+                "type": "integer"
+              },
+              "boardNumber": {
+                "type": "integer"
+              },
+              "whitePlayerId": {
+                "type": "string"
+              },
+              "blackPlayerId": {
+                "type": "string"
+              },
+              "timeControl": {
+                "type": "string"
+              },
+              "baseMinutes": {
+                "type": "integer"
+              },
+              "incrementSeconds": {
+                "type": "integer"
+              }
             },
-            {
-              "name": "round",
-              "type": "Int"
-            },
-            {
-              "name": "boardNumber",
-              "type": "Int"
-            },
-            {
-              "name": "whitePlayerId",
-              "type": "String"
-            },
-            {
-              "name": "blackPlayerId",
-              "type": "String"
-            },
-            {
-              "name": "timeControl",
-              "type": "String"
-            },
-            {
-              "name": "baseMinutes",
-              "type": "Int"
-            },
-            {
-              "name": "incrementSeconds",
-              "type": "Int"
-            }
-          ],
+            "required": [
+              "gameId",
+              "round",
+              "boardNumber",
+              "whitePlayerId",
+              "blackPlayerId",
+              "timeControl",
+              "baseMinutes",
+              "incrementSeconds"
+            ]
+          },
           "dependencies": [
             {
               "id": "receive-pairing:automation:receive-pairing",
@@ -66,40 +71,45 @@
           "id": "receive-pairing:event:pairing-published",
           "title": "PairingPublished",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "round": {
+                "type": "integer"
+              },
+              "boardNumber": {
+                "type": "integer"
+              },
+              "whitePlayerId": {
+                "type": "string"
+              },
+              "blackPlayerId": {
+                "type": "string"
+              },
+              "timeControl": {
+                "type": "string"
+              },
+              "baseMinutes": {
+                "type": "integer"
+              },
+              "incrementSeconds": {
+                "type": "integer"
+              }
             },
-            {
-              "name": "round",
-              "type": "Int"
-            },
-            {
-              "name": "boardNumber",
-              "type": "Int"
-            },
-            {
-              "name": "whitePlayerId",
-              "type": "String"
-            },
-            {
-              "name": "blackPlayerId",
-              "type": "String"
-            },
-            {
-              "name": "timeControl",
-              "type": "String"
-            },
-            {
-              "name": "baseMinutes",
-              "type": "Int"
-            },
-            {
-              "name": "incrementSeconds",
-              "type": "Int"
-            }
-          ],
+            "required": [
+              "gameId",
+              "round",
+              "boardNumber",
+              "whitePlayerId",
+              "blackPlayerId",
+              "timeControl",
+              "baseMinutes",
+              "incrementSeconds"
+            ]
+          },
           "dependencies": [
             {
               "id": "receive-pairing:automation:receive-pairing",
@@ -115,55 +125,61 @@
           "id": "receive-pairing:event:game-started",
           "title": "GameStarted",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "round": {
+                "type": "integer"
+              },
+              "boardNumber": {
+                "type": "integer"
+              },
+              "whitePlayerId": {
+                "type": "string"
+              },
+              "blackPlayerId": {
+                "type": "string"
+              },
+              "timeControl": {
+                "type": "string"
+              },
+              "baseMinutes": {
+                "type": "integer"
+              },
+              "incrementSeconds": {
+                "type": "integer"
+              },
+              "fen": {
+                "type": "string"
+              },
+              "sideToMove": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "ply": {
+                "type": "integer"
+              }
             },
-            {
-              "name": "round",
-              "type": "Int"
-            },
-            {
-              "name": "boardNumber",
-              "type": "Int"
-            },
-            {
-              "name": "whitePlayerId",
-              "type": "String"
-            },
-            {
-              "name": "blackPlayerId",
-              "type": "String"
-            },
-            {
-              "name": "timeControl",
-              "type": "String"
-            },
-            {
-              "name": "baseMinutes",
-              "type": "Int"
-            },
-            {
-              "name": "incrementSeconds",
-              "type": "Int"
-            },
-            {
-              "name": "fen",
-              "type": "String",
-              "mapping": "= \"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\""
-            },
-            {
-              "name": "sideToMove",
-              "type": "String",
-              "mapping": "= \"white\""
-            },
-            {
-              "name": "ply",
-              "type": "Int",
-              "mapping": "= 0"
-            }
-          ],
+            "required": [
+              "gameId",
+              "round",
+              "boardNumber",
+              "whitePlayerId",
+              "blackPlayerId",
+              "timeControl",
+              "baseMinutes",
+              "incrementSeconds",
+              "fen",
+              "sideToMove",
+              "ply"
+            ]
+          },
           "dependencies": [
             {
               "id": "receive-pairing:command:start-game",
@@ -182,7 +198,10 @@
           "id": "receive-pairing:automation:receive-pairing",
           "title": "ReceivePairing",
           "type": "AUTOMATION",
-          "fields": [],
+          "fields": {
+            "type": "object",
+            "properties": {}
+          },
           "dependencies": [
             {
               "id": "receive-pairing:event:pairing-published",
@@ -268,6 +287,13 @@
           "linkedId": "receive-pairing"
         }
       ],
+      "mappings": {
+        "GameStarted": {
+          "fen": "= \"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\"",
+          "sideToMove": "= \"white\"",
+          "ply": "= 0"
+        }
+      },
       "storylines": [
         {
           "id": "receive-pairing:note",
@@ -291,52 +317,61 @@
           "id": "game-pairing:event:game-started",
           "title": "GameStarted",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "round": {
+                "type": "integer"
+              },
+              "boardNumber": {
+                "type": "integer"
+              },
+              "whitePlayerId": {
+                "type": "string"
+              },
+              "blackPlayerId": {
+                "type": "string"
+              },
+              "timeControl": {
+                "type": "string"
+              },
+              "baseMinutes": {
+                "type": "integer"
+              },
+              "incrementSeconds": {
+                "type": "integer"
+              },
+              "fen": {
+                "type": "string"
+              },
+              "sideToMove": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "ply": {
+                "type": "integer"
+              }
             },
-            {
-              "name": "round",
-              "type": "Int"
-            },
-            {
-              "name": "boardNumber",
-              "type": "Int"
-            },
-            {
-              "name": "whitePlayerId",
-              "type": "String"
-            },
-            {
-              "name": "blackPlayerId",
-              "type": "String"
-            },
-            {
-              "name": "timeControl",
-              "type": "String"
-            },
-            {
-              "name": "baseMinutes",
-              "type": "Int"
-            },
-            {
-              "name": "incrementSeconds",
-              "type": "Int"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            },
-            {
-              "name": "sideToMove",
-              "type": "String"
-            },
-            {
-              "name": "ply",
-              "type": "Int"
-            }
-          ],
+            "required": [
+              "gameId",
+              "round",
+              "boardNumber",
+              "whitePlayerId",
+              "blackPlayerId",
+              "timeControl",
+              "baseMinutes",
+              "incrementSeconds",
+              "fen",
+              "sideToMove",
+              "ply"
+            ]
+          },
           "dependencies": [
             {
               "id": "game-pairing:readmodel:game-pairing",
@@ -353,28 +388,35 @@
           "id": "game-pairing:readmodel:game-pairing",
           "title": "GamePairing",
           "type": "READMODEL",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String",
-              "idAttribute": true
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "round": {
+                "type": "integer"
+              },
+              "boardNumber": {
+                "type": "integer"
+              },
+              "whitePlayerId": {
+                "type": "string"
+              },
+              "blackPlayerId": {
+                "type": "string"
+              }
             },
-            {
-              "name": "round",
-              "type": "Int"
-            },
-            {
-              "name": "boardNumber",
-              "type": "Int"
-            },
-            {
-              "name": "whitePlayerId",
-              "type": "String"
-            },
-            {
-              "name": "blackPlayerId",
-              "type": "String"
-            }
+            "required": [
+              "gameId",
+              "round",
+              "boardNumber",
+              "whitePlayerId",
+              "blackPlayerId"
+            ]
+          },
+          "key": [
+            "gameId"
           ],
           "dependencies": [
             {
@@ -448,20 +490,25 @@
           "id": "clock-starter:command:start-clock",
           "title": "StartClock",
           "type": "COMMAND",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "baseMinutes": {
+                "type": "integer"
+              },
+              "incrementSeconds": {
+                "type": "integer"
+              }
             },
-            {
-              "name": "baseMinutes",
-              "type": "Int"
-            },
-            {
-              "name": "incrementSeconds",
-              "type": "Int"
-            }
-          ],
+            "required": [
+              "gameId",
+              "baseMinutes",
+              "incrementSeconds"
+            ]
+          },
           "dependencies": [
             {
               "id": "clock-starter:automation:clock-starter",
@@ -483,52 +530,61 @@
           "id": "clock-starter:event:game-started",
           "title": "GameStarted",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "round": {
+                "type": "integer"
+              },
+              "boardNumber": {
+                "type": "integer"
+              },
+              "whitePlayerId": {
+                "type": "string"
+              },
+              "blackPlayerId": {
+                "type": "string"
+              },
+              "timeControl": {
+                "type": "string"
+              },
+              "baseMinutes": {
+                "type": "integer"
+              },
+              "incrementSeconds": {
+                "type": "integer"
+              },
+              "fen": {
+                "type": "string"
+              },
+              "sideToMove": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "ply": {
+                "type": "integer"
+              }
             },
-            {
-              "name": "round",
-              "type": "Int"
-            },
-            {
-              "name": "boardNumber",
-              "type": "Int"
-            },
-            {
-              "name": "whitePlayerId",
-              "type": "String"
-            },
-            {
-              "name": "blackPlayerId",
-              "type": "String"
-            },
-            {
-              "name": "timeControl",
-              "type": "String"
-            },
-            {
-              "name": "baseMinutes",
-              "type": "Int"
-            },
-            {
-              "name": "incrementSeconds",
-              "type": "Int"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            },
-            {
-              "name": "sideToMove",
-              "type": "String"
-            },
-            {
-              "name": "ply",
-              "type": "Int"
-            }
-          ],
+            "required": [
+              "gameId",
+              "round",
+              "boardNumber",
+              "whitePlayerId",
+              "blackPlayerId",
+              "timeControl",
+              "baseMinutes",
+              "incrementSeconds",
+              "fen",
+              "sideToMove",
+              "ply"
+            ]
+          },
           "dependencies": [
             {
               "id": "clock-starter:automation:clock-starter",
@@ -543,37 +599,41 @@
           "id": "clock-starter:event:clock-started",
           "title": "ClockStarted",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "baseMinutes": {
+                "type": "integer"
+              },
+              "incrementSeconds": {
+                "type": "integer"
+              },
+              "whiteTimeMs": {
+                "type": "integer"
+              },
+              "blackTimeMs": {
+                "type": "integer"
+              },
+              "runningSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              }
             },
-            {
-              "name": "baseMinutes",
-              "type": "Int"
-            },
-            {
-              "name": "incrementSeconds",
-              "type": "Int"
-            },
-            {
-              "name": "whiteTimeMs",
-              "type": "Int",
-              "generated": true,
-              "mapping": "baseMinutes"
-            },
-            {
-              "name": "blackTimeMs",
-              "type": "Int",
-              "generated": true,
-              "mapping": "baseMinutes"
-            },
-            {
-              "name": "runningSide",
-              "type": "String",
-              "mapping": "= \"white\""
-            }
-          ],
+            "required": [
+              "gameId",
+              "baseMinutes",
+              "incrementSeconds",
+              "whiteTimeMs",
+              "blackTimeMs",
+              "runningSide"
+            ]
+          },
           "dependencies": [
             {
               "id": "clock-starter:command:start-clock",
@@ -592,7 +652,10 @@
           "id": "clock-starter:automation:clock-starter",
           "title": "ClockStarter",
           "type": "AUTOMATION",
-          "fields": [],
+          "fields": {
+            "type": "object",
+            "properties": {}
+          },
           "dependencies": [
             {
               "id": "clock-starter:event:game-started",
@@ -671,6 +734,13 @@
           "linkedId": "clock-starter"
         }
       ],
+      "mappings": {
+        "ClockStarted": {
+          "whiteTimeMs": "generate(baseMinutes)",
+          "blackTimeMs": "generate(baseMinutes)",
+          "runningSide": "= \"white\""
+        }
+      },
       "aggregates": [
         "Clock"
       ]
@@ -686,53 +756,73 @@
           "id": "play-move:command:play-move",
           "title": "PlayMove",
           "type": "COMMAND",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "san": {
+                "type": "string"
+              },
+              "fromSquare": {
+                "type": "string"
+              },
+              "toSquare": {
+                "type": "string"
+              },
+              "piece": {
+                "type": "string",
+                "enum": [
+                  "pawn",
+                  "knight",
+                  "bishop",
+                  "rook",
+                  "queen",
+                  "king"
+                ]
+              },
+              "fen": {
+                "type": "string"
+              },
+              "sideToMove": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "isCheck": {
+                "type": "boolean"
+              },
+              "isCapture": {
+                "type": "boolean"
+              },
+              "ending": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position"
+                ]
+              }
             },
-            {
-              "name": "ply",
-              "type": "Int"
-            },
-            {
-              "name": "san",
-              "type": "String"
-            },
-            {
-              "name": "fromSquare",
-              "type": "String"
-            },
-            {
-              "name": "toSquare",
-              "type": "String"
-            },
-            {
-              "name": "piece",
-              "type": "String"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            },
-            {
-              "name": "sideToMove",
-              "type": "String"
-            },
-            {
-              "name": "isCheck",
-              "type": "Boolean"
-            },
-            {
-              "name": "isCapture",
-              "type": "Boolean"
-            },
-            {
-              "name": "ending",
-              "type": "String",
-              "optional": true
-            }
-          ],
+            "required": [
+              "gameId",
+              "ply",
+              "san",
+              "fromSquare",
+              "toSquare",
+              "piece",
+              "fen",
+              "sideToMove",
+              "isCheck",
+              "isCapture"
+            ]
+          },
           "dependencies": [
             {
               "id": "play-move:screen:play-move",
@@ -768,48 +858,65 @@
           "id": "play-move:event:move-played",
           "title": "MovePlayed",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "san": {
+                "type": "string"
+              },
+              "fromSquare": {
+                "type": "string"
+              },
+              "toSquare": {
+                "type": "string"
+              },
+              "piece": {
+                "type": "string",
+                "enum": [
+                  "pawn",
+                  "knight",
+                  "bishop",
+                  "rook",
+                  "queen",
+                  "king"
+                ]
+              },
+              "fen": {
+                "type": "string"
+              },
+              "sideToMove": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "isCheck": {
+                "type": "boolean"
+              },
+              "isCapture": {
+                "type": "boolean"
+              }
             },
-            {
-              "name": "ply",
-              "type": "Int"
-            },
-            {
-              "name": "san",
-              "type": "String"
-            },
-            {
-              "name": "fromSquare",
-              "type": "String"
-            },
-            {
-              "name": "toSquare",
-              "type": "String"
-            },
-            {
-              "name": "piece",
-              "type": "String"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            },
-            {
-              "name": "sideToMove",
-              "type": "String"
-            },
-            {
-              "name": "isCheck",
-              "type": "Boolean"
-            },
-            {
-              "name": "isCapture",
-              "type": "Boolean"
-            }
-          ],
+            "required": [
+              "gameId",
+              "ply",
+              "san",
+              "fromSquare",
+              "toSquare",
+              "piece",
+              "fen",
+              "sideToMove",
+              "isCheck",
+              "isCapture"
+            ]
+          },
           "dependencies": [
             {
               "id": "play-move:command:play-move",
@@ -824,24 +931,34 @@
           "id": "play-move:event:game-ended",
           "title": "GameEnded",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "fen": {
+                "type": "string"
+              },
+              "ending": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position"
+                ]
+              }
             },
-            {
-              "name": "ply",
-              "type": "Int"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            },
-            {
-              "name": "ending",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "ply",
+              "fen",
+              "ending"
+            ]
+          },
           "dependencies": [
             {
               "id": "play-move:command:play-move",
@@ -858,24 +975,35 @@
           "id": "play-move:readmodel:game-state",
           "title": "GameState",
           "type": "READMODEL",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String",
-              "idAttribute": true
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "sideToMove": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "fen": {
+                "type": "string"
+              }
             },
-            {
-              "name": "ply",
-              "type": "Int"
-            },
-            {
-              "name": "sideToMove",
-              "type": "String"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            }
+            "required": [
+              "gameId",
+              "ply",
+              "sideToMove",
+              "fen"
+            ]
+          },
+          "key": [
+            "gameId"
           ],
           "dependencies": [
             {
@@ -892,53 +1020,73 @@
           "id": "play-move:screen:play-move",
           "title": "PlayMove",
           "type": "SCREEN",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "san": {
+                "type": "string"
+              },
+              "fromSquare": {
+                "type": "string"
+              },
+              "toSquare": {
+                "type": "string"
+              },
+              "piece": {
+                "type": "string",
+                "enum": [
+                  "pawn",
+                  "knight",
+                  "bishop",
+                  "rook",
+                  "queen",
+                  "king"
+                ]
+              },
+              "fen": {
+                "type": "string"
+              },
+              "sideToMove": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "isCheck": {
+                "type": "boolean"
+              },
+              "isCapture": {
+                "type": "boolean"
+              },
+              "ending": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position"
+                ]
+              }
             },
-            {
-              "name": "ply",
-              "type": "Int"
-            },
-            {
-              "name": "san",
-              "type": "String"
-            },
-            {
-              "name": "fromSquare",
-              "type": "String"
-            },
-            {
-              "name": "toSquare",
-              "type": "String"
-            },
-            {
-              "name": "piece",
-              "type": "String"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            },
-            {
-              "name": "sideToMove",
-              "type": "String"
-            },
-            {
-              "name": "isCheck",
-              "type": "Boolean"
-            },
-            {
-              "name": "isCapture",
-              "type": "Boolean"
-            },
-            {
-              "name": "ending",
-              "type": "String",
-              "optional": true
-            }
-          ],
+            "required": [
+              "gameId",
+              "ply",
+              "san",
+              "fromSquare",
+              "toSquare",
+              "piece",
+              "fen",
+              "sideToMove",
+              "isCheck",
+              "isCapture"
+            ]
+          },
           "dependencies": [
             {
               "id": "play-move:command:play-move",
@@ -1255,52 +1403,61 @@
           "id": "game-state:event:game-started",
           "title": "GameStarted",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "round": {
+                "type": "integer"
+              },
+              "boardNumber": {
+                "type": "integer"
+              },
+              "whitePlayerId": {
+                "type": "string"
+              },
+              "blackPlayerId": {
+                "type": "string"
+              },
+              "timeControl": {
+                "type": "string"
+              },
+              "baseMinutes": {
+                "type": "integer"
+              },
+              "incrementSeconds": {
+                "type": "integer"
+              },
+              "fen": {
+                "type": "string"
+              },
+              "sideToMove": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "ply": {
+                "type": "integer"
+              }
             },
-            {
-              "name": "round",
-              "type": "Int"
-            },
-            {
-              "name": "boardNumber",
-              "type": "Int"
-            },
-            {
-              "name": "whitePlayerId",
-              "type": "String"
-            },
-            {
-              "name": "blackPlayerId",
-              "type": "String"
-            },
-            {
-              "name": "timeControl",
-              "type": "String"
-            },
-            {
-              "name": "baseMinutes",
-              "type": "Int"
-            },
-            {
-              "name": "incrementSeconds",
-              "type": "Int"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            },
-            {
-              "name": "sideToMove",
-              "type": "String"
-            },
-            {
-              "name": "ply",
-              "type": "Int"
-            }
-          ],
+            "required": [
+              "gameId",
+              "round",
+              "boardNumber",
+              "whitePlayerId",
+              "blackPlayerId",
+              "timeControl",
+              "baseMinutes",
+              "incrementSeconds",
+              "fen",
+              "sideToMove",
+              "ply"
+            ]
+          },
           "dependencies": [
             {
               "id": "game-state:readmodel:game-state",
@@ -1315,48 +1472,65 @@
           "id": "game-state:event:move-played",
           "title": "MovePlayed",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "san": {
+                "type": "string"
+              },
+              "fromSquare": {
+                "type": "string"
+              },
+              "toSquare": {
+                "type": "string"
+              },
+              "piece": {
+                "type": "string",
+                "enum": [
+                  "pawn",
+                  "knight",
+                  "bishop",
+                  "rook",
+                  "queen",
+                  "king"
+                ]
+              },
+              "fen": {
+                "type": "string"
+              },
+              "sideToMove": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "isCheck": {
+                "type": "boolean"
+              },
+              "isCapture": {
+                "type": "boolean"
+              }
             },
-            {
-              "name": "ply",
-              "type": "Int"
-            },
-            {
-              "name": "san",
-              "type": "String"
-            },
-            {
-              "name": "fromSquare",
-              "type": "String"
-            },
-            {
-              "name": "toSquare",
-              "type": "String"
-            },
-            {
-              "name": "piece",
-              "type": "String"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            },
-            {
-              "name": "sideToMove",
-              "type": "String"
-            },
-            {
-              "name": "isCheck",
-              "type": "Boolean"
-            },
-            {
-              "name": "isCapture",
-              "type": "Boolean"
-            }
-          ],
+            "required": [
+              "gameId",
+              "ply",
+              "san",
+              "fromSquare",
+              "toSquare",
+              "piece",
+              "fen",
+              "sideToMove",
+              "isCheck",
+              "isCapture"
+            ]
+          },
           "dependencies": [
             {
               "id": "game-state:readmodel:game-state",
@@ -1371,40 +1545,57 @@
           "id": "game-state:event:illegal-move-ruled",
           "title": "IllegalMoveRuled",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "offendingSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "illegalMoveCount": {
+                "type": "integer"
+              },
+              "addedTimeMs": {
+                "type": "integer"
+              },
+              "penalty": {
+                "type": "string",
+                "enum": [
+                  "opponent_time_added",
+                  "loss"
+                ]
+              },
+              "fen": {
+                "type": "string"
+              },
+              "sideToMove": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              }
             },
-            {
-              "name": "ply",
-              "type": "Int"
-            },
-            {
-              "name": "offendingSide",
-              "type": "String"
-            },
-            {
-              "name": "illegalMoveCount",
-              "type": "Int"
-            },
-            {
-              "name": "addedTimeMs",
-              "type": "Int"
-            },
-            {
-              "name": "penalty",
-              "type": "String"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            },
-            {
-              "name": "sideToMove",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "ply",
+              "offendingSide",
+              "illegalMoveCount",
+              "addedTimeMs",
+              "penalty",
+              "fen",
+              "sideToMove"
+            ]
+          },
           "dependencies": [
             {
               "id": "game-state:readmodel:game-state",
@@ -1421,24 +1612,35 @@
           "id": "game-state:readmodel:game-state",
           "title": "GameState",
           "type": "READMODEL",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String",
-              "idAttribute": true
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "sideToMove": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "fen": {
+                "type": "string"
+              }
             },
-            {
-              "name": "ply",
-              "type": "Int"
-            },
-            {
-              "name": "sideToMove",
-              "type": "String"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            }
+            "required": [
+              "gameId",
+              "ply",
+              "sideToMove",
+              "fen"
+            ]
+          },
+          "key": [
+            "gameId"
           ],
           "dependencies": [
             {
@@ -1475,12 +1677,17 @@
           "id": "game-state:screen:broadcast",
           "title": "Broadcast",
           "type": "SCREEN",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
-            }
-          ],
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "gameId"
+            ]
+          },
           "dependencies": [
             {
               "id": "game-state:readmodel:game-state",
@@ -1685,24 +1892,33 @@
           "id": "press-clock:command:press-clock",
           "title": "PressClock",
           "type": "COMMAND",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "whiteTimeMs": {
+                "type": "integer"
+              },
+              "blackTimeMs": {
+                "type": "integer"
+              },
+              "runningSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              }
             },
-            {
-              "name": "whiteTimeMs",
-              "type": "Int"
-            },
-            {
-              "name": "blackTimeMs",
-              "type": "Int"
-            },
-            {
-              "name": "runningSide",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "whiteTimeMs",
+              "blackTimeMs",
+              "runningSide"
+            ]
+          },
           "dependencies": [
             {
               "id": "press-clock:screen:press-clock",
@@ -1732,24 +1948,33 @@
           "id": "press-clock:event:clock-pressed",
           "title": "ClockPressed",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "whiteTimeMs": {
+                "type": "integer"
+              },
+              "blackTimeMs": {
+                "type": "integer"
+              },
+              "runningSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              }
             },
-            {
-              "name": "whiteTimeMs",
-              "type": "Int"
-            },
-            {
-              "name": "blackTimeMs",
-              "type": "Int"
-            },
-            {
-              "name": "runningSide",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "whiteTimeMs",
+              "blackTimeMs",
+              "runningSide"
+            ]
+          },
           "dependencies": [
             {
               "id": "press-clock:command:press-clock",
@@ -1766,24 +1991,35 @@
           "id": "press-clock:readmodel:clock-state",
           "title": "ClockState",
           "type": "READMODEL",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String",
-              "idAttribute": true
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "whiteTimeMs": {
+                "type": "integer"
+              },
+              "blackTimeMs": {
+                "type": "integer"
+              },
+              "runningSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              }
             },
-            {
-              "name": "whiteTimeMs",
-              "type": "Int"
-            },
-            {
-              "name": "blackTimeMs",
-              "type": "Int"
-            },
-            {
-              "name": "runningSide",
-              "type": "String"
-            }
+            "required": [
+              "gameId",
+              "whiteTimeMs",
+              "blackTimeMs",
+              "runningSide"
+            ]
+          },
+          "key": [
+            "gameId"
           ],
           "dependencies": [
             {
@@ -1800,24 +2036,33 @@
           "id": "press-clock:screen:press-clock",
           "title": "PressClock",
           "type": "SCREEN",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "whiteTimeMs": {
+                "type": "integer"
+              },
+              "blackTimeMs": {
+                "type": "integer"
+              },
+              "runningSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              }
             },
-            {
-              "name": "whiteTimeMs",
-              "type": "Int"
-            },
-            {
-              "name": "blackTimeMs",
-              "type": "Int"
-            },
-            {
-              "name": "runningSide",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "whiteTimeMs",
+              "blackTimeMs",
+              "runningSide"
+            ]
+          },
           "dependencies": [
             {
               "id": "press-clock:command:press-clock",
@@ -1959,32 +2204,41 @@
           "id": "clock-state:event:clock-started",
           "title": "ClockStarted",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "baseMinutes": {
+                "type": "integer"
+              },
+              "incrementSeconds": {
+                "type": "integer"
+              },
+              "whiteTimeMs": {
+                "type": "integer"
+              },
+              "blackTimeMs": {
+                "type": "integer"
+              },
+              "runningSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              }
             },
-            {
-              "name": "baseMinutes",
-              "type": "Int"
-            },
-            {
-              "name": "incrementSeconds",
-              "type": "Int"
-            },
-            {
-              "name": "whiteTimeMs",
-              "type": "Int"
-            },
-            {
-              "name": "blackTimeMs",
-              "type": "Int"
-            },
-            {
-              "name": "runningSide",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "baseMinutes",
+              "incrementSeconds",
+              "whiteTimeMs",
+              "blackTimeMs",
+              "runningSide"
+            ]
+          },
           "dependencies": [
             {
               "id": "clock-state:readmodel:clock-state",
@@ -1999,24 +2253,33 @@
           "id": "clock-state:event:clock-pressed",
           "title": "ClockPressed",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "whiteTimeMs": {
+                "type": "integer"
+              },
+              "blackTimeMs": {
+                "type": "integer"
+              },
+              "runningSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              }
             },
-            {
-              "name": "whiteTimeMs",
-              "type": "Int"
-            },
-            {
-              "name": "blackTimeMs",
-              "type": "Int"
-            },
-            {
-              "name": "runningSide",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "whiteTimeMs",
+              "blackTimeMs",
+              "runningSide"
+            ]
+          },
           "dependencies": [
             {
               "id": "clock-state:readmodel:clock-state",
@@ -2033,24 +2296,35 @@
           "id": "clock-state:readmodel:clock-state",
           "title": "ClockState",
           "type": "READMODEL",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String",
-              "idAttribute": true
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "whiteTimeMs": {
+                "type": "integer"
+              },
+              "blackTimeMs": {
+                "type": "integer"
+              },
+              "runningSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              }
             },
-            {
-              "name": "whiteTimeMs",
-              "type": "Int"
-            },
-            {
-              "name": "blackTimeMs",
-              "type": "Int"
-            },
-            {
-              "name": "runningSide",
-              "type": "String"
-            }
+            "required": [
+              "gameId",
+              "whiteTimeMs",
+              "blackTimeMs",
+              "runningSide"
+            ]
+          },
+          "key": [
+            "gameId"
           ],
           "dependencies": [
             {
@@ -2177,48 +2451,65 @@
           "id": "move-list:event:move-played",
           "title": "MovePlayed",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "san": {
+                "type": "string"
+              },
+              "fromSquare": {
+                "type": "string"
+              },
+              "toSquare": {
+                "type": "string"
+              },
+              "piece": {
+                "type": "string",
+                "enum": [
+                  "pawn",
+                  "knight",
+                  "bishop",
+                  "rook",
+                  "queen",
+                  "king"
+                ]
+              },
+              "fen": {
+                "type": "string"
+              },
+              "sideToMove": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "isCheck": {
+                "type": "boolean"
+              },
+              "isCapture": {
+                "type": "boolean"
+              }
             },
-            {
-              "name": "ply",
-              "type": "Int"
-            },
-            {
-              "name": "san",
-              "type": "String"
-            },
-            {
-              "name": "fromSquare",
-              "type": "String"
-            },
-            {
-              "name": "toSquare",
-              "type": "String"
-            },
-            {
-              "name": "piece",
-              "type": "String"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            },
-            {
-              "name": "sideToMove",
-              "type": "String"
-            },
-            {
-              "name": "isCheck",
-              "type": "Boolean"
-            },
-            {
-              "name": "isCapture",
-              "type": "Boolean"
-            }
-          ],
+            "required": [
+              "gameId",
+              "ply",
+              "san",
+              "fromSquare",
+              "toSquare",
+              "piece",
+              "fen",
+              "sideToMove",
+              "isCheck",
+              "isCapture"
+            ]
+          },
           "dependencies": [
             {
               "id": "move-list:readmodel:move-list",
@@ -2233,40 +2524,57 @@
           "id": "move-list:event:illegal-move-ruled",
           "title": "IllegalMoveRuled",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "offendingSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "illegalMoveCount": {
+                "type": "integer"
+              },
+              "addedTimeMs": {
+                "type": "integer"
+              },
+              "penalty": {
+                "type": "string",
+                "enum": [
+                  "opponent_time_added",
+                  "loss"
+                ]
+              },
+              "fen": {
+                "type": "string"
+              },
+              "sideToMove": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              }
             },
-            {
-              "name": "ply",
-              "type": "Int"
-            },
-            {
-              "name": "offendingSide",
-              "type": "String"
-            },
-            {
-              "name": "illegalMoveCount",
-              "type": "Int"
-            },
-            {
-              "name": "addedTimeMs",
-              "type": "Int"
-            },
-            {
-              "name": "penalty",
-              "type": "String"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            },
-            {
-              "name": "sideToMove",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "ply",
+              "offendingSide",
+              "illegalMoveCount",
+              "addedTimeMs",
+              "penalty",
+              "fen",
+              "sideToMove"
+            ]
+          },
           "dependencies": [
             {
               "id": "move-list:readmodel:move-list",
@@ -2283,38 +2591,52 @@
           "id": "move-list:readmodel:move-list",
           "title": "MoveList",
           "type": "READMODEL",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String",
-              "idAttribute": true
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "san": {
+                "type": "string"
+              },
+              "sideToMove": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "isCheck": {
+                "type": "boolean"
+              },
+              "isCapture": {
+                "type": "boolean"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "recorded",
+                  "struck"
+                ]
+              }
             },
-            {
-              "name": "ply",
-              "type": "Int",
-              "idAttribute": true
-            },
-            {
-              "name": "san",
-              "type": "String"
-            },
-            {
-              "name": "sideToMove",
-              "type": "String"
-            },
-            {
-              "name": "isCheck",
-              "type": "Boolean"
-            },
-            {
-              "name": "isCapture",
-              "type": "Boolean"
-            },
-            {
-              "name": "status",
-              "type": "String",
-              "mapping": "MovePlayed: = \"recorded\"\nIllegalMoveRuled: = \"struck\""
-            }
+            "required": [
+              "gameId",
+              "ply",
+              "san",
+              "sideToMove",
+              "isCheck",
+              "isCapture",
+              "status"
+            ]
+          },
+          "key": [
+            "gameId",
+            "ply"
           ],
           "dependencies": [
             {
@@ -2345,12 +2667,17 @@
           "id": "move-list:screen:broadcast",
           "title": "Broadcast",
           "type": "SCREEN",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
-            }
-          ],
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "gameId"
+            ]
+          },
           "dependencies": [
             {
               "id": "move-list:readmodel:move-list",
@@ -2496,6 +2823,14 @@
           "linkedId": "move-list"
         }
       ],
+      "mappings": {
+        "MovePlayed": {
+          "status": "= \"recorded\""
+        },
+        "IllegalMoveRuled": {
+          "status": "= \"struck\""
+        }
+      },
       "storylines": [
         {
           "id": "move-list:note",
@@ -2521,20 +2856,29 @@
           "id": "offer-draw:command:offer-draw",
           "title": "OfferDraw",
           "type": "COMMAND",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "offeringSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "ply": {
+                "type": "integer"
+              }
             },
-            {
-              "name": "offeringSide",
-              "type": "String"
-            },
-            {
-              "name": "ply",
-              "type": "Int"
-            }
-          ],
+            "required": [
+              "gameId",
+              "offeringSide",
+              "ply"
+            ]
+          },
           "dependencies": [
             {
               "id": "offer-draw:screen:offer-draw",
@@ -2564,20 +2908,29 @@
           "id": "offer-draw:event:draw-offered",
           "title": "DrawOffered",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "offeringSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "ply": {
+                "type": "integer"
+              }
             },
-            {
-              "name": "offeringSide",
-              "type": "String"
-            },
-            {
-              "name": "ply",
-              "type": "Int"
-            }
-          ],
+            "required": [
+              "gameId",
+              "offeringSide",
+              "ply"
+            ]
+          },
           "dependencies": [
             {
               "id": "offer-draw:command:offer-draw",
@@ -2594,24 +2947,35 @@
           "id": "offer-draw:readmodel:game-state",
           "title": "GameState",
           "type": "READMODEL",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String",
-              "idAttribute": true
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "sideToMove": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "fen": {
+                "type": "string"
+              }
             },
-            {
-              "name": "ply",
-              "type": "Int"
-            },
-            {
-              "name": "sideToMove",
-              "type": "String"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            }
+            "required": [
+              "gameId",
+              "ply",
+              "sideToMove",
+              "fen"
+            ]
+          },
+          "key": [
+            "gameId"
           ],
           "dependencies": [
             {
@@ -2628,20 +2992,29 @@
           "id": "offer-draw:screen:offer-draw",
           "title": "OfferDraw",
           "type": "SCREEN",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "offeringSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "ply": {
+                "type": "integer"
+              }
             },
-            {
-              "name": "offeringSide",
-              "type": "String"
-            },
-            {
-              "name": "ply",
-              "type": "Int"
-            }
-          ],
+            "required": [
+              "gameId",
+              "offeringSide",
+              "ply"
+            ]
+          },
           "dependencies": [
             {
               "id": "offer-draw:command:offer-draw",
@@ -2733,20 +3106,29 @@
           "id": "pending-draw-offer:event:draw-offered",
           "title": "DrawOffered",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "offeringSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "ply": {
+                "type": "integer"
+              }
             },
-            {
-              "name": "offeringSide",
-              "type": "String"
-            },
-            {
-              "name": "ply",
-              "type": "Int"
-            }
-          ],
+            "required": [
+              "gameId",
+              "offeringSide",
+              "ply"
+            ]
+          },
           "dependencies": [
             {
               "id": "pending-draw-offer:readmodel:pending-draw-offer",
@@ -2761,48 +3143,65 @@
           "id": "pending-draw-offer:event:move-played",
           "title": "MovePlayed",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "san": {
+                "type": "string"
+              },
+              "fromSquare": {
+                "type": "string"
+              },
+              "toSquare": {
+                "type": "string"
+              },
+              "piece": {
+                "type": "string",
+                "enum": [
+                  "pawn",
+                  "knight",
+                  "bishop",
+                  "rook",
+                  "queen",
+                  "king"
+                ]
+              },
+              "fen": {
+                "type": "string"
+              },
+              "sideToMove": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "isCheck": {
+                "type": "boolean"
+              },
+              "isCapture": {
+                "type": "boolean"
+              }
             },
-            {
-              "name": "ply",
-              "type": "Int"
-            },
-            {
-              "name": "san",
-              "type": "String"
-            },
-            {
-              "name": "fromSquare",
-              "type": "String"
-            },
-            {
-              "name": "toSquare",
-              "type": "String"
-            },
-            {
-              "name": "piece",
-              "type": "String"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            },
-            {
-              "name": "sideToMove",
-              "type": "String"
-            },
-            {
-              "name": "isCheck",
-              "type": "Boolean"
-            },
-            {
-              "name": "isCapture",
-              "type": "Boolean"
-            }
-          ],
+            "required": [
+              "gameId",
+              "ply",
+              "san",
+              "fromSquare",
+              "toSquare",
+              "piece",
+              "fen",
+              "sideToMove",
+              "isCheck",
+              "isCapture"
+            ]
+          },
           "dependencies": [
             {
               "id": "pending-draw-offer:readmodel:pending-draw-offer",
@@ -2817,24 +3216,47 @@
           "id": "pending-draw-offer:event:draw-agreed",
           "title": "DrawAgreed",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "offeringSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "white_won",
+                  "black_won",
+                  "draw"
+                ]
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "offeringSide",
-              "type": "String"
-            },
-            {
-              "name": "result",
-              "type": "String"
-            },
-            {
-              "name": "termination",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "offeringSide",
+              "result",
+              "termination"
+            ]
+          },
           "dependencies": [
             {
               "id": "pending-draw-offer:readmodel:pending-draw-offer",
@@ -2851,25 +3273,40 @@
           "id": "pending-draw-offer:readmodel:pending-draw-offer",
           "title": "PendingDrawOffer",
           "type": "READMODEL",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String",
-              "idAttribute": true
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "offeringSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "declined",
+                  "accepted"
+                ]
+              }
             },
-            {
-              "name": "offeringSide",
-              "type": "String"
-            },
-            {
-              "name": "ply",
-              "type": "Int"
-            },
-            {
-              "name": "status",
-              "type": "String",
-              "mapping": "DrawOffered: = \"pending\"\nMovePlayed: = \"declined\"\nDrawAgreed: = \"accepted\""
-            }
+            "required": [
+              "gameId",
+              "offeringSide",
+              "ply",
+              "status"
+            ]
+          },
+          "key": [
+            "gameId"
           ],
           "dependencies": [
             {
@@ -3038,6 +3475,17 @@
           "linkedId": "pending-draw-offer"
         }
       ],
+      "mappings": {
+        "DrawOffered": {
+          "status": "= \"pending\""
+        },
+        "MovePlayed": {
+          "status": "= \"declined\""
+        },
+        "DrawAgreed": {
+          "status": "= \"accepted\""
+        }
+      },
       "storylines": [
         {
           "id": "pending-draw-offer:note",
@@ -3057,24 +3505,47 @@
           "id": "accept-draw:command:accept-draw",
           "title": "AcceptDraw",
           "type": "COMMAND",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "offeringSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "white_won",
+                  "black_won",
+                  "draw"
+                ]
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "offeringSide",
-              "type": "String"
-            },
-            {
-              "name": "result",
-              "type": "String"
-            },
-            {
-              "name": "termination",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "offeringSide",
+              "result",
+              "termination"
+            ]
+          },
           "dependencies": [
             {
               "id": "accept-draw:screen:accept-draw",
@@ -3104,24 +3575,47 @@
           "id": "accept-draw:event:draw-agreed",
           "title": "DrawAgreed",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "offeringSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "white_won",
+                  "black_won",
+                  "draw"
+                ]
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "offeringSide",
-              "type": "String"
-            },
-            {
-              "name": "result",
-              "type": "String"
-            },
-            {
-              "name": "termination",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "offeringSide",
+              "result",
+              "termination"
+            ]
+          },
           "dependencies": [
             {
               "id": "accept-draw:command:accept-draw",
@@ -3138,24 +3632,40 @@
           "id": "accept-draw:readmodel:pending-draw-offer",
           "title": "PendingDrawOffer",
           "type": "READMODEL",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String",
-              "idAttribute": true
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "offeringSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "declined",
+                  "accepted"
+                ]
+              }
             },
-            {
-              "name": "offeringSide",
-              "type": "String"
-            },
-            {
-              "name": "ply",
-              "type": "Int"
-            },
-            {
-              "name": "status",
-              "type": "String"
-            }
+            "required": [
+              "gameId",
+              "offeringSide",
+              "ply",
+              "status"
+            ]
+          },
+          "key": [
+            "gameId"
           ],
           "dependencies": [
             {
@@ -3172,24 +3682,47 @@
           "id": "accept-draw:screen:accept-draw",
           "title": "AcceptDraw",
           "type": "SCREEN",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "offeringSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "white_won",
+                  "black_won",
+                  "draw"
+                ]
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "offeringSide",
-              "type": "String"
-            },
-            {
-              "name": "result",
-              "type": "String"
-            },
-            {
-              "name": "termination",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "offeringSide",
+              "result",
+              "termination"
+            ]
+          },
           "dependencies": [
             {
               "id": "accept-draw:command:accept-draw",
@@ -3324,24 +3857,47 @@
           "id": "resign:command:resign",
           "title": "Resign",
           "type": "COMMAND",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "resigningSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "white_won",
+                  "black_won",
+                  "draw"
+                ]
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "resigningSide",
-              "type": "String"
-            },
-            {
-              "name": "result",
-              "type": "String"
-            },
-            {
-              "name": "termination",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "resigningSide",
+              "result",
+              "termination"
+            ]
+          },
           "dependencies": [
             {
               "id": "resign:screen:resign",
@@ -3371,24 +3927,47 @@
           "id": "resign:event:game-resigned",
           "title": "GameResigned",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "resigningSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "white_won",
+                  "black_won",
+                  "draw"
+                ]
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "resigningSide",
-              "type": "String"
-            },
-            {
-              "name": "result",
-              "type": "String"
-            },
-            {
-              "name": "termination",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "resigningSide",
+              "result",
+              "termination"
+            ]
+          },
           "dependencies": [
             {
               "id": "resign:command:resign",
@@ -3405,24 +3984,35 @@
           "id": "resign:readmodel:game-state",
           "title": "GameState",
           "type": "READMODEL",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String",
-              "idAttribute": true
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "sideToMove": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "fen": {
+                "type": "string"
+              }
             },
-            {
-              "name": "ply",
-              "type": "Int"
-            },
-            {
-              "name": "sideToMove",
-              "type": "String"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            }
+            "required": [
+              "gameId",
+              "ply",
+              "sideToMove",
+              "fen"
+            ]
+          },
+          "key": [
+            "gameId"
           ],
           "dependencies": [
             {
@@ -3439,24 +4029,47 @@
           "id": "resign:screen:resign",
           "title": "Resign",
           "type": "SCREEN",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "resigningSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "white_won",
+                  "black_won",
+                  "draw"
+                ]
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "resigningSide",
-              "type": "String"
-            },
-            {
-              "name": "result",
-              "type": "String"
-            },
-            {
-              "name": "termination",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "resigningSide",
+              "result",
+              "termination"
+            ]
+          },
           "dependencies": [
             {
               "id": "resign:command:resign",
@@ -3549,40 +4162,57 @@
           "id": "rule-illegal-move:command:rule-illegal-move",
           "title": "RuleIllegalMove",
           "type": "COMMAND",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "offendingSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "illegalMoveCount": {
+                "type": "integer"
+              },
+              "addedTimeMs": {
+                "type": "integer"
+              },
+              "penalty": {
+                "type": "string",
+                "enum": [
+                  "opponent_time_added",
+                  "loss"
+                ]
+              },
+              "fen": {
+                "type": "string"
+              },
+              "sideToMove": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              }
             },
-            {
-              "name": "ply",
-              "type": "Int"
-            },
-            {
-              "name": "offendingSide",
-              "type": "String"
-            },
-            {
-              "name": "illegalMoveCount",
-              "type": "Int"
-            },
-            {
-              "name": "addedTimeMs",
-              "type": "Int"
-            },
-            {
-              "name": "penalty",
-              "type": "String"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            },
-            {
-              "name": "sideToMove",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "ply",
+              "offendingSide",
+              "illegalMoveCount",
+              "addedTimeMs",
+              "penalty",
+              "fen",
+              "sideToMove"
+            ]
+          },
           "dependencies": [
             {
               "id": "rule-illegal-move:screen:rule-illegal-move",
@@ -3624,40 +4254,57 @@
           "id": "rule-illegal-move:event:illegal-move-ruled",
           "title": "IllegalMoveRuled",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "offendingSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "illegalMoveCount": {
+                "type": "integer"
+              },
+              "addedTimeMs": {
+                "type": "integer"
+              },
+              "penalty": {
+                "type": "string",
+                "enum": [
+                  "opponent_time_added",
+                  "loss"
+                ]
+              },
+              "fen": {
+                "type": "string"
+              },
+              "sideToMove": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              }
             },
-            {
-              "name": "ply",
-              "type": "Int"
-            },
-            {
-              "name": "offendingSide",
-              "type": "String"
-            },
-            {
-              "name": "illegalMoveCount",
-              "type": "Int"
-            },
-            {
-              "name": "addedTimeMs",
-              "type": "Int"
-            },
-            {
-              "name": "penalty",
-              "type": "String"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            },
-            {
-              "name": "sideToMove",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "ply",
+              "offendingSide",
+              "illegalMoveCount",
+              "addedTimeMs",
+              "penalty",
+              "fen",
+              "sideToMove"
+            ]
+          },
           "dependencies": [
             {
               "id": "rule-illegal-move:command:rule-illegal-move",
@@ -3672,20 +4319,29 @@
           "id": "rule-illegal-move:event:second-illegal-move-ruled",
           "title": "SecondIllegalMoveRuled",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "offendingSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "illegalMoveCount": {
+                "type": "integer"
+              }
             },
-            {
-              "name": "offendingSide",
-              "type": "String"
-            },
-            {
-              "name": "illegalMoveCount",
-              "type": "Int"
-            }
-          ],
+            "required": [
+              "gameId",
+              "offendingSide",
+              "illegalMoveCount"
+            ]
+          },
           "dependencies": [
             {
               "id": "rule-illegal-move:command:rule-illegal-move",
@@ -3702,37 +4358,52 @@
           "id": "rule-illegal-move:readmodel:move-list",
           "title": "MoveList",
           "type": "READMODEL",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String",
-              "idAttribute": true
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "san": {
+                "type": "string"
+              },
+              "sideToMove": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "isCheck": {
+                "type": "boolean"
+              },
+              "isCapture": {
+                "type": "boolean"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "recorded",
+                  "struck"
+                ]
+              }
             },
-            {
-              "name": "ply",
-              "type": "Int",
-              "idAttribute": true
-            },
-            {
-              "name": "san",
-              "type": "String"
-            },
-            {
-              "name": "sideToMove",
-              "type": "String"
-            },
-            {
-              "name": "isCheck",
-              "type": "Boolean"
-            },
-            {
-              "name": "isCapture",
-              "type": "Boolean"
-            },
-            {
-              "name": "status",
-              "type": "String"
-            }
+            "required": [
+              "gameId",
+              "ply",
+              "san",
+              "sideToMove",
+              "isCheck",
+              "isCapture",
+              "status"
+            ]
+          },
+          "key": [
+            "gameId",
+            "ply"
           ],
           "dependencies": [
             {
@@ -3747,21 +4418,32 @@
           "id": "rule-illegal-move:readmodel:illegal-move-tally",
           "title": "IllegalMoveTally",
           "type": "READMODEL",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String",
-              "idAttribute": true
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "offendingSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "illegalMoveCount": {
+                "type": "integer"
+              }
             },
-            {
-              "name": "offendingSide",
-              "type": "String",
-              "idAttribute": true
-            },
-            {
-              "name": "illegalMoveCount",
-              "type": "Int"
-            }
+            "required": [
+              "gameId",
+              "offendingSide",
+              "illegalMoveCount"
+            ]
+          },
+          "key": [
+            "gameId",
+            "offendingSide"
           ],
           "dependencies": [
             {
@@ -3778,40 +4460,57 @@
           "id": "rule-illegal-move:screen:rule-illegal-move",
           "title": "RuleIllegalMove",
           "type": "SCREEN",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "offendingSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "illegalMoveCount": {
+                "type": "integer"
+              },
+              "addedTimeMs": {
+                "type": "integer"
+              },
+              "penalty": {
+                "type": "string",
+                "enum": [
+                  "opponent_time_added",
+                  "loss"
+                ]
+              },
+              "fen": {
+                "type": "string"
+              },
+              "sideToMove": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              }
             },
-            {
-              "name": "ply",
-              "type": "Int"
-            },
-            {
-              "name": "offendingSide",
-              "type": "String"
-            },
-            {
-              "name": "illegalMoveCount",
-              "type": "Int"
-            },
-            {
-              "name": "addedTimeMs",
-              "type": "Int"
-            },
-            {
-              "name": "penalty",
-              "type": "String"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            },
-            {
-              "name": "sideToMove",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "ply",
+              "offendingSide",
+              "illegalMoveCount",
+              "addedTimeMs",
+              "penalty",
+              "fen",
+              "sideToMove"
+            ]
+          },
           "dependencies": [
             {
               "id": "rule-illegal-move:command:rule-illegal-move",
@@ -4015,40 +4714,57 @@
           "id": "illegal-move-tally:event:illegal-move-ruled",
           "title": "IllegalMoveRuled",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "offendingSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "illegalMoveCount": {
+                "type": "integer"
+              },
+              "addedTimeMs": {
+                "type": "integer"
+              },
+              "penalty": {
+                "type": "string",
+                "enum": [
+                  "opponent_time_added",
+                  "loss"
+                ]
+              },
+              "fen": {
+                "type": "string"
+              },
+              "sideToMove": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              }
             },
-            {
-              "name": "ply",
-              "type": "Int"
-            },
-            {
-              "name": "offendingSide",
-              "type": "String"
-            },
-            {
-              "name": "illegalMoveCount",
-              "type": "Int"
-            },
-            {
-              "name": "addedTimeMs",
-              "type": "Int"
-            },
-            {
-              "name": "penalty",
-              "type": "String"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            },
-            {
-              "name": "sideToMove",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "ply",
+              "offendingSide",
+              "illegalMoveCount",
+              "addedTimeMs",
+              "penalty",
+              "fen",
+              "sideToMove"
+            ]
+          },
           "dependencies": [
             {
               "id": "illegal-move-tally:readmodel:illegal-move-tally",
@@ -4065,22 +4781,32 @@
           "id": "illegal-move-tally:readmodel:illegal-move-tally",
           "title": "IllegalMoveTally",
           "type": "READMODEL",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String",
-              "idAttribute": true
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "offendingSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "illegalMoveCount": {
+                "type": "integer"
+              }
             },
-            {
-              "name": "offendingSide",
-              "type": "String",
-              "idAttribute": true
-            },
-            {
-              "name": "illegalMoveCount",
-              "type": "Int",
-              "mapping": "IllegalMoveRuled: generate(IllegalMoveRuled)"
-            }
+            "required": [
+              "gameId",
+              "offendingSide",
+              "illegalMoveCount"
+            ]
+          },
+          "key": [
+            "gameId",
+            "offendingSide"
           ],
           "dependencies": [
             {
@@ -4193,7 +4919,12 @@
           ],
           "linkedId": "illegal-move-tally"
         }
-      ]
+      ],
+      "mappings": {
+        "IllegalMoveRuled": {
+          "illegalMoveCount": "generate(IllegalMoveRuled)"
+        }
+      }
     },
     {
       "id": "claim-flag-fall",
@@ -4206,24 +4937,47 @@
           "id": "claim-flag-fall:command:claim-flag-fall",
           "title": "ClaimFlagFall",
           "type": "COMMAND",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "flaggedSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "white_won",
+                  "black_won",
+                  "draw"
+                ]
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "flaggedSide",
-              "type": "String"
-            },
-            {
-              "name": "result",
-              "type": "String"
-            },
-            {
-              "name": "termination",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "flaggedSide",
+              "result",
+              "termination"
+            ]
+          },
           "dependencies": [
             {
               "id": "claim-flag-fall:screen:claim-flag-fall",
@@ -4253,24 +5007,47 @@
           "id": "claim-flag-fall:event:time-forfeited",
           "title": "TimeForfeited",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "flaggedSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "white_won",
+                  "black_won",
+                  "draw"
+                ]
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "flaggedSide",
-              "type": "String"
-            },
-            {
-              "name": "result",
-              "type": "String"
-            },
-            {
-              "name": "termination",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "flaggedSide",
+              "result",
+              "termination"
+            ]
+          },
           "dependencies": [
             {
               "id": "claim-flag-fall:command:claim-flag-fall",
@@ -4287,24 +5064,35 @@
           "id": "claim-flag-fall:readmodel:clock-state",
           "title": "ClockState",
           "type": "READMODEL",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String",
-              "idAttribute": true
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "whiteTimeMs": {
+                "type": "integer"
+              },
+              "blackTimeMs": {
+                "type": "integer"
+              },
+              "runningSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              }
             },
-            {
-              "name": "whiteTimeMs",
-              "type": "Int"
-            },
-            {
-              "name": "blackTimeMs",
-              "type": "Int"
-            },
-            {
-              "name": "runningSide",
-              "type": "String"
-            }
+            "required": [
+              "gameId",
+              "whiteTimeMs",
+              "blackTimeMs",
+              "runningSide"
+            ]
+          },
+          "key": [
+            "gameId"
           ],
           "dependencies": [
             {
@@ -4321,24 +5109,47 @@
           "id": "claim-flag-fall:screen:claim-flag-fall",
           "title": "ClaimFlagFall",
           "type": "SCREEN",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "flaggedSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "white_won",
+                  "black_won",
+                  "draw"
+                ]
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "flaggedSide",
-              "type": "String"
-            },
-            {
-              "name": "result",
-              "type": "String"
-            },
-            {
-              "name": "termination",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "flaggedSide",
+              "result",
+              "termination"
+            ]
+          },
           "dependencies": [
             {
               "id": "claim-flag-fall:command:claim-flag-fall",
@@ -4468,25 +5279,38 @@
           "id": "outcome-adjudicator:command:adjudicate-outcome",
           "title": "AdjudicateOutcome",
           "type": "COMMAND",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "fen": {
+                "type": "string"
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "ply",
-              "type": "Int"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            },
-            {
-              "name": "termination",
-              "type": "String",
-              "mapping": "ending"
-            }
-          ],
+            "required": [
+              "gameId",
+              "ply",
+              "fen",
+              "termination"
+            ]
+          },
           "dependencies": [
             {
               "id": "outcome-adjudicator:automation:outcome-adjudicator",
@@ -4514,24 +5338,34 @@
           "id": "outcome-adjudicator:event:game-ended",
           "title": "GameEnded",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "fen": {
+                "type": "string"
+              },
+              "ending": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position"
+                ]
+              }
             },
-            {
-              "name": "ply",
-              "type": "Int"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            },
-            {
-              "name": "ending",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "ply",
+              "fen",
+              "ending"
+            ]
+          },
           "dependencies": [
             {
               "id": "outcome-adjudicator:automation:outcome-adjudicator",
@@ -4546,30 +5380,47 @@
           "id": "outcome-adjudicator:event:board-outcome-adjudicated",
           "title": "BoardOutcomeAdjudicated",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "fen": {
+                "type": "string"
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "white_won",
+                  "black_won",
+                  "draw"
+                ]
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "ply",
-              "type": "Int"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            },
-            {
-              "name": "result",
-              "type": "String",
-              "generated": true,
-              "mapping": "termination, sideToMove"
-            },
-            {
-              "name": "termination",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "ply",
+              "fen",
+              "result",
+              "termination"
+            ]
+          },
           "dependencies": [
             {
               "id": "outcome-adjudicator:command:adjudicate-outcome",
@@ -4586,24 +5437,35 @@
           "id": "outcome-adjudicator:readmodel:game-state",
           "title": "GameState",
           "type": "READMODEL",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String",
-              "idAttribute": true
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "sideToMove": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "fen": {
+                "type": "string"
+              }
             },
-            {
-              "name": "ply",
-              "type": "Int"
-            },
-            {
-              "name": "sideToMove",
-              "type": "String"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            }
+            "required": [
+              "gameId",
+              "ply",
+              "sideToMove",
+              "fen"
+            ]
+          },
+          "key": [
+            "gameId"
           ],
           "dependencies": [
             {
@@ -4621,7 +5483,10 @@
           "id": "outcome-adjudicator:automation:outcome-adjudicator",
           "title": "OutcomeAdjudicator",
           "type": "AUTOMATION",
-          "fields": [],
+          "fields": {
+            "type": "object",
+            "properties": {}
+          },
           "dependencies": [
             {
               "id": "outcome-adjudicator:event:game-ended",
@@ -4857,6 +5722,14 @@
           "linkedId": "outcome-adjudicator"
         }
       ],
+      "mappings": {
+        "AdjudicateOutcome": {
+          "termination": "ending"
+        },
+        "BoardOutcomeAdjudicated": {
+          "result": "generate(termination, sideToMove)"
+        }
+      },
       "storylines": [
         {
           "id": "outcome-adjudicator:note",
@@ -4879,20 +5752,29 @@
           "id": "illegal-move-forfeiter:command:forfeit-game",
           "title": "ForfeitGame",
           "type": "COMMAND",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "offendingSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "illegalMoveCount": {
+                "type": "integer"
+              }
             },
-            {
-              "name": "offendingSide",
-              "type": "String"
-            },
-            {
-              "name": "illegalMoveCount",
-              "type": "Int"
-            }
-          ],
+            "required": [
+              "gameId",
+              "offendingSide",
+              "illegalMoveCount"
+            ]
+          },
           "dependencies": [
             {
               "id": "illegal-move-forfeiter:automation:illegal-move-forfeiter",
@@ -4920,20 +5802,29 @@
           "id": "illegal-move-forfeiter:event:second-illegal-move-ruled",
           "title": "SecondIllegalMoveRuled",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "offendingSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "illegalMoveCount": {
+                "type": "integer"
+              }
             },
-            {
-              "name": "offendingSide",
-              "type": "String"
-            },
-            {
-              "name": "illegalMoveCount",
-              "type": "Int"
-            }
-          ],
+            "required": [
+              "gameId",
+              "offendingSide",
+              "illegalMoveCount"
+            ]
+          },
           "dependencies": [
             {
               "id": "illegal-move-forfeiter:automation:illegal-move-forfeiter",
@@ -4948,31 +5839,51 @@
           "id": "illegal-move-forfeiter:event:illegal-move-forfeited",
           "title": "IllegalMoveForfeited",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "offendingSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "illegalMoveCount": {
+                "type": "integer"
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "white_won",
+                  "black_won",
+                  "draw"
+                ]
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "offendingSide",
-              "type": "String"
-            },
-            {
-              "name": "illegalMoveCount",
-              "type": "Int"
-            },
-            {
-              "name": "result",
-              "type": "String",
-              "generated": true,
-              "mapping": "offendingSide"
-            },
-            {
-              "name": "termination",
-              "type": "String",
-              "mapping": "= \"illegal_move_forfeit\""
-            }
-          ],
+            "required": [
+              "gameId",
+              "offendingSide",
+              "illegalMoveCount",
+              "result",
+              "termination"
+            ]
+          },
           "dependencies": [
             {
               "id": "illegal-move-forfeiter:command:forfeit-game",
@@ -4989,21 +5900,32 @@
           "id": "illegal-move-forfeiter:readmodel:illegal-move-tally",
           "title": "IllegalMoveTally",
           "type": "READMODEL",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String",
-              "idAttribute": true
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "offendingSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "illegalMoveCount": {
+                "type": "integer"
+              }
             },
-            {
-              "name": "offendingSide",
-              "type": "String",
-              "idAttribute": true
-            },
-            {
-              "name": "illegalMoveCount",
-              "type": "Int"
-            }
+            "required": [
+              "gameId",
+              "offendingSide",
+              "illegalMoveCount"
+            ]
+          },
+          "key": [
+            "gameId",
+            "offendingSide"
           ],
           "dependencies": [
             {
@@ -5021,7 +5943,10 @@
           "id": "illegal-move-forfeiter:automation:illegal-move-forfeiter",
           "title": "IllegalMoveForfeiter",
           "type": "AUTOMATION",
-          "fields": [],
+          "fields": {
+            "type": "object",
+            "properties": {}
+          },
           "dependencies": [
             {
               "id": "illegal-move-forfeiter:event:second-illegal-move-ruled",
@@ -5125,6 +6050,12 @@
           "linkedId": "illegal-move-forfeiter"
         }
       ],
+      "mappings": {
+        "IllegalMoveForfeited": {
+          "result": "generate(offendingSide)",
+          "termination": "= \"illegal_move_forfeit\""
+        }
+      },
       "aggregates": [
         "Game"
       ]
@@ -5141,24 +6072,47 @@
           "id": "game-result:event:game-resigned",
           "title": "GameResigned",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "resigningSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "white_won",
+                  "black_won",
+                  "draw"
+                ]
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "resigningSide",
-              "type": "String"
-            },
-            {
-              "name": "result",
-              "type": "String"
-            },
-            {
-              "name": "termination",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "resigningSide",
+              "result",
+              "termination"
+            ]
+          },
           "dependencies": [
             {
               "id": "game-result:readmodel:game-result",
@@ -5173,24 +6127,47 @@
           "id": "game-result:event:draw-agreed",
           "title": "DrawAgreed",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "offeringSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "white_won",
+                  "black_won",
+                  "draw"
+                ]
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "offeringSide",
-              "type": "String"
-            },
-            {
-              "name": "result",
-              "type": "String"
-            },
-            {
-              "name": "termination",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "offeringSide",
+              "result",
+              "termination"
+            ]
+          },
           "dependencies": [
             {
               "id": "game-result:readmodel:game-result",
@@ -5205,28 +6182,47 @@
           "id": "game-result:event:board-outcome-adjudicated",
           "title": "BoardOutcomeAdjudicated",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "ply": {
+                "type": "integer"
+              },
+              "fen": {
+                "type": "string"
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "white_won",
+                  "black_won",
+                  "draw"
+                ]
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "ply",
-              "type": "Int"
-            },
-            {
-              "name": "fen",
-              "type": "String"
-            },
-            {
-              "name": "result",
-              "type": "String"
-            },
-            {
-              "name": "termination",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "ply",
+              "fen",
+              "result",
+              "termination"
+            ]
+          },
           "dependencies": [
             {
               "id": "game-result:readmodel:game-result",
@@ -5241,24 +6237,47 @@
           "id": "game-result:event:time-forfeited",
           "title": "TimeForfeited",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "flaggedSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "white_won",
+                  "black_won",
+                  "draw"
+                ]
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "flaggedSide",
-              "type": "String"
-            },
-            {
-              "name": "result",
-              "type": "String"
-            },
-            {
-              "name": "termination",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "flaggedSide",
+              "result",
+              "termination"
+            ]
+          },
           "dependencies": [
             {
               "id": "game-result:readmodel:game-result",
@@ -5273,28 +6292,51 @@
           "id": "game-result:event:illegal-move-forfeited",
           "title": "IllegalMoveForfeited",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "offendingSide": {
+                "type": "string",
+                "enum": [
+                  "white",
+                  "black"
+                ]
+              },
+              "illegalMoveCount": {
+                "type": "integer"
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "white_won",
+                  "black_won",
+                  "draw"
+                ]
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "offendingSide",
-              "type": "String"
-            },
-            {
-              "name": "illegalMoveCount",
-              "type": "Int"
-            },
-            {
-              "name": "result",
-              "type": "String"
-            },
-            {
-              "name": "termination",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "offendingSide",
+              "illegalMoveCount",
+              "result",
+              "termination"
+            ]
+          },
           "dependencies": [
             {
               "id": "game-result:readmodel:game-result",
@@ -5311,20 +6353,41 @@
           "id": "game-result:readmodel:game-result",
           "title": "GameResult",
           "type": "READMODEL",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String",
-              "idAttribute": true
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "white_won",
+                  "black_won",
+                  "draw"
+                ]
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "result",
-              "type": "String"
-            },
-            {
-              "name": "termination",
-              "type": "String"
-            }
+            "required": [
+              "gameId",
+              "result",
+              "termination"
+            ]
+          },
+          "key": [
+            "gameId"
           ],
           "dependencies": [
             {
@@ -5566,36 +6629,55 @@
           "id": "record-result:command:record-result",
           "title": "RecordResult",
           "type": "COMMAND",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "round": {
+                "type": "integer"
+              },
+              "boardNumber": {
+                "type": "integer"
+              },
+              "whitePlayerId": {
+                "type": "string"
+              },
+              "blackPlayerId": {
+                "type": "string"
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "white_won",
+                  "black_won",
+                  "draw"
+                ]
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "round",
-              "type": "Int"
-            },
-            {
-              "name": "boardNumber",
-              "type": "Int"
-            },
-            {
-              "name": "whitePlayerId",
-              "type": "String"
-            },
-            {
-              "name": "blackPlayerId",
-              "type": "String"
-            },
-            {
-              "name": "result",
-              "type": "String"
-            },
-            {
-              "name": "termination",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "round",
+              "boardNumber",
+              "whitePlayerId",
+              "blackPlayerId",
+              "result",
+              "termination"
+            ]
+          },
           "dependencies": [
             {
               "id": "record-result:screen:record-result",
@@ -5631,36 +6713,55 @@
           "id": "record-result:event:result-recorded",
           "title": "ResultRecorded",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "round": {
+                "type": "integer"
+              },
+              "boardNumber": {
+                "type": "integer"
+              },
+              "whitePlayerId": {
+                "type": "string"
+              },
+              "blackPlayerId": {
+                "type": "string"
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "white_won",
+                  "black_won",
+                  "draw"
+                ]
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "round",
-              "type": "Int"
-            },
-            {
-              "name": "boardNumber",
-              "type": "Int"
-            },
-            {
-              "name": "whitePlayerId",
-              "type": "String"
-            },
-            {
-              "name": "blackPlayerId",
-              "type": "String"
-            },
-            {
-              "name": "result",
-              "type": "String"
-            },
-            {
-              "name": "termination",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "round",
+              "boardNumber",
+              "whitePlayerId",
+              "blackPlayerId",
+              "result",
+              "termination"
+            ]
+          },
           "dependencies": [
             {
               "id": "record-result:command:record-result",
@@ -5677,20 +6778,41 @@
           "id": "record-result:readmodel:game-result",
           "title": "GameResult",
           "type": "READMODEL",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String",
-              "idAttribute": true
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "white_won",
+                  "black_won",
+                  "draw"
+                ]
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "result",
-              "type": "String"
-            },
-            {
-              "name": "termination",
-              "type": "String"
-            }
+            "required": [
+              "gameId",
+              "result",
+              "termination"
+            ]
+          },
+          "key": [
+            "gameId"
           ],
           "dependencies": [
             {
@@ -5705,28 +6827,35 @@
           "id": "record-result:readmodel:game-pairing",
           "title": "GamePairing",
           "type": "READMODEL",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String",
-              "idAttribute": true
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "round": {
+                "type": "integer"
+              },
+              "boardNumber": {
+                "type": "integer"
+              },
+              "whitePlayerId": {
+                "type": "string"
+              },
+              "blackPlayerId": {
+                "type": "string"
+              }
             },
-            {
-              "name": "round",
-              "type": "Int"
-            },
-            {
-              "name": "boardNumber",
-              "type": "Int"
-            },
-            {
-              "name": "whitePlayerId",
-              "type": "String"
-            },
-            {
-              "name": "blackPlayerId",
-              "type": "String"
-            }
+            "required": [
+              "gameId",
+              "round",
+              "boardNumber",
+              "whitePlayerId",
+              "blackPlayerId"
+            ]
+          },
+          "key": [
+            "gameId"
           ],
           "dependencies": [
             {
@@ -5743,36 +6872,55 @@
           "id": "record-result:screen:record-result",
           "title": "RecordResult",
           "type": "SCREEN",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "round": {
+                "type": "integer"
+              },
+              "boardNumber": {
+                "type": "integer"
+              },
+              "whitePlayerId": {
+                "type": "string"
+              },
+              "blackPlayerId": {
+                "type": "string"
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "white_won",
+                  "black_won",
+                  "draw"
+                ]
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "round",
-              "type": "Int"
-            },
-            {
-              "name": "boardNumber",
-              "type": "Int"
-            },
-            {
-              "name": "whitePlayerId",
-              "type": "String"
-            },
-            {
-              "name": "blackPlayerId",
-              "type": "String"
-            },
-            {
-              "name": "result",
-              "type": "String"
-            },
-            {
-              "name": "termination",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "round",
+              "boardNumber",
+              "whitePlayerId",
+              "blackPlayerId",
+              "result",
+              "termination"
+            ]
+          },
           "dependencies": [
             {
               "id": "record-result:command:record-result",
@@ -5889,36 +7037,55 @@
           "id": "game-record:event:result-recorded",
           "title": "ResultRecorded",
           "type": "EVENT",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String"
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "round": {
+                "type": "integer"
+              },
+              "boardNumber": {
+                "type": "integer"
+              },
+              "whitePlayerId": {
+                "type": "string"
+              },
+              "blackPlayerId": {
+                "type": "string"
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "white_won",
+                  "black_won",
+                  "draw"
+                ]
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "round",
-              "type": "Int"
-            },
-            {
-              "name": "boardNumber",
-              "type": "Int"
-            },
-            {
-              "name": "whitePlayerId",
-              "type": "String"
-            },
-            {
-              "name": "blackPlayerId",
-              "type": "String"
-            },
-            {
-              "name": "result",
-              "type": "String"
-            },
-            {
-              "name": "termination",
-              "type": "String"
-            }
-          ],
+            "required": [
+              "gameId",
+              "round",
+              "boardNumber",
+              "whitePlayerId",
+              "blackPlayerId",
+              "result",
+              "termination"
+            ]
+          },
           "dependencies": [
             {
               "id": "game-record:readmodel:game-record",
@@ -5935,36 +7102,57 @@
           "id": "game-record:readmodel:game-record",
           "title": "GameRecord",
           "type": "READMODEL",
-          "fields": [
-            {
-              "name": "gameId",
-              "type": "String",
-              "idAttribute": true
+          "fields": {
+            "type": "object",
+            "properties": {
+              "gameId": {
+                "type": "string"
+              },
+              "round": {
+                "type": "integer"
+              },
+              "boardNumber": {
+                "type": "integer"
+              },
+              "whitePlayerId": {
+                "type": "string"
+              },
+              "blackPlayerId": {
+                "type": "string"
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "white_won",
+                  "black_won",
+                  "draw"
+                ]
+              },
+              "termination": {
+                "type": "string",
+                "enum": [
+                  "checkmate",
+                  "stalemate",
+                  "dead_position",
+                  "resignation",
+                  "agreement",
+                  "time_forfeit",
+                  "illegal_move_forfeit"
+                ]
+              }
             },
-            {
-              "name": "round",
-              "type": "Int"
-            },
-            {
-              "name": "boardNumber",
-              "type": "Int"
-            },
-            {
-              "name": "whitePlayerId",
-              "type": "String"
-            },
-            {
-              "name": "blackPlayerId",
-              "type": "String"
-            },
-            {
-              "name": "result",
-              "type": "String"
-            },
-            {
-              "name": "termination",
-              "type": "String"
-            }
+            "required": [
+              "gameId",
+              "round",
+              "boardNumber",
+              "whitePlayerId",
+              "blackPlayerId",
+              "result",
+              "termination"
+            ]
+          },
+          "key": [
+            "gameId"
           ],
           "dependencies": [
             {
@@ -5989,12 +7177,17 @@
           "id": "game-record:screen:get-crosstable",
           "title": "GetCrosstable",
           "type": "SCREEN",
-          "fields": [
-            {
-              "name": "round",
-              "type": "Int"
-            }
-          ],
+          "fields": {
+            "type": "object",
+            "properties": {
+              "round": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "round"
+            ]
+          },
           "dependencies": [
             {
               "id": "game-record:readmodel:game-record",

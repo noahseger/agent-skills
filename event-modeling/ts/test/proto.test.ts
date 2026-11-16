@@ -106,6 +106,14 @@ test("every Zod type in the table maps as documented", () => {
   )
 })
 
+test("a field's description is the comment above it", () => {
+  const Create = m.command({ id: z.string(), pageId: z.string().describe("Set once synced") })
+  assert.match(
+    source(modelOf({ Create }, stateChange(Create))),
+    /message CreateRequest \{\n {2}string id = 1;\n {2}\/\/ Set once synced\n {2}string page_id = 2;\n\}/,
+  )
+})
+
 test("a type outside the table stops its service, naming the declaration and the field", () => {
   const Create = m.command({ id: z.string(), when: z.date() })
   assert.match(
