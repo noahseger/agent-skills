@@ -351,6 +351,20 @@ test("a call sends its command's fields out, so none is left unrecorded", () => 
   assert.ok(!json.warnings?.some((w) => w.message.includes("reaches no event")))
 })
 
+test("a command field that filters a query after the command is used", () => {
+  const f = fixture()
+  const Renamed = m.event({ id: z.string() })
+  const rename = m
+    .slice()
+    .command(f.Create)
+    .query(f.Table, (c) => ({ id: c.id, name: c.name }))
+    .event(Renamed)
+    .actor(f.User)
+  const model = { ...f, Renamed, ...chapters({ Ch: [rename] }), default: m.model("x") }
+  const json = feedOf([model], { partial: true })
+  assert.ok(!json.warnings?.some((w) => w.message.includes("reaches no event")))
+})
+
 test("a mapping recognises a source field, a z.literal() and m.generate(); a schema it computes is left to do", () => {
   const f = fixture()
   const Create = m.command({ id: z.string(), name: z.string() })

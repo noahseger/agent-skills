@@ -584,7 +584,7 @@ function checkFilled({ slice, where }: Located, fail: Fail): void {
 /**
  * A command field no event records is information the system takes in and loses. It reaches an
  * event by name, by a mapping or as what a generated value is made from; generating from the whole
- * command uses every field.
+ * command uses every field, and so does a query after it that filters by one.
  */
 function checkRecorded({ slice, where }: Located, fail: Fail): void {
   const { command, events } = slice
@@ -592,6 +592,10 @@ function checkRecorded({ slice, where }: Located, fail: Fail): void {
   if (!command || events.length === 0 || events.some((e) => e.decl.external)) return
   const all = Object.keys(command.decl.fields)
   const recorded = events.flatMap((e) => taken(e, command.decl))
+  // A query after the command filters by its fields, which uses them.
+  for (const read of slice.reads.slice(slice.beforeCommand))
+    for (const s of Object.values(read.mapping))
+      if ("from" in s && read.context[s.from] === command.decl) recorded.push(s.from)
   const name = command.decl.name
   for (const field of all.filter((f) => !recorded.includes(f)))
     fail({
