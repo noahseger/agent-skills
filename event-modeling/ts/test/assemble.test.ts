@@ -413,6 +413,25 @@ test("a command field that filters a query after the command is used", () => {
   assert.ok(!json.warnings?.some((w) => w.message.includes("reaches no event")))
 })
 
+test("a mapping that returns a whole command records only the fields its event has", () => {
+  const f = fixture()
+  const Renamed = m.event({ id: z.string() })
+  const rename = m
+    .slice()
+    .command({ Create: f.Create })
+    .event({ Renamed }, (c) => c.Create)
+    .actor(f.User)
+  const model = { ...f, Renamed, ...chapters({ Ch: [rename] }), default: m.model("x") }
+  const json = feedOf([model], { partial: true })
+  assert.ok(
+    json.warnings?.some(
+      (w) =>
+        w.message ===
+        "Ch › Create: Create.name reaches no event. Record it in Renamed, or remove it from Create.",
+    ),
+  )
+})
+
 test("a mapping recognises a source field, a z.literal() and m.generate(); a schema it computes is left to do", () => {
   const f = fixture()
   const Create = m.command({ id: z.string(), name: z.string() })

@@ -212,7 +212,9 @@ export function recorded(slice: SliceData): DeclData[] {
 export function taken(flow: Flow, from: DeclData): string[] {
   const { decl, mapping, context } = flow
   const named = Object.keys(decl.fields).filter((f) => !(f in mapping) && context[f] === from)
-  const mapped = Object.values(mapping).flatMap((s) => {
+  // A whole declaration, returned or spread, also sets fields `decl` does not have.
+  const sets = Object.entries(mapping).filter(([f]) => f in decl.fields)
+  const mapped = sets.flatMap(([, s]) => {
     if ("from" in s) return origin(flow, s) === from ? [s.from] : []
     if (!("generate" in s)) return []
     return s.generate.flatMap((i) => {
