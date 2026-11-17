@@ -201,8 +201,7 @@ m.slice("OutcomeAdjudicator")
   .command({ AdjudicateOutcome }, (c) => ({ termination: c.GameEnded.ending }))
   .query({ GameState }, "gameId")
   .event({ BoardOutcomeAdjudicated }, (c) => ({
-    ply: c.AdjudicateOutcome.ply,
-    fen: c.AdjudicateOutcome.fen,
+    ...c.AdjudicateOutcome,
     result: m.generate(c.AdjudicateOutcome.termination, c.GameState.sideToMove),
   }))
   .chapter(Conclusion)
@@ -274,7 +273,7 @@ m.slice("IllegalMoveForfeiter")
     offendingSide: c.ForfeitGame.offendingSide,
   }))
   .event({ IllegalMoveForfeited }, (c) => ({
-    illegalMoveCount: c.ForfeitGame.illegalMoveCount,
+    ...c.ForfeitGame,
     result: m.generate(c.ForfeitGame.offendingSide),
     termination: z.literal("illegal_move_forfeit"),
   }))
@@ -343,14 +342,7 @@ m.slice()
   .command({ RecordResult })
   .query({ GameResult }, "gameId")
   .query({ GamePairing }, "gameId")
-  .event({ ResultRecorded }, (c) => ({
-    round: c.RecordResult.round,
-    boardNumber: c.RecordResult.boardNumber,
-    whitePlayerId: c.RecordResult.whitePlayerId,
-    blackPlayerId: c.RecordResult.blackPlayerId,
-    result: c.RecordResult.result,
-    termination: c.RecordResult.termination,
-  }))
+  .event({ ResultRecorded }, (c) => c.RecordResult)
   .chapter(Conclusion)
   .actor(Arbiter)
   .service(ChessService)

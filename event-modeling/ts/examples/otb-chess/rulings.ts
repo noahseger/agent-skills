@@ -68,13 +68,8 @@ m.slice()
     gameId: c.RuleIllegalMove.gameId,
     offendingSide: c.RuleIllegalMove.offendingSide,
   }))
-  .event({ IllegalMoveRuled }, (c) => ({
-    illegalMoveCount: c.RuleIllegalMove.illegalMoveCount,
-    sideToMove: c.RuleIllegalMove.sideToMove,
-  }))
-  .event({ SecondIllegalMoveRuled }, (c) => ({
-    illegalMoveCount: c.RuleIllegalMove.illegalMoveCount,
-  }))
+  .event({ IllegalMoveRuled }, (c) => c.RuleIllegalMove)
+  .event({ SecondIllegalMoveRuled }, (c) => c.RuleIllegalMove)
   .chapter(ArbiterRulings)
   .actor(Arbiter)
   .service(ChessService)

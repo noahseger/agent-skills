@@ -363,6 +363,13 @@ The row joins the mapping's argument, as `c.Pages`, and its columns flow on by n
 before the step, so the two are one source. Any other field the row shares with a step before it
 flows from neither, and the mapping says which. A view queried again replaces its earlier row.
 
+A mapping that returns a whole declaration takes every field it carries; spread it to set the rest:
+
+```ts
+.event({ ChangeRecorded }, (c) => c.RecordChange)
+.event({ ChangeRecorded }, (c) => ({ ...c.RecordChange, noteId: c.Pages.noteId }))
+```
+
 A filter that names every key column picks one row. One that does not picks many, which only an
 automation reads, before its command: it issues the command once per row. A view with no `.key()`
 always gives many.

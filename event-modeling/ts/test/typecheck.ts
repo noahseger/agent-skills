@@ -186,6 +186,9 @@ m.slice().command({ AddItem }).event({ ItemAdded }, (c) => ({ title: c.AddItem.t
 // @ts-expect-error the mapping must set title, which AddItem lacks
 m.slice().command({ AddItem }).event({ ItemAdded }, (c) => ({ listId: c.AddItem.listId }))
 
+// @ts-expect-error a whole declaration sets only what it carries, and AddItem has no title
+m.slice().command({ AddItem }).event({ ItemAdded }, (c) => c.AddItem)
+
 m.slice().command({ AddItem }).event({ ItemAdded }, (c) => ({ title: c.AddItem.text }))
 // An optional field may go unfilled in one slice; assembly checks that another fills it.
 const ItemShared = m.event({ listId: z.string(), title: z.string().optional() })

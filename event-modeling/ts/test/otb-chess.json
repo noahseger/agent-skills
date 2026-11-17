@@ -1383,9 +1383,16 @@
       ],
       "mappings": {
         "MovePlayed": {
+          "gameId": "gameId",
           "ply": "ply",
+          "san": "san",
+          "fromSquare": "fromSquare",
+          "toSquare": "toSquare",
+          "piece": "piece",
           "fen": "fen",
-          "sideToMove": "sideToMove"
+          "sideToMove": "sideToMove",
+          "isCheck": "isCheck",
+          "isCapture": "isCapture"
         },
         "GameEnded": {
           "ply": "ply",
@@ -2188,6 +2195,7 @@
       ],
       "mappings": {
         "ClockPressed": {
+          "gameId": "gameId",
           "whiteTimeMs": "whiteTimeMs",
           "blackTimeMs": "blackTimeMs",
           "runningSide": "runningSide"
@@ -3104,6 +3112,8 @@
       ],
       "mappings": {
         "DrawOffered": {
+          "gameId": "gameId",
+          "offeringSide": "offeringSide",
           "ply": "ply"
         }
       },
@@ -3861,7 +3871,10 @@
       ],
       "mappings": {
         "DrawAgreed": {
-          "offeringSide": "offeringSide"
+          "gameId": "gameId",
+          "offeringSide": "offeringSide",
+          "result": "result",
+          "termination": "termination"
         }
       },
       "actors": [
@@ -4712,10 +4725,18 @@
       ],
       "mappings": {
         "IllegalMoveRuled": {
+          "gameId": "gameId",
+          "ply": "ply",
+          "offendingSide": "offendingSide",
           "illegalMoveCount": "illegalMoveCount",
+          "addedTimeMs": "addedTimeMs",
+          "penalty": "penalty",
+          "fen": "fen",
           "sideToMove": "sideToMove"
         },
         "SecondIllegalMoveRuled": {
+          "gameId": "gameId",
+          "offendingSide": "offendingSide",
           "illegalMoveCount": "illegalMoveCount"
         }
       },
@@ -5764,9 +5785,11 @@
           "termination": "ending"
         },
         "BoardOutcomeAdjudicated": {
+          "gameId": "gameId",
           "ply": "ply",
           "fen": "fen",
-          "result": "generate(termination, sideToMove)"
+          "result": "generate(termination, sideToMove)",
+          "termination": "termination"
         }
       },
       "storylines": [
@@ -6091,6 +6114,8 @@
       ],
       "mappings": {
         "IllegalMoveForfeited": {
+          "gameId": "gameId",
+          "offendingSide": "offendingSide",
           "illegalMoveCount": "illegalMoveCount",
           "result": "generate(offendingSide)",
           "termination": "= \"illegal_move_forfeit\""
@@ -7054,6 +7079,7 @@
       ],
       "mappings": {
         "ResultRecorded": {
+          "gameId": "gameId",
           "round": "round",
           "boardNumber": "boardNumber",
           "whitePlayerId": "whitePlayerId",

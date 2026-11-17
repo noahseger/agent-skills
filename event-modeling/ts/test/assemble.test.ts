@@ -217,6 +217,30 @@ test("a mapping function fills what the command does not carry", () => {
   assert.equal(json.chapters[0]?.slices[0]?.command, "Create(id, name)")
 })
 
+test("a mapping spreads a whole declaration and sets the rest from another", () => {
+  const f = fixture()
+  const Created = m.event({ id: z.string(), name: z.string(), extra: z.string() })
+  const slice = m
+    .slice()
+    .command({ Create: f.Create })
+    .query({ Table: f.Table }, "id")
+    .event({ Created }, (c) => ({ ...c.Create, extra: c.Table.name }))
+    .actor(f.User)
+    .service(f.Svc)
+    .test("A list is renamed", {
+      given: Created({ ...list, extra: "" }),
+      when: f.Create({ ...list, name: "Errands" }),
+      then: Created({ ...list, name: "Errands", extra: "Groceries" }),
+    })
+  const exports = { ...f, Created }
+  const feed = feedOf([
+    { ...exports, ...chapters({ Ch: [slice, view(exports)] }), default: m.model("x") },
+  ])
+  assert.deepEqual(feed.model.slices[0]?.mappings, {
+    Created: { id: "id", name: "name", extra: "Table(id).name" },
+  })
+})
+
 test("m.generate() records what a value is made from, and a specification gives it any value", () => {
   const f = fixture()
   const Created = m.event({ id: z.string(), name: z.string(), at: z.string() })

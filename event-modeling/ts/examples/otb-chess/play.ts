@@ -192,11 +192,7 @@ export const Broadcast = m.screen()
 m.slice()
   .command({ PlayMove })
   .query({ GameState }, "gameId")
-  .event({ MovePlayed }, (c) => ({
-    ply: c.PlayMove.ply,
-    fen: c.PlayMove.fen,
-    sideToMove: c.PlayMove.sideToMove,
-  }))
+  .event({ MovePlayed }, (c) => c.PlayMove)
   .event({ GameEnded }, (c) => ({ ply: c.PlayMove.ply, fen: c.PlayMove.fen }))
   .chapter(Play)
   .actor(Player)
@@ -327,11 +323,7 @@ m.slice()
 m.slice()
   .command({ PressClock })
   .query({ ClockState }, "gameId")
-  .event({ ClockPressed }, (c) => ({
-    whiteTimeMs: c.PressClock.whiteTimeMs,
-    blackTimeMs: c.PressClock.blackTimeMs,
-    runningSide: c.PressClock.runningSide,
-  }))
+  .event({ ClockPressed }, (c) => c.PressClock)
   .chapter(Play)
   .actor(Player)
   .service(ChessService)
