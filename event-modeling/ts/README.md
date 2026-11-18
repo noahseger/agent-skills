@@ -546,9 +546,9 @@ So it comes before the event that keeps it. A field the command carries too flow
 the mapping says which.
 
 The command sends out only the fields the outside event carries, by name or by a mapping; any
-other must reach an event of ours. A value we send somewhere and do not store, like a secret going
-to a device's keystore, is an outside system the command calls, and the event that call gets back
-carries the value.
+other must reach an event of ours. External events can carry data we need but don't want to store
+in events — for example, secrets, credentials, PII, large files, etc. Command handlers can manage
+this data externally for when it's needed using a secure keystore or other mechanism.
 
 ### Streams
 
