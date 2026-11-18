@@ -612,8 +612,7 @@ function checkFilled({ slice, where }: Located, fail: Fail): void {
  */
 function checkRecorded({ slice, where }: Located, fail: Fail): void {
   const { command, events } = slice
-  // A command that produces an external event sends its fields out.
-  if (!command || events.length === 0 || events.some((e) => e.decl.external)) return
+  if (!command || events.length === 0) return
   const all = Object.keys(command.decl.fields)
   const recorded = events.flatMap((e) => taken(e, command.decl))
   // A query after the command filters by its fields, which uses them.

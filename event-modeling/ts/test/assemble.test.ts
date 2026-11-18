@@ -388,7 +388,7 @@ test("a command field no event records is left to do, and an error when strict; 
   assert.ok(!fixed.warnings?.some((w) => w.message.includes("reaches no event")))
 })
 
-test("a call sends its command's fields out, so none is left unrecorded", () => {
+test("a call sends out only the command fields its outside event carries", () => {
   const f = fixture()
   const Remote = m.external()
   const Answered = m.event({ id: z.string() }).external(Remote)
@@ -396,7 +396,10 @@ test("a call sends its command's fields out, so none is left unrecorded", () => 
   const ask = m.slice().command({ Ask }).event({ Answered }).actor(f.User).service(f.Svc)
   const model = { ...f, Remote, Answered, Ask, ...chapters({ Ch: [ask] }), default: m.model("x") }
   const json = feedOf([model], { partial: true })
-  assert.ok(!json.warnings?.some((w) => w.message.includes("reaches no event")))
+  assert.deepEqual(
+    json.warnings?.filter((w) => w.message.includes("reaches no event")).map((w) => w.message),
+    ["Ch › Ask: Ask.note reaches no event. Record it in Answered, or remove it from Ask."],
+  )
 })
 
 test("a command field that filters a query after the command is used", () => {

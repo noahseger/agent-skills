@@ -545,6 +545,11 @@ The outside event joins the mapping's argument, as `c.CartUpdated`, and its fiel
 So it comes before the event that keeps it. A field the command carries too flows from neither, and
 the mapping says which.
 
+The command sends out only the fields the outside event carries, by name or by a mapping; any
+other must reach an event of ours. A value we send somewhere and do not store, like a secret going
+to a device's keystore, is an outside system the command calls, and the event that call gets back
+carries the value.
+
 ### Streams
 
 A stream is a lane in the diagram, declared once with `m.stream()` and named by its export. An
@@ -607,7 +612,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | A column no event of the view's `m.slice().view()` calls writes | The calls can be in several modules. |
 | An optional field no slice fills | Same. |
 | A slice with no command, or no event | An incomplete slice compiles, so it can be drawn while it is written. |
-| A command field no event of its slice records: none carries it by name, maps it or generates from it, none is external, and no later query filters by it | Each event's mapping is checked on its own, not against the slice's other events. |
+| A command field that reaches no event of its slice, ours or outside: none carries it by name, maps it or generates from it, and no later query filters by it | Each event's mapping is checked on its own, not against the slice's other events. |
 | A state view's event that lacks one of the view's key columns | Declarations are anonymous, so two events with the same fields are one type. |
 | An event nothing consumes: no `.automation()`, no state view, no `given`; for an external event no slice produces, no `.translation()` | Same. |
 | An event no slice records; a view nothing reads or builds | Same. |
