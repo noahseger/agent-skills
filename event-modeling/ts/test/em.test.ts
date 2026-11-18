@@ -177,6 +177,22 @@ m.slice().view({ Listing }).event({ Started }).service(Board, "List").chapter(Ch
   )
 })
 
+test("proto never writes a nameless rpc: a state view's service with no method is left to do", () => {
+  const { run, api, board } = protoOf(
+    `${API_DONE}export const Board = m.service("board.v1")
+export const Games = m.view({ id: z.string() }).key("id")
+m.slice().view({ Games }).event({ Started }).service(Board).chapter(Ch).test("lists", { given: Started({ id: "1" }), then: Games({ id: "1" }) })
+`,
+  )
+  assert.equal(run.status, 1)
+  assert.ok(api)
+  assert.equal(board, undefined)
+  assert.match(
+    run.stderr,
+    /Skipped .*board\/v1\/board\.proto\. Its service has left to do:\nCh › Games: a state view names its method: \.service\(Board, "ListGames"\)\./,
+  )
+})
+
 /** `em view`, by default on a free port; resolves once it prints its URL. */
 async function view(path: string, port = ["--port", "0"]) {
   const server = spawn(process.execPath, [
@@ -351,7 +367,7 @@ export default m.model("Chess")
   }
 })
 
-test("view lists a field the mapping must set: one that does not fit, mapped or by name, or that two steps carry", async () => {
+test("view lists a field the mapping must set: one that does not fit, mapped or by name, or that two steps carry, with a mapping or without", async () => {
   const dir = mkdtempSync(here("../tmp-fit-"))
   writeFileSync(
     join(dir, "index.ts"),
@@ -371,6 +387,12 @@ export const PageMade = m.event({ noteId: z.uuid() }).external(Wiki)
 export const LinkNote = m.command({ noteId: z.uuid() })
 export const NoteLinked = m.event({ noteId: z.uuid() }).stream(Notes)
 m.slice().command({ LinkNote }).event({ PageMade }).event({ NoteLinked }).chapter(Capture)
+export const NoteFiled = m.event({ noteId: z.uuid(), at: z.iso.datetime() }).stream(Notes)
+m.slice().command({ LinkNote }).event({ PageMade }).event({ NoteFiled }, () => ({ at: m.generate() })).chapter(Capture)
+export const Drafts = m.view({ noteId: z.uuid(), text: z.string().optional() }).key("noteId")
+export const Publish = m.command({ noteId: z.uuid() })
+export const Published = m.event({ noteId: z.uuid(), text: z.string() }).stream(Notes)
+m.slice().command({ Publish }).query({ Drafts }, "noteId").event({ Published }).chapter(Capture)
 export default m.model("Notes")
 `,
   )
@@ -383,8 +405,46 @@ export default m.model("Notes")
       warnings.filter((w) => w.message.startsWith("index.ts:")).map((w) => w.message),
       [
         "index.ts:8  noteId does not fit: set it to a field of its type, a z.literal() or m.generate()",
-        "index.ts:11  NoteTaken: the noteId before .event() does not fit: set it in the mapping",
+        "index.ts:11  NoteTaken: noteId does not fit: set it to a field of its type, a z.literal() or m.generate()",
         "index.ts:16  NoteLinked: noteId comes from LinkNote and PageMade: set it in the mapping",
+        "index.ts:18  NoteFiled: noteId comes from LinkNote and PageMade: set it in the mapping",
+        "index.ts:22  Published: text does not fit: set it to a field of its type, a z.literal() or m.generate()",
+      ],
+    )
+  } finally {
+    server.close()
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test("view words a query with no filter, and a state view's service with no method, as the fix", async () => {
+  const dir = mkdtempSync(here("../tmp-fix-"))
+  writeFileSync(
+    join(dir, "index.ts"),
+    `import { z } from "zod"
+import { m } from "#em"
+
+export const Api = m.service("api.v1")
+export const Ch = m.chapter()
+export const Started = m.event({ id: z.string() })
+export const Finish = m.command({ id: z.string() })
+export const Finished = m.event({ id: z.string() })
+export const Table = m.view({ id: z.string() }).key("id")
+m.slice().automation({ Started }).query({ Table }).command({ Finish }).event({ Finished }).chapter(Ch)
+m.slice().view({ Table }).event({ Started }).service(Api).chapter(Ch)
+export default m.model("Fix")
+`,
+  )
+  const server = await view(dir)
+  try {
+    const { warnings = [] } = (await (await fetch(`${server.url}/model.json`)).json()) as {
+      warnings?: { message: string }[]
+    }
+    assert.deepEqual(
+      warnings.filter((w) => w.message.startsWith("index.ts:")).map((w) => w.message),
+      [
+        "index.ts:10  say which rows: a column or a mapping, () => ({}) for every row",
+        'index.ts:11  a state view names its method: .service(Api, "ListX")',
       ],
     )
   } finally {

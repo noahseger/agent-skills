@@ -40,7 +40,7 @@ after what we keep track of (`Connections`), never after the system it is about 
 
 **Names come from exports.** Export a declaration and the CLI uses the binding's name:
 `export const ListCreated = m.event(...)` is the event `ListCreated`. Names are CamelCase, and the
-diagram shows them as words. Any declaration accepts `.note("...")`.
+diagram shows them as words. Any declaration accepts `.note("...")`; a second adds to the first.
 
 **Fields are [Zod](https://zod.dev) schemas.** Events, commands and views declare their fields
 the same way. Zod types the example data in specifications and the generated messages.
@@ -53,9 +53,9 @@ a value has to be set, the step's second argument is a mapping:
 before the step by its name, with its fields as schemas, so `c.AddItem.text` is the `z.string()`
 declared for `text`, and the editor refuses one that does not fit its target: a `z.string()` does
 not fit a `z.uuid()`. A field that flows by name must fit too, and only one declaration before the step
-may carry it; where two do, the mapping says which. A constant is `z.literal("open")`. A step that
-lacks a field is an error on that step, worded as the fix:
-`add title to a step before .event() or set it in the mapping`. The editor offers only the calls
+may carry it; where two do, the mapping says which. A constant is `z.literal("open")`, or
+`z.literal([])` for the empty list. A step that lacks a field is an error on that step, worded as
+the fix: `add title to a step before .event() or set it in the mapping`. The editor offers only the calls
 that can come next.
 
 ## The slice patterns
@@ -352,6 +352,8 @@ which happened. So an event of ours does not pass its fields to the next.
 
 `.query({ View }, filter)` reads rows of a view. The filter is always stated: a column, which takes
 the value of the field of the same name before the step, or a mapping from those fields to columns.
+A mapping that names no column, `() => ({})`, reads every row, such as the one row of a view that
+holds one.
 
 ```ts
 .command({ RecordChange }).query({ Pages }, "pageId").event({ ChangeRecorded })
@@ -611,7 +613,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | An event no slice records; a view nothing reads or builds | Same. |
 | A field with no value, in a model the compiler did not check | `em json` runs the model without `tsc`. |
 | Two slices claiming one service method; a slice without a service claims none | A union of literal types dedupes rather than counts. |
-| A declaration in no slice, a slice in no chapter, or a chapter no slice joins | Whether a value is used is not a type. |
+| A declaration in no slice, a slice in no chapter, a chapter no slice joins, or a stream no event joins | Whether a value is used is not a type. |
 | A slice joining two chapters | `.chapter()` can be called again further down the chain. |
 | A view built from an external event | `em json` runs the model without `tsc`. |
 | An event in both a stream and an external system | `.stream()` and `.external()` can be called on it in separate statements. |

@@ -761,6 +761,7 @@ svg .warn-dot {
 
 .detail .note {
   margin: 0;
+  white-space: pre-line;
   color: var(--ink);
   line-height: 1.5;
 }
@@ -990,6 +991,7 @@ svg .warn-dot {
 
 .facts .note {
   margin: 0 0 14px;
+  white-space: pre-line;
   line-height: 1.5;
 }
 

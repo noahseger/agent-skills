@@ -2,7 +2,7 @@
 // error stops happening, so this file is the test: a check is only real while
 // its line refuses to compile. No formatter may touch this file: a directive
 // binds to the next line, and moving a call off that line disarms the check.
-import { type Commanded, m, type Start, type Viewing } from "#em"
+import { type Commanded, m, type Start, type Triggered, type Viewing } from "#em"
 import { z } from "zod"
 
 const User = m.actor()
@@ -165,6 +165,8 @@ m.model("x", { description: "A model lists no chapters." })
 
 // @ts-expect-error a state view names its method: it has no command to take one from
 m.slice().view({ TodoList }).event({ ListCreated }).service(TodoService)
+declare const shown: Viewing<typeof TodoList.__fields>
+const nameless: Bare<typeof shown.service> = 'a state view names its method: .service(Api, "ListX")'
 
 // --- a mapping: its argument is what is before the step, its result is the target --
 
@@ -290,6 +292,13 @@ const Shelves = m.view({ shelfId: z.string() })
 // @ts-expect-error a view with no key is many rows
 m.slice().command({ Restock }).query({ Shelves }, "shelfId")
 
+// @ts-expect-error the filter is always stated
+m.slice().automation({ PriceChanged }).query({ CartsWithProducts })
+declare const priced: Triggered<readonly [readonly ["PriceChanged", typeof PriceChanged.__fields, never]]>
+const unfiltered: Bare<typeof priced.query> = "say which rows: a column or a mapping, () => ({}) for every row"
+// A mapping that names no column reads every row.
+m.slice().automation({ PriceChanged }).query({ CartsWithProducts }, () => ({}))
+
 // @ts-expect-error a price is not a uuid: the filter's value fits its column
 m.slice().automation({ PriceChanged }).query({ CartsWithProducts }, (c) => ({ productId: c.PriceChanged.oldPrice }))
 
@@ -331,7 +340,7 @@ const TextCaptured = m.event({ noteId: z.uuid(), text: z.string() })
 // @ts-expect-error CaptureText's noteId is a string, and TextCaptured's a uuid
 m.slice().command({ CaptureText }).event({ TextCaptured })
 declare const capturing: Commanded<readonly [readonly ["CaptureText", typeof CaptureText.__fields, never]], typeof CaptureText.__fields, "change">
-const misfit: Bare<typeof capturing.event<{ TextCaptured: typeof TextCaptured }>> = "the noteId before .event() does not fit: set it in the mapping"
+const misfit: Bare<typeof capturing.event<{ TextCaptured: typeof TextCaptured }>> = "noteId does not fit: set it to a field of its type, a z.literal() or m.generate()"
 m.slice().command({ CaptureText }).event({ TextCaptured }, () => ({ noteId: m.generate() }))
 
 // --- a call ends in the external event that brings the data back -------------
@@ -441,7 +450,7 @@ const Basket = m.view({ listId: z.uuid(), name: z.string() })
 // @ts-expect-error ListCreated's listId is a string, and Basket's a uuid
 m.slice().view({ Basket }).event({ ListCreated })
 declare const basket: Viewing<typeof Basket.__fields>
-const unfit: Bare<typeof basket.event<{ ListCreated: typeof ListCreated }>> = "the event's listId does not fit: set it in the mapping"
+const unfit: Bare<typeof basket.event<{ ListCreated: typeof ListCreated }>> = "listId does not fit: set it to a field of its type, a z.literal() or m.generate()"
 
 // @ts-expect-error beside a mapped event too
 m.slice().view({ Basket }).event({ ListCreated }, () => ({ listId: m.generate() })).event({ ListCreated })

@@ -231,11 +231,14 @@ const SMALL = new Set([
   "with",
 ])
 
-/** `DrawsAndResignation` -> `Draws and Resignation`. Names are code; the picture shows words. */
+/**
+ * `DrawsAndResignation` -> `Draws and Resignation`. Names are code; the picture shows words. An
+ * acronym is two capitals or more, so `OAuth` is one word.
+ */
 export function words(name: string): string {
   return name
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .replace(/([A-Z]{2,})([A-Z][a-z])/g, "$1 $2")
     .split(" ")
     .map((w, i) => (i > 0 && SMALL.has(w.toLowerCase()) ? w.toLowerCase() : w))
     .join(" ")

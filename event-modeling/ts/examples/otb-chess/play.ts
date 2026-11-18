@@ -193,7 +193,11 @@ m.slice()
   .command({ PlayMove })
   .query({ GameState }, "gameId")
   .event({ MovePlayed }, (c) => c.PlayMove)
-  .event({ GameEnded }, (c) => ({ ply: c.PlayMove.ply, fen: c.PlayMove.fen }))
+  .event({ GameEnded }, (c) => ({
+    ply: c.PlayMove.ply,
+    fen: c.PlayMove.fen,
+    ending: m.generate(c.PlayMove.ending),
+  }))
   .chapter(Play)
   .actor(Player)
   .service(ChessService)

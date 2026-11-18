@@ -108,6 +108,8 @@ export function loadModules(
     if (c.slices.length === 0) fail({ message: `${c.name} has no slices yet.`, element: "" })
   const loose = looseOf(drafts, streams, declared)
   for (const d of loose) fail({ message: `${d.name} isn't in a slice yet.`, element: d.name ?? "" })
+  for (const [name, members] of streams)
+    if (members.length === 0) fail({ message: `${name} has no events yet.`, element: name })
   // Otherwise it is drawn in the first stream's lane, which says something nobody wrote.
   const members = new Set([...streams.values()].flat())
   for (const d of streams.size > 0 ? declared : [])
@@ -395,6 +397,11 @@ function checkCore({ slice, where }: Located, fail: Fail): void {
   else if (events.length === 0)
     said(
       `no event yet. Add .event() after ${command ? `.command({ ${command.decl.name} })` : `.view({ ${view?.name} })`}.`,
+    )
+  // The compiler refuses it too; without a name, proto would write an rpc with none.
+  if (view && slice.service && slice.service.method === undefined)
+    said(
+      `a state view names its method: .service(${slice.service.service.name}, "List${view.name}").`,
     )
 }
 
@@ -861,7 +868,7 @@ function checkHandled(
       const none = `given builds no ${view.name} row with ${show(filter)}`
       if (i < before) {
         said(
-          `${none}, so the automation issues no ${command.decl.name}. Add the event that builds it.`,
+          `${none}, so the ${trigger?.external ? "translation" : "automation"} issues no ${command.decl.name}. Add the event that builds it.`,
           view.name ?? "",
         )
         // No command is issued, so the handler reads nothing.
@@ -1007,8 +1014,9 @@ function checkSeen({ slice, where }: Located, fail: Fail): void {
 
 /** Anything produced and never used, or used and never produced. */
 function checkConnected(located: Located[], built: Built, fail: Fail): void {
-  const emitted = new Set<DeclData>()
-  // The slices that react to an event, and those whose specifications assume it happened.
+  // The slices that record an event, those that react to it, and those whose specifications
+  // assume it happened.
+  const recording = new Map<DeclData, Set<Located>>()
   const reacting = new Map<DeclData, Set<Located>>()
   const assuming = new Map<DeclData, Set<Located>>()
   const add = (to: Map<DeclData, Set<Located>>, e: DeclData, at: Located) =>
@@ -1016,7 +1024,7 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
   const read = new Set<DeclData>()
   for (const at of located) {
     const { slice } = at
-    for (const e of recorded(slice)) emitted.add(e)
+    for (const e of recorded(slice)) add(recording, e, at)
     for (const e of heard(slice)) add(reacting, e, at)
     for (const t of slice.tests) for (const g of t.given) add(assuming, g.decl, at)
     // A state view someone sees, or that serves a method, is read there.
@@ -1060,13 +1068,15 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
         }
       }
     }
-    // An external event we produce is published, and needs no reader of ours.
+    // An external event we produce is published, and needs no reader of ours. One line per event,
+    // at the first slice that records it.
     for (const e of recorded(slice)) {
-      if (!e.external && !consumed.has(e))
+      const by = [...(recording.get(e) ?? [])]
+      if (!e.external && !consumed.has(e) && by[0]?.slice === slice)
         fail(
           about(
             e,
-            `${where}: nothing uses ${e.name} yet. Add .automation({ ${e.name} }), or .event({ ${e.name} }) to a state view, where something reacts to it.`,
+            `${by.map((a) => a.where).join(", ")}: nothing uses ${e.name} yet. Add .automation({ ${e.name} }), or .event({ ${e.name} }) to a state view, where something reacts to it.`,
           ),
         )
     }
@@ -1091,7 +1101,7 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
   // One line per event, at the slices that react to it, or else at those that assume it.
   // An external event comes from outside, and only a translation uses it; a given does not.
   for (const e of consumed) {
-    if (emitted.has(e) || (e.external && reacting.has(e))) continue
+    if (recording.has(e) || (e.external && reacting.has(e))) continue
     const at = [...(reacting.get(e) ?? assuming.get(e) ?? [])]
     const here = at.map((a) => a.where).join(", ")
     fail({

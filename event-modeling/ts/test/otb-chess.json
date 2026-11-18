@@ -1396,7 +1396,8 @@
         },
         "GameEnded": {
           "ply": "ply",
-          "fen": "fen"
+          "fen": "fen",
+          "ending": "generate(ending)"
         }
       },
       "actors": [

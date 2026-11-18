@@ -112,14 +112,16 @@ function usedEarly(d: Diagnostic): string[] {
 }
 
 const MISSING = /"add (\w+) to a step before (\S+) or set it in the mapping"/g
-const MISFIT = /"the (event's )?(\w+)( before \S+)? does not fit: set it in the mapping"/g
+const MISFIT =
+  /"(\w+) does not fit: set it to a field of its type, a z\.literal\(\) or m\.generate\(\)"/g
 const SHARED = /"(\w+) comes from ([^"]+): set it in the mapping"/g
-/** A mapping's result that is not a schema its target takes. */
-const UNFIT = /^Type '.*' is not assignable to type '(?:Fit<|ZodType<|ZodStringFormat<)/
+/** A mapping's result that is not a schema its target takes; the target may be `O[K] & Fit<…>`. */
+const UNFIT =
+  /^Type '.*' is not assignable to type '(?:[^']* & )?(?:Fit<|ZodType<|ZodStringFormat<)/
 const UNSET = /Property '(\w+)' is missing in type '.*' but required in type 'Pick</
 /** Any other sentence the package's types put where a step goes wrong. */
 const INSTRUCTION =
-  /"((?:add |the |key column |start with |pass |\w+ is an? |is a view|is ours|isn't stored|no one |an automation )[^"]*)"/
+  /"((?:add |the |key column |start with |pass |say |\w+ is an? |is a view|is ours|isn't stored|no one |an automation |a state view )(?:[^"\\]|\\.)*)"/
 const LAST_OVERLOAD = "The last overload gave the following error."
 
 /** `file:line  message`. The package's own type errors become the instruction they carry. */
@@ -143,10 +145,10 @@ function describe(d: Diagnostic, text: string, file: string): Warning {
   // One sentence per field that would flow by name but does not fit.
   const misfit = [...d.text.matchAll(MISFIT)]
   if (misfit[0]) {
-    const fields = misfit.flatMap((f) => (f[2] ? [f[2]] : []))
-    const them = fields.length > 1 ? "do not fit: set them" : "does not fit: set it"
+    const fields = misfit.flatMap((f) => (f[1] ? [f[1]] : []))
+    const them = fields.length > 1 ? "do not fit: set each" : "does not fit: set it"
     return {
-      message: `${at(d.pos)}${target}: the ${misfit[0][1] ?? ""}${fields.join(", ")}${misfit[0][3] ?? ""} ${them} in the mapping`,
+      message: `${at(d.pos)}${target}: ${fields.join(", ")} ${them} to a field of its type, a z.literal() or m.generate()`,
       element,
       fields,
     }
@@ -169,7 +171,7 @@ function describe(d: Diagnostic, text: string, file: string): Warning {
   const unset = lines.map((l) => l.match(UNSET)?.[1]).find((f) => f !== undefined)
   if (unset) return said(`${at(d.pos)}the mapping must set ${unset}`)
   const instruction = lines.map((l) => l.match(INSTRUCTION)?.[1]).find((m) => m !== undefined)
-  if (instruction) return said(`${at(d.pos)}${instruction}`)
+  if (instruction) return said(`${at(d.pos)}${instruction.replaceAll('\\"', '"')}`)
   // A failed overload call heads a chain; the last overload's reason is the line after it.
   const last = lines.indexOf(LAST_OVERLOAD)
   return said(`${at(d.pos)}${(last >= 0 ? lines[last + 1] : lines[0]) ?? ""}`)

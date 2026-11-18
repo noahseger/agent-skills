@@ -1407,11 +1407,14 @@ test("same-named streams from two modules are one lane", () => {
   assert.equal(json.loose?.[0]?.aggregate, "inventory")
 })
 
-test("a stream no event joins is an empty lane", () => {
+test("a stream no event joins is an empty lane, left to do", () => {
   const f = fixture()
   const Inventory = m.stream()
   f.Created.stream(Inventory)
-  const json = assembled({ ...f, Inventory, Returns: m.stream() }, [create(f), view(f)])
+  const story = chapters({ Ch: [create(f), view(f)] })
+  const exports = { ...f, Inventory, Returns: m.stream(), ...story, default: m.model("x") }
+  const json = assembleModules([exports], { partial: true })
+  assert.deepEqual(json.warnings, [{ message: "Returns has no events yet.", element: "Returns" }])
   assert.deepEqual(json.aggregates, [
     { id: "inventory", name: "Inventory" },
     { id: "returns", name: "Returns" },
@@ -1724,6 +1727,19 @@ test("chapters come in the order declared, each with its slices in the order wri
   )
   assert.equal(json.notes.First, "Where it starts.")
   assert.equal(layout(json).chapters[1]?.note, "Where it starts.")
+})
+
+test("a second .note() adds to the first, on a slice and on a declaration", () => {
+  const f = fixture()
+  f.Created.note("Recorded once.").note("Never edited.")
+  const noted = create(f).note("The first note.").note("The second note.")
+  const feed = feedOf([{ ...f, ...chapters({ Ch: [noted, view(f)] }), default: m.model("x") }])
+  assert.deepEqual(feed.model.slices[0]?.storylines, [
+    { id: "create:note", title: "The first note.\nThe second note.", elements: [] },
+  ])
+  const json = drawn(feed)
+  assert.equal(json.chapters[0]?.slices[0]?.note, "The first note.\nThe second note.")
+  assert.equal(json.notes.Created, "Recorded once.\nNever edited.")
 })
 
 test("a chapter no slice joins is drawn empty, as a to-do", () => {
@@ -2370,4 +2386,75 @@ test("a query that picks no row: an automation issues nothing, and a command is 
   assert.deepEqual(disagreements(c, [archive, cartsView(c)]), [
     `Ch › ArchiveItem › "archived": given builds no CartsWithProducts row with {"aggregateId":"${cartId}","productId":"${productId}"}, so ArchiveItem is refused. Add the event that builds it, or reject.`,
   ])
+})
+
+test("a translation whose query picks no row is called a translation", () => {
+  const Provider = m.external()
+  const Authorized = m.event({ state: z.string() }).external(Provider)
+  const Pending = m.view({ state: z.string() }).key("state")
+  const Requested = m.event({ state: z.string() })
+  const Complete = m.command({ state: z.string() })
+  const Completed = m.event({ state: z.string() })
+  const exports = { Provider, Authorized, Pending, Requested, Complete, Completed }
+  const forged = m
+    .slice()
+    .translation({ Authorized })
+    .query({ Pending }, "state")
+    .command({ Complete })
+    .event({ Completed })
+    .test("forged", {
+      given: Authorized({ state: "s-1" }),
+      when: Complete({ state: "s-1" }),
+      then: Completed({ state: "s-1" }),
+    })
+  assert.deepEqual(
+    disagreements(exports, [forged, m.slice().view({ Pending }).event({ Requested })]),
+    [
+      `Ch › Complete › "forged": given builds no Pending row with {"state":"s-1"}, so the translation issues no Complete. Add the event that builds it.`,
+    ],
+  )
+})
+
+test("an event nothing uses is one line, naming every slice that records it", () => {
+  const f = fixture()
+  const Recreate = m.command({ id: z.string(), name: z.string() })
+  const again = m.slice().command({ Recreate }).event({ Created: f.Created })
+  const story = chapters({ Ch: [unspecified(f), again] })
+  const json = feedOf([{ ...f, Recreate, ...story, default: m.model("x") }], { partial: true })
+  assert.deepEqual(
+    json.warnings?.flatMap((w) => (w.message.includes("nothing uses") ? [w.message] : [])),
+    [
+      "Ch › Create, Ch › Recreate: nothing uses Created yet. Add .automation({ Created }), or .event({ Created }) to a state view, where something reacts to it.",
+    ],
+  )
+})
+
+test("z.literal([]) sets the empty list, a constant", () => {
+  const User = m.actor()
+  const Plan = m.command({ weekOf: z.string() })
+  const Planned = m.event({ weekOf: z.string() })
+  const Groceries = m.view({ weekOf: z.string(), added: z.array(z.string()) }).key("weekOf")
+  const week = { weekOf: "2026-11-23" }
+  const story = chapters({
+    Ch: [
+      m
+        .slice()
+        .command({ Plan })
+        .event({ Planned })
+        .actor(User)
+        .test("A week is planned", { when: Plan(week), then: Planned(week) }),
+      m
+        .slice()
+        .view({ Groceries })
+        .event({ Planned }, () => ({ added: z.literal([]) }))
+        .actor(User)
+        .test("A new week has nothing added", {
+          given: Planned(week),
+          then: Groceries({ ...week, added: [] }),
+        }),
+    ],
+  })
+  const feed = feedOf([{ User, Plan, Planned, Groceries, ...story, default: m.model("x") }])
+  const groceries = feed.model.slices.find((s) => s.title === "Groceries")
+  assert.deepEqual(groceries?.mappings, { Planned: { added: "= []" } })
 })

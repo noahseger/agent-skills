@@ -323,6 +323,7 @@ test("the picture shows names as words", () => {
   assert.equal(words("DrawsAndResignation"), "Draws and Resignation")
   assert.equal(words("ItemAdded"), "Item Added")
   assert.equal(words("FIDEGame"), "FIDE Game")
+  assert.equal(words("ConnectOAuthCallback"), "Connect OAuth Callback")
   assert.equal(words("TodoService"), "Todo Service")
   assert.equal(out.chapters[0]?.title, "List Management")
   assert.equal(out.columns.find((c) => c.label === "ListItems")?.title, "List Items")
