@@ -647,6 +647,9 @@ svg .warn-dot {
 .card.error .shape { fill: var(--danger-fill); stroke: var(--danger-stroke); }
 .card.error .title { fill: var(--danger-ink); }
 .card.error .field { fill: var(--danger-ink); }
+.card.description .shape { fill: var(--panel); stroke: var(--faint); stroke-dasharray: 3 3; }
+.card.description .title { fill: var(--muted); }
+.card.description .field { fill: var(--ink); font-family: var(--sans); }
 
 .card.ui .shape { fill: var(--ui-fill); stroke: var(--ui-stroke); }
 .card.ui .title { fill: var(--ui-ink); }

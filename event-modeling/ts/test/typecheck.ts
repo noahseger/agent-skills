@@ -145,8 +145,8 @@ m.slice().view({ TodoList }).event({ ListCreated }).command({ CreateList })
 // @ts-expect-error an automation has no screen: no one sees it
 m.slice().automation({ ListCreated }).command({ NameList }).event({ ListCreated }).screen(Lock)
 
-// @ts-expect-error a state change has no request
-m.slice().command({ CreateList }).event({ ListCreated }).request({ listId: z.string() })
+// @ts-expect-error a state change has no context
+m.slice().command({ CreateList }).event({ ListCreated }).context({ listId: z.string() })
 
 // @ts-expect-error a state change is not started twice
 m.slice().command({ CreateList }).event({ ListCreated }).command({ AddItem })
@@ -156,7 +156,7 @@ m.slice().command({ CreateList }).event({ ListCreated })
 m.slice().command({ CreateList }).query({ TodoList }, "listId").event({ ListCreated }, (c) => ({ name: c.CreateList.name })).chapter(Ch).actor(User, Admin).service(TodoService)
 m.slice().command({ CreateList }).event({ ListCreated }).actor(User).screen(Lock).service(TodoService, "StartList").chapter(Ch)
 m.slice().view({ TodoList }).event({ ListCreated }).chapter(Ch)
-m.slice().view({ TodoList }).event({ ListCreated }).event({ ItemAdded }).request({ listId: z.string() }).chapter(Ch).actor(User)
+m.slice().view({ TodoList }).event({ ListCreated }).event({ ItemAdded }).context({ listId: z.string() }).chapter(Ch).actor(User)
 m.slice().view({ TodoList }).event({ ListCreated }).actor(User).screen(Lock).service(TodoService, "GetList")
 m.slice().automation({ ListCreated }).command({ NameList }).query({ TodoList }, "listId").event({ ListCreated }, (c) => ({ name: c.NameList.name })).chapter(Ch)
 m.slice().automation({ TodoList }).command({ NameList }).event({ ListCreated }).chapter(Ch)
@@ -469,9 +469,6 @@ create.test("x", { when: AddItem({ listId: "l-1" }), then: ListCreated({ listId:
 // @ts-expect-error then is the slice's events, not any event
 create.test("x", { when: CreateList({ listId: "l-1" }), then: ItemAdded({ listId: "l-1" }) })
 
-// @ts-expect-error a rejection is reject: "why", not a string in then
-create.test("x", { when: CreateList({ listId: "l-1" }), then: "Error: nope" })
-
 // @ts-expect-error a specification has then or reject, not both
 create.test("x", { when: CreateList({ listId: "l-1" }), then: ListCreated({ listId: "l-1" }), reject: "nope" })
 
@@ -481,23 +478,23 @@ create.test("x", { when: CreateList({ listId: "l-1" }) })
 // @ts-expect-error a rejection is written in the specification, not declared on m
 m.reject
 
-// @ts-expect-error a state view's when is its request's values, never a command
+// @ts-expect-error a state view's when is its context's values, never a command
 m.slice().view({ TodoList }).event({ ListCreated }).test("x", { given: ListCreated({ listId: "l-1" }), when: CreateList({}), then: TodoList({}) })
 
-// A state view's when is its request's values; its then, rows of the view it shows.
+// A state view's when is its context's values; its then, rows of the view it shows.
 const Shelf = m.view({ shelfId: z.string() }).key("shelfId")
-const inbox = m.slice().view({ TodoList }).event({ ListCreated }).request({ name: z.string() })
+const inbox = m.slice().view({ TodoList }).event({ ListCreated }).context({ name: z.string() })
 
 // @ts-expect-error name is a string
 inbox.test("x", { when: { name: 1 }, then: [] })
 
-// @ts-expect-error the request has no field nope
+// @ts-expect-error the context has no field nope
 inbox.test("x", { when: { name: "a", nope: 1 }, then: [] })
 
-// @ts-expect-error a state view with a request is asked with its values
+// @ts-expect-error a state view with a context is asked with its values
 inbox.test("x", { then: [] })
 
-// @ts-expect-error a state view with no request has no when
+// @ts-expect-error a state view with no context has no when
 m.slice().view({ TodoList }).event({ ListCreated }).test("x", { when: { name: "a" }, then: [] })
 
 // @ts-expect-error then is rows of what the view shows, and it does not show Shelf
@@ -544,6 +541,9 @@ create.test("x", { given: [ListCreated({ listId: "l-1" })], when: CreateList({ l
 m.slice().automation({ ListCreated }).command({ NameList }).event({ ListCreated }).test("x", { given: ListCreated({ listId: "l-1" }), when: NameList({ listId: "l-1" }), then: ListCreated({ listId: "l-1" }) })
 m.slice().view({ TodoList }).event({ ListCreated }, () => ({ itemCount: z.literal(0) })).event({ ItemAdded }, (c) => ({ itemCount: m.generate(c.ItemAdded), name: c.ItemAdded.title }))
 inbox.test("x", { given: [ListCreated({ listId: "l-1", name: "a" }), ItemAdded({ listId: "l-1" })], when: { name: "a" }, then: [TodoList({ listId: "l-1" })] })
+// then may describe an outcome its examples cannot show.
+create.test("x", { when: CreateList({ listId: "l-1" }), then: ["The list is new", ListCreated({ listId: "l-1" })] })
+inbox.test("x", { when: { name: "a" }, then: "No list is named a" })
 m.slice().view({ TodoList }).event({ ListCreated }).test("x", { given: ListCreated({ listId: "l-1" }), then: TodoList({ listId: "l-1" }) })
 m.event({ noteId: z.string() }).stream(Notes)
 // A specification may be a function, and m.generate() is a value of any field's type.

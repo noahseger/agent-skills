@@ -1,5 +1,6 @@
 // What the layout draws: the model as columns and lanes, read from the spec JSON by `read.ts`.
-// An element is written `Name(field, *key)`, a clause `Name(field=value)` or `Error: reason`.
+// An element is written `Name(field, *key)`, a clause `Name(field=value)`, `Error: reason` or
+// `Described: outcome`.
 import type { Source, Warning } from "../../src/types.ts"
 
 /** A field as the card detail shows it: `type` is a format, enum values or a JSON type, `[]` per list. */
@@ -46,7 +47,7 @@ export interface BoardSlice {
   reads?: string[]
   read_models?: string[]
   tests: BoardTest[]
-  request?: string[]
+  context?: string[]
   polls?: string
   note?: string
   /** Per event or command, the fields a mapping filled and where each came from. */

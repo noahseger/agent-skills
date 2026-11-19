@@ -34,7 +34,7 @@ m.slice()
 m.slice()
   .view({ Inbox })
   .event({ NoteCreated }, () => ({ status: z.literal("inbox") }))
-  .request({ status: z.string() })
+  .context({ status: z.string() })
   .chapter(Capture)
   .actor(Writer)
   .service(NoteService, "ListInbox")
@@ -63,7 +63,7 @@ m.slice()
 m.slice()
   .view({ Inbox })
   .event({ NoteFiled }, () => ({ status: z.literal("filed") }))
-  .request({ status: z.string() })
+  .context({ status: z.string() })
   .test("A filed note leaves the inbox", {
     given: [
       NoteCreated({ noteId: "note-1", text: "Call the plumber" }),

@@ -83,7 +83,7 @@ const slices = [
       payments: z.literal(0),
       status: z.literal("refused"),
     }))
-    .request({ orderId: z.string() })
+    .context({ orderId: z.string() })
     .chapter(Sales)
     .actor(Clerk)
     .service(Shop, "ListUnpaid"),
@@ -241,7 +241,7 @@ test("a state view slice: events in, its view, a screen out", () => {
   assert.deepEqual(
     Object.keys(view?.screens[0]?.fields.properties ?? {}),
     ["orderId"],
-    "a view's screen asks for the request",
+    "a view's screen asks for the context",
   )
   const drawn = read(feed).chapters[0]?.slices[1]
   assert.deepEqual(

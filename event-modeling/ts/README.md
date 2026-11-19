@@ -70,8 +70,8 @@ that can come next.
 A slice is complete once it has its command and an event, or its view and an event. Before then it
 compiles, is drawn as far as it goes, and what it lacks is left to do; `.test()` waits for its
 events. `.event()` again adds an event the command can record. `.query()` reads a view, before the
-events. `.request()` gives a state view its request fields, `.test()` adds a specification, and
-`.chapter()` puts the slice in a chapter. A state change or state view also takes `.actor()`,
+events. `.context()` gives a state view the fields it is read with, `.test()` adds a specification,
+and `.chapter()` puts the slice in a chapter. A state change or state view also takes `.actor()`,
 `.screen()` and `.service()`, and needs none of them. An automation or a translation takes
 `.actor()` for the system actor that runs it. `.chapter()`, `.actor()`, `.screen()`, `.service()`
 and `.note()` can come anywhere after the first step.
@@ -215,7 +215,7 @@ m.slice()
   .view({ TodoList })
   .event({ ListCreated }, () => ({ itemCount: z.literal(0) }))
   .event({ ItemAdded }, (c) => ({ itemCount: m.generate(c.ItemAdded) }))
-  .request({ userId: z.string() })
+  .context({ userId: z.string() })
   .chapter(Views)
   .actor(User)
   .service(TodoService, "ListTodoLists")
@@ -237,8 +237,9 @@ the count is made from the `ItemAdded` events seen for the row. An event finds i
 columns, so each event a state view names must carry every one: `ItemAdded` carries `userId` for
 that reason.
 
-`.request()` declares the request. A state view has no command to name its method after, so
-`.service()` names it.
+`.context()` fields are the context the view is read with, from a request, a token or a session,
+and filter the view by equality on columns of the same name. A state view has no command to name
+its method after, so `.service()` names it.
 
 ### 4. Generate the API
 
@@ -399,7 +400,7 @@ also named after the command; to use another method name, pass it:
 ### Views
 
 The same events can build a second table for a different question. A state view shows one view; to
-show two side by side, write two state views that name one screen. Without `.request()` its request
+show two side by side, write two state views that name one screen. Without `.context()` its context
 is empty.
 
 A view has one state view slice, so a later chapter can extend a table next to the event that
@@ -422,14 +423,16 @@ A specification is a Given, When, Then example attached to a slice with `.test()
 declaration with data builds an example of it, and Zod checks the values: one it refuses is left to
 do, with where in the example. `given` and `then` accept one example or a list. A state change's specification has `then`, the events recorded, or `reject`,
 why the command is refused; never both. A state view's has `given`, the events that build the rows;
-`when`, the values its request is asked with, only once it has a `.request()`; and `then`, the rows
-the screen shows. It has no `reject`, because a view cannot reject an event.
+`when`, the values of its context, only once it has a `.context()`; and `then`, the rows the screen
+shows. It has no `reject`, because a view cannot reject an event. Any `then` may also hold strings,
+alone or beside its examples, each describing an outcome the examples cannot show:
+`then: ["The queue has no row for this record"]`.
 
 Every event a slice handles or produces is in one of its specifications: each event a command records
 in some `then`, external events included, and each event a state view names, or an automation's
-trigger event, in some `given`. An automation a view starts has no trigger event, so it needs none.
-Every state view has a specification. Until then the model is unfinished. A `given` may also hold
-other events, the history that shaped the state.
+trigger event, in some `given`. A string in `then` is no event. An automation a view starts has no
+trigger event, so it needs none. Every state view has a specification. Until then the model is
+unfinished. A `given` may also hold other events, the history that shaped the state.
 
 A specification must agree with its slice's wiring. A value copied or mapped from the command, the
 trigger event, the polled row, a queried row or a given event must equal the value there; a
@@ -458,9 +461,9 @@ the specification as a function:
 
 A state view's `given` builds the rows through its events. Each row in
 `then` must be one of them, matched by its key columns, with the values they have. A row built and
-left out of `then` must be one the request excludes: a request field filters by equality with the
-column of the same name. A request field with no such column, such as a search's `text`, excludes
-nothing, so its specification lists every row built.
+left out of `then` must be one the context excludes, unless a string in `then` says what the rows
+leave out. A context field with no column of its name, such as a search's `text`, excludes nothing,
+so its specification lists every row built or describes the rest.
 
 ### Automations
 
@@ -600,7 +603,7 @@ The compiler catches:
 | what starts an automation or a translation | `.automation()` refuses an external event, and the error says to use `.translation()`; `.translation()` takes nothing else. |
 | `.key()` | It names columns of the view, so `.query()` can count the rows a filter picks. |
 | `.service()` on a state view | It names the method. |
-| `.test()` | `when` is the slice's command, or a state view's request values. `then` is its events, or the rows of the view a state view shows; `reject` replaces `then`, and a state view has none. Zod checks the values. |
+| `.test()` | `when` is the slice's command, or a state view's context values. `then` is its events, or the rows of the view a state view shows, and strings that describe an outcome; `reject` replaces `then`, and a state view has none. Zod checks the values. |
 
 Assembly catches the rest, and each error names the slice it found the problem in:
 
@@ -626,7 +629,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | A slice's event, or a state view, that no specification covers, as [Specifications](#specifications) says | Each `.test()` is checked on its own, not against the slice's other specifications. |
 | A specification value that is not what flows in: from `when`, the trigger in `given`, or the events that build the row or a queried row | Example values are data, not types. |
 | A queried row `given` does not build, in a specification that does not `reject`; in an automation, before its command, any specification | Same. |
-| A state view's row that `given` does not build, or a built row `then` leaves out and the request does not exclude | Same. |
+| A state view's row that `given` does not build, or a built row `then` leaves out, describes nothing about, and the context does not exclude | Same. |
 | A mapping's result that is a schema but no source field, such as `c.AddNote.title.toUpperCase()` | A Zod method returns a schema of the same type. |
 | A mapping that throws, such as `m.generate()` given something other than a field: its slice is drawn without the mapping | The mapping runs when the model does. |
 | `m.generate()` in an automation's command | `m.generate()` is one function, wherever it is called. |
@@ -645,7 +648,7 @@ Naming is yours: the conventions above are not checked.
 | a chapter | the slice's `context`. A slice in no chapter has none |
 | a command, event, view | an `Element` of type `COMMAND`, `EVENT`, `READMODEL`, in each slice that uses it, with `fields` and `dependencies` along the slice's arrows |
 | an automation's gear | an `AUTOMATION` element in `processors`, named after the slice: what starts it points at it, it points at the command |
-| a screen | one `SCREEN` per slice with an actor: the screen's name, or the method's. Its fields are the command's, or a state view's `.request()` |
+| a screen | one `SCREEN` per slice with an actor: the screen's name, or the method's. Its fields are the command's, or a state view's `.context()` |
 | `.service()` | `service` and `apiEndpoint` on the command, or on the view a state view shows |
 | a stream | each event's `aggregate`, and the slice's `aggregates`: the streams it records into. A slice that records nothing names none |
 | an actor | the slice's `actors`. An admin is tagged `admin`, a machine of ours `system`. An automation's, or a state view's no one sees, is the system actor that runs it |
@@ -653,7 +656,7 @@ Naming is yours: the conventions above are not checked.
 | `.key()` | the element's `key` |
 | a mapping | the slice's `mappings`, by the element of the step it is on, then by field: the source field's name, `= ` and a JSON value, or `generate(<inputs>)`. A field from a queried row, by name too, is `View(filter columns).column`, as `CartsWithProducts(productId).aggregateId`; of a view queried twice, the row before the step. A state view's are on its events, and set the view's columns |
 | a note | an element's `description` |
-| a specification | a `Specification`: `given`, `when` and `then` steps, each an example in `examples`. A `reject` is a `SPEC_ERROR` step titled with the reason. A state view's request values are a `SPEC_COMMAND` step titled with its screen, the request it is asked from, as a command is sent from one |
+| a specification | a `Specification`: `given`, `when` and `then` steps, each an example in `examples`. A `reject` is a `SPEC_ERROR` step titled with the reason. A string in `then` is a `SPEC_DESCRIPTION` step titled with it. A state view's context values are a `SPEC_COMMAND` step titled with its screen, the one it is asked from, as a command is sent from one |
 
 The schema allows no property it does not name. The rest is said with properties it has, as
 follows; a model written by hand can do the same, and the viewer draws it.
@@ -679,14 +682,14 @@ on actors, services and external systems have no place in either.
 `buf generate` with your own `buf.gen.yaml`. The output passes `buf lint` under `STANDARD`.
 
 A service's file is written once its own slices are finished: the state changes and state views with
-`.service()` naming it, each with its command, views and request fields. What is left to do
+`.service()` naming it, each with its command, views and context fields. What is left to do
 elsewhere does not hold it back; a service with its own left to do is skipped, its to-dos printed,
 and `proto` exits 1.
 
 | Slice | Generates |
 |---|---|
 | state change | `rpc Command(CommandRequest) returns (CommandResponse)`. The request is the command's fields. The response is empty, because events are internal. |
-| state view | `rpc Method(MethodRequest) returns (MethodResponse)`. The request is the `.request()` fields. The response returns one row when the request names every key column; otherwise, a list. |
+| state view | `rpc Method(MethodRequest) returns (MethodResponse)`. The request is the `.context()` fields. The response returns one row when they name every key column; otherwise, a list. |
 | automation, or a slice without `.service()` | Nothing. They have no service method. |
 
 Every command and view becomes a `message`. Field numbers follow declaration order, so

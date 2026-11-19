@@ -56,9 +56,10 @@ function value(v: unknown): string {
   return String(v)
 }
 
-/** `Name(field=value)`, or `Error: reason`. */
+/** `Name(field=value)`, `Error: reason`, or `Described: outcome`. */
 function clause(step: SpecStep): string {
   if (step.type === "SPEC_ERROR") return `Error: ${step.title}`
+  if (step.type === "SPEC_DESCRIPTION") return `Described: ${step.title}`
   const pairs = Object.entries(step.examples?.[0] ?? {}).map(([k, v]) => `${k}=${value(v)}`)
   return `${step.title}(${pairs.join(", ")})`
 }
@@ -253,7 +254,7 @@ export function read(written: Feed): Board {
     if (calls.length > 0) out.calls = calls
     if (reads.length > 0) out.reads = reads.map((r) => r.title)
     if (shows.length > 0) out.read_models = shows.map(element)
-    if (shows.length > 0 && screen && names(screen).length > 0) out.request = names(screen)
+    if (shows.length > 0 && screen && names(screen).length > 0) out.context = names(screen)
     if (polled) out.polls = polled.title
     const note = s.storylines?.[0]?.title
     if (note !== undefined) out.note = note

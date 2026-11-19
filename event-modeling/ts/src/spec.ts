@@ -64,7 +64,7 @@ export interface SpecElement {
 export interface SpecStep {
   id: string
   title: string
-  type: "SPEC_EVENT" | "SPEC_COMMAND" | "SPEC_READMODEL" | "SPEC_ERROR"
+  type: "SPEC_EVENT" | "SPEC_COMMAND" | "SPEC_READMODEL" | "SPEC_ERROR" | "SPEC_DESCRIPTION"
   examples?: Record<string, unknown>[]
 }
 
@@ -317,7 +317,7 @@ function sliceOf(
           dependencies: [],
         }
       : undefined
-  // An actor sees the slice on a screen: the command's form, or the view's request.
+  // An actor sees the slice on a screen: the command's form, or the view's context.
   const asked = slice.screen?.name ?? method
   const screen: SpecElement | undefined =
     slice.actors.length > 0
@@ -325,7 +325,7 @@ function sliceOf(
           id: idOf("SCREEN", asked),
           title: asked,
           type: "SCREEN",
-          fields: command ? fieldsOf(command.decl.fields) : fieldsOf(slice.request ?? {}),
+          fields: command ? fieldsOf(command.decl.fields) : fieldsOf(slice.context ?? {}),
           dependencies: [],
           ...(slice.screen?.note !== undefined && { description: slice.screen.note }),
         }
@@ -372,11 +372,12 @@ function sliceOf(
 }
 
 function step(c: ClauseData, id: string): SpecStep {
-  if (!("decl" in c)) return { id, title: c.message, type: "SPEC_ERROR" }
+  if ("message" in c) return { id, title: c.message, type: "SPEC_ERROR" }
+  if ("description" in c) return { id, title: c.description, type: "SPEC_DESCRIPTION" }
   return { id, title: c.decl.name ?? "", type: STEP[c.decl.kind], examples: [c.data] }
 }
 
-/** A state view's request is asked from its screen, as a command is sent from one: so `asked` titles it. */
+/** A state view's context is asked from its screen, as a command is sent from one: so `asked` titles it. */
 function specification(
   t: TestData,
   id: string,
@@ -392,8 +393,8 @@ function specification(
     given: t.given.map((c, i) => step(c, `${id}:given:${i}`)),
     when: t.when
       ? [step(t.when, when)]
-      : t.request
-        ? [{ id: when, title: asked, type: "SPEC_COMMAND", examples: [t.request] }]
+      : t.context
+        ? [{ id: when, title: asked, type: "SPEC_COMMAND", examples: [t.context] }]
         : [],
     then: t.then.map((c, i) => step(c, `${id}:then:${i}`)),
     linkedId,

@@ -154,7 +154,7 @@ function drawnElsewhere(first: SliceData, later: SliceData): Warning[] {
   const chapter = (s: SliceData) => s.chapters.map((c) => c.name).join(" and ") || undefined
   const actors = (s: SliceData) => s.actors.map((a) => a.name).join(" and ") || undefined
   const method = (s: SliceData) => s.service && `${s.service.service.name}/${s.service.method}`
-  const request = (s: SliceData) => (s.request ? Object.keys(s.request).join(", ") : undefined)
+  const context = (s: SliceData) => (s.context ? Object.keys(s.context).join(", ") : undefined)
   const quoted = (text: string | undefined) => (text === undefined ? undefined : show(text))
   const differs: [string | undefined, string | undefined, string, string, string][] = [
     [chapter(later), chapter(first), "names chapter", "drawn in", "drawn in no chapter"],
@@ -162,7 +162,7 @@ function drawnElsewhere(first: SliceData, later: SliceData): Warning[] {
     [actors(later), actors(first), "names actor", "seen by", "seen by no one"],
     [later.screen?.name, first.screen?.name, "names screen", "shown on", "shown on no screen"],
     [method(later), method(first), "names method", "served by", "served by no method"],
-    [request(later), request(first), "asks with", "asked with", "asked with nothing"],
+    [context(later), context(first), "asks with", "asked with", "asked with nothing"],
     [
       quoted(later.note),
       quoted(first.note),
@@ -755,7 +755,7 @@ function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
       for (const c of then) {
         const matched = rowsLike(rows, view, c.data)
         const built = matched.length === 1 && matched[0] ? valuesOf(matched[0]) : {}
-        if (excluded({ ...built, ...c.data }, t.request ?? {}))
+        if (excluded({ ...built, ...c.data }, t.context ?? {}))
           said(
             `then has ${view.name} ${rowName(view, c.data)}, but when excludes it. Remove it from then.`,
             view.name ?? "",
@@ -767,11 +767,12 @@ function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
             view.name ?? "",
           )
       }
-      for (const row of rows) {
+      // A described outcome claims what the rows leave out.
+      for (const row of t.then.some((c) => "description" in c) ? [] : rows) {
         const data = valuesOf(row)
         if (then.some((c) => rowsLike([row], view, c.data).length > 0)) continue
-        if (excluded(data, t.request ?? {})) continue
-        const unless = t.request ? " and when does not exclude it" : ""
+        if (excluded(data, t.context ?? {})) continue
+        const unless = t.context ? " and when does not exclude it" : ""
         said(
           `given builds ${view.name} ${rowName(view, data)}, but then leaves it out${unless}. Add it to then.`,
           view.name ?? "",
@@ -873,7 +874,7 @@ function checkHandled(
         // No command is issued, so the handler reads nothing.
         break
       }
-      if (!t.then.some((c) => !("decl" in c)))
+      if (!t.then.some((c) => "message" in c))
         said(
           `${none}, so ${command.decl.name} is refused. Add the event that builds it, or reject.`,
           view.name ?? "",

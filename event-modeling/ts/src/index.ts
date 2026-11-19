@@ -675,7 +675,10 @@ export interface Commanded<C extends Ctx, Cmd extends Fields, P extends "change"
 export type Spec<C extends Fields, Em extends Fields> = {
   given?: OneOrMany<Example<"event">>
   when: Example<"command", C>
-} & ({ then: OneOrMany<Example<"event", Em>>; reject?: never } | { reject: string; then?: never })
+} & (
+  | { then: OneOrMany<Example<"event", Em> | string>; reject?: never }
+  | { reject: string; then?: never }
+)
 
 /** A complete slice that handles a command: the command and at least one event. */
 export interface Handled<
@@ -719,20 +722,20 @@ export interface Viewing<R extends Fields> extends Showing, Gate<"add .event() b
 }
 
 /**
- * A state view's example: `given` builds the rows, `when` holds the request's values, and `then` the
- * rows the screen shows. One with no request has no `when`, and a view cannot reject an event.
+ * A state view's example: `given` builds the rows, `when` holds its context's values, and `then` the
+ * rows the screen shows. One with no context has no `when`, and a view cannot reject an event.
  */
 export type ViewSpec<Q extends Fields, R extends Fields> = {
   given?: OneOrMany<Example<"event">>
-  then: OneOrMany<Example<"view", R>>
+  then: OneOrMany<Example<"view", R> | string>
 } & ([keyof Q] extends [never] ? { when?: never } : { when: z.input<z.ZodObject<Q>> })
 
 /** A complete state view: the view and at least one event. */
 export interface Viewed<R extends Fields, Q extends Fields> extends Showing {
   event<N extends object>(event: Projected<R, N>): Viewed<R, Q>
   event<N extends object>(event: Single<N, AnyEvent>, map: ViewMapping<R, N>): Viewed<R, Q>
-  /** The request fields; without them the request is empty. */
-  request<F extends Fields>(fields: F): Viewed<R, F>
+  /** The fields it is read with, each filtering by equality on its column; without them, none. */
+  context<F extends Fields>(fields: F): Viewed<R, F>
   test(name: string, spec: ViewSpec<Q, R> | (() => ViewSpec<Q, R>)): this
 }
 
@@ -744,12 +747,12 @@ function many<T>(clauses: OneOrMany<T> | undefined): T[] {
 interface AnySpec {
   given?: OneOrMany<Example>
   when?: Example | Record<string, unknown>
-  then?: OneOrMany<Example>
+  then?: OneOrMany<Example | string>
   reject?: string
 }
 
 /**
- * A state view's `when` is its request's values, which Zod checks as it checks an example's. Each
+ * A state view's `when` is its context's values, which Zod checks as it checks an example's. Each
  * generated value, at any depth, becomes one value wherever the specification uses it, so the check
  * compares it as any other. A value Zod refuses is kept as written and left to do.
  */
@@ -784,9 +787,12 @@ function testData(name: string, spec: AnySpec, view?: SliceData): TestData {
   const test: TestData = {
     name,
     given: many(spec.given).map(example),
-    then: spec.reject === undefined ? many(spec.then).map(example) : [{ message: spec.reject }],
+    then:
+      spec.reject === undefined
+        ? many(spec.then).map((c) => (typeof c === "string" ? { description: c } : example(c)))
+        : [{ message: spec.reject }],
   }
-  if (view?.view && spec.when) test.request = check(view.view, view.request ?? {}, spec.when)
+  if (view?.view && spec.when) test.context = check(view.view, view.context ?? {}, spec.when)
   else if (spec.when) test.when = example(spec.when as Example)
   if (invalid.length > 0) test.invalid = invalid
   return test
@@ -871,7 +877,7 @@ function chain(data: SliceData, context: Context, scope: InScope) {
     // The row's columns join the context, as an external event's fields do, where it lacks them.
     query: (view: object, filter: string | MapFn) => {
       const { decl, entry, named } = use(view)
-      // A state view's request, as it was once written, is no view.
+      // A state view's context, as it was once written, is no view.
       if (!decl) return next({})
       const read =
         typeof filter === "string"
@@ -897,7 +903,7 @@ function chain(data: SliceData, context: Context, scope: InScope) {
         decl.external ? [...scope, entry] : scope,
       )
     },
-    request: (fields: Fields) => next({ request: fields }),
+    context: (fields: Fields) => next({ context: fields }),
     // An automation is run by one machine of ours, and no one sees it.
     actor: (first: Actor, ...rest: Actor[]) =>
       next(

@@ -90,7 +90,7 @@ export interface Chapter {
 }
 
 export interface SpecCard {
-  kind: Kind | "error"
+  kind: Kind | "error" | "description"
   name: string
   /** One `field = value` per line. */
   lines: string[]
@@ -188,10 +188,22 @@ export function parse(element: string): Element {
   }
 }
 
-/** `Name(a=1, b=[x, y], c={d=2})` or `Error: message` -> a name and one line per field. */
-export function parseClause(clause: string): { name: string; lines: string[]; error: boolean } {
+/**
+ * `Name(a=1, b=[x, y], c={d=2})`, `Error: message` or `Described: outcome` -> a name and one line
+ * per field.
+ */
+export function parseClause(clause: string): {
+  name: string
+  lines: string[]
+  error: boolean
+  described?: true
+} {
   if (clause.startsWith("Error:")) {
     return { name: "Rejected", lines: [clause.slice("Error:".length).trim()], error: true }
+  }
+  if (clause.startsWith("Described:")) {
+    const outcome = clause.slice("Described:".length).trim()
+    return { name: "Described", lines: [outcome], error: false, described: true }
   }
   const open = clause.indexOf("(")
   if (open < 0) return { name: clause.trim(), lines: [], error: false }
@@ -554,10 +566,10 @@ export function layout(model: Board): Layout {
         const ui = make(
           i,
           "ui",
-          { name: s.screen ?? method, fields: s.request ?? [], keys: [] },
+          { name: s.screen ?? method, fields: s.context ?? [], keys: [] },
           {
             ...(service === undefined ? {} : { detail: service }),
-            form: s.command ? commandFields : (s.request ?? []),
+            form: s.command ? commandFields : (s.context ?? []),
             ...(s.command ? { button: parse(s.command).name } : {}),
             ...(shown === undefined ? {} : { table: shown }),
           },
@@ -828,12 +840,18 @@ export function layout(model: Board): Layout {
         for (const clause of clauses) {
           const parsed = parseClause(clause)
           const lines = parsed.lines.flatMap((l) => wrap(l, SPEC_LINE_CHARS, SPEC_INDENT))
-          const { name, error } = parsed
+          const { name, error, described } = parsed
           const h = lines.length > 0 ? SPEC_CARD_TITLE + lines.length * SPEC_LINE_H + 6 : 26
-          // A view's when is the request its screen asks.
+          // A view's when is the context its screen asks for.
           const asked = word === "when" && !col.slice.command
           step.cards.push({
-            kind: error ? "error" : asked ? "ui" : (kinds.get(name) ?? "command"),
+            kind: error
+              ? "error"
+              : described
+                ? "description"
+                : asked
+                  ? "ui"
+                  : (kinds.get(name) ?? "command"),
             name,
             lines,
             x: spec.x,

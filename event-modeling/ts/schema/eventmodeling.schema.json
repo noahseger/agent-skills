@@ -208,7 +208,7 @@
         "specRow": { "type": "integer" },
         "type": {
           "type": "string",
-          "enum": ["SPEC_EVENT", "SPEC_COMMAND", "SPEC_READMODEL", "SPEC_ERROR"]
+          "enum": ["SPEC_EVENT", "SPEC_COMMAND", "SPEC_READMODEL", "SPEC_ERROR", "SPEC_DESCRIPTION"]
         },
         "fields": { "$ref": "#/$defs/Fields" },
         "linkedId": { "type": "string" },

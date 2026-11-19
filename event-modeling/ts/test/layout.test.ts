@@ -57,6 +57,12 @@ test("parseClause gives one line per field, and a rejection its message", () => 
     lines: ["maximum 3 items per list"],
     error: true,
   })
+  assert.deepEqual(parseClause("Described: The list is gone"), {
+    name: "Described",
+    lines: ["The list is gone"],
+    error: false,
+    described: true,
+  })
   assert.deepEqual(wrap("Adding a fourth item is rejected", 20), [
     "Adding a fourth item",
     "is rejected",

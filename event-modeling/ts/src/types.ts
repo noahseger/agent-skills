@@ -157,16 +157,21 @@ export interface RejectionData {
   message: string
 }
 
-export type ClauseData = ExampleData | RejectionData
+/** An outcome `then` says in words, beyond what its examples show. */
+export interface DescriptionData {
+  description: string
+}
+
+export type ClauseData = ExampleData | RejectionData | DescriptionData
 
 export interface TestData {
   name: string
   given: ExampleData[]
   when?: ExampleData
-  /** A state view's `when`: the values its request is asked with. */
-  request?: Record<string, unknown>
+  /** A state view's `when`: the values of its context. */
+  context?: Record<string, unknown>
   then: ClauseData[]
-  /** What Zod refused in an example or the request, with where in it. */
+  /** What Zod refused in an example or the context, with where in it. */
   invalid?: { decl: DeclData; message: string }[]
 }
 
@@ -181,8 +186,8 @@ export interface SliceData {
   /** The machine of ours that runs an automation, or a state view no one sees. */
   system?: ActorData
   service?: { service: ServiceData; method?: string }
-  /** A state view's request fields. */
-  request?: Fields
+  /** A state view's context fields. */
+  context?: Fields
   /** What starts an automation: an event, or a view it polls for work. */
   trigger?: DeclData
   polls?: DeclData

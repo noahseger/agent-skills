@@ -134,7 +134,7 @@ test("a type outside the table stops its service, naming the declaration and the
   )
 })
 
-test("a view with no .request() has an empty request", () => {
+test("a view with no .context() has an empty request", () => {
   const Table = m.view({ id: z.string() }).key("id")
   const proto = source(
     modelOf(
@@ -174,7 +174,7 @@ test("two state views on one screen are two methods, each returning its own view
   const view = (shown: Viewing<typeof Lists.__fields>, method: string) =>
     shown
       .event({ Created })
-      .request({ listId: z.string() })
+      .context({ listId: z.string() })
       .actor(User)
       .screen(Board)
       .service(Svc, method)
@@ -195,21 +195,21 @@ test("two state views on one screen are two methods, each returning its own view
   )
 })
 
-test("a request that names every key column returns one row, not a list", () => {
+test("a context that names every key column returns one row, not a list", () => {
   const fields = { userId: z.string(), id: z.string(), name: z.string() }
   const [Table, Rows] = [m.view(fields).key("userId", "id"), m.view(fields).key("userId", "id")]
   const one = m
     .slice()
     .view({ Table })
     .event({ Created })
-    .request({ userId: z.string(), id: z.string() })
+    .context({ userId: z.string(), id: z.string() })
     .actor(User)
     .service(Svc, "Get")
   const many = m
     .slice()
     .view({ Rows })
     .event({ Created })
-    .request({ userId: z.string() })
+    .context({ userId: z.string() })
     .actor(User)
     .service(Svc, "List")
   const proto = source(modelOf({ Table, Rows }, one, many))

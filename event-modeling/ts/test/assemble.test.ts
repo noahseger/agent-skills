@@ -908,7 +908,7 @@ const viewed = (f: Fixture, view: Slice) =>
 test("a view's specification shows the rows given builds that its query asks for", () => {
   const f = fixture()
   const byName = unspecifiedView(f)
-    .request({ name: z.string() })
+    .context({ name: z.string() })
     .test("Only Groceries shows", {
       given: [f.Created(list), f.Created(hardware)],
       when: { name: "Groceries" },
@@ -963,7 +963,7 @@ test("a row given does not build is an error when strict", () => {
 test("a view's row its query excludes is named", () => {
   const f = fixture()
   const byName = unspecifiedView(f)
-    .request({ name: z.string() })
+    .context({ name: z.string() })
     .test("Only Hardware shows", {
       given: [f.Created(list), f.Created(hardware)],
       when: { name: "Hardware" },
@@ -977,7 +977,7 @@ test("a view's row its query excludes is named", () => {
 test("a row given builds that then leaves out is named, unless the query excludes it", () => {
   const f = fixture()
   const search = unspecifiedView(f)
-    .request({ text: z.string() })
+    .context({ text: z.string() })
     .test("A search finds Groceries", {
       given: [f.Created(list), f.Created(hardware)],
       when: { text: "Groc" },
@@ -986,6 +986,51 @@ test("a row given builds that then leaves out is named, unless the query exclude
   assert.deepEqual(viewed(f, search), [
     'Ch › Table › "A search finds Groceries": given builds Table {"id":"list-2"}, but then leaves it out and when does not exclude it. Add it to then.',
   ])
+})
+
+test("a then that describes its outcome may leave out rows given builds, and still checks the rows it has", () => {
+  const f = fixture()
+  const described = unspecifiedView(f).test("Only Groceries shows", {
+    given: [f.Created(list), f.Created(hardware)],
+    then: ["Hardware is archived", f.Table({ ...list, name: "Hardware" })],
+  })
+  assert.deepEqual(viewed(f, described), [
+    'Ch › Table › "Only Groceries shows": then has name "Hardware", but Created in given has "Groceries".',
+  ])
+  const feed = feedOf(
+    [{ ...f, ...chapters({ Ch: [create(f), described] }), default: m.model("x") }],
+    {
+      partial: true,
+    },
+  )
+  assert.deepEqual(validate(feed.model), [])
+  assert.deepEqual(feed.model.slices[1]?.specifications[0]?.then[0], {
+    id: "table:spec:0:then:0",
+    title: "Hardware is archived",
+    type: "SPEC_DESCRIPTION",
+  })
+  const card = layout(read(feed)).specs[1]?.steps.at(-1)?.cards[0]
+  assert.deepEqual([card?.kind, card?.lines], ["description", ["Hardware is archived"]])
+})
+
+test("a described outcome shows no event", () => {
+  const f = fixture()
+  const described = unspecified(f).test("A list is created", {
+    when: f.Create(list),
+    then: "The list exists",
+  })
+  const message =
+    "Ch › Create: no specification shows Created yet. Add a .test whose then has Created(...)."
+  const feed = feedOf(
+    [{ ...f, ...chapters({ Ch: [described, view(f)] }), default: m.model("x") }],
+    {
+      partial: true,
+    },
+  )
+  assert.deepEqual(
+    feed.warnings?.map((w) => w.message),
+    [message],
+  )
 })
 
 test("a specification's given may hold events its slice does not handle", () => {
@@ -1557,7 +1602,7 @@ test("a later .view() that says where or how to draw the slice is a to-do", () =
     .view({ Table: f.Table })
     .event({ Created: f.Created })
     .chapter(story.Tidy as Chapter)
-    .request({ name: z.string() })
+    .context({ name: z.string() })
     .actor(Admin)
     .screen(Lock)
     .service(f.Svc, "List")
@@ -1821,10 +1866,10 @@ test("a slice in no chapter is drawn after the story", () => {
   )
 })
 
-test("a state view's request written as it once was, as a query, is drawn without it", () => {
+test("a state view's context written as it once was, as a query, is drawn without it", () => {
   const f = fixture()
   const { Table, Created } = f
-  // @ts-expect-error .request() declares the request
+  // @ts-expect-error .context() declares the context
   const shown = m.slice().view({ Table }).event({ Created }).query({ id: z.string() })
   const feed = feedOf([{ ...f, ...chapters({ Ch: [shown] }), default: m.model("x") }], {
     partial: true,
@@ -2386,8 +2431,13 @@ test("a query that picks no row: an automation issues nothing, and a command is 
       when: c.ArchiveItem({ aggregateId: cartId, productId }),
       reject: "the cart does not hold the product",
     })
+    .test("described", {
+      when: c.ArchiveItem({ aggregateId: cartId, productId }),
+      then: "The cart no longer holds the product",
+    })
   assert.deepEqual(disagreements(c, [archive, cartsView(c)]), [
     `Ch › ArchiveItem › "archived": given builds no CartsWithProducts row with {"aggregateId":"${cartId}","productId":"${productId}"}, so ArchiveItem is refused. Add the event that builds it, or reject.`,
+    `Ch › ArchiveItem › "described": given builds no CartsWithProducts row with {"aggregateId":"${cartId}","productId":"${productId}"}, so ArchiveItem is refused. Add the event that builds it, or reject.`,
   ])
 })
 
