@@ -64,7 +64,9 @@ export interface ExternalData extends Named {
 
 export interface ChapterData extends Named {
   kind: "chapter"
-  /** How many chapters were declared before it. */
+  /** Where it comes in the story. */
+  number: number
+  /** How many chapters were declared before it, to order two of one number. */
   order: number
   note?: string
 }
@@ -92,7 +94,7 @@ export type Declaration = DeclData | ActorData | ServiceData | ScreenData | Exte
 export interface Assembled {
   model: ModelData
   streams: Map<string, DeclData[]>
-  /** In the order declared, each with its slices in the order written. */
+  /** In the order of their numbers, each with its slices in the order written. */
   chapters: { name: string; note?: string; slices: SliceData[] }[]
   /** The systems we do not own, by name. Each is a lane, with or without events. */
   externals: string[]

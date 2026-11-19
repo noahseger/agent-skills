@@ -116,7 +116,7 @@ export const gameStarted = GameStarted({
   ply: 0,
 })
 
-export const GameSetup = m.chapter()
+export const GameSetup = m.chapter(1)
 
 m.slice("ReceivePairing")
   .translation({ PairingPublished })

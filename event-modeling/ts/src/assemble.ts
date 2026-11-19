@@ -53,7 +53,7 @@ export async function load(path: string, options: Options = {}): Promise<Assembl
   const files = dir === path ? walk(path) : [path]
   DRAFTS.clear()
   // One at a time, so the modules run in one order every load: by path, each after what it
-  // imports. That order is the order slices and chapters are written in.
+  // imports. That order is the order slices are written in.
   const modules: object[] = []
   for (const f of files) modules.push((await import(pathToFileURL(resolve(f)).href)) as object)
   return loadModules(
@@ -229,8 +229,8 @@ function exported(value: unknown): Exported | undefined {
 }
 
 /**
- * Streams, chapters and external systems merge by name, so two modules can add to one. Streams and
- * chapters keep the order written. An event is in one lane, so not in both.
+ * Streams, chapters and external systems merge by name, so two modules can add to one. Chapters
+ * come in the order of their numbers. An event is in one lane, so not in both.
  */
 function nameExports(
   modules: readonly object[],
@@ -296,10 +296,22 @@ function nameExports(
         )
       }
   const chapters: Assembled["chapters"] = []
-  for (const { name = "", note } of headings.sort((a, b) => a.order - b.order)) {
+  const numbered = new Map<number, string>()
+  const sorted = headings.sort((a, b) => a.number - b.number || a.order - b.order)
+  for (const { name = "", note, number } of sorted) {
     const merged = chapters.find((c) => c.name === name)
-    if (!merged) chapters.push({ name, ...(note !== undefined && { note }), slices: [] })
-    else if (merged.note === undefined && note !== undefined) merged.note = note
+    if (merged) {
+      if (merged.note === undefined && note !== undefined) merged.note = note
+      continue
+    }
+    const other = numbered.get(number)
+    if (other !== undefined)
+      conflict({
+        message: `${other} and ${name} are both chapter ${number}. Give each its own number.`,
+        element: "",
+      })
+    numbered.set(number, name)
+    chapters.push({ name, ...(note !== undefined && { note }), slices: [] })
   }
   return { model, streams, chapters, externals, declared, fileOf }
 }

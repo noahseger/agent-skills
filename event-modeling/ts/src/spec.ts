@@ -116,9 +116,9 @@ export interface Feed {
   name: string
   description?: string
   model: SpecModel
-  /** Every chapter in the order declared, with its note; a partial model's may have no slices. */
+  /** Every chapter in number order, with its note; a partial model's may have no slices. */
   chapters?: { name: string; note?: string }[]
-  /** Every stream in the order declared, so a lane no event has joined yet is drawn. */
+  /** Every stream in the order drawn, so a lane no event has joined yet is drawn. */
   streams?: string[]
   /** Actors in no slice, and every external system, so each has a lane. */
   actors?: SpecActor[]
@@ -232,6 +232,9 @@ export function toFeed({
   const slices = stories.flatMap(([context, written]) =>
     written.map((slice) => ({ slice, context })),
   )
+  // A lane comes where the story first uses it; one no slice uses comes after, as declared.
+  const used = slices.flatMap(({ slice }) => slice.events.map((f) => streamOf(f.decl)))
+  const first = (lane: string) => (used.includes(lane) ? used.indexOf(lane) : used.length)
   const looseActors = loose.flatMap((d) => (d.kind === "actor" ? [actorOf(d)] : []))
   const systems = externals.map((name) => ({ name, authRequired: false, tags: ["external"] }))
   const looseElements = loose.flatMap((d) =>
@@ -246,7 +249,7 @@ export function toFeed({
       slices: slices.map(({ slice, context }, index) => sliceOf(slice, index, context, streamOf)),
     },
     chapters: chapters.map(({ name, note }) => ({ name, ...(note !== undefined && { note }) })),
-    streams: [...streams.keys()],
+    streams: [...streams.keys()].sort((a, b) => first(a) - first(b)),
     actors: [...looseActors, ...systems],
     ...(looseElements.length > 0 && { loose: looseElements }),
     ...(warnings.length > 0 && { warnings }),

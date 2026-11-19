@@ -57,7 +57,7 @@ const milk = ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-1", titl
 const milkDone = ItemCompleted({ userId: "u-1", listId: "list-1", itemId: "item-1" })
 const eggs = ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-2", title: "Eggs" })
 
-export const Views = m.chapter()
+export const Views = m.chapter(2)
 
 m.slice()
   .view({ TodoList })
@@ -226,7 +226,7 @@ m.slice()
     }),
   })
 
-export const Automations = m.chapter()
+export const Automations = m.chapter(3)
 
 m.slice("ListCompleter")
   .automation({ ItemCompleted })
@@ -252,7 +252,7 @@ export const TaskScheduled = m
   })
   .external(Calendar)
 
-export const Integrations = m.chapter()
+export const Integrations = m.chapter(4)
 
 m.slice()
   .translation({ TaskScheduled })

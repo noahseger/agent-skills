@@ -222,7 +222,7 @@ export interface Stream {
 
 let streams = 0
 
-/** A lane, named by its export, drawn in the order written. An event joins it with `.stream()`. */
+/** A lane, named by its export. An event joins it with `.stream()`. */
 function stream(): Stream {
   return { [META]: { kind: "stream", order: streams++, members: [] } }
 }
@@ -244,11 +244,11 @@ export interface Chapter {
 let chapters = 0
 
 /**
- * A run of slices under one heading, named by its export, drawn in the order written. A slice
- * joins it with `.chapter()`.
+ * A run of slices under one heading, named by its export. Chapters are drawn in the order of their
+ * numbers, so `m.chapter(1)` comes first. A slice joins it with `.chapter()`.
  */
-function chapter(): Chapter {
-  const data: ChapterData = { kind: "chapter", order: chapters++ }
+function chapter(number: number): Chapter {
+  const data: ChapterData = { kind: "chapter", number, order: chapters++ }
   return {
     [META]: data,
     note(text) {

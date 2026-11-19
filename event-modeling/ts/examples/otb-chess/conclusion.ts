@@ -156,7 +156,7 @@ const resultRecorded = ResultRecorded({
   termination: "agreement",
 })
 
-export const Conclusion = m.chapter()
+export const Conclusion = m.chapter(5)
 
 m.slice()
   .command({ ClaimFlagFall })

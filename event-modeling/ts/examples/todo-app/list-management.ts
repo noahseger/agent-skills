@@ -59,7 +59,7 @@ export const ListDeleted = m.event({ userId: z.string(), listId: z.string() }).s
 const groceries = ListCreated({ listId: "list-1", userId: "u-1", name: "Groceries" })
 const milk = ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-1", title: "Milk" })
 
-export const ListManagement = m.chapter()
+export const ListManagement = m.chapter(1)
 
 m.slice()
   .command({ CreateList })

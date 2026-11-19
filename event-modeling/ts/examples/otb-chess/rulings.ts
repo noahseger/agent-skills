@@ -59,7 +59,7 @@ export const secondOffence = SecondIllegalMoveRuled({
   illegalMoveCount: 2,
 })
 
-export const ArbiterRulings = m.chapter()
+export const ArbiterRulings = m.chapter(4)
 
 m.slice()
   .command({ RuleIllegalMove })

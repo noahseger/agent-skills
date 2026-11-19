@@ -9,7 +9,7 @@ export const NoteService = m.service("notes.v1")
 export const Notes = m.stream()
 
 // Capture: a note lands in the inbox.
-export const Capture = m.chapter()
+export const Capture = m.chapter(1)
 export const CreateNote = m.command({ noteId: z.string(), text: z.string() })
 export const NoteCreated = m.event({ noteId: z.string(), text: z.string() }).stream(Notes)
 export const Inbox = m
@@ -45,7 +45,7 @@ m.slice()
   })
 
 // Filing: the writer files a note, and the inbox shows it filed.
-export const Filing = m.chapter()
+export const Filing = m.chapter(2)
 export const FileNote = m.command({ noteId: z.string() })
 export const NoteFiled = m.event({ noteId: z.string() }).stream(Notes)
 

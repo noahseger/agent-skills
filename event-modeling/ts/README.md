@@ -131,8 +131,8 @@ export const TodoService = m.service("todo.v1")
 export const Lists = m.stream()
 export const Items = m.stream()
 
-export const ListManagement = m.chapter()
-export const Views = m.chapter()
+export const ListManagement = m.chapter(1)
+export const Views = m.chapter(2)
 ```
 
 `m.service()` takes the protobuf package. A stream is a lane of events and a chapter a heading on
@@ -561,9 +561,8 @@ must join one; an external event joins its system instead. A model that declares
 lane, called Events.
 
 `.stream()` takes the stream, not its name, so a typo does not compile. A slice is drawn in the lane
-of the events it records, and its command with them. Lanes come in the order the streams are
-declared; one no event has joined yet is drawn empty. Two modules may export a stream under the
-same name; the CLI merges them into one lane.
+of the events it records, and its command with them. A stream no event has joined yet is drawn
+empty. Two modules may export a stream under the same name; the CLI merges them into one lane.
 
 ### Chapters and order
 
@@ -577,10 +576,8 @@ has joined yet is drawn as a title with no columns, and is left to do. A slice i
 drawn after the story under "Not in a chapter yet", and is left to do until it joins one. Two
 modules may export a chapter under the same name; the CLI merges them into one.
 
-Chapters come in the order they are declared, and a chapter's slices in the order they are written.
-In one file that is top to bottom. Across files it is the order node runs them: the CLI imports the
-model's files one at a time, by path, and a module runs after the modules it imports. So a file that
-imports an earlier chapter's file comes after it.
+Chapters appear in the order of their numbers: `m.chapter(1)`, `m.chapter(2)`. Lanes appear in the
+order of the first chapter that uses them.
 
 ## Validation
 
@@ -672,7 +669,7 @@ follows; a model written by hand can do the same, and the viewer draws it.
 
 The top level holds only `slices`, so the rest travels beside the JSON, only to the viewer: the
 model's name and description; the chapters, with their notes, and the streams, in the order
-declared; the actors no slice names and every external system; and, while the model is unfinished,
+drawn; the actors no slice names and every external system; and, while the model is unfinished,
 the declarations in no slice and what is left to do. That is what `em json --partial` prints. Notes
 on actors, services and external systems have no place in either.
 

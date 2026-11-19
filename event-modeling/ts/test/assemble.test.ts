@@ -76,11 +76,11 @@ const view = (f: Fixture, ...events: Record<string, EventDecl>[]) =>
 /** A view's specification that needs no event. */
 const nothing = ["No list shows before one is created", { then: [] }] as const
 
-/** A chapter per key, declared in key order, that its slices join in array order. */
+/** A chapter per key, numbered in key order, that its slices join in array order. */
 function chapters(story: Record<string, readonly Slice[]>): Record<string, Chapter> {
   return Object.fromEntries(
-    Object.entries(story).map(([name, slices]) => {
-      const chapter = m.chapter()
+    Object.entries(story).map(([name, slices], i) => {
+      const chapter = m.chapter(i + 1)
       for (const s of slices) s.chapter(chapter)
       return [name, chapter]
     }),
@@ -1752,12 +1752,12 @@ test("an external event is drawn in its system's lane", () => {
 
 // --- Chapters -----------------------------------------------------------------
 
-test("chapters come in the order declared, each with its slices in the order written", () => {
+test("chapters come in the order of their numbers, each with its slices in the order written", () => {
   const f = fixture()
-  const Second = m.chapter()
-  const First = m.chapter().note("Where it starts.")
+  const Second = m.chapter(2)
+  const First = m.chapter(1).note("Where it starts.")
   // The same chapter, declared again in another module, is one chapter.
-  const Again = m.chapter()
+  const Again = m.chapter(2)
   view(f).chapter(Again)
   create(f).chapter(Second)
   m.slice("Recreate")
@@ -1769,12 +1769,47 @@ test("chapters come in the order declared, each with its slices in the order wri
   assert.deepEqual(
     json.chapters.map((c) => [c.name, c.slices.map((s) => s.name)]),
     [
-      ["Second", ["Table", "Create"]],
       ["First", ["Recreate"]],
+      ["Second", ["Table", "Create"]],
     ],
   )
   assert.equal(json.notes.First, "Where it starts.")
-  assert.equal(layout(json).chapters[1]?.note, "Where it starts.")
+  assert.equal(layout(json).chapters[0]?.note, "Where it starts.")
+})
+
+test("a file that imports a later chapter's file still comes first, and so do its lanes", async () => {
+  const json = await assemble(here("./fixtures/imported-later"))
+  assert.equal(json.warnings, undefined)
+  assert.deepEqual(
+    json.chapters.map((c) => c.name),
+    ["Capture", "Filing"],
+  )
+  assert.deepEqual(
+    json.aggregates.map((a) => a.name),
+    ["Notes", "Archive"],
+  )
+})
+
+test("two chapters of one number are left to do, and drawn in the order declared", () => {
+  const f = fixture()
+  const [A, B] = [m.chapter(1), m.chapter(1)]
+  create(f).chapter(B)
+  view(f).chapter(A)
+  const modules = [{ ...f, B, A, default: m.model("x") }]
+  assert.throws(
+    () => assembleModules(modules),
+    /^Error: A and B are both chapter 1\. Give each its own number\.$/,
+  )
+  create(f).chapter(B)
+  view(f).chapter(A)
+  const json = assembleModules(modules, { partial: true })
+  assert.deepEqual(
+    json.chapters.map((c) => c.name),
+    ["A", "B"],
+  )
+  assert.deepEqual(json.warnings, [
+    { message: "A and B are both chapter 1. Give each its own number.", element: "" },
+  ])
 })
 
 test("a second .note() adds to the first, on a slice and on a declaration", () => {
@@ -1793,7 +1828,7 @@ test("a second .note() adds to the first, on a slice and on a declaration", () =
 test("a chapter no slice joins is drawn empty, as a to-do", () => {
   const f = fixture()
   const story = chapters({ Ch: [create(f), view(f)] })
-  const Later = m.chapter()
+  const Later = m.chapter(2)
   const json = assembleModules([{ ...f, ...story, Later, default: m.model("x") }], {
     partial: true,
   })
@@ -1804,7 +1839,7 @@ test("a chapter no slice joins is drawn empty, as a to-do", () => {
 
 test("a slice joins one chapter", () => {
   const f = fixture()
-  const [A, B] = [m.chapter(), m.chapter()]
+  const [A, B] = [m.chapter(1), m.chapter(2)]
   view(f).chapter(A)
   create(f).chapter(A).chapter(B)
   assert.throws(
@@ -1815,7 +1850,7 @@ test("a slice joins one chapter", () => {
 
 test("a partial assembly draws a slice in two chapters in the first, and lists it", () => {
   const f = fixture()
-  const [A, B] = [m.chapter(), m.chapter()]
+  const [A, B] = [m.chapter(1), m.chapter(2)]
   for (const s of [create(f), view(f)]) s.chapter(A)
   m.slice().command({ Create: f.Create }).event({ Created: f.Created }).chapter(A).chapter(B)
   const json = assembleModules([{ ...f, A, B, default: m.model("x") }], { partial: true })
@@ -1835,7 +1870,7 @@ test("a partial assembly draws a slice in two chapters in the first, and lists i
 
 test("a chapter a slice joins that no module exports", () => {
   const f = fixture()
-  create(f).chapter(m.chapter())
+  create(f).chapter(m.chapter(1))
   assert.throws(
     () => assembleModules([{ ...f, default: m.model("x") }]),
     /^Error: Create: this slice joins a chapter that isn't exported\. Export it to give it a name\.$/,

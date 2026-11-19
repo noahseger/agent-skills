@@ -122,7 +122,7 @@ export const gameResigned = GameResigned({
   termination: "resignation",
 })
 
-export const DrawsAndResignation = m.chapter()
+export const DrawsAndResignation = m.chapter(3)
 
 m.slice()
   .command({ OfferDraw })

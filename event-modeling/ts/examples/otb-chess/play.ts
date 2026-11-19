@@ -184,7 +184,7 @@ const clockStarted = ClockStarted({
   runningSide: "white",
 })
 
-export const Play = m.chapter()
+export const Play = m.chapter(2)
 
 // What a spectator follows: the board and the scoresheet, side by side.
 export const Broadcast = m.screen()

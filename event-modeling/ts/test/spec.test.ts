@@ -51,7 +51,7 @@ const Unpaid = m
   .key("orderId")
 const Loose = m.event({ id: z.uuid() }).stream(Orders)
 
-const Sales = m.chapter().note("Where money comes in.")
+const Sales = m.chapter(1).note("Where money comes in.")
 const order = { orderId: "o-1", item: "Tea" }
 const slices = [
   m

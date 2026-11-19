@@ -306,7 +306,7 @@ For one workflow at a time, trace from trigger to completion:
 
 1. Group events into **streams**, each named after what we keep track of (`Orders`, `Payments`) — these become swim lanes
 2. Arrange on timeline left-to-right
-3. Group related slices into **chapters** (Order Lifecycle, Fulfillment, etc.)
+3. Group related slices into **chapters** (Order Lifecycle, Fulfillment, etc.), numbered in story order: `m.chapter(1)`, `m.chapter(2)`
 4. One command per slice — if there are 2 commands, the slice is too big
 
 ### Phase 5: Define Test Specifications
