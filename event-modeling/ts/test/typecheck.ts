@@ -41,7 +41,7 @@ m.slice().command({ CreateList }).event({ ListCreated }).chapter("Ch")
 // @ts-expect-error a model lists no chapters: a slice joins one where it is written
 m.model("x", { chapters: { Ch: [m.slice().command({ CreateList }).event({ ListCreated })] } })
 
-// @ts-expect-error a chapter takes its number, which places it in the story
+// A chapter's number places it in the story, and while storming it may have none yet
 m.chapter()
 
 // @ts-expect-error a command is drawn in the lane of the event it records

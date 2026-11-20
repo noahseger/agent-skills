@@ -245,10 +245,12 @@ let chapters = 0
 
 /**
  * A run of slices under one heading, named by its export. Chapters are drawn in the order of their
- * numbers, so `m.chapter(1)` comes first. A slice joins it with `.chapter()`.
+ * numbers, so `m.chapter(1)` comes first; one with no number yet comes after. A slice joins it with
+ * `.chapter()`.
  */
-function chapter(number: number): Chapter {
-  const data: ChapterData = { kind: "chapter", number, order: chapters++ }
+function chapter(number?: number): Chapter {
+  const data: ChapterData = { kind: "chapter", order: chapters++ }
+  if (number !== undefined) data.number = number
   return {
     [META]: data,
     note(text) {

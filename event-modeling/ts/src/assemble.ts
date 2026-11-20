@@ -90,6 +90,7 @@ export function loadModules(
     modules,
     files,
     conflict,
+    fail,
   )
   const drafts = runBy(firstSystem(declared), oneSlicePerView(written, fail))
   const unchaptered: SliceData[] = []
@@ -230,12 +231,14 @@ function exported(value: unknown): Exported | undefined {
 
 /**
  * Streams, chapters and external systems merge by name, so two modules can add to one. Chapters
- * come in the order of their numbers. An event is in one lane, so not in both.
+ * come in the order of their numbers, then those with none in the order declared. An event is in
+ * one lane, so not in both.
  */
 function nameExports(
   modules: readonly object[],
   files: readonly string[],
   conflict: Fail,
+  fail: Fail,
 ): {
   model: ModelData
   streams: Map<string, DeclData[]>
@@ -297,20 +300,29 @@ function nameExports(
       }
   const chapters: Assembled["chapters"] = []
   const numbered = new Map<number, string>()
-  const sorted = headings.sort((a, b) => a.number - b.number || a.order - b.order)
+  const place = ({ number }: ChapterData) => number ?? Number.POSITIVE_INFINITY
+  const sorted = headings.sort((a, b) => place(a) - place(b) || a.order - b.order)
+  let next = Math.max(0, ...headings.map((h) => h.number ?? 0)) + 1
   for (const { name = "", note, number } of sorted) {
     const merged = chapters.find((c) => c.name === name)
     if (merged) {
       if (merged.note === undefined && note !== undefined) merged.note = note
       continue
     }
-    const other = numbered.get(number)
-    if (other !== undefined)
-      conflict({
-        message: `${other} and ${name} are both chapter ${number}. Give each its own number.`,
+    if (number === undefined) {
+      fail({
+        message: `${name} has no number yet. Give it its place: m.chapter(${next++}).`,
         element: "",
       })
-    numbered.set(number, name)
+    } else {
+      const other = numbered.get(number)
+      if (other !== undefined)
+        conflict({
+          message: `${other} and ${name} are both chapter ${number}. Give each its own number.`,
+          element: "",
+        })
+      numbered.set(number, name)
+    }
     chapters.push({ name, ...(note !== undefined && { note }), slices: [] })
   }
   return { model, streams, chapters, externals, declared, fileOf }

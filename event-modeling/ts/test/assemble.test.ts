@@ -1812,6 +1812,33 @@ test("two chapters of one number are left to do, and drawn in the order declared
   ])
 })
 
+test("a chapter with no number yet comes after the numbered ones, and is left to do", () => {
+  const f = fixture()
+  const [Capture, Filing, Review] = [m.chapter(), m.chapter(2), m.chapter()]
+  create(f).chapter(Capture)
+  view(f).chapter(Filing)
+  const modules = [{ ...f, Capture, Filing, Review, default: m.model("x") }]
+  assert.throws(
+    () => assembleModules(modules),
+    /^Error: Capture has no number yet\. Give it its place: m\.chapter\(3\)\.$/m,
+  )
+  create(f).chapter(Capture)
+  view(f).chapter(Filing)
+  const json = assembleModules(modules, { partial: true })
+  assert.deepEqual(
+    json.chapters.map((c) => c.name),
+    ["Filing", "Capture", "Review"],
+  )
+  assert.deepEqual(
+    json.warnings?.map((w) => w.message),
+    [
+      "Capture has no number yet. Give it its place: m.chapter(3).",
+      "Review has no number yet. Give it its place: m.chapter(4).",
+      "Review has no slices yet.",
+    ],
+  )
+})
+
 test("a second .note() adds to the first, on a slice and on a declaration", () => {
   const f = fixture()
   f.Created.note("Recorded once.").note("Never edited.")

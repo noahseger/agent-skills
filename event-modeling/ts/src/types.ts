@@ -64,9 +64,9 @@ export interface ExternalData extends Named {
 
 export interface ChapterData extends Named {
   kind: "chapter"
-  /** Where it comes in the story. */
-  number: number
-  /** How many chapters were declared before it, to order two of one number. */
+  /** Where it comes in the story, once it has a place. */
+  number?: number
+  /** How many chapters were declared before it, to order two of one number, or of none. */
   order: number
   note?: string
 }
