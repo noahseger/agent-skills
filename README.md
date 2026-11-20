@@ -9,35 +9,22 @@ Reusable [Claude Code skills](https://docs.anthropic.com/en/docs/claude-code/ski
 Event modeling captures a system as a left-to-right timeline of commands, events, and state views. The skill includes:
 
 - **SKILL.md** — Full practice guide covering Storm, Capture, Specify, Deliver, and Evolve phases
-- **event_model.py** — Pydantic schema with invariant validation + SVG diagram renderer
-- **ts/** — the model as typed TypeScript; it assembles to the JSON above and generates the protobuf
-
-```bash
-# Validate a model
-python event-modeling/event_model.py validate model.json
-
-# Render to SVG
-python event-modeling/event_model.py render model.json -o model.svg
-
-# Create a template
-python event-modeling/event_model.py init model.json
-```
-
-Requires `pydantic` (no other dependencies).
+- **ts/** — the model as typed TypeScript, the `em` CLI and its live diagram
 
 #### [ts](./event-modeling/ts/)
 
-Write the model in TypeScript instead of JSON. Names come from exports, fields are Zod schemas, and a slice is a chain of calls that only compiles in a legal order. The worked example is `ts/examples/todo-app/`.
+Write the model in TypeScript, or as [event-modeling-spec](https://github.com/dilgerma/event-modeling-spec) JSON for one extracted from an existing system. In TypeScript, names come from exports, fields are Zod schemas, and a slice is a chain of calls that only compiles in a legal order. The worked example is `ts/examples/todo-app/`.
 
 ```bash
 npx em init   model/                 # scaffold a model directory
 npx em view   model/                 # live diagram in the browser; redraws on save
+npx em view   model.json             # the same for a spec JSON model
 npx em export model/ -o model.html   # one self-contained page, for sharing
-npx em render model/ -o model.svg    # still picture; --watch redraws on save
+npx em json   model/                 # the model as spec JSON
 npx em proto  model/ -o proto        # one .proto per service
 ```
 
-`render` shells out to `event_model.py`. See `ts/README.md`.
+See `ts/README.md`.
 
 ### [lazy](./.claude/skills/lazy/)
 

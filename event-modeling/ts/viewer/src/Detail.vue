@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import type { ModelJson } from "../../src/json.ts"
-import { type Box, type Column, type Layout, parse, parseClause, words } from "./layout.ts"
+import type { Board, BoardField } from "./board.ts"
+import { type Box, type Column, type Layout, parse, parseClause, source } from "./layout.ts"
 
 const props = defineProps<{
   box: Box | null
   column: Column
   layout: Layout
-  model: ModelJson
+  model: Board
   /** Whether the slice is already open at full width. */
   open: boolean
 }>()
@@ -18,7 +18,7 @@ const KIND: Record<Box["kind"], string> = {
   external: "external event",
   command: "command",
   event: "event",
-  readModel: "read model",
+  readModel: "view",
   automation: "automation",
 }
 
@@ -33,6 +33,19 @@ const fields = computed(() => {
   return full ? { fields: full.fields, keys: full.keys } : { fields: [], keys: [] }
 })
 
+// Each field with its type, then an object's own fields beneath it, indented.
+const rows = computed(() => {
+  const typed = props.box ? (props.model.fields?.[props.box.name] ?? []) : []
+  const flat = (f: BoardField, depth: number): { f: BoardField; depth: number }[] => [
+    { f, depth },
+    ...(f.fields ?? []).flatMap((s) => flat(s, depth + 1)),
+  ]
+  return fields.value.fields.flatMap((name) => {
+    const f = typed.find((t) => t.name === name)
+    return f ? flat(f, 0) : [{ f: { name, type: "" }, depth: 0 }]
+  })
+})
+
 const note = computed(() => (props.box ? props.model.notes[props.box.name] : undefined))
 // What is unfinished about the element, then about the rest of the slice.
 const elementWarnings = computed(() =>
@@ -43,9 +56,16 @@ const sliceWarnings = computed(() =>
     (w) => w.slice === slice.value.name && !elementWarnings.value.includes(w),
   ),
 )
-const actor = computed(() => props.model.actors.find((a) => a.id === slice.value.actor)?.name)
+const actor = computed(() =>
+  (slice.value.actors ?? [slice.value.actor])
+    .map((id) => props.model.actors.find((a) => a.id === id)?.name)
+    .filter((name) => name !== undefined)
+    .join(", "),
+)
 const mapping = computed(() =>
-  props.box?.kind === "event" ? slice.value.mapping?.[props.box.name] : undefined,
+  props.box?.kind === "event" || props.box?.kind === "command"
+    ? slice.value.mapping?.[props.box.name]
+    : undefined,
 )
 const triggers = computed(() => {
   const t = slice.value.trigger
@@ -70,17 +90,12 @@ const groups = computed<Group[]>(() => {
         ? col.slice.tests
         : []
     if (tests.length === 0) continue
-    const chapter = props.layout.chapters[col.chapter]?.name ?? ""
-    out.push({ column: col.index, heading: `${words(chapter)} › ${col.title}`, tests })
+    const chapter = props.layout.chapters[col.chapter]?.title ?? ""
+    out.push({ column: col.index, heading: `${chapter} › ${col.title}`, tests })
   }
   return out
 })
 
-function source(s: { from?: string; value?: unknown; count?: string }): string {
-  if (s.from !== undefined) return `← ${s.from}`
-  if (s.count !== undefined) return `count of ${s.count}`
-  return `= ${JSON.stringify(s.value)}`
-}
 const isError = (clause: string) => clause.startsWith("Error:")
 /** The JSON says `Error:`; the model and the manual say rejected. */
 const show = (clause: string) => clause.replace(/^Error:/, "Rejected:")
@@ -103,11 +118,13 @@ const mentions = (clause: string) =>
     <template v-if="fields.fields.length">
       <h3>{{ box?.kind === "ui" ? "Query" : "Fields" }}</h3>
       <table>
-        <tr v-for="f in fields.fields" :key="f">
-          <td class="name">{{ f }}</td>
+        <tr v-for="({ f, depth }, i) in rows" :key="i">
+          <td class="name" :style="{ paddingLeft: `${depth * 14}px` }">{{ f.name }}{{ f.optional ? "?" : "" }}</td>
+          <td class="type">{{ f.type }}</td>
           <td class="hint">
-            <template v-if="fields.keys.includes(f)">key</template>
-            <template v-else-if="mapping?.[f]">{{ source(mapping[f]!) }}</template>
+            <template v-if="depth === 0 && fields.keys.includes(f.name)">key</template>
+            <template v-else-if="depth === 0 && mapping?.[f.name]">{{ source(mapping[f.name]!) }}</template>
+            <div v-if="f.description" class="said">{{ f.description }}</div>
           </td>
         </tr>
       </table>
@@ -119,7 +136,7 @@ const mentions = (clause: string) =>
       <dd>{{ column.label }}</dd>
       <template v-if="actor"><dt>Actor</dt><dd>{{ actor }}</dd></template>
       <template v-if="slice.ui"><dt>Service</dt><dd>{{ slice.ui }}</dd></template>
-      <template v-if="slice.query?.length"><dt>Query</dt><dd>{{ slice.query.join(", ") }}</dd></template>
+      <template v-if="slice.context?.length"><dt>Context</dt><dd>{{ slice.context.join(", ") }}</dd></template>
       <template v-if="slice.polls"><dt>Polls</dt><dd>{{ slice.polls }}</dd></template>
       <template v-if="slice.reads?.length"><dt>Reads</dt><dd>{{ slice.reads.join(", ") }}</dd></template>
       <template v-if="triggers"><dt>On</dt><dd>{{ triggers }}</dd></template>

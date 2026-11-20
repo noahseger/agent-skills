@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue"
-import type { ModelJson } from "../../src/json.ts"
+import type { Feed } from "../../src/spec.ts"
+import type { Board } from "./board.ts"
 import Canvas from "./Canvas.vue"
 import Detail from "./Detail.vue"
 import { type Box, layout } from "./layout.ts"
 import Nav from "./Nav.vue"
+import { read } from "./read.ts"
 import SliceView from "./SliceView.vue"
 
-const model = ref<ModelJson | null>(null)
+const model = ref<Board | null>(null)
 const error = ref<string | null>(null)
 const live = ref(false)
 
@@ -42,7 +44,8 @@ const LEGEND: [string, string][] = [
   ["ui", "screen"],
   ["command", "command"],
   ["event", "event"],
-  ["readModel", "read model"],
+  ["external", "external event"],
+  ["readModel", "view"],
   ["automation", "automation"],
 ]
 
@@ -114,14 +117,14 @@ const snapshot = embedded !== null
 let loaded = false
 async function refresh() {
   if (embedded) {
-    model.value = JSON.parse(embedded.textContent ?? "null") as ModelJson
+    model.value = read(JSON.parse(embedded.textContent ?? "null") as Feed)
     go(fromHash(), { push: false, zoom: !loaded })
     loaded = true
     return
   }
   const res = await fetch("/model.json", { cache: "no-store" })
   if (res.ok) {
-    model.value = (await res.json()) as ModelJson
+    model.value = read((await res.json()) as Feed)
     error.value = null
     go(fromHash(), { push: false, zoom: !loaded })
     loaded = true
@@ -179,11 +182,11 @@ onUnmounted(() => {
       </span>
       <span class="status" role="status">
         <span class="dot" :class="{ off: !live && !snapshot, error: error !== null }" aria-hidden="true"></span>
-        {{ error !== null ? "assembly failed" : snapshot ? "snapshot" : live ? "live" : "disconnected" }}
+        {{ error !== null ? "Model didn't load" : snapshot ? "Exported copy" : live ? "Live" : "Disconnected" }}
       </span>
     </header>
     <pre v-if="error !== null" class="error" role="alert">{{ error }}</pre>
-    <ul v-if="model?.warnings?.length" class="warnings" role="status" aria-label="Still to do">
+    <ul v-if="model?.warnings?.length" class="warnings" role="status" aria-label="Left to do">
       <li v-for="w in model.warnings" :key="w.message">{{ w.message }}</li>
     </ul>
     <main class="body">

@@ -2,7 +2,7 @@
 // run the scaffold in a project of their own, on a node that strips no types.
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
@@ -30,6 +30,7 @@ test("the packed tarball installs into a project and em runs there", () => {
     )
     const install = npm(["install", "--prefer-offline", tarball], dir)
     assert.equal(install.status, 0, install.stderr)
+    assert.ok(existsSync(join(dir, "node_modules", "@noahseger", "event-modeling", "LICENSE")))
 
     const em = join(dir, "node_modules", ".bin", "em")
     const init = spawnSync(em, ["init", "model"], { cwd: dir, encoding: "utf8" })
@@ -41,14 +42,14 @@ test("the packed tarball installs into a project and em runs there", () => {
     )
     const json = spawnSync(em, ["json", "--partial", "model"], { cwd: dir, encoding: "utf8" })
     assert.equal(json.status, 0, json.stderr)
-    const out = JSON.parse(json.stdout) as { chapters: unknown[]; loose: { element: string }[] }
+    const out = JSON.parse(json.stdout) as { chapters: unknown[]; loose: { title: string }[] }
     assert.deepEqual(out.chapters, [])
     assert.deepEqual(
-      out.loose.map((l) => l.element),
-      ["Started(id)"],
+      out.loose.map((l) => l.title),
+      ["Started"],
     )
     // stderr carries what is left to do, and nothing else: no node warning.
-    assert.equal(json.stderr.trim(), "Started is in no slice yet.")
+    assert.equal(json.stderr.trim(), "Started isn't in a slice yet.")
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

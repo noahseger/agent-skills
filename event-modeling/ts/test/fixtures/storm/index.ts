@@ -3,8 +3,8 @@
 import { z } from "zod"
 import { m } from "#em"
 
-export const GameStarted = m.event({ gameId: z.string() })
-export const MoveMade = m.event({ gameId: z.string(), san: z.string() })
-export const GameEnded = m.event({ gameId: z.string(), result: z.string() })
-export const Games = m.stream({ GameStarted, MoveMade, GameEnded })
+export const Games = m.stream()
+export const GameStarted = m.event({ gameId: z.string() }).stream(Games)
+export const MoveMade = m.event({ gameId: z.string(), san: z.string() }).stream(Games)
+export const GameEnded = m.event({ gameId: z.string(), result: z.string() }).stream(Games)
 export default m.model("Chess")

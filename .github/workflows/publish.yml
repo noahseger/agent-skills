@@ -30,7 +30,7 @@ jobs:
         if: github.ref_type == 'tag'
         run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
       - run: npm ci
-      # prepack builds the viewer and the package and copies the renderer in.
+      # prepack builds the viewer and the package.
       - run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
