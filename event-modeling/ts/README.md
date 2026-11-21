@@ -459,6 +459,8 @@ the specification as a function:
 })
 ```
 
+A specification written as a function runs at assembly, so it may use examples declared below the slice.
+
 A state view's `given` builds the rows through its events. Each row in
 `then` must be one of them, matched by its key columns, with the values they have. A row built and
 left out of `then` must be one the context excludes, unless a string in `then` says what the rows

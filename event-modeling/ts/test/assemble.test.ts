@@ -368,6 +368,31 @@ test("an example Zod refuses is a to-do naming the spec and where in it, and the
   )
 })
 
+test("a specification written as a function runs at assembly, so its examples may be declared below it; one that throws is a to-do", () => {
+  const f = fixture()
+  const shown = unspecified(f)
+    .test("A list is created", () => ({ when: creates, then: f.Created(list) }))
+    .test("A list is renamed", () => {
+      throw new Error("renames is not defined")
+    })
+  const creates = f.Create(list)
+  const feed = feedOf([{ ...f, ...chapters({ Ch: [shown] }), default: m.model("x") }], {
+    partial: true,
+  })
+  drawn(feed)
+  assert.deepEqual(feed.model.slices[0]?.specifications[0]?.when?.[0]?.examples, [list])
+  assert.deepEqual(
+    feed.warnings?.filter((w) => w.message.includes('"A list is')),
+    [
+      {
+        message: `Ch › Create › "A list is renamed" threw: renames is not defined`,
+        element: "",
+        slice: "Create",
+      },
+    ],
+  )
+})
+
 test("a command field no event records is left to do, and an error when strict; generating from it records it", () => {
   const f = fixture()
   const Created = m.event({ id: z.string(), slug: z.string() })

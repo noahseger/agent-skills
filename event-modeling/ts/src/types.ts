@@ -175,6 +175,10 @@ export interface TestData {
   then: ClauseData[]
   /** What Zod refused in an example or the context, with where in it. */
   invalid?: { decl: DeclData; message: string }[]
+  /** A specification written as a function, run at assembly once every module has. */
+  later?: () => TestData
+  /** What that function threw, which leaves the specification empty. */
+  threw?: string
 }
 
 export interface SliceData {

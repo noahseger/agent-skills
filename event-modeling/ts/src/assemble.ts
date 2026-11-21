@@ -74,6 +74,7 @@ export function loadModules(
 ): Assembled {
   const written = [...DRAFTS]
   DRAFTS.clear()
+  for (const s of written) s.tests = s.tests.map(run)
   const warnings: Warning[] = []
   const unfinished = new Map<SliceData, string[]>()
   const fail: Fail = (warning, of) => {
@@ -123,6 +124,16 @@ export function loadModules(
   if (!options.partial && warnings.length > 0)
     throw new Error(warnings.map((w) => w.message).join("\n"))
   return { model, streams, chapters, externals, loose, unchaptered, warnings, unfinished }
+}
+
+/** A specification written as a function runs now; what it throws is left to do. */
+function run(test: TestData): TestData {
+  try {
+    return test.later?.() ?? test
+  } catch (error) {
+    const threw = error instanceof Error ? error.message : String(error)
+    return { name: test.name, given: [], then: [], threw }
+  }
 }
 
 /**
@@ -754,6 +765,14 @@ interface Expected {
 function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
   const { command, view } = slice
   for (const t of slice.tests) {
+    if (t.threw !== undefined) {
+      fail({
+        message: `${where} › "${t.name}" threw: ${t.threw}`,
+        element: "",
+        slice: slice.name ?? "",
+      })
+      continue
+    }
     const said = (message: string, element: string) =>
       fail({ message: `${where} › "${t.name}": ${message}`, element, slice: slice.name ?? "" })
     for (const { decl, message } of t.invalid ?? []) said(message, decl.name ?? "")

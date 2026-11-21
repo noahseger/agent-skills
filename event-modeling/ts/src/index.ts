@@ -919,13 +919,15 @@ function chain(data: SliceData, context: Context, scope: InScope) {
         service:
           method === undefined ? { service: service[META] } : { service: service[META], method },
       }),
-    test: (name: string, spec: AnySpec | (() => AnySpec)) =>
-      next({
-        tests: [
-          ...data.tests,
-          testData(name, typeof spec === "function" ? spec() : spec, data.view ? data : undefined),
-        ],
-      }),
+    // A function runs at assembly, after every module, so its examples may be declared below it.
+    test: (name: string, spec: AnySpec | (() => AnySpec)) => {
+      const view = data.view ? data : undefined
+      const test: TestData =
+        typeof spec === "function"
+          ? { name, given: [], then: [], later: () => testData(name, spec(), view) }
+          : testData(name, spec, view)
+      return next({ tests: [...data.tests, test] })
+    },
     note: (text: string) => next({ note: noted(data.note, text) }),
     chapter: (chapter: Chapter) => next({ chapters: [...data.chapters, chapter[META]] }),
   }
