@@ -301,8 +301,8 @@ message ListTodoListsResponse {
 `test/readme.test.ts` runs this quickstart, so it stays true. The full todo app, with automations
 and more slices, is `examples/todo-app/`.
 
-You do not have to finish first. `view` draws a model as far as it goes: an event in no slice yet
-stands on its own in its lane, a slice in no chapter yet is drawn after the story, and what is left
+You do not have to finish first. `view` draws a model as far as it goes: an event in no slice
+stands on its own in its lane, a slice in no chapter is drawn after the story, and what is left
 to do is listed above the picture. So the first thing to write is the events, each in its stream.
 
 ## Writing a model
@@ -437,7 +437,7 @@ The screen shows the command's form or the view's table, titled with the service
 say which screen the actor is on, declare it once, `m.screen("LockScreen")`, and name
 it: `.screen(d.LockScreen)`. The card is then titled with the screen's name, and several slices can
 share one. A screen is seen by the slice's actors, so a slice with a screen and no actor is left to
-do, and so is a screen no slice names; neither is drawn.
+do, and its screen is not drawn; nor is a screen no slice names.
 
 A slice's column is headed by its command, or a state view's by its view. Pass a name,
 `m.slice("StartList")`, only when that heading would say the wrong thing. The service method is
@@ -653,7 +653,7 @@ nothing. The CLI finds every declaration, and every slice, by running each modul
 A chapter is a heading on the timeline, declared with `m.chapter("Capture", 1)`, like a stream. A
 slice joins it with `.chapter(d.Capture)`, complete or not, and joins at most one. A chapter no slice
 has joined yet is drawn as a title with no columns, and is left to do. A slice in no chapter is
-drawn after the story under "Not in a chapter yet", and is left to do until it joins one. Two
+drawn after the story with no heading: chapters are optional, like their numbers. Two
 modules that declare one name declare one chapter.
 
 Chapters appear in the order of their numbers: `m.chapter("Capture", 1)`, then
@@ -698,7 +698,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | An event no slice records; a view nothing reads or builds | Same. |
 | A field with no value, in a model the compiler did not check | `em json` runs the model without `tsc`. |
 | Two slices claiming one service method; a slice without a service claims none | A union of literal types dedupes rather than counts. |
-| A declaration in no slice, a slice in no chapter, a chapter no slice joins, or a stream no event joins | Whether a value is used is not a type. |
+| A chapter no slice joins, or a stream no event joins | Whether a value is used is not a type. |
 | A slice joining two chapters | `.chapter()` can be called again further down the chain. |
 | A view built from an external event | `em json` runs the model without `tsc`. |
 | An event in both a stream and an external system | `.stream()` and `.external()` can be called on it in separate statements. |

@@ -146,9 +146,9 @@ export interface Assembled {
   chapters: { name: string; note?: string; slices: SliceData[] }[]
   /** The systems we do not own, by name. Each is a lane, with or without events. */
   externals: string[]
-  /** Declared but in no slice. Only a partial assembly keeps them; otherwise one is an error. */
+  /** Declared but in no slice: storming, drawn on its own. */
   loose: Declaration[]
-  /** Slices in no chapter, likewise. */
+  /** Slices in no chapter, drawn after the chapters with no heading. */
   unchaptered: SliceData[]
   /** The dead ends a partial assembly went on past. Empty otherwise. */
   warnings: Warning[]

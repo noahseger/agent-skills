@@ -635,7 +635,7 @@ type OneRow<N> =
 
 /** A slice past its first step. Until it is complete it is drawn as far as it goes, and left to do. */
 export interface Slice {
-  /** The chapter it is drawn in; without one, it is drawn under "Not in a chapter yet". */
+  /** The chapter it is drawn in; without one, it is drawn after the chapters, with no heading. */
   chapter(chapter: Chapter): this
   note(text: string): this
 }

@@ -432,12 +432,17 @@ export function layout(model: Board): Layout {
       x += w
     }
     if (chapter.slices.length === 0) x += COL_W
-    // Assembly leaves the slices in no chapter yet in a nameless one, last.
-    const title = chapter.name === "" ? "Not in a chapter yet" : words(chapter.name)
+    // Assembly leaves the slices in no chapter in a nameless one, last, which has no heading.
     const note = model.notes[chapter.name]
-    chapters.push({ name: chapter.name, title, ...(note && { note }), x: start, w: x - start })
+    chapters.push({
+      name: chapter.name,
+      title: words(chapter.name),
+      ...(note && { note }),
+      x: start,
+      w: x - start,
+    })
   })
-  // A declaration in no slice yet gets its own column after the story.
+  // A declaration in no slice gets its own column after the story, in a nameless chapter.
   if (model.loose && model.loose.length > 0) {
     if (chapters.length > 0) x += CHAPTER_GAP
     const start = x
@@ -471,7 +476,7 @@ export function layout(model: Board): Layout {
       })
       x += COL_W
     }
-    chapters.push({ name: "", title: "Not in a slice yet", x: start, w: x - start })
+    chapters.push({ name: "", title: "", x: start, w: x - start })
   }
   const width = x + PAD_X
 

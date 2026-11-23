@@ -135,8 +135,10 @@ function cardClass(b: Box) {
   <section class="slice-view" aria-label="Slice">
     <header class="slice-header">
       <div class="crumbs">
-        <span class="chapter">{{ chapter?.title }}</span>
-        <span class="sep">›</span>
+        <template v-if="chapter?.title">
+          <span class="chapter">{{ chapter.title }}</span>
+          <span class="sep">›</span>
+        </template>
         <span class="name">{{ column.title }}</span>
         <span v-if="column.noted" class="note-dot"></span>
         <span v-if="column.warned" class="warn-dot"></span>

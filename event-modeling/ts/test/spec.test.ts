@@ -313,7 +313,7 @@ test("what the spec has no place for travels beside it, to the viewer", () => {
   assert.deepEqual(feed.streams, ["Orders", "Payments"])
   assert.deepEqual(feed.actors, [{ name: "Bank", authRequired: false, tags: ["external"] }])
   assert.deepEqual(titles(feed.loose), ["Loose"])
-  assert.ok(feed.warnings?.some((w) => w.message === "Loose isn't in a slice yet."))
+  assert.ok(feed.warnings?.some((w) => w.message.startsWith("Loose: nothing records it.")))
   const board = read(feed)
   assert.equal(board.notes.Sales, "Where money comes in.")
   assert.deepEqual(

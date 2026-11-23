@@ -49,7 +49,10 @@ test("the packed tarball installs into a project and em runs there", () => {
       ["Started"],
     )
     // stderr carries what is left to do, and nothing else: no node warning.
-    assert.equal(json.stderr.trim(), "Started isn't in a slice yet.")
+    assert.equal(
+      json.stderr.trim(),
+      "Started: nothing records it. Add .event(d.Started) to the slice that causes it.",
+    )
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

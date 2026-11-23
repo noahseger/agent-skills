@@ -9,6 +9,7 @@ defineEmits<{ select: [column: number] }>()
   <nav class="nav" aria-label="Chapters and slices">
     <template v-for="(chapter, ci) in layout.chapters" :key="chapter.name + ci">
       <button
+        v-if="chapter.title"
         type="button"
         class="chapter"
         @click="$emit('select', layout.columns.find((c) => c.chapter === ci)?.index ?? 0)"

@@ -520,7 +520,7 @@ test("a long value wraps inside its specification card", () => {
   assert.deepEqual(wrap("a bbbbbbbbbb", 8, 2), ["a bbbbbb", "  bbbb"])
 })
 
-test("a loose declaration is a column after the story, its card in its lane", () => {
+test("a loose declaration is a column after the story, with no heading, its card in its lane", () => {
   const storm = layout({
     ...model,
     loose: [
@@ -537,7 +537,7 @@ test("a loose declaration is a column after the story, its card in its lane", ()
     ],
   })
   const last = storm.chapters.length - 1
-  assert.equal(storm.chapters[last]?.title, "Not in a slice yet")
+  assert.equal(storm.chapters[last]?.title, "")
   const cols = storm.columns.filter((c) => c.chapter === last)
   assert.deepEqual(
     cols.map((c) => c.title),
@@ -563,11 +563,11 @@ test("a loose declaration is a column after the story, its card in its lane", ()
   assert.ok(storm.boxes.filter((b) => b.name === "ListCreated").every((b) => b.warned))
 })
 
-test("the slices in no chapter yet are the nameless chapter, titled as such", () => {
+test("the slices in no chapter are the nameless chapter, with no heading", () => {
   const slice = model.chapters[0]?.slices[0]
   assert.ok(slice)
   const storm = layout({ ...model, chapters: [...model.chapters, { name: "", slices: [slice] }] })
-  assert.equal(storm.chapters.at(-1)?.title, "Not in a chapter yet")
+  assert.equal(storm.chapters.at(-1)?.title, "")
   assert.equal(storm.columns.at(-1)?.chapter, storm.chapters.length - 1)
 })
 

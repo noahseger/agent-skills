@@ -612,7 +612,7 @@ test("json refuses a storm of events; --partial prints it with what is still to 
   const storm = here("./fixtures/storm")
   const strict = em("json", storm)
   assert.equal(strict.status, 1)
-  assert.match(strict.stderr, /GameStarted isn't in a slice yet\./)
+  assert.match(strict.stderr, /GameStarted: nothing records it\./)
   const partial = em("json", "--partial", storm)
   assert.equal(partial.status, 0, partial.stderr)
   const json = JSON.parse(partial.stdout) as {
@@ -625,11 +625,9 @@ test("json refuses a storm of events; --partial prints it with what is still to 
   )
   assert.deepEqual(
     json.warnings.map((w) => w.message),
-    [
-      "GameStarted isn't in a slice yet.",
-      "MoveMade isn't in a slice yet.",
-      "GameEnded isn't in a slice yet.",
-    ],
+    ["GameStarted", "MoveMade", "GameEnded"].map(
+      (e) => `${e}: nothing records it. Add .event(d.${e}) to the slice that causes it.`,
+    ),
   )
 })
 

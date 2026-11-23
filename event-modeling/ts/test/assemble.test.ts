@@ -1407,7 +1407,7 @@ test("slices on one screen draw it, titled with its name, in the actor's lane", 
   )
 })
 
-test("a screen no one sees, and one no slice names, are left to do", () => {
+test("a screen no one sees is left to do, and one no slice names is storming, with nothing to do", () => {
   fixture()
   m.screen("Lock")
   m.screen("Home")
@@ -1425,7 +1425,6 @@ test("a screen no one sees, and one no slice names, are left to do", () => {
       element: "Lock",
       slice: "Create",
     },
-    { message: "Home isn't in a slice yet.", element: "Home" },
   ])
 })
 
@@ -1520,8 +1519,6 @@ test("a later .view() that says where or how to draw the slice is a to-do", () =
     drawnAs("asks with name, but Table is asked with nothing"),
     drawnAs('has the note "Rebuilt nightly.", but Table is drawn with no note'),
     "Tidy has no slices yet.",
-    "Admin isn't in a slice yet.",
-    "Lock isn't in a slice yet.",
   ]
   assert.deepEqual(
     feedOf([{ default: m.model("x") }], { partial: true }).warnings?.map((w) => w.message),
@@ -1566,10 +1563,18 @@ test("a view in given is named as one", () => {
   )
 })
 
-test("a declaration in no slice is an error", () => {
+test("an event of ours no slice records is left to do even when nothing reads it; any other declaration in no slice is storming", () => {
   fixture()
   m.event("Loose", { id: t.string() })
-  assert.throws(() => assembled([create(), view()]), /Loose isn't in a slice yet\./)
+  m.command("Idle", { id: t.string() })
+  chapters({ Ch: [create(), view()] })
+  const json = assembleModules([{ default: m.model("x") }], { partial: true })
+  assert.deepEqual(json.warnings, [
+    {
+      message: "Loose: nothing records it. Add .event(d.Loose) to the slice that causes it.",
+      element: "Loose",
+    },
+  ])
 })
 
 test("a partial assembly lists the dead ends and keeps the loose declarations in stream order", () => {
@@ -1586,9 +1591,14 @@ test("a partial assembly lists the dead ends and keeps the loose declarations in
       element: "Created",
       slice: "Create",
     },
-    { message: "Started isn't in a slice yet.", element: "Started" },
-    { message: "Ended isn't in a slice yet.", element: "Ended" },
-    { message: "Table isn't in a slice yet.", element: "Table" },
+    {
+      message: "Started: nothing records it. Add .event(d.Started) to the slice that causes it.",
+      element: "Started",
+    },
+    {
+      message: "Ended: nothing records it. Add .event(d.Ended) to the slice that causes it.",
+      element: "Ended",
+    },
     {
       message:
         "Created isn't in a stream yet. Add .stream() where it's declared, with the stream it belongs to.",
@@ -1780,7 +1790,6 @@ test("a chapter a slice joins that nothing declares", () => {
     [
       message,
       "Create: nothing uses Created yet. Add .automation(d.Created), or .event(d.Created) to a state view, where something reacts to it.",
-      "Create isn't in a chapter yet.",
     ],
   )
   assert.deepEqual(
@@ -1795,7 +1804,7 @@ test("a chapter a slice joins that nothing declares", () => {
 
 // --- Slices in no chapter -----------------------------------------------------
 
-test("a slice in no chapter is drawn after the story", () => {
+test("a slice in no chapter is drawn after the story, and is not left to do: chapters are optional", () => {
   fixture()
   const base = m.slice().command(d.Create).event(d.Created)
   base.actor(d.User)
@@ -1808,12 +1817,8 @@ test("a slice in no chapter is drawn after the story", () => {
     [["", ["Create", "Create", "Table"]]],
   )
   assert.deepEqual(
-    json.warnings?.filter((w) => w.message.endsWith("isn't in a chapter yet.")),
-    ["Create", "Create", "Table"].map((name) => ({
-      message: `${name} isn't in a chapter yet.`,
-      element: "",
-      slice: name,
-    })),
+    json.warnings?.filter((w) => w.message.includes("chapter")),
+    [],
   )
 })
 
@@ -1906,10 +1911,10 @@ test("a mapping that throws is left to do, naming its slice, which is drawn whol
   )
 })
 
-test("a slice in no chapter is an error", () => {
+test("a slice in no chapter is no error", () => {
   fixture()
   view()
-  assert.throws(() => assembled([create()]), /Table isn't in a chapter yet\./)
+  assert.doesNotThrow(() => assembled([create()]))
 })
 
 test("an assembly sees only the slices written since the last one", () => {

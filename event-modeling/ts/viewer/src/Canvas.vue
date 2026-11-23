@@ -253,16 +253,13 @@ const transform = computed(
           </g>
         </g>
 
-        <g
-          v-for="(chapter, i) in layout.chapters"
-          :key="chapter.name + chapter.x"
-          class="chapter"
-          @click.stop="firstSlice(i)"
-        >
-          <title v-if="chapter.note">{{ chapter.note }}</title>
-          <path :d="arrow(chapter.x, chapter.w, i === 0)" />
-          <text :x="chapter.x + (i === 0 ? 16 : 24)" :y="HEADER_H - 12 - ARROW_H / 2 + 5">{{ chapter.title }}</text>
-        </g>
+        <template v-for="(chapter, i) in layout.chapters" :key="chapter.name + chapter.x">
+          <g v-if="chapter.title" class="chapter" @click.stop="firstSlice(i)">
+            <title v-if="chapter.note">{{ chapter.note }}</title>
+            <path :d="arrow(chapter.x, chapter.w, i === 0)" />
+            <text :x="chapter.x + (i === 0 ? 16 : 24)" :y="HEADER_H - 12 - ARROW_H / 2 + 5">{{ chapter.title }}</text>
+          </g>
+        </template>
 
         <path
           v-for="(edge, i) in layout.edges"

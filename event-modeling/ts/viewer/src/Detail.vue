@@ -91,7 +91,11 @@ const groups = computed<Group[]>(() => {
         : []
     if (tests.length === 0) continue
     const chapter = props.layout.chapters[col.chapter]?.title ?? ""
-    out.push({ column: col.index, heading: `${chapter} › ${col.title}`, tests })
+    out.push({
+      column: col.index,
+      heading: chapter ? `${chapter} › ${col.title}` : col.title,
+      tests,
+    })
   }
   return out
 })

@@ -125,15 +125,10 @@ function assembled(modules: readonly object[], options: Options, dir: string): A
     if (chapter) chapter.slices.push(s)
     else unchaptered.push(s)
   }
-  check(chapters, unchaptered, fail, conflict)
-  for (const s of unchaptered) {
-    const name = s.name ?? "A slice"
-    fail({ message: `${name} isn't in a chapter yet.`, element: "", slice: s.name ?? "" }, s)
-  }
+  check(chapters, unchaptered, declared, fail, conflict)
   for (const c of chapters)
     if (c.slices.length === 0) fail({ message: `${c.name} has no slices yet.`, element: "" })
   const loose = looseOf(drafts, streams, declared)
-  for (const d of loose) fail({ message: `${d.name} isn't in a slice yet.`, element: d.name ?? "" })
   for (const [name, members] of streams)
     if (members.length === 0) fail({ message: `${name} has no events yet.`, element: name })
   // Otherwise it is drawn in the first stream's lane, which says something nobody wrote.
@@ -433,6 +428,7 @@ interface Located {
 function check(
   chapters: Assembled["chapters"],
   unchaptered: SliceData[],
+  declared: Declaration[],
   fail: Fail,
   conflict: Fail,
 ): void {
@@ -456,7 +452,7 @@ function check(
     checkGenerated(at, own)
   }
   checkFilledSomewhere(located, fail)
-  checkConnected(located, built, fail)
+  checkConnected(located, built, declared, fail)
   checkMethods(located, conflict)
 }
 
@@ -500,14 +496,13 @@ function checkThrown({ slice, where }: Located, fail: Fail): void {
       })
 }
 
-/** `chapter` is undefined for the slices in none yet. */
+/** `chapter` is undefined for the slices in none. */
 function locate(chapter: string | undefined, slices: SliceData[]): Located[] {
-  const at = (slice: string) => (chapter === undefined ? slice : `${chapter} › ${slice}`)
   return slices.map((slice, i) => {
-    const where = chapter === undefined ? "A slice in no chapter" : at(`slice ${i + 1}`)
     const named = heading(slice)
     if (named !== undefined) slice.name = named
-    return { slice, where: slice.name === undefined ? where : at(slice.name) }
+    const name = slice.name ?? `slice ${i + 1}`
+    return { slice, where: chapter === undefined ? name : `${chapter} › ${name}` }
   })
 }
 
@@ -1057,7 +1052,12 @@ function checkSeen({ slice, where }: Located, fail: Fail): void {
 }
 
 /** Anything produced and never used, or used and never produced. */
-function checkConnected(located: Located[], built: Built, fail: Fail): void {
+function checkConnected(
+  located: Located[],
+  built: Built,
+  declared: Declaration[],
+  fail: Fail,
+): void {
   // The slices that record an event, those that react to it, and those whose specifications
   // assume it happened.
   const recording = new Map<DeclData, Set<Located>>()
@@ -1142,18 +1142,22 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
         )
     }
   }
-  // One line per event, at the slices that react to it, or else at those that assume it.
-  // An external event comes from outside, and only a translation uses it; a given does not.
-  for (const e of consumed) {
+  // One line per event, at the slices that react to it, or else at those that assume it, or else
+  // on its own: an event of ours no slice records. An external event comes from outside, and only
+  // a translation uses it; a given does not.
+  const ours = declared.flatMap((d) => (d.kind === "event" && !d.external ? [d] : []))
+  for (const e of new Set([...consumed, ...ours])) {
     if (recording.has(e) || (e.external && reacting.has(e))) continue
     const at = [...(reacting.get(e) ?? assuming.get(e) ?? [])]
     const here = at.map((a) => a.where).join(", ")
     fail({
       message: e.external
         ? `${here}: nothing translates ${e.name} yet. Add .translation(d.${e.name}) to make it an event of ours.`
-        : `${here}: nothing emits ${e.name} yet. Add .event(d.${e.name}) to the slice that causes it.`,
+        : at.length > 0
+          ? `${here}: nothing emits ${e.name} yet. Add .event(d.${e.name}) to the slice that causes it.`
+          : `${e.name}: nothing records it. Add .event(d.${e.name}) to the slice that causes it.`,
       element: e.name ?? "",
-      slice: at[0]?.slice.name ?? "",
+      ...(at[0] && { slice: at[0].slice.name ?? "" }),
     })
   }
 }
