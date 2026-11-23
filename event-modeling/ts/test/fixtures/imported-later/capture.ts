@@ -1,15 +1,14 @@
 // The first chapter's file imports the second's, so the second's module runs first.
 
-import { z } from "zod"
-import { m } from "#em"
+import { m, t } from "#em"
 import { NoteFiled } from "./filing.ts"
 
 export const Writer = m.actor()
 export const Notes = m.stream()
 export const Capture = m.chapter(1)
-export const CreateNote = m.command({ noteId: z.string() })
-export const NoteCreated = m.event({ noteId: z.string() }).stream(Notes)
-export const Inbox = m.view({ noteId: z.string(), filed: z.boolean() }).key("noteId")
+export const CreateNote = m.command({ noteId: t.string() })
+export const NoteCreated = m.event({ noteId: t.string() }).stream(Notes)
+export const Inbox = m.view({ noteId: t.string(), filed: t.boolean() }).key("noteId")
 
 m.slice()
   .command({ CreateNote })
@@ -22,8 +21,8 @@ m.slice()
 
 m.slice()
   .view({ Inbox })
-  .event({ NoteCreated }, () => ({ filed: z.literal(false) }))
-  .event({ NoteFiled }, () => ({ filed: z.literal(true) }))
+  .event({ NoteCreated }, () => ({ filed: t.literal(false) }))
+  .event({ NoteFiled }, () => ({ filed: t.literal(true) }))
   .chapter(Capture)
   .actor(Writer)
   .test("A filed note shows filed", {

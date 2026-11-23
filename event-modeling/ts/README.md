@@ -5,7 +5,7 @@ Describe a system’s commands, events, and views in TypeScript. The `em` comman
 It runs wherever node 22.6 or later runs.
 
 ```ts
-import { m, z } from "@noahseger/event-modeling"
+import { m, t } from "@noahseger/event-modeling"
 ```
 
 ## Vocabulary
@@ -42,19 +42,20 @@ after what we keep track of (`Connections`), never after the system it is about 
 `export const ListCreated = m.event(...)` is the event `ListCreated`. Names are CamelCase, and the
 diagram shows them as words. Any declaration accepts `.note("...")`; a second adds to the first.
 
-**Fields are [Zod](https://zod.dev) schemas.** Events, commands and views declare their fields
-the same way. Zod types the example data in specifications and the generated messages.
+**Fields are built with `t`.** Events, commands and views declare their fields the same way, from
+a closed set, so every field has a JSON Schema and a protobuf type; [Fields](#fields) lists them.
+They type the example data in specifications and the generated messages.
 
 **A slice is written in story order.** Each call is a step: what starts it, the views it reads, the
 command, the events it records. Each call takes its declaration as `{ Name }`, so the compiler knows
 its name: `.event({ ItemAdded })`. Fields flow by name from step to step. When the names differ, or
 a value has to be set, the step's second argument is a mapping:
 `.event({ ItemAdded }, (c) => ({ title: c.AddItem.text }))`. Its argument holds each declaration
-before the step by its name, with its fields as schemas, so `c.AddItem.text` is the `z.string()`
-declared for `text`, and the editor refuses one that does not fit its target: a `z.string()` does
-not fit a `z.uuid()`. A field that flows by name must fit too, and only one declaration before the step
-may carry it; where two do, the mapping says which. A constant is `z.literal("open")`, or
-`z.literal([])` for the empty list. A step that lacks a field is an error on that step, worded as
+before the step by its name, with its fields, so `c.AddItem.text` is the `t.string()`
+declared for `text`, and the editor refuses one that does not fit its target: a `t.string()` does
+not fit a `t.uuid()`. A field that flows by name must fit too, and only one declaration before the step
+may carry it; where two do, the mapping says which. A constant is `t.literal("open")`, or
+`t.literal([])` for the empty list. A step that lacks a field is an error on that step, worded as
 the fix: `add title to a step before .event() or set it in the mapping`. The editor offers only the calls
 that can come next.
 
@@ -121,7 +122,7 @@ Replace `model/index.ts` with the blocks below, in order. The model is a todo li
 each block and watch the diagram grow; until the last block, it lists what is left to do.
 
 ```ts
-import { m, z } from "@noahseger/event-modeling"
+import { m, t } from "@noahseger/event-modeling"
 
 export default m.model("Todo List Application")
 
@@ -141,9 +142,9 @@ the timeline; once a model declares a stream, every event must join one.
 A state change slice: a user creates a list.
 
 ```ts
-export const CreateList = m.command({ userId: z.string(), listId: z.string(), name: z.string() })
+export const CreateList = m.command({ userId: t.string(), listId: t.string(), name: t.string() })
 export const ListCreated = m
-  .event({ userId: z.string(), listId: z.string(), name: z.string() })
+  .event({ userId: t.string(), listId: t.string(), name: t.string() })
   .stream(Lists)
 
 const groceries = ListCreated({ userId: "u-1", listId: "list-1", name: "Groceries" })
@@ -174,13 +175,13 @@ the field that does not match:
 
 ```ts
 export const AddItem = m.command({
-  userId: z.string(),
-  listId: z.string(),
-  itemId: z.string(),
-  text: z.string(),
+  userId: t.string(),
+  listId: t.string(),
+  itemId: t.string(),
+  text: t.string(),
 })
 export const ItemAdded = m
-  .event({ userId: z.string(), listId: z.string(), itemId: z.string(), title: z.string() })
+  .event({ userId: t.string(), listId: t.string(), itemId: t.string(), title: t.string() })
   .stream(Items)
 
 const milk = ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-1", title: "Milk" })
@@ -204,18 +205,18 @@ from events, and the user reads their lists in it:
 ```ts
 export const TodoList = m
   .view({
-    userId: z.string(),
-    listId: z.string(),
-    name: z.string(),
-    itemCount: z.number().int(),
+    userId: t.string(),
+    listId: t.string(),
+    name: t.string(),
+    itemCount: t.int(),
   })
   .key("userId", "listId")
 
 m.slice()
   .view({ TodoList })
-  .event({ ListCreated }, () => ({ itemCount: z.literal(0) }))
+  .event({ ListCreated }, () => ({ itemCount: t.literal(0) }))
   .event({ ItemAdded }, (c) => ({ itemCount: m.generate(c.ItemAdded) }))
-  .context({ userId: z.string() })
+  .context({ userId: t.string() })
   .chapter(Views)
   .actor(User)
   .service(TodoService, "ListTodoLists")
@@ -316,12 +317,35 @@ Automations, and state views no one sees, are drawn in the lane of the system ac
 A model need not declare one: they are then under the built-in System. Once it does, the first
 system actor declared runs them all, and an automation's `.actor(Syncer)` names another.
 
-### Fields and mappings
+### Fields
+
+| `t` | JSON Schema | proto |
+|---|---|---|
+| `t.string()` | `string` | `string` |
+| `t.uuid()`, `t.email()`, `t.url()`, `t.date()` | `string` with that `format` | `string` |
+| `t.datetime()` | `string`, `date-time` | `google.protobuf.Timestamp` |
+| `t.duration()` | `string`, `duration` | `google.protobuf.Duration` |
+| `t.number()` | `number` | `double` |
+| `t.int()` | `integer` | `int32` |
+| `t.boolean()` | `boolean` | `bool` |
+| `t.enum(["a", "b"])` | `string`, `enum` | `string` |
+| `t.literal("a")` | its value's type, `const` | its value's type |
+| `t.array(T)`, `t.array({ ... })` | `array` | `repeated T`, or of a nested message |
+| `t.object({ ... })` | `object` | a nested message |
+| `t.record(T)` | `object` keyed by string | `map<string, T>`, never `optional` |
+| `t.oneOf({ win: T, draw: U })` | `oneOf`, one case as `{ "win": value }` | a `oneof` |
+| `.optional()` | left out of `required` | `optional` |
+| `.describe("...")` | `description` | a `//` comment above the field |
+
+Dates, times and durations are ISO strings: `2026-01-31`, `2026-01-31T09:00:00Z`, `PT30S`. A field
+has no other method: what a field computes, refines or defaults to is the handler's, not the model's.
+
+### Mappings
 
 A field declared `.optional()` may go unfilled in a slice, as long as another slice fills it:
 
 ```ts
-export const NoteShared = m.event({ noteId: z.uuid(), imageUri: z.string().optional() })
+export const NoteShared = m.event({ noteId: t.uuid(), imageUri: t.string().optional() })
 
 m.slice().command({ ShareText }).event({ NoteShared })    // ShareText has no imageUri
 m.slice().command({ ShareImage }).event({ NoteShared })   // ShareImage carries it
@@ -341,9 +365,9 @@ An automation's command is filled from what is before it, so a value generated t
 
 A mapping only copies, sets constants and says what a value is made from; it computes nothing. A
 string built from a field, such as `` `${c.AddNote.title}!` ``, or arithmetic, such as
-`c.SetTimer.minutes * 60`, is not a schema, so the editor refuses it. A schema changed by a Zod
-method, such as `c.AddNote.title.toUpperCase()`, is not a source field: it is drawn as generated and
-left to do, with the fix: `m.generate(c.AddNote.title)`.
+`c.SetTimer.minutes * 60`, is not a field, so the editor refuses it. A field changed by a method,
+such as `c.AddNote.title.describe("loud")`, is not a source field: it is drawn as generated and left
+to do, with the fix: `m.generate(c.AddNote.title)`.
 
 The events of `.command({ AddItem }).event({ ItemAdded }).event({ ListFull })` are what the command
 can produce, not a sequence; the diagram draws them side by side. Each specification's `then` says
@@ -409,9 +433,9 @@ slice, which is drawn where the first one is: in its chapter, seen by its actors
 served by its method. A later call that names another of those is left to do.
 
 ```ts
-m.slice().view({ Inbox }).event({ NoteCreated }, () => ({ status: z.literal("inbox") })).chapter(Capture)
+m.slice().view({ Inbox }).event({ NoteCreated }, () => ({ status: t.literal("inbox") })).chapter(Capture)
 // further down the file: adds NoteFiled to the Inbox slice in Capture
-m.slice().view({ Inbox }).event({ NoteFiled }, () => ({ status: z.literal("filed") })).chapter(Capture)
+m.slice().view({ Inbox }).event({ NoteFiled }, () => ({ status: t.literal("filed") })).chapter(Capture)
 ```
 
 A view an automation polls, or a slice queries, is built by a state view like any other, which then
@@ -420,7 +444,7 @@ needs no screen, actor or service.
 ### Specifications
 
 A specification is a Given, When, Then example attached to a slice with `.test()`. Calling a
-declaration with data builds an example of it, and Zod checks the values: one it refuses is left to
+declaration with data builds an example of it, and its fields check the values: one they refuse is left to
 do, with where in the example. `given` and `then` accept one example or a list. A state change's specification has `then`, the events recorded, or `reject`,
 why the command is refused; never both. A state view's has `given`, the events that build the rows;
 `when`, the values of its context, only once it has a `.context()`; and `then`, the rows the screen
@@ -509,7 +533,7 @@ the row done when it sees `PaymentSucceeded`.
 export const Calendar = m.external()
 
 export const TaskScheduled = m
-  .event({ userId: z.string(), listId: z.string(), itemId: z.string(), text: z.string() })
+  .event({ userId: t.string(), listId: t.string(), itemId: t.string(), text: t.string() })
   .external(Calendar)
 
 m.slice()
@@ -537,7 +561,7 @@ not carry them, and an event of ours after it keeps them:
 
 ```ts
 export const Shop = m.external()
-export const CartUpdated = m.event({ added: z.array(Item), unavailable: z.array(Item) }).external(Shop)
+export const CartUpdated = m.event({ added: t.array(Item), unavailable: t.array(Item) }).external(Shop)
 
 m.slice()
   .automation({ GroceriesToOrder })
@@ -594,7 +618,7 @@ The compiler catches:
 | any reference | An unknown actor, event, command, view, screen or service cannot be written, because references are values, not strings. |
 | the chain | Only a legal chain compiles; each step offers only what can come next. `.test()` refuses a slice with no event yet and says what to add, such as `add .event() before .test()`. |
 | a step's declaration | It is `{ Name }`. A bare declaration has no name the compiler knows, and is refused; so is an object of two. |
-| a mapping | Its argument holds each declaration before its step by name, with its fields as schemas: what starts the slice, the rows it queries, the command and the outside events it gets back; in a state view, the event. Its result must be fields of the target, each a field that fits it, a `z.literal()` or `m.generate()`. A string format, such as `z.uuid()`, takes only that format. |
+| a mapping | Its argument holds each declaration before its step by name, with its fields as schemas: what starts the slice, the rows it queries, the command and the outside events it gets back; in a state view, the event. Its result must be fields of the target, each a field that fits it, a `t.literal()` or `m.generate()`. A string format, such as `t.uuid()`, takes only that format. |
 | a field that flows by name | It must fit its target as a mapped one does, and only one declaration before the step may carry it; a filter column and its namesake are one. The error names the field to set in the mapping, and where two carry it, both. |
 | a step's command or event | Every field no step before it carries must be set by its mapping, or marked `m.generate()`, unless it is optional. The error names the fields. |
 | an automation's command | The handler sees only the command: from `.command()` on, what starts the automation and the rows queried before it no longer flow. |
@@ -603,7 +627,7 @@ The compiler catches:
 | what starts an automation or a translation | `.automation()` refuses an external event, and the error says to use `.translation()`; `.translation()` takes nothing else. |
 | `.key()` | It names columns of the view, so `.query()` can count the rows a filter picks. |
 | `.service()` on a state view | It names the method. |
-| `.test()` | `when` is the slice's command, or a state view's context values. `then` is its events, or the rows of the view a state view shows, and strings that describe an outcome; `reject` replaces `then`, and a state view has none. Zod checks the values. |
+| `.test()` | `when` is the slice's command, or a state view's context values. `then` is its events, or the rows of the view a state view shows, and strings that describe an outcome; `reject` replaces `then`, and a state view has none. The values have their fields' types; a oneOf holds exactly one case. |
 
 Assembly catches the rest, and each error names the slice it found the problem in:
 
@@ -630,7 +654,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | A specification value that is not what flows in: from `when`, the trigger in `given`, or the events that build the row or a queried row | Example values are data, not types. |
 | A queried row `given` does not build, in a specification that does not `reject`; in an automation, before its command, any specification | Same. |
 | A state view's row that `given` does not build, or a built row `then` leaves out, describes nothing about, and the context does not exclude | Same. |
-| A mapping's result that is a schema but no source field, such as `c.AddNote.title.toUpperCase()` | A Zod method returns a schema of the same type. |
+| A mapping's result that is a field but no source field, such as `c.AddNote.title.describe("loud")` | A field's method returns a field of the same type. |
 | A mapping that throws, such as `m.generate()` given something other than a field: its slice is drawn without the mapping | The mapping runs when the model does. |
 | `m.generate()` in an automation's command | `m.generate()` is one function, wherever it is called. |
 
@@ -652,7 +676,7 @@ Naming is yours: the conventions above are not checked.
 | `.service()` | `service` and `apiEndpoint` on the command, or on the view a state view shows |
 | a stream | each event's `aggregate`, and the slice's `aggregates`: the streams it records into. A slice that records nothing names none |
 | an actor | the slice's `actors`. An admin is tagged `admin`, a machine of ours `system`. An automation's, or a state view's no one sees, is the system actor that runs it |
-| fields | the element's `fields`: Zod's `z.toJSONSchema()` of them, less `$schema`, a `pattern` beside a `format`, and an integer's safe-integer bounds. `.describe()` is a field's `description` |
+| fields | the element's `fields`: their JSON Schema, as [Fields](#fields) says, less `$schema`, a `pattern` beside a `format`, and an integer's safe-integer bounds |
 | `.key()` | the element's `key` |
 | a mapping | the slice's `mappings`, by the element of the step it is on, then by field: the source field's name, `= ` and a JSON value, or `generate(<inputs>)`. A field from a queried row, by name too, is `View(filter columns).column`, as `CartsWithProducts(productId).aggregateId`; of a view queried twice, the row before the step. A state view's are on its events, and set the view's columns |
 | a note | an element's `description` |
@@ -696,20 +720,9 @@ Every command and view becomes a `message`. Field numbers follow declaration ord
 appending a field is compatible and reordering one is not; `buf breaking` reports which you did.
 [Step 4 of the quickstart](#4-generate-the-api) shows a whole file.
 
-| Zod | proto |
-|---|---|
-| `z.string()`, `z.enum([...])` | `string` |
-| `z.number()` | `double` |
-| `z.number().int()` | `int32` |
-| `z.boolean()` | `bool` |
-| `z.array(T)` | `repeated T` |
-| `z.object({...})` | a nested message |
-| `z.record(z.string(), T)` | `map<string, T>`, never `optional` |
-| `.optional()` | `optional` |
-| `.describe()` | a `//` comment above the field |
-
-Any other Zod type is an error that names the declaration and the field. The todo example's output
-is `examples/proto`.
+Each field's proto type is in [Fields](#fields). A list of records, or a oneOf case that is a list
+or a record, has none: it is an error that names the declaration and the field. The todo example's
+output is `examples/proto`.
 
 ## CLI
 
@@ -739,9 +752,8 @@ as `model.json/slices/0/sliceType must be equal to one of the allowed values ...
 what the spec has, so lanes and chapters come in the order its slices first name them, and a screen
 no actor is said to see is a User's.
 
-Node runs the TypeScript directly with `--experimental-strip-types`. The package carries `zod` and
-exports it as `z`, so the model and the package read schemas with one copy. It carries `typescript`
-too, so the model needs no other dependency.
+Node runs the TypeScript directly with `--experimental-strip-types`. The package carries `zod`,
+which checks the values under `t`, and `typescript`, so the model needs no other dependency.
 
 ## Developing
 

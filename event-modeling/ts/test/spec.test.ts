@@ -2,8 +2,7 @@
 // JSON goes past the spec, which the README's "The JSON" section lists.
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import { z } from "zod"
-import { m } from "#em"
+import { m, t } from "#em"
 
 import { assembleModules } from "../src/assemble.ts"
 import type { SpecSlice } from "../src/spec.ts"
@@ -18,38 +17,38 @@ const Orders = m.stream()
 const Payments = m.stream()
 const Bank = m.external()
 
-const Lines = z.array(z.object({ sku: z.string(), gift: z.boolean().optional() }))
+const Lines = t.array(t.object({ sku: t.string(), gift: t.boolean().optional() }))
 const PlaceOrder = m.command({
-  orderId: z.string(),
-  item: z.string(),
+  orderId: t.string(),
+  item: t.string(),
   lines: Lines,
-  note: z.string().optional(),
+  note: t.string().optional(),
 })
 const OrderPlaced = m
   .event({
-    orderId: z.string(),
-    product: z.string(),
+    orderId: t.string(),
+    product: t.string(),
     lines: Lines,
-    placedAt: z.string().describe("When the till took it"),
+    placedAt: t.string().describe("When the till took it"),
   })
   .stream(Orders)
   .note("One per order.")
-const OrderRefused = m.event({ orderId: z.string() }).stream(Orders)
-const ChargeCard = m.command({ orderId: z.string() })
-const CardCharged = m.event({ orderId: z.string(), amount: z.number().int() }).external(Bank)
-const Refund = m.command({ orderId: z.string() })
-const RecordPayment = m.command({ orderId: z.string(), paid: z.number().int() })
-const PaymentRecorded = m.event({ orderId: z.string(), paid: z.number().int() }).stream(Payments)
+const OrderRefused = m.event({ orderId: t.string() }).stream(Orders)
+const ChargeCard = m.command({ orderId: t.string() })
+const CardCharged = m.event({ orderId: t.string(), amount: t.int() }).external(Bank)
+const Refund = m.command({ orderId: t.string() })
+const RecordPayment = m.command({ orderId: t.string(), paid: t.int() })
+const PaymentRecorded = m.event({ orderId: t.string(), paid: t.int() }).stream(Payments)
 const Unpaid = m
   .view({
-    orderId: z.string(),
-    product: z.string(),
+    orderId: t.string(),
+    product: t.string(),
     lines: Lines,
-    payments: z.number().int(),
-    status: z.string(),
+    payments: t.int(),
+    status: t.string(),
   })
   .key("orderId")
-const Loose = m.event({ id: z.uuid() }).stream(Orders)
+const Loose = m.event({ id: t.uuid() }).stream(Orders)
 
 const Sales = m.chapter(1).note("Where money comes in.")
 const order = { orderId: "o-1", item: "Tea" }
@@ -72,18 +71,18 @@ const slices = [
   m
     .slice()
     .view({ Unpaid })
-    .event({ OrderPlaced }, () => ({ payments: z.literal(0), status: z.literal("open") }))
+    .event({ OrderPlaced }, () => ({ payments: t.literal(0), status: t.literal("open") }))
     .event({ PaymentRecorded }, (c) => ({
-      product: z.literal(""),
+      product: t.literal(""),
       payments: m.generate(c.PaymentRecorded),
-      status: z.literal("paid"),
+      status: t.literal("paid"),
     }))
     .event({ OrderRefused }, () => ({
-      product: z.literal(""),
-      payments: z.literal(0),
-      status: z.literal("refused"),
+      product: t.literal(""),
+      payments: t.literal(0),
+      status: t.literal("refused"),
     }))
-    .context({ orderId: z.string() })
+    .context({ orderId: t.string() })
     .chapter(Sales)
     .actor(Clerk)
     .service(Shop, "ListUnpaid"),
@@ -330,7 +329,7 @@ test("what the spec has no place for travels beside it, to the viewer", () => {
   assert.deepEqual(board.loose?.[0], { kind: "event", element: "Loose(id)", aggregate: "orders" })
 })
 
-test("the viewer types each field from its schema: format, enum, list, nested, optional, described", () => {
+test("the viewer types each field from its schema: format, enum, list, nested, oneOf, optional, described", () => {
   const board = read(feed)
   assert.deepEqual(board.fields?.OrderPlaced?.slice(2), [
     {
@@ -345,11 +344,20 @@ test("the viewer types each field from its schema: format, enum, list, nested, o
   ])
   const at = { type: "string", format: "date-time" }
   const kind = { type: "string", enum: ["a", "b"] }
+  const result = {
+    oneOf: [
+      { type: "object", properties: { win: { type: "string" } }, required: ["win"] },
+      { type: "object", properties: { draw: { type: "boolean" } }, required: ["draw"] },
+    ],
+  }
   const element = {
     id: "e",
     title: "Noted",
     type: "EVENT" as const,
-    fields: { type: "object", properties: { id: { type: "string", format: "uuid" }, at, kind } },
+    fields: {
+      type: "object",
+      properties: { id: { type: "string", format: "uuid" }, at, kind, result },
+    },
     key: ["id"],
     dependencies: [],
   }
@@ -358,8 +366,17 @@ test("the viewer types each field from its schema: format, enum, list, nested, o
     { name: "id", type: "uuid", optional: true },
     { name: "at", type: "date-time", optional: true },
     { name: "kind", type: "a | b", optional: true },
+    {
+      name: "result",
+      type: "one of",
+      optional: true,
+      fields: [
+        { name: "win", type: "string" },
+        { name: "draw", type: "boolean" },
+      ],
+    },
   ])
-  assert.equal(drawn.loose?.[0]?.element, "Noted(*id, at, kind)")
+  assert.equal(drawn.loose?.[0]?.element, "Noted(*id, at, kind, result)")
 })
 
 test("a model from elsewhere draws from the spec alone", () => {

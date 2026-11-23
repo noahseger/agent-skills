@@ -556,7 +556,7 @@ function checkGenerated({ slice, where }: Located, fail: Fail): void {
       const target = `${flow.decl.name}.${field}`
       if ("built" in s) {
         fail({
-          message: `${where}: ${target} is computed in the mapping. Set it to a source field, a z.literal() or m.generate() with what it is made from.`,
+          message: `${where}: ${target} is computed in the mapping. Set it to a source field, a t.literal() or m.generate() with what it is made from.`,
           element: flow.decl.name ?? "",
           slice: slice.name ?? "",
         })

@@ -3,9 +3,7 @@
 import { createHash } from "node:crypto"
 import { z } from "zod"
 
-// One copy of Zod for the model and the package.
-export { z }
-
+import { type AnyField, type Fields, type Row, t, type Value } from "./t.ts"
 import {
   type ActorData,
   type ChapterData,
@@ -15,11 +13,11 @@ import {
   DRAFTS,
   type ExampleData,
   type ExternalData,
-  type Fields,
   type Flow,
   type MapFn,
   META,
   type ModelData,
+  type Fields as Schemas,
   type ScreenData,
   type ServiceData,
   type SliceData,
@@ -27,23 +25,33 @@ import {
   type TestData,
 } from "./types.ts"
 
-type Infer<F extends Fields> = { [P in keyof F]: z.infer<F[P]> }
+export type { Field, Fields } from "./t.ts"
+export { t }
+
+type Infer<F extends Fields> = { [P in keyof F]: Value<F[P]> }
 type OneOrMany<T> = T | readonly T[]
 
 /** The fields that must have a value: an optional one may go unfilled in a slice, if another fills it. */
 type Needed<T extends Fields> = {
-  [K in keyof T]: undefined extends z.input<T[K]> ? never : K
+  [K in keyof T]: undefined extends Value<T[K]> ? never : K
 }[keyof T]
 
 /**
- * What a target field takes: a string format takes only that format, and any other type any schema
- * with its output.
+ * What a target field takes: a field of a string format takes only that format, and any other a
+ * field with its values.
  */
-type Fit<T extends z.ZodType> =
-  T extends z.ZodStringFormat<infer F> ? z.ZodStringFormat<F> : z.ZodType<z.output<T>>
+type Fit<T extends AnyField> = string extends T["__format"]
+  ? { readonly __value: T["__value"] }
+  : { readonly __value: T["__value"]; readonly __format: T["__format"] }
+
+/** A field as it flows once set: an optional one's values without undefined. */
+type WhenSet<F extends AnyField> = {
+  readonly __value: Exclude<F["__value"], undefined>
+  readonly __format: F["__format"]
+}
 
 /**
- * A mapping's result: for each target field, a field before the step, a `z.literal()` or
+ * A mapping's result: for each target field, a field before the step, a `t.literal()` or
  * `m.generate()`. It must set the fields in `Set`. One object type, so a result with no target
  * field is refused.
  */
@@ -58,9 +66,7 @@ type Out<T extends Fields, Set extends keyof T = never> = {
 type Misfit<S extends Fields, T extends Fields> = string extends keyof S
   ? never
   : {
-      [K in keyof T & keyof S]: (S[K] extends z.ZodOptional<infer U> ? U : S[K]) extends Fit<T[K]>
-        ? never
-        : K
+      [K in keyof T & keyof S]: WhenSet<S[K]> extends Fit<T[K]> ? never : K
     }[keyof T & keyof S] &
       string
 
@@ -111,7 +117,7 @@ function noted(note: string | undefined, text: string): string {
 }
 
 function decl<K extends DeclKind, F extends Fields>(kind: K, fields: F): Decl<K, F> {
-  const data: DeclData = { kind, fields, keys: [] }
+  const data: DeclData = { kind, fields: fields as unknown as Schemas, keys: [] }
   // Zod checks an example once the specification it is in has filled its generated values.
   const call = (arg: Record<string, unknown>): Example<K, F> =>
     ({ [META]: { decl: data, data: arg }, __kind: kind, __fields: fields }) as Example<K, F>
@@ -275,10 +281,10 @@ const FIELDS = new WeakMap<object, { field: string; decl: DeclData }>()
 type InScope = [string, DeclData][]
 
 /** `c`: each declaration's fields as copies, marked with where they came from; whole, it is the declaration. */
-function scoped(scope: InScope): Record<string, Fields> {
+function scoped(scope: InScope): Record<string, Schemas> {
   return Object.fromEntries(
     scope.map(([name, decl]) => {
-      const fields: Fields = {}
+      const fields: Schemas = {}
       for (const [f, schema] of Object.entries(decl.fields)) {
         const copy = schema.clone()
         FIELDS.set(copy, { field: f, decl })
@@ -325,8 +331,8 @@ function generate<T = never>(...inputs: unknown[]): T {
 }
 
 /**
- * What a mapping put in each target: a field before its step, a constant from `z.literal()`, or a
- * generated value. Anything else, such as a field's schema changed by a Zod method, is computed, and
+ * What a mapping put in each target: a field before its step, a constant from `t.literal()`, or a
+ * generated value. Anything else, such as a field changed by `.describe()`, is computed, and
  * marked `built` for assembly to report.
  */
 function probe(decl: DeclData, context: Context, scope: InScope, map?: MapFn): Flow {
@@ -344,7 +350,7 @@ function probe(decl: DeclData, context: Context, scope: InScope, map?: MapFn): F
   for (const [field, value] of Object.entries(result)) {
     const from = typeof value === "object" && value !== null ? FIELDS.get(value) : undefined
     const def = (value as { _zod?: { def?: { type?: string; values?: unknown[] } } })?._zod?.def
-    // Zod reads an array as the literal's values, so `z.literal([])` has none: it is the empty list.
+    // Zod reads an array as the literal's values, so `t.literal([])` has none: it is the empty list.
     const values = def?.values?.length === 0 ? [[]] : def?.values
     flow.mapping[field] = isGenerated(value)
       ? { generate: value[GENERATE] }
@@ -413,11 +419,11 @@ type Join<N> = N extends readonly [infer A extends string, infer B extends strin
     : ""
 
 /** An optional source field fits only an optional target, as it does in a mapping. */
-type Fits<S, T extends z.ZodType> = S extends Fit<T> ? true : false
+type Fits<S, T extends AnyField> = S extends Fit<T> ? true : false
 
 /** A field that would flow by name but does not fit: the sentence a mapping that sets it gets. */
 type Unfit<K extends string> =
-  `${K} does not fit: set it to a field of its type, a z.literal() or m.generate()`
+  `${K} does not fit: set it to a field of its type, a t.literal() or m.generate()`
 
 /** What keeps target field `K` from flowing by name, as the instruction; never if it flows. */
 type Problem<C extends Ctx, T extends Fields, K extends keyof T & string, Step extends string> =
@@ -730,7 +736,7 @@ export interface Viewing<R extends Fields> extends Showing, Gate<"add .event() b
 export type ViewSpec<Q extends Fields, R extends Fields> = {
   given?: OneOrMany<Example<"event">>
   then: OneOrMany<Example<"view", R> | string>
-} & ([keyof Q] extends [never] ? { when?: never } : { when: z.input<z.ZodObject<Q>> })
+} & ([keyof Q] extends [never] ? { when?: never } : { when: Row<Q> })
 
 /** A complete state view: the view and at least one event. */
 export interface Viewed<R extends Fields, Q extends Fields> extends Showing {
@@ -775,7 +781,7 @@ function testData(name: string, spec: AnySpec, view?: SliceData): TestData {
     return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, fill(inner(schema, k), v)]))
   }
   const invalid: NonNullable<TestData["invalid"]> = []
-  const check = (decl: DeclData, fields: Fields, data: object) => {
+  const check = (decl: DeclData, fields: Schemas, data: object) => {
     const filled = fill(z.object(fields), data)
     const parsed = z.object(fields).partial().safeParse(filled)
     for (const issue of parsed.error?.issues ?? [])
@@ -802,7 +808,7 @@ function testData(name: string, spec: AnySpec, view?: SliceData): TestData {
 
 /** The schema of a value inside one of `schema`'s: an array's element, or an object's field `key`. */
 function inner(schema: z.ZodType | undefined, key?: string): z.ZodType | undefined {
-  type Def = { innerType?: z.ZodType; element?: z.ZodType; shape?: Fields }
+  type Def = { innerType?: z.ZodType; element?: z.ZodType; shape?: Schemas }
   let def = schema?._zod.def as Def | undefined
   while (def?.innerType) def = def.innerType._zod.def as Def
   return key === undefined ? def?.element : def?.shape?.[key]
@@ -824,6 +830,9 @@ function sample(schema: z.ZodType | undefined, seed: string): unknown {
     uuid,
     time,
     time.slice(0, 10),
+    `PT${(n % 59) + 1}M`,
+    `${hex.slice(0, 8)}@example.com`,
+    `https://example.com/${hex.slice(0, 8)}`,
     (n % 1000) + 1,
     n % 2 === 0,
     [],
@@ -905,7 +914,7 @@ function chain(data: SliceData, context: Context, scope: InScope) {
         decl.external ? [...scope, entry] : scope,
       )
     },
-    context: (fields: Fields) => next({ context: fields }),
+    context: (fields: Schemas) => next({ context: fields }),
     // An automation is run by one machine of ours, and no one sees it.
     actor: (first: Actor, ...rest: Actor[]) =>
       next(

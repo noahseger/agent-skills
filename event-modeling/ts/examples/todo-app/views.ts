@@ -1,6 +1,6 @@
 // What the system knows about lists, and what it does on its own.
 
-import { m, z } from "#em"
+import { m, t } from "#em"
 
 import {
   AddItem,
@@ -16,39 +16,39 @@ import {
 } from "./list-management.ts"
 
 // When the last item is done, the list completes.
-export const CompleteList = m.command({ userId: z.string(), listId: z.string() })
-export const ListCompleted = m.event({ userId: z.string(), listId: z.string() }).stream(Lists)
+export const CompleteList = m.command({ userId: t.string(), listId: t.string() })
+export const ListCompleted = m.event({ userId: t.string(), listId: t.string() }).stream(Lists)
 
 // A user's lists, one row per list.
 export const TodoList = m
   .view({
-    userId: z.string(),
-    listId: z.string(),
-    name: z.string(),
-    itemCount: z.number().int(),
-    status: z.enum(["open", "completed", "deleted"]),
+    userId: t.string(),
+    listId: t.string(),
+    name: t.string(),
+    itemCount: t.int(),
+    status: t.enum(["open", "completed", "deleted"]),
   })
   .key("userId", "listId")
 
 // The items of each list.
 export const ListItems = m
   .view({
-    listId: z.string(),
-    itemId: z.string(),
-    title: z.string(),
-    done: z.boolean(),
-    deleted: z.boolean(),
+    listId: t.string(),
+    itemId: t.string(),
+    title: t.string(),
+    done: t.boolean(),
+    deleted: t.boolean(),
   })
   .key("listId", "itemId")
 
 // Every item in every list, searchable by title.
 export const ItemSearch = m
   .view({
-    itemId: z.string(),
-    listId: z.string(),
-    title: z.string(),
-    done: z.boolean(),
-    deleted: z.boolean(),
+    itemId: t.string(),
+    listId: t.string(),
+    title: t.string(),
+    done: t.boolean(),
+    deleted: t.boolean(),
   })
   .key("itemId")
 
@@ -61,11 +61,11 @@ export const Views = m.chapter(2)
 
 m.slice()
   .view({ TodoList })
-  .event({ ListCreated }, () => ({ itemCount: z.literal(0), status: z.literal("open") }))
+  .event({ ListCreated }, () => ({ itemCount: t.literal(0), status: t.literal("open") }))
   .event({ ItemAdded }, (c) => ({ itemCount: m.generate(c.ItemAdded) }))
-  .event({ ListCompleted }, () => ({ status: z.literal("completed") }))
-  .event({ ListDeleted }, () => ({ status: z.literal("deleted") }))
-  .context({ userId: z.string() })
+  .event({ ListCompleted }, () => ({ status: t.literal("completed") }))
+  .event({ ListDeleted }, () => ({ status: t.literal("deleted") }))
+  .context({ userId: t.string() })
   .chapter(Views)
   .actor(User)
   .service(TodoService, "ListTodoLists")
@@ -127,10 +127,10 @@ m.slice()
 
 m.slice()
   .view({ ListItems })
-  .event({ ItemAdded }, () => ({ done: z.literal(false), deleted: z.literal(false) }))
-  .event({ ItemCompleted }, () => ({ done: z.literal(true) }))
-  .event({ ItemDeleted }, () => ({ deleted: z.literal(true) }))
-  .context({ listId: z.string() })
+  .event({ ItemAdded }, () => ({ done: t.literal(false), deleted: t.literal(false) }))
+  .event({ ItemCompleted }, () => ({ done: t.literal(true) }))
+  .event({ ItemDeleted }, () => ({ deleted: t.literal(true) }))
+  .context({ listId: t.string() })
   .chapter(Views)
   .actor(User)
   .screen(ListScreen)
@@ -185,10 +185,10 @@ m.slice()
 
 m.slice()
   .view({ ItemSearch })
-  .event({ ItemAdded }, () => ({ done: z.literal(false), deleted: z.literal(false) }))
-  .event({ ItemCompleted }, () => ({ done: z.literal(true) }))
-  .event({ ItemDeleted }, () => ({ deleted: z.literal(true) }))
-  .context({ text: z.string() })
+  .event({ ItemAdded }, () => ({ done: t.literal(false), deleted: t.literal(false) }))
+  .event({ ItemCompleted }, () => ({ done: t.literal(true) }))
+  .event({ ItemDeleted }, () => ({ deleted: t.literal(true) }))
+  .context({ text: t.string() })
   .chapter(Views)
   .actor(User)
   .service(TodoService, "SearchItems")
@@ -245,10 +245,10 @@ export const Calendar = m.external()
 
 export const TaskScheduled = m
   .event({
-    userId: z.string(),
-    listId: z.string(),
-    itemId: z.string(),
-    text: z.string(),
+    userId: t.string(),
+    listId: t.string(),
+    itemId: t.string(),
+    text: t.string(),
   })
   .external(Calendar)
 

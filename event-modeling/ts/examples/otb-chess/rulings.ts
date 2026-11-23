@@ -1,6 +1,6 @@
 // The arbiter rules on an illegal move and keeps count of them per player.
 
-import { m, z } from "#em"
+import { m, t } from "#em"
 import {
   IllegalMoveRuled,
   illegalMoveRuled,
@@ -13,18 +13,18 @@ import { Arbiter, ChessService, Game } from "./setup.ts"
 // How many illegal moves each side has made. FIDE 7.5.5 escalates on the second.
 export const IllegalMoveTally = m
   .view({
-    gameId: z.string(),
-    offendingSide: z.enum(["white", "black"]),
-    illegalMoveCount: z.number().int(),
+    gameId: t.string(),
+    offendingSide: t.enum(["white", "black"]),
+    illegalMoveCount: t.int(),
   })
   .key("gameId", "offendingSide")
 
 // The ruling that makes it two says so, so the forfeiter hears only the offence that forfeits.
 export const SecondIllegalMoveRuled = m
   .event({
-    gameId: z.string(),
-    offendingSide: z.enum(["white", "black"]),
-    illegalMoveCount: z.number().int(),
+    gameId: t.string(),
+    offendingSide: t.enum(["white", "black"]),
+    illegalMoveCount: t.int(),
   })
   .stream(Game)
 

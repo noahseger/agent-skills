@@ -2,19 +2,18 @@
 // error stops happening, so this file is the test: a check is only real while
 // its line refuses to compile. No formatter may touch this file: a directive
 // binds to the next line, and moving a call off that line disarms the check.
-import { type Commanded, m, type Start, type Triggered, type Viewing } from "#em"
-import { z } from "zod"
+import { type Commanded, m, type Start, t, type Triggered, type Viewing } from "#em"
 
 const User = m.actor()
 const Admin = m.actor({ icon: "admin" })
 const Syncer = m.actor({ icon: "system" })
 const TodoService = m.service("todo.v1")
-const CreateList = m.command({ listId: z.string(), name: z.string() })
-const ListCreated = m.event({ listId: z.string(), name: z.string() })
-const AddItem = m.command({ listId: z.string(), text: z.string() })
-const ItemAdded = m.event({ listId: z.string(), title: z.string() })
-const TodoList = m.view({ listId: z.string(), name: z.string(), itemCount: z.number().int() }).key("listId")
-const NameList = m.command({ listId: z.string(), name: z.string() })
+const CreateList = m.command({ listId: t.string(), name: t.string() })
+const ListCreated = m.event({ listId: t.string(), name: t.string() })
+const AddItem = m.command({ listId: t.string(), text: t.string() })
+const ItemAdded = m.event({ listId: t.string(), title: t.string() })
+const TodoList = m.view({ listId: t.string(), name: t.string(), itemCount: t.int() }).key("listId")
+const NameList = m.command({ listId: t.string(), name: t.string() })
 const Lock = m.screen()
 const Ch = m.chapter(1).note("A run of slices.")
 
@@ -33,7 +32,7 @@ const Notes = m.stream()
 m.slice().command({ CreateList }).event({ ListCreated }).actor(User).screen("Lock")
 
 // @ts-expect-error "Notes" is a string, not a stream, so a typo cannot make a lane
-m.event({ noteId: z.string() }).stream("Notes")
+m.event({ noteId: t.string() }).stream("Notes")
 
 // @ts-expect-error "Ch" is a string, not a chapter, so a typo cannot make a heading
 m.slice().command({ CreateList }).event({ ListCreated }).chapter("Ch")
@@ -97,7 +96,7 @@ m.slice().automation({ ListCreated }).event({ ListCreated })
 m.slice().actor(User)
 
 // @ts-expect-error a slice does not start with .query()
-m.slice().query({ listId: z.string() })
+m.slice().query({ listId: t.string() })
 
 // @ts-expect-error a slice does not start with .service()
 m.slice().service(TodoService)
@@ -149,7 +148,7 @@ m.slice().view({ TodoList }).event({ ListCreated }).command({ CreateList })
 m.slice().automation({ ListCreated }).command({ NameList }).event({ ListCreated }).screen(Lock)
 
 // @ts-expect-error a state change has no context
-m.slice().command({ CreateList }).event({ ListCreated }).context({ listId: z.string() })
+m.slice().command({ CreateList }).event({ ListCreated }).context({ listId: t.string() })
 
 // @ts-expect-error a state change is not started twice
 m.slice().command({ CreateList }).event({ ListCreated }).command({ AddItem })
@@ -159,7 +158,7 @@ m.slice().command({ CreateList }).event({ ListCreated })
 m.slice().command({ CreateList }).query({ TodoList }, "listId").event({ ListCreated }, (c) => ({ name: c.CreateList.name })).chapter(Ch).actor(User, Admin).service(TodoService)
 m.slice().command({ CreateList }).event({ ListCreated }).actor(User).screen(Lock).service(TodoService, "StartList").chapter(Ch)
 m.slice().view({ TodoList }).event({ ListCreated }).chapter(Ch)
-m.slice().view({ TodoList }).event({ ListCreated }).event({ ItemAdded }).context({ listId: z.string() }).chapter(Ch).actor(User)
+m.slice().view({ TodoList }).event({ ListCreated }).event({ ItemAdded }).context({ listId: t.string() }).chapter(Ch).actor(User)
 m.slice().view({ TodoList }).event({ ListCreated }).actor(User).screen(Lock).service(TodoService, "GetList")
 m.slice().automation({ ListCreated }).command({ NameList }).query({ TodoList }, "listId").event({ ListCreated }, (c) => ({ name: c.NameList.name })).chapter(Ch)
 m.slice().automation({ TodoList }).command({ NameList }).event({ ListCreated }).chapter(Ch)
@@ -196,7 +195,7 @@ m.slice().command({ AddItem }).event({ ItemAdded }, (c) => c.AddItem)
 
 m.slice().command({ AddItem }).event({ ItemAdded }, (c) => ({ title: c.AddItem.text }))
 // An optional field may go unfilled in one slice; assembly checks that another fills it.
-const ItemShared = m.event({ listId: z.string(), title: z.string().optional() })
+const ItemShared = m.event({ listId: t.string(), title: t.string().optional() })
 m.slice().command({ CreateList }).event({ ItemShared })
 // m.generate() fills the field nothing before the step carries.
 m.slice().command({ AddItem }).event({ ItemAdded }, () => ({ title: m.generate() }))
@@ -211,7 +210,7 @@ m.slice().command({ CreateList }).event({ ListCreated }).event({ ItemAdded }, (c
 m.slice().command({ AddItem }).event({ ItemAdded }, (c, { generate }) => ({ title: generate() }))
 
 // @ts-expect-error title is a string
-m.slice().command({ AddItem }).event({ ItemAdded }, (c) => ({ title: z.literal(42) }))
+m.slice().command({ AddItem }).event({ ItemAdded }, (c) => ({ title: t.literal(42) }))
 
 // @ts-expect-error the argument is what is before the step, and AddItem has no name
 m.slice().command({ AddItem }).event({ ItemAdded }, (c) => ({ title: c.AddItem.name }))
@@ -244,21 +243,21 @@ m.slice().automation({ ListCreated }).command({ AddItem }, (c) => ({ text: c.Lis
 
 m.slice().automation({ ListCreated }).command({ AddItem }, (c) => ({ text: c.ListCreated.name })).event({ ItemAdded }, (c) => ({ title: c.AddItem.text }))
 // An automation's optional command field may go unfilled too.
-const AddDraft = m.command({ listId: z.string(), text: z.string().optional() })
+const AddDraft = m.command({ listId: t.string(), text: t.string().optional() })
 m.slice().automation({ ListCreated }).command({ AddDraft }).event({ ItemShared })
 m.slice().automation({ TodoList }).command({ AddItem }, (c) => ({ text: c.TodoList.name })).event({ ListCreated }, (c) => ({ name: c.AddItem.text }))
 
 // --- .query(): a view, and the filter that picks its rows ----------------------
 
-const PriceChanged = m.event({ productId: z.uuid(), oldPrice: z.number(), newPrice: z.number() })
-const CartsWithProducts = m.view({ aggregateId: z.uuid(), productId: z.uuid(), itemId: z.uuid() }).key("aggregateId", "productId")
-const ArchiveItem = m.command({ aggregateId: z.uuid(), productId: z.uuid() })
-const ItemArchived = m.event({ aggregateId: z.uuid(), itemId: z.uuid() })
-const ItemRepriced = m.event({ aggregateId: z.uuid(), newPrice: z.number() })
-const ProductRepriced = m.event({ changedProductId: z.uuid(), newPrice: z.number() })
-const ArchiveCartItem = m.command({ cartId: z.uuid(), productId: z.uuid() })
-const CartItemArchived = m.event({ cartId: z.uuid(), itemId: z.uuid() })
-const ProductNamed = m.event({ productId: z.string() })
+const PriceChanged = m.event({ productId: t.uuid(), oldPrice: t.number(), newPrice: t.number() })
+const CartsWithProducts = m.view({ aggregateId: t.uuid(), productId: t.uuid(), itemId: t.uuid() }).key("aggregateId", "productId")
+const ArchiveItem = m.command({ aggregateId: t.uuid(), productId: t.uuid() })
+const ItemArchived = m.event({ aggregateId: t.uuid(), itemId: t.uuid() })
+const ItemRepriced = m.event({ aggregateId: t.uuid(), newPrice: t.number() })
+const ProductRepriced = m.event({ changedProductId: t.uuid(), newPrice: t.number() })
+const ArchiveCartItem = m.command({ cartId: t.uuid(), productId: t.uuid() })
+const CartItemArchived = m.event({ cartId: t.uuid(), itemId: t.uuid() })
+const ProductNamed = m.event({ productId: t.string() })
 
 // Many rows, before an automation's command: one command per row. The row's columns join what is before.
 m.slice("ArchiveItemScheduler").automation({ PriceChanged }).query({ CartsWithProducts }, "productId").command({ ArchiveItem }).event({ ItemArchived }, () => ({ itemId: m.generate() })).chapter(Ch)
@@ -289,8 +288,8 @@ m.slice().command({ ArchiveItem }).query({ CartsWithProducts }, (c) => ({ produc
 // @ts-expect-error many rows after an automation's command: its handler reads one
 m.slice().automation({ PriceChanged }).query({ CartsWithProducts }, "productId").command({ ArchiveItem }).query({ CartsWithProducts }, "productId")
 
-const Restock = m.command({ shelfId: z.string() })
-const Shelves = m.view({ shelfId: z.string() })
+const Restock = m.command({ shelfId: t.string() })
+const Shelves = m.view({ shelfId: t.string() })
 
 // @ts-expect-error a view with no key is many rows
 m.slice().command({ Restock }).query({ Shelves }, "shelfId")
@@ -311,39 +310,39 @@ m.slice().automation({ ProductNamed }).query({ CartsWithProducts }, "productId")
 // @ts-expect-error the handler sees only the command: the trigger's newPrice does not reach the event
 m.slice().automation({ PriceChanged }).command({ ArchiveItem }, () => ({ aggregateId: m.generate() })).event({ ItemRepriced })
 
-// --- a mapping's source is its schemas, and a constant is z.literal() -------------
+// --- a mapping's source is its schemas, and a constant is t.literal() -------------
 
-const NoteCaptured = m.event({ noteId: z.uuid(), text: z.string(), status: z.enum(["inbox", "filed"]), count: z.number().int() })
-const CaptureNote = m.command({ noteId: z.uuid(), text: z.string(), n: z.number(), at: z.iso.datetime() })
+const NoteCaptured = m.event({ noteId: t.uuid(), text: t.string(), status: t.enum(["inbox", "filed"]), count: t.int() })
+const CaptureNote = m.command({ noteId: t.uuid(), text: t.string(), n: t.number(), at: t.datetime() })
 
 // @ts-expect-error a string is not a uuid
-m.slice().command({ CaptureNote }).event({ NoteCaptured }, (c) => ({ noteId: c.CaptureNote.text, status: z.literal("inbox"), count: z.literal(0) }))
+m.slice().command({ CaptureNote }).event({ NoteCaptured }, (c) => ({ noteId: c.CaptureNote.text, status: t.literal("inbox"), count: t.literal(0) }))
 
 // @ts-expect-error a datetime is not a uuid either
-m.slice().command({ CaptureNote }).event({ NoteCaptured }, (c) => ({ noteId: c.CaptureNote.at, status: z.literal("inbox"), count: z.literal(0) }))
+m.slice().command({ CaptureNote }).event({ NoteCaptured }, (c) => ({ noteId: c.CaptureNote.at, status: t.literal("inbox"), count: t.literal(0) }))
 
 // @ts-expect-error status is one of inbox or filed
-m.slice().command({ CaptureNote }).event({ NoteCaptured }, () => ({ status: z.literal("nope"), count: z.literal(0) }))
+m.slice().command({ CaptureNote }).event({ NoteCaptured }, () => ({ status: t.literal("nope"), count: t.literal(0) }))
 
 // @ts-expect-error text is a string, not a number
-m.slice().command({ CaptureNote }).event({ NoteCaptured }, (c) => ({ text: c.CaptureNote.n, status: z.literal("inbox"), count: z.literal(0) }))
+m.slice().command({ CaptureNote }).event({ NoteCaptured }, (c) => ({ text: c.CaptureNote.n, status: t.literal("inbox"), count: t.literal(0) }))
 
 // @ts-expect-error a mapping computes nothing: a string built from a field is not a schema
-m.slice().command({ CaptureNote }).event({ NoteCaptured }, (c) => ({ text: `${c.CaptureNote.text}!`, status: z.literal("inbox"), count: z.literal(0) }))
+m.slice().command({ CaptureNote }).event({ NoteCaptured }, (c) => ({ text: `${c.CaptureNote.text}!`, status: t.literal("inbox"), count: t.literal(0) }))
 
-// @ts-expect-error a constant is z.literal(), not a value
-m.slice().command({ CaptureNote }).event({ NoteCaptured }, () => ({ status: "inbox", count: z.literal(0) }))
+// @ts-expect-error a constant is t.literal(), not a value
+m.slice().command({ CaptureNote }).event({ NoteCaptured }, () => ({ status: "inbox", count: t.literal(0) }))
 
-m.slice().command({ CaptureNote }).event({ NoteCaptured }, (c) => ({ noteId: c.CaptureNote.noteId, text: c.CaptureNote.noteId, status: z.literal("filed"), count: z.literal(0) }))
+m.slice().command({ CaptureNote }).event({ NoteCaptured }, (c) => ({ noteId: c.CaptureNote.noteId, text: c.CaptureNote.noteId, status: t.literal("filed"), count: t.literal(0) }))
 
 // A field that flows by name must fit too.
-const CaptureText = m.command({ noteId: z.string(), text: z.string() })
-const TextCaptured = m.event({ noteId: z.uuid(), text: z.string() })
+const CaptureText = m.command({ noteId: t.string(), text: t.string() })
+const TextCaptured = m.event({ noteId: t.uuid(), text: t.string() })
 
 // @ts-expect-error CaptureText's noteId is a string, and TextCaptured's a uuid
 m.slice().command({ CaptureText }).event({ TextCaptured })
 declare const capturing: Commanded<readonly [readonly ["CaptureText", typeof CaptureText.__fields, never]], typeof CaptureText.__fields, "change">
-const misfit: Bare<typeof capturing.event<{ TextCaptured: typeof TextCaptured }>> = "noteId does not fit: set it to a field of its type, a z.literal() or m.generate()"
+const misfit: Bare<typeof capturing.event<{ TextCaptured: typeof TextCaptured }>> = "noteId does not fit: set it to a field of its type, a t.literal() or m.generate()"
 m.slice().command({ CaptureText }).event({ TextCaptured }, () => ({ noteId: m.generate() }))
 
 // --- a call ends in the external event that brings the data back -------------
@@ -351,15 +350,15 @@ m.slice().command({ CaptureText }).event({ TextCaptured }, () => ({ noteId: m.ge
 const Shop = m.external()
 
 // @ts-expect-error "Shop" is a string, not an external system
-m.event({ listId: z.string() }).external("Shop")
+m.event({ listId: t.string() }).external("Shop")
 
 // @ts-expect-error an external system's events join it; they are not declared inside it
-m.external({ CartUpdated: m.event({ listId: z.string() }) })
+m.external({ CartUpdated: m.event({ listId: t.string() }) })
 
 // An external event's fields come from outside, so nothing before it need carry them.
-const CartUpdated = m.event({ listId: z.string(), unavailable: z.array(z.string()) }).external(Shop)
+const CartUpdated = m.event({ listId: t.string(), unavailable: t.array(t.string()) }).external(Shop)
 m.slice().command({ AddItem }).event({ CartUpdated }).actor(User)
-m.slice().translation({ CartUpdated }).command({ NameList }, () => ({ name: z.literal("") })).event({ ListCreated })
+m.slice().translation({ CartUpdated }).command({ NameList }, () => ({ name: t.literal("") })).event({ ListCreated })
 
 // @ts-expect-error an external event starts a translation, not an automation
 m.slice().automation({ CartUpdated })
@@ -375,8 +374,8 @@ const polled: Parameters<typeof start.translation<{ TodoList: typeof TodoList }>
 m.slice().command({ AddItem }).event({ CartUpdated }).event({ ItemAdded })
 
 // The fields of the outside event a call gets back join what is before the events after it: by name, or in a mapping's argument.
-const CartKept = m.event({ listId: z.string(), unavailable: z.array(z.string()) })
-const ItemsMissing = m.event({ listId: z.string(), items: z.array(z.string()) })
+const CartKept = m.event({ listId: t.string(), unavailable: t.array(t.string()) })
+const ItemsMissing = m.event({ listId: t.string(), items: t.array(t.string()) })
 m.slice().command({ AddItem }).event({ CartUpdated }).event({ CartKept }, (c) => ({ listId: c.AddItem.listId })).actor(User)
 
 // @ts-expect-error AddItem and the CartUpdated it gets back both carry listId: the mapping says which
@@ -385,7 +384,7 @@ declare const calling: Commanded<readonly [readonly ["AddItem", typeof AddItem._
 const twice: Bare<typeof calling.event<{ CartKept: typeof CartKept }>> = "listId comes from AddItem and CartUpdated: set it in the mapping"
 
 m.slice().command({ AddItem }).event({ CartUpdated }).event({ ItemsMissing }, (c) => ({ listId: c.AddItem.listId, items: c.CartUpdated.unavailable })).event({ ItemAdded }, (c) => ({ listId: c.AddItem.listId, title: c.AddItem.text }))
-m.slice().automation({ ListCreated }).command({ AddItem }, () => ({ text: z.literal("") })).event({ CartUpdated }).event({ CartKept }, (c) => ({ listId: c.AddItem.listId }))
+m.slice().automation({ ListCreated }).command({ AddItem }, () => ({ text: t.literal("") })).event({ CartUpdated }).event({ CartKept }, (c) => ({ listId: c.AddItem.listId }))
 m.slice().command({ AddItem }).event({ CartUpdated }).event({ ItemAdded }, (c) => ({ listId: c.AddItem.listId, title: m.generate(c.CartUpdated.unavailable) }))
 
 // @ts-expect-error the outside event comes before the event that keeps it
@@ -417,49 +416,49 @@ m.slice().view({ TodoList }).event({ ListCreated }).event({ CartUpdated })
 
 // The outside event a call gets back fills an event of ours by name: pageId comes from PageCreated.
 const Wiki = m.external()
-const PageCreated = m.event({ pageId: z.string() }).external(Wiki)
-const SyncNote = m.command({ noteId: z.uuid(), text: z.string() })
-const NoteLinked = m.event({ noteId: z.uuid(), pageId: z.string() })
+const PageCreated = m.event({ pageId: t.string() }).external(Wiki)
+const SyncNote = m.command({ noteId: t.uuid(), text: t.string() })
+const NoteLinked = m.event({ noteId: t.uuid(), pageId: t.string() })
 m.slice().command({ SyncNote }).event({ PageCreated }).event({ NoteLinked }).chapter(Ch)
 
 // --- everything is declared with m.command or m.event, so a spec can name it --
 
 // @ts-expect-error a command is not declared in place
-m.slice().command("AddItem", { text: z.string() })
+m.slice().command("AddItem", { text: t.string() })
 
 // @ts-expect-error an event is not declared in place
-m.slice().command({ CreateList }).event("ListNamed", { name: z.string() })
+m.slice().command({ CreateList }).event("ListNamed", { name: t.string() })
 
 // @ts-expect-error nor is a second event
-m.slice().command({ CreateList }).event({ ListCreated }).event("ListNamed", { name: z.string() })
+m.slice().command({ CreateList }).event({ ListCreated }).event("ListNamed", { name: t.string() })
 
 // @ts-expect-error an automation's command is not declared in place
-m.slice().automation({ ListCreated }).command("Archive", { listId: z.string() })
+m.slice().automation({ ListCreated }).command("Archive", { listId: t.string() })
 
 // --- a state view: its mapping reads the event and sets columns --------------
 
 // @ts-expect-error TodoList has no column done
-m.slice().view({ TodoList }).event({ ListCreated }, () => ({ done: z.literal(true) }))
+m.slice().view({ TodoList }).event({ ListCreated }, () => ({ done: t.literal(true) }))
 
 // @ts-expect-error itemCount is a number
-m.slice().view({ TodoList }).event({ ListCreated }, () => ({ itemCount: z.literal("0") }))
+m.slice().view({ TodoList }).event({ ListCreated }, () => ({ itemCount: t.literal("0") }))
 
 // @ts-expect-error every event is checked the same: itemCount is a number
-m.slice().view({ TodoList }).event({ ListCreated }).event({ ItemAdded }, () => ({ itemCount: z.literal("0") }))
+m.slice().view({ TodoList }).event({ ListCreated }).event({ ItemAdded }, () => ({ itemCount: t.literal("0") }))
 
 // A field that flows by name into a column must fit it.
-const Basket = m.view({ listId: z.uuid(), name: z.string() })
+const Basket = m.view({ listId: t.uuid(), name: t.string() })
 
 // @ts-expect-error ListCreated's listId is a string, and Basket's a uuid
 m.slice().view({ Basket }).event({ ListCreated })
 declare const basket: Viewing<typeof Basket.__fields>
-const unfit: Bare<typeof basket.event<{ ListCreated: typeof ListCreated }>> = "listId does not fit: set it to a field of its type, a z.literal() or m.generate()"
+const unfit: Bare<typeof basket.event<{ ListCreated: typeof ListCreated }>> = "listId does not fit: set it to a field of its type, a t.literal() or m.generate()"
 
 // @ts-expect-error beside a mapped event too
 m.slice().view({ Basket }).event({ ListCreated }, () => ({ listId: m.generate() })).event({ ListCreated })
 
 // @ts-expect-error a mapping that leaves it to flow must set it
-m.slice().view({ Basket }).event({ ListCreated }, () => ({ name: z.literal("x") }))
+m.slice().view({ Basket }).event({ ListCreated }, () => ({ name: t.literal("x") }))
 m.slice().view({ Basket }).event({ ListCreated }, () => ({ listId: m.generate() })).event({ ItemAdded }, () => ({ listId: m.generate() }))
 
 // --- .test() -----------------------------------------------------------------
@@ -485,8 +484,8 @@ m.reject
 m.slice().view({ TodoList }).event({ ListCreated }).test("x", { given: ListCreated({ listId: "l-1" }), when: CreateList({}), then: TodoList({}) })
 
 // A state view's when is its context's values; its then, rows of the view it shows.
-const Shelf = m.view({ shelfId: z.string() }).key("shelfId")
-const inbox = m.slice().view({ TodoList }).event({ ListCreated }).context({ name: z.string() })
+const Shelf = m.view({ shelfId: t.string() }).key("shelfId")
+const inbox = m.slice().view({ TodoList }).event({ ListCreated }).context({ name: t.string() })
 
 // @ts-expect-error name is a string
 inbox.test("x", { when: { name: 1 }, then: [] })
@@ -512,7 +511,39 @@ inbox.test("x", { when: { name: "a" }, then: [], reject: "nope" })
 // @ts-expect-error an example is not a use in a slice
 m.slice().command({ CreateList }).event(ListCreated({ listId: "l-1" }))
 
-// --- calling a declaration: its fields, with Zod's types ---------------------
+// --- t: every field has a protobuf type and a JSON Schema --------------------
+
+// @ts-expect-error a field computes nothing: no .transform()
+t.string().transform((s: string) => s.length)
+
+// @ts-expect-error nor .refine()
+t.string().refine((s: string) => s.length > 0)
+
+// @ts-expect-error nor .default(): a value the handler makes is m.generate()
+t.int().default(0)
+
+// @ts-expect-error nor .nullable(): a field that may have no value is .optional()
+t.string().nullable()
+
+// @ts-expect-error nor .brand()
+t.uuid().brand("NoteId")
+
+// @ts-expect-error t has no custom field, which would have no protobuf type
+t.custom()
+
+// @ts-expect-error nor a union: t.oneOf() names its cases
+t.union([t.string(), t.int()])
+
+// @ts-expect-error nor coercion
+t.coerce.number()
+
+const GameEnded = m.event({ id: t.uuid(), email: t.email(), site: t.url(), day: t.date(), at: t.datetime(), takes: t.duration(), n: t.number(), i: t.int(), on: t.boolean(), side: t.enum(["white", "black"]), x: t.literal("x"), sans: t.array(t.string()), rows: t.array({ ply: t.int() }), by: t.object({ id: t.string() }), clocks: t.record(t.int()), result: t.oneOf({ win: t.enum(["white", "black"]), draw: t.object({}) }), note: t.string().optional().describe("Why") })
+GameEnded({ result: { win: "white" }, rows: [{ ply: 1 }], by: { id: "a" }, clocks: { white: 1 } })
+
+// @ts-expect-error a oneOf holds exactly one of its cases
+GameEnded({ result: { win: "white", draw: {} } })
+
+// --- calling a declaration: its fields, with t's types -----------------------
 
 // @ts-expect-error nickname is not a field of CreateList
 CreateList({ listId: "l-1", nickname: "shopping" })
@@ -524,13 +555,13 @@ CreateList({ listId: 42 })
 CreateList.with({ listId: "l-1" })
 
 // @ts-expect-error a key is one of the view's columns
-m.view({ shelfId: z.string() }).key("nope")
+m.view({ shelfId: t.string() }).key("nope")
 
 // @ts-expect-error a key is named on the view with .key(), not marked on m
 m.key
 
 // @ts-expect-error a table built from events is declared with m.view
-m.readModel({ shelfId: z.string() })
+m.readModel({ shelfId: t.string() })
 
 // @ts-expect-error what a handler reads is named with .query()
 m.slice().command({ CreateList }).readModel(TodoList)
@@ -542,13 +573,13 @@ m.slice().command({ CreateList }).view({ TodoList })
 create.test("x", { given: ListCreated({ listId: "l-1" }), when: CreateList({ listId: "l-2" }), then: [ListCreated({ listId: "l-2" })] })
 create.test("x", { given: [ListCreated({ listId: "l-1" })], when: CreateList({ listId: "l-1" }), reject: "nope" })
 m.slice().automation({ ListCreated }).command({ NameList }).event({ ListCreated }).test("x", { given: ListCreated({ listId: "l-1" }), when: NameList({ listId: "l-1" }), then: ListCreated({ listId: "l-1" }) })
-m.slice().view({ TodoList }).event({ ListCreated }, () => ({ itemCount: z.literal(0) })).event({ ItemAdded }, (c) => ({ itemCount: m.generate(c.ItemAdded), name: c.ItemAdded.title }))
+m.slice().view({ TodoList }).event({ ListCreated }, () => ({ itemCount: t.literal(0) })).event({ ItemAdded }, (c) => ({ itemCount: m.generate(c.ItemAdded), name: c.ItemAdded.title }))
 inbox.test("x", { given: [ListCreated({ listId: "l-1", name: "a" }), ItemAdded({ listId: "l-1" })], when: { name: "a" }, then: [TodoList({ listId: "l-1" })] })
 // then may describe an outcome its examples cannot show.
 create.test("x", { when: CreateList({ listId: "l-1" }), then: ["The list is new", ListCreated({ listId: "l-1" })] })
 inbox.test("x", { when: { name: "a" }, then: "No list is named a" })
 m.slice().view({ TodoList }).event({ ListCreated }).test("x", { given: ListCreated({ listId: "l-1" }), then: TodoList({ listId: "l-1" }) })
-m.event({ noteId: z.string() }).stream(Notes)
+m.event({ noteId: t.string() }).stream(Notes)
 // A specification may be a function, and m.generate() is a value of any field's type.
 create.test("x", () => { const listId = m.generate(); return { when: CreateList({ listId, name: m.generate() }), then: ListCreated({ listId }) } })
 inbox.test("x", { given: ListCreated({ listId: m.generate() }), when: { name: m.generate() }, then: [] })

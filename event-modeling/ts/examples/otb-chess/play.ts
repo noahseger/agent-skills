@@ -1,6 +1,6 @@
 // Players move on the board and press the clock. The board and the clock are separate lanes.
 
-import { m, z } from "#em"
+import { m, t } from "#em"
 
 import {
   ChessService,
@@ -15,30 +15,30 @@ import {
 
 // A player moves. FIDE 1.1: the two players move alternately.
 export const PlayMove = m.command({
-  gameId: z.string(),
-  ply: z.number().int(),
-  san: z.string(),
-  fromSquare: z.string(),
-  toSquare: z.string(),
-  piece: z.enum(["pawn", "knight", "bishop", "rook", "queen", "king"]),
-  fen: z.string(),
-  sideToMove: z.enum(["white", "black"]),
-  isCheck: z.boolean(),
-  isCapture: z.boolean(),
-  ending: z.enum(["checkmate", "stalemate", "dead_position"]).optional(),
+  gameId: t.string(),
+  ply: t.int(),
+  san: t.string(),
+  fromSquare: t.string(),
+  toSquare: t.string(),
+  piece: t.enum(["pawn", "knight", "bishop", "rook", "queen", "king"]),
+  fen: t.string(),
+  sideToMove: t.enum(["white", "black"]),
+  isCheck: t.boolean(),
+  isCapture: t.boolean(),
+  ending: t.enum(["checkmate", "stalemate", "dead_position"]).optional(),
 })
 export const MovePlayed = m
   .event({
-    gameId: z.string(),
-    ply: z.number().int(),
-    san: z.string(),
-    fromSquare: z.string(),
-    toSquare: z.string(),
-    piece: z.enum(["pawn", "knight", "bishop", "rook", "queen", "king"]),
-    fen: z.string(),
-    sideToMove: z.enum(["white", "black"]),
-    isCheck: z.boolean(),
-    isCapture: z.boolean(),
+    gameId: t.string(),
+    ply: t.int(),
+    san: t.string(),
+    fromSquare: t.string(),
+    toSquare: t.string(),
+    piece: t.enum(["pawn", "knight", "bishop", "rook", "queen", "king"]),
+    fen: t.string(),
+    sideToMove: t.enum(["white", "black"]),
+    isCheck: t.boolean(),
+    isCapture: t.boolean(),
   })
   .stream(Game)
 
@@ -46,83 +46,83 @@ export const MovePlayed = m
 // FIDE 5.1.1, 5.2.1 and 5.2.2: the game is over at that moment, before anyone rules on it.
 export const GameEnded = m
   .event({
-    gameId: z.string(),
-    ply: z.number().int(),
-    fen: z.string(),
-    ending: z.enum(["checkmate", "stalemate", "dead_position"]),
+    gameId: t.string(),
+    ply: t.int(),
+    fen: t.string(),
+    ending: t.enum(["checkmate", "stalemate", "dead_position"]),
   })
   .stream(Game)
 
 // The position on the board right now.
 export const GameState = m
   .view({
-    gameId: z.string(),
-    ply: z.number().int(),
-    sideToMove: z.enum(["white", "black"]),
-    fen: z.string(),
+    gameId: t.string(),
+    ply: t.int(),
+    sideToMove: t.enum(["white", "black"]),
+    fen: t.string(),
   })
   .key("gameId")
 
 // A player presses the clock. FIDE 6.2.1: the increment is added on the press.
 export const PressClock = m.command({
-  gameId: z.string(),
-  whiteTimeMs: z.number().int(),
-  blackTimeMs: z.number().int(),
-  runningSide: z.enum(["white", "black"]),
+  gameId: t.string(),
+  whiteTimeMs: t.int(),
+  blackTimeMs: t.int(),
+  runningSide: t.enum(["white", "black"]),
 })
 export const ClockPressed = m
   .event({
-    gameId: z.string(),
-    whiteTimeMs: z.number().int(),
-    blackTimeMs: z.number().int(),
-    runningSide: z.enum(["white", "black"]),
+    gameId: t.string(),
+    whiteTimeMs: t.int(),
+    blackTimeMs: t.int(),
+    runningSide: t.enum(["white", "black"]),
   })
   .stream(Clock)
 
 // Whose clock runs, and how much time each side has left.
 export const ClockState = m
   .view({
-    gameId: z.string(),
-    whiteTimeMs: z.number().int(),
-    blackTimeMs: z.number().int(),
-    runningSide: z.enum(["white", "black"]),
+    gameId: t.string(),
+    whiteTimeMs: t.int(),
+    blackTimeMs: t.int(),
+    runningSide: t.enum(["white", "black"]),
   })
   .key("gameId")
 
 // The arbiter's ruling is declared here, in the chapter where the board first reads it.
 export const RuleIllegalMove = m.command({
-  gameId: z.string(),
-  ply: z.number().int(),
-  offendingSide: z.enum(["white", "black"]),
-  illegalMoveCount: z.number().int(),
-  addedTimeMs: z.number().int(),
-  penalty: z.enum(["opponent_time_added", "loss"]),
-  fen: z.string(),
-  sideToMove: z.enum(["white", "black"]),
+  gameId: t.string(),
+  ply: t.int(),
+  offendingSide: t.enum(["white", "black"]),
+  illegalMoveCount: t.int(),
+  addedTimeMs: t.int(),
+  penalty: t.enum(["opponent_time_added", "loss"]),
+  fen: t.string(),
+  sideToMove: t.enum(["white", "black"]),
 })
 export const IllegalMoveRuled = m
   .event({
-    gameId: z.string(),
-    ply: z.number().int(),
-    offendingSide: z.enum(["white", "black"]),
-    illegalMoveCount: z.number().int(),
-    addedTimeMs: z.number().int(),
-    penalty: z.enum(["opponent_time_added", "loss"]),
-    fen: z.string(),
-    sideToMove: z.enum(["white", "black"]),
+    gameId: t.string(),
+    ply: t.int(),
+    offendingSide: t.enum(["white", "black"]),
+    illegalMoveCount: t.int(),
+    addedTimeMs: t.int(),
+    penalty: t.enum(["opponent_time_added", "loss"]),
+    fen: t.string(),
+    sideToMove: t.enum(["white", "black"]),
   })
   .stream(Game)
 
 // The scoresheet: one row per ply. A struck move stays on the sheet, marked.
 export const MoveList = m
   .view({
-    gameId: z.string(),
-    ply: z.number().int(),
-    san: z.string(),
-    sideToMove: z.enum(["white", "black"]),
-    isCheck: z.boolean(),
-    isCapture: z.boolean(),
-    status: z.enum(["recorded", "struck"]),
+    gameId: t.string(),
+    ply: t.int(),
+    san: t.string(),
+    sideToMove: t.enum(["white", "black"]),
+    isCheck: t.boolean(),
+    isCapture: t.boolean(),
+    status: t.enum(["recorded", "struck"]),
   })
   .key("gameId", "ply")
 
@@ -297,7 +297,7 @@ m.slice()
   .event({ GameStarted })
   .event({ MovePlayed })
   .event({ IllegalMoveRuled })
-  .context({ gameId: z.string() })
+  .context({ gameId: t.string() })
   .chapter(Play)
   .actor(Spectator)
   .screen(Broadcast)
@@ -392,9 +392,9 @@ m.slice()
 
 m.slice()
   .view({ MoveList })
-  .event({ MovePlayed }, () => ({ status: z.literal("recorded") }))
-  .event({ IllegalMoveRuled }, () => ({ status: z.literal("struck") }))
-  .context({ gameId: z.string() })
+  .event({ MovePlayed }, () => ({ status: t.literal("recorded") }))
+  .event({ IllegalMoveRuled }, () => ({ status: t.literal("struck") }))
+  .context({ gameId: t.string() })
   .chapter(Play)
   .actor(Spectator)
   .screen(Broadcast)

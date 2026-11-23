@@ -1,12 +1,11 @@
 // A model being stormed: a slice written before it is in a chapter.
 
-import { z } from "zod"
-import { m } from "#em"
+import { m, t } from "#em"
 
 export const User = m.actor()
 export const Notes = m.service("notes.v1")
-export const CreateNote = m.command({ title: z.string() })
-export const NoteCreated = m.event({ title: z.string() })
+export const CreateNote = m.command({ title: t.string() })
+export const NoteCreated = m.event({ title: t.string() })
 
 m.slice().command({ CreateNote }).event({ NoteCreated }).actor(User).service(Notes)
 

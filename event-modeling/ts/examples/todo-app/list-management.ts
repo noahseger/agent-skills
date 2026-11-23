@@ -1,6 +1,6 @@
 // The story starts with a user, the API they use, and what they do to lists.
 
-import { m, z } from "#em"
+import { m, t } from "#em"
 
 // A person who keeps todo lists.
 export const User = m.actor()
@@ -16,45 +16,45 @@ export const Items = m.stream()
 export const Lists = m.stream()
 
 // A user creates a named list.
-export const CreateList = m.command({ userId: z.string(), listId: z.string(), name: z.string() })
+export const CreateList = m.command({ userId: t.string(), listId: t.string(), name: t.string() })
 export const ListCreated = m
-  .event({ listId: z.string(), userId: z.string(), name: z.string() })
+  .event({ listId: t.string(), userId: t.string(), name: t.string() })
   .note("Names are unique per user.")
   .stream(Lists)
 
 // A user adds an item to a list. A list holds at most 3.
 export const AddItem = m.command({
-  userId: z.string(),
-  listId: z.string(),
-  itemId: z.string(),
-  text: z.string(),
+  userId: t.string(),
+  listId: t.string(),
+  itemId: t.string(),
+  text: t.string(),
 })
 export const ItemAdded = m
   .event({
-    userId: z.string(),
-    listId: z.string(),
-    itemId: z.string(),
-    title: z.string(),
+    userId: t.string(),
+    listId: t.string(),
+    itemId: t.string(),
+    title: t.string(),
   })
   .stream(Items)
 
 // A user marks an item done.
 export const CompleteItem = m.command({
-  userId: z.string(),
-  listId: z.string(),
-  itemId: z.string(),
+  userId: t.string(),
+  listId: t.string(),
+  itemId: t.string(),
 })
 export const ItemCompleted = m
-  .event({ userId: z.string(), listId: z.string(), itemId: z.string() })
+  .event({ userId: t.string(), listId: t.string(), itemId: t.string() })
   .stream(Items)
 
 // A user removes an item from a list.
-export const DeleteItem = m.command({ listId: z.string(), itemId: z.string() })
-export const ItemDeleted = m.event({ listId: z.string(), itemId: z.string() }).stream(Items)
+export const DeleteItem = m.command({ listId: t.string(), itemId: t.string() })
+export const ItemDeleted = m.event({ listId: t.string(), itemId: t.string() }).stream(Items)
 
 // A user deletes a whole list, items included.
-export const DeleteList = m.command({ userId: z.string(), listId: z.string() })
-export const ListDeleted = m.event({ userId: z.string(), listId: z.string() }).stream(Lists)
+export const DeleteList = m.command({ userId: t.string(), listId: t.string() })
+export const ListDeleted = m.event({ userId: t.string(), listId: t.string() }).stream(Lists)
 
 const groceries = ListCreated({ listId: "list-1", userId: "u-1", name: "Groceries" })
 const milk = ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-1", title: "Milk" })

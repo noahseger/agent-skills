@@ -113,11 +113,10 @@ function usedEarly(d: Diagnostic): string[] {
 
 const MISSING = /"add (\w+) to a step before (\S+) or set it in the mapping"/g
 const MISFIT =
-  /"(\w+) does not fit: set it to a field of its type, a z\.literal\(\) or m\.generate\(\)"/g
+  /"(\w+) does not fit: set it to a field of its type, a t\.literal\(\) or m\.generate\(\)"/g
 const SHARED = /"(\w+) comes from ([^"]+): set it in the mapping"/g
-/** A mapping's result that is not a schema its target takes; the target may be `O[K] & Fit<…>`. */
-const UNFIT =
-  /^Type '.*' is not assignable to type '(?:[^']* & )?(?:Fit<|ZodType<|ZodStringFormat<)/
+/** A mapping's result that is not a field its target takes; the target may be `O[K] & Fit<…>`. */
+const UNFIT = /^Type '.*' is not assignable to type '(?:[^']* & )?(?:Fit<|\{ readonly __value)/
 const UNSET = /Property '(\w+)' is missing in type '.*' but required in type 'Pick</
 /** Any other sentence the package's types put where a step goes wrong. */
 const INSTRUCTION =
@@ -148,7 +147,7 @@ function describe(d: Diagnostic, text: string, file: string): Warning {
     const fields = misfit.flatMap((f) => (f[1] ? [f[1]] : []))
     const them = fields.length > 1 ? "do not fit: set each" : "does not fit: set it"
     return {
-      message: `${at(d.pos)}${target}: ${fields.join(", ")} ${them} to a field of its type, a z.literal() or m.generate()`,
+      message: `${at(d.pos)}${target}: ${fields.join(", ")} ${them} to a field of its type, a t.literal() or m.generate()`,
       element,
       fields,
     }
@@ -166,7 +165,7 @@ function describe(d: Diagnostic, text: string, file: string): Warning {
   }
   if (UNFIT.test(d.text))
     return said(
-      `${at(d.pos)}${target} does not fit: set it to a field of its type, a z.literal() or m.generate()`,
+      `${at(d.pos)}${target} does not fit: set it to a field of its type, a t.literal() or m.generate()`,
     )
   const unset = lines.map((l) => l.match(UNSET)?.[1]).find((f) => f !== undefined)
   if (unset) return said(`${at(d.pos)}the mapping must set ${unset}`)

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
 import { z } from "zod"
-import { type Chapter, type EventDecl, m, type Slice } from "#em"
+import { type Chapter, type EventDecl, type Field, m, type Slice, t } from "#em"
 
 import { type Feed, assemble as feedAt, assembleModules as feedOf, load } from "../src/assemble.ts"
 import { toFeed } from "../src/spec.ts"
@@ -51,9 +51,9 @@ test("load returns the named model the generators read", async () => {
 function fixture() {
   const User = m.actor()
   const Svc = m.service("t.v1")
-  const Create = m.command({ id: z.string(), name: z.string() })
-  const Created = m.event({ id: z.string(), name: z.string() })
-  const Table = m.view({ id: z.string(), name: z.string() }).key("id")
+  const Create = m.command({ id: t.string(), name: t.string() })
+  const Created = m.event({ id: t.string(), name: t.string() })
+  const Table = m.view({ id: t.string(), name: t.string() }).key("id")
   return { User, Svc, Create, Created, Table }
 }
 type Fixture = ReturnType<typeof fixture>
@@ -144,7 +144,7 @@ test("a call names its declaration as it is exported: a bare or renamed one is d
 
 test("an event field the command does not carry", () => {
   const f = fixture()
-  const Created = m.event({ id: z.string(), name: z.string(), extra: z.string() })
+  const Created = m.event({ id: t.string(), name: t.string(), extra: t.string() })
   assert.throws(
     () => assembled({ ...f, Created }, [unspecified({ ...f, Created }), view({ ...f, Created })]),
     /Ch › Create: Created\.extra has no value\. Add extra to a step before \.event\(\) or set it in the mapping\./,
@@ -153,7 +153,7 @@ test("an event field the command does not carry", () => {
 
 test("a model still being written draws with a field that has no value", () => {
   const f = fixture()
-  const Created = m.event({ id: z.string(), name: z.string(), extra: z.string() })
+  const Created = m.event({ id: t.string(), name: t.string(), extra: t.string() })
   const Ch = [unspecified({ ...f, Created })]
   const json = assembleModules([{ ...f, Created, ...chapters({ Ch }), default: m.model("x") }], {
     partial: true,
@@ -164,8 +164,8 @@ test("a model still being written draws with a field that has no value", () => {
 
 test("an optional field one slice leaves unfilled, another fills", () => {
   const f = fixture()
-  const Created = m.event({ id: z.string(), name: z.string(), extra: z.string().optional() })
-  const CreateWith = m.command({ id: z.string(), name: z.string(), extra: z.string() })
+  const Created = m.event({ id: t.string(), name: t.string(), extra: t.string().optional() })
+  const CreateWith = m.command({ id: t.string(), name: t.string(), extra: t.string() })
   const withExtra = { ...list, extra: "x" }
   const json = assembled({ ...f, Created, CreateWith }, [
     create({ ...f, Created }),
@@ -184,7 +184,7 @@ test("an optional field one slice leaves unfilled, another fills", () => {
 
 test("an optional field no slice fills", () => {
   const f = fixture()
-  const Created = m.event({ id: z.string(), name: z.string(), extra: z.string().optional() })
+  const Created = m.event({ id: t.string(), name: t.string(), extra: t.string().optional() })
   const exports = { ...f, Created }
   const slices = () => [create(exports), view(exports)]
   const message =
@@ -201,7 +201,7 @@ test("an optional field no slice fills", () => {
 
 test("a mapping function fills what the command does not carry", () => {
   const f = fixture()
-  const Created = m.event({ id: z.string(), name: z.string(), extra: z.string() })
+  const Created = m.event({ id: t.string(), name: t.string(), extra: t.string() })
   const slice = m
     .slice()
     .command({ Create: f.Create })
@@ -219,7 +219,7 @@ test("a mapping function fills what the command does not carry", () => {
 
 test("a mapping spreads a whole declaration and sets the rest from another", () => {
   const f = fixture()
-  const Created = m.event({ id: z.string(), name: z.string(), extra: z.string() })
+  const Created = m.event({ id: t.string(), name: t.string(), extra: t.string() })
   const slice = m
     .slice()
     .command({ Create: f.Create })
@@ -243,7 +243,7 @@ test("a mapping spreads a whole declaration and sets the rest from another", () 
 
 test("m.generate() records what a value is made from, and a specification gives it any value", () => {
   const f = fixture()
-  const Created = m.event({ id: z.string(), name: z.string(), at: z.string() })
+  const Created = m.event({ id: t.string(), name: t.string(), at: t.string() })
   const slice = m
     .slice()
     .command({ Create: f.Create })
@@ -266,11 +266,15 @@ test("m.generate() records what a value is made from, and a specification gives 
 test("m.generate() in a specification is one value of its field's type wherever the test uses it, the same every run", () => {
   const f = fixture()
   const fields = {
-    id: z.string(),
-    gameId: z.uuid(),
-    ply: z.number().int(),
-    side: z.enum(["white", "black"]),
-    at: z.iso.datetime(),
+    id: t.string(),
+    gameId: t.uuid(),
+    ply: t.int(),
+    side: t.enum(["white", "black"]),
+    at: t.datetime(),
+    day: t.date(),
+    takes: t.duration(),
+    email: t.email(),
+    site: t.url(),
   }
   const Moved = m.event(fields)
   const Moves = m.view(fields).key("id")
@@ -288,6 +292,10 @@ test("m.generate() in a specification is one value of its field's type wherever 
           ply: m.generate(),
           side: m.generate(),
           at: m.generate(),
+          day: m.generate(),
+          takes: m.generate(),
+          email: m.generate(),
+          site: m.generate(),
         }
         return { given: Moved(move), then: Moves(move) }
       })
@@ -306,15 +314,15 @@ test("m.generate() in a specification is one value of its field's type wherever 
   const [agrees] = feed.model.slices[0]?.specifications ?? []
   const given = agrees?.given[0]?.examples?.[0]
   assert.deepEqual(given, agrees?.then[0]?.examples?.[0])
-  assert.equal(z.object(fields).safeParse(given).success, true)
+  assert.equal(z.object(fields as never).safeParse(given).success, true)
   assert.deepEqual(feedOf([model()], { partial: true }).model, feed.model)
 })
 
 test("m.generate() nested in a list is one value of its field's type, as at the top", () => {
   const f = fixture()
-  const Item = z.object({ itemId: z.uuid(), price: z.number() })
-  const Added = m.event({ id: z.string(), itemId: z.uuid(), price: z.number() })
-  const Cart = m.view({ id: z.string(), items: z.array(Item) }).key("id")
+  const Item = t.object({ itemId: t.uuid(), price: t.number() })
+  const Added = m.event({ id: t.string(), itemId: t.uuid(), price: t.number() })
+  const Cart = m.view({ id: t.string(), items: t.array(Item) }).key("id")
   const shown = m
     .slice()
     .view({ Cart })
@@ -342,8 +350,8 @@ test("m.generate() nested in a list is one value of its field's type, as at the 
 
 test("an example Zod refuses is a to-do naming the spec and where in it, and the model still draws", () => {
   const f = fixture()
-  const Item = z.object({ itemId: z.uuid() })
-  const Cart = m.view({ id: z.string(), items: z.array(Item) }).key("id")
+  const Item = t.object({ itemId: t.uuid() })
+  const Cart = m.view({ id: t.string(), items: t.array(Item) }).key("id")
   const shown = m
     .slice()
     .view({ Cart })
@@ -395,7 +403,7 @@ test("a specification written as a function runs at assembly, so its examples ma
 
 test("a command field no event records is left to do, and an error when strict; generating from it records it", () => {
   const f = fixture()
-  const Created = m.event({ id: z.string(), slug: z.string() })
+  const Created = m.event({ id: t.string(), slug: t.string() })
   const model = (recorded: boolean) => {
     const slice = m
       .slice()
@@ -416,8 +424,8 @@ test("a command field no event records is left to do, and an error when strict; 
 test("a call sends out only the command fields its outside event carries", () => {
   const f = fixture()
   const Remote = m.external()
-  const Answered = m.event({ id: z.string() }).external(Remote)
-  const Ask = m.command({ id: z.string(), note: z.string() })
+  const Answered = m.event({ id: t.string() }).external(Remote)
+  const Ask = m.command({ id: t.string(), note: t.string() })
   const ask = m.slice().command({ Ask }).event({ Answered }).actor(f.User).service(f.Svc)
   const model = { ...f, Remote, Answered, Ask, ...chapters({ Ch: [ask] }), default: m.model("x") }
   const json = feedOf([model], { partial: true })
@@ -429,7 +437,7 @@ test("a call sends out only the command fields its outside event carries", () =>
 
 test("a command field that filters a query after the command is used", () => {
   const f = fixture()
-  const Renamed = m.event({ id: z.string() })
+  const Renamed = m.event({ id: t.string() })
   const rename = m
     .slice()
     .command({ Create: f.Create })
@@ -443,7 +451,7 @@ test("a command field that filters a query after the command is used", () => {
 
 test("a mapping that returns a whole command records only the fields its event has", () => {
   const f = fixture()
-  const Renamed = m.event({ id: z.string() })
+  const Renamed = m.event({ id: t.string() })
   const rename = m
     .slice()
     .command({ Create: f.Create })
@@ -460,15 +468,15 @@ test("a mapping that returns a whole command records only the fields its event h
   )
 })
 
-test("a mapping recognises a source field, a z.literal() and m.generate(); a schema it computes is left to do", () => {
+test("a mapping recognises a source field, a t.literal() and m.generate(); a schema it computes is left to do", () => {
   const f = fixture()
-  const Create = m.command({ id: z.string(), name: z.string() })
+  const Create = m.command({ id: t.string(), name: t.string() })
   const Created = m.event({
-    id: z.string(),
-    name: z.string(),
-    alias: z.string(),
-    label: z.string(),
-    size: z.number(),
+    id: t.string(),
+    name: t.string(),
+    alias: t.string(),
+    label: t.string(),
+    size: t.number(),
   })
   const exports = { ...f, Create, Created }
   // An assembly takes the slices written since the last, so each is written afresh.
@@ -478,8 +486,8 @@ test("a mapping recognises a source field, a z.literal() and m.generate(); a sch
       .command({ Create })
       .event({ Created }, (c) => ({
         alias: c.Create.id,
-        label: c.Create.name.toUpperCase(),
-        size: z.literal(2),
+        label: c.Create.name.describe("loud"),
+        size: t.literal(2),
       }))
       .test("Create", {
         when: Create(list),
@@ -489,7 +497,7 @@ test("a mapping recognises a source field, a z.literal() and m.generate(); a sch
     return [{ ...exports, ...story, default: m.model("x") }]
   }
   const label =
-    "Ch › Create: Created.label is computed in the mapping. Set it to a source field, a z.literal() or m.generate() with what it is made from."
+    "Ch › Create: Created.label is computed in the mapping. Set it to a source field, a t.literal() or m.generate() with what it is made from."
   const partial = feedOf(modules(), { partial: true })
   assert.deepEqual(
     partial.warnings?.filter((w) => w.slice === "Create").map((w) => w.message),
@@ -500,7 +508,7 @@ test("a mapping recognises a source field, a z.literal() and m.generate(); a sch
   })
   assert.throws(() => feedOf(modules()), { message: label })
   // Two fields that share a schema are told apart.
-  const Id = z.string()
+  const Id = t.string()
   const Pair = m.command({ a: Id, b: Id })
   const Paired = m.event({ a: Id, b: Id })
   const swapped = m
@@ -516,7 +524,7 @@ test("a mapping recognises a source field, a z.literal() and m.generate(); a sch
 
 test("a column no event writes", () => {
   const f = fixture()
-  const Table = m.view({ id: z.string(), name: z.string(), count: z.number() }).key("id")
+  const Table = m.view({ id: t.string(), name: t.string(), count: t.number() }).key("id")
   assert.throws(
     () => assembled({ ...f, Table }, [create(f), view({ ...f, Table })]),
     /Ch › Table: Table\.count has no value\. Add \.event\(\) with an event that carries count, or set it in a mapping\./,
@@ -525,8 +533,8 @@ test("a column no event writes", () => {
 
 test("an event that carries none of the view's key columns", () => {
   const f = fixture()
-  const Rename = m.command({ name: z.string() })
-  const Renamed = m.event({ name: z.string() })
+  const Rename = m.command({ name: t.string() })
+  const Renamed = m.event({ name: t.string() })
   const rename = m
     .slice()
     .command({ Rename })
@@ -545,10 +553,10 @@ test("an event that carries none of the view's key columns", () => {
 
 test("an event that carries only some of the view's key columns", () => {
   const f = fixture()
-  const Table = m.view({ id: z.string(), owner: z.string(), name: z.string() }).key("id", "owner")
-  const Create = m.command({ id: z.string(), owner: z.string(), name: z.string() })
-  const Created = m.event({ id: z.string(), owner: z.string(), name: z.string() })
-  const Renamed = m.event({ id: z.string(), name: z.string() })
+  const Table = m.view({ id: t.string(), owner: t.string(), name: t.string() }).key("id", "owner")
+  const Create = m.command({ id: t.string(), owner: t.string(), name: t.string() })
+  const Created = m.event({ id: t.string(), owner: t.string(), name: t.string() })
+  const Renamed = m.event({ id: t.string(), name: t.string() })
   const row = { ...list, owner: "u-1" }
   const create = m
     .slice()
@@ -592,8 +600,8 @@ test("an event no slice emits", () => {
 test("an event no slice emits is one line, at the slices that react to it", () => {
   const f = fixture()
   const created = f.Created({ id: "1", name: "n" })
-  const Process = m.command({ id: z.string(), name: z.string() })
-  const Processed = m.event({ id: z.string() })
+  const Process = m.command({ id: t.string(), name: t.string() })
+  const Processed = m.event({ id: t.string() })
   const processor = m
     .slice("Processor")
     .automation({ Created: f.Created })
@@ -601,8 +609,8 @@ test("an event no slice emits is one line, at the slices that react to it", () =
     .event({ Processed })
     .test("one", { given: created, when: Process({ id: "1" }), then: Processed({ id: "1" }) })
     .test("two", { given: created, when: Process({ id: "1" }), then: Processed({ id: "1" }) })
-  const Rename = m.command({ id: z.string() })
-  const Renamed = m.event({ id: z.string() })
+  const Rename = m.command({ id: t.string() })
+  const Renamed = m.event({ id: t.string() })
   const assumes = m
     .slice()
     .command({ Rename })
@@ -675,9 +683,9 @@ function call() {
   const f = fixture()
   const Remote = m.external()
   const Answered = m
-    .event({ id: z.string(), name: z.string(), detail: z.string() })
+    .event({ id: t.string(), name: t.string(), detail: t.string() })
     .external(Remote)
-  const Ask = m.command({ id: z.string() })
+  const Ask = m.command({ id: t.string() })
   const ask = m.slice().command({ Ask }).event({ Answered }).actor(f.User).service(f.Svc)
   return { f, Remote, Answered, Ask, ask }
 }
@@ -713,8 +721,8 @@ test("a call ends in the external event, whose fields come from outside", () => 
 test("an event of ours that maps a field the command shares from the outside event is drawn from that event", () => {
   const f = fixture()
   const Remote = m.external()
-  const Answered = m.event({ id: z.string() }).external(Remote)
-  const Kept = m.event({ id: z.string() })
+  const Answered = m.event({ id: t.string() }).external(Remote)
+  const Kept = m.event({ id: t.string() })
   const ask = m
     .slice()
     .command({ Create: f.Create })
@@ -735,9 +743,9 @@ test("an event of ours that maps a field the command shares from the outside eve
 test("the outside event a call gets back fills an event of ours after it, in the same slice", () => {
   const f = fixture()
   const Remote = m.external()
-  const Answered = m.event({ id: z.string(), detail: z.string() }).external(Remote)
-  const Ask = m.command({ id: z.string(), name: z.string() })
-  const Kept = m.event({ id: z.string(), name: z.string(), detail: z.string(), said: z.string() })
+  const Answered = m.event({ id: t.string(), detail: t.string() }).external(Remote)
+  const Ask = m.command({ id: t.string(), name: t.string() })
+  const Kept = m.event({ id: t.string(), name: t.string(), detail: t.string(), said: t.string() })
   const ask = m
     .slice()
     .command({ Ask })
@@ -830,7 +838,7 @@ test("an external event we produce is published, and needs no translation", () =
 test("an external event only a given has is still left to translate", () => {
   const f = fixture()
   const Remote = m.external()
-  const Answered = m.event({ id: z.string(), detail: z.string() }).external(Remote)
+  const Answered = m.event({ id: t.string(), detail: t.string() }).external(Remote)
   const after = create(f).test("A list is created after an answer", {
     given: Answered({ id: "list-1", detail: "Two aisles over" }),
     when: f.Create(list),
@@ -853,7 +861,7 @@ test("an external event only a given has is still left to translate", () => {
 // A command's events are alternatives; a specification says when each happens.
 function outcomes() {
   const f = fixture()
-  const Refused = m.event({ id: z.string() })
+  const Refused = m.event({ id: t.string() })
   const slice = m
     .slice()
     .command({ Create: f.Create })
@@ -933,7 +941,7 @@ const viewed = (f: Fixture, view: Slice) =>
 test("a view's specification shows the rows given builds that its query asks for", () => {
   const f = fixture()
   const byName = unspecifiedView(f)
-    .context({ name: z.string() })
+    .context({ name: t.string() })
     .test("Only Groceries shows", {
       given: [f.Created(list), f.Created(hardware)],
       when: { name: "Groceries" },
@@ -988,7 +996,7 @@ test("a row given does not build is an error when strict", () => {
 test("a view's row its query excludes is named", () => {
   const f = fixture()
   const byName = unspecifiedView(f)
-    .context({ name: z.string() })
+    .context({ name: t.string() })
     .test("Only Hardware shows", {
       given: [f.Created(list), f.Created(hardware)],
       when: { name: "Hardware" },
@@ -1002,7 +1010,7 @@ test("a view's row its query excludes is named", () => {
 test("a row given builds that then leaves out is named, unless the query excludes it", () => {
   const f = fixture()
   const search = unspecifiedView(f)
-    .context({ text: z.string() })
+    .context({ text: t.string() })
     .test("A search finds Groceries", {
       given: [f.Created(list), f.Created(hardware)],
       when: { text: "Groc" },
@@ -1060,7 +1068,7 @@ test("a described outcome shows no event", () => {
 
 test("a specification's given may hold events its slice does not handle", () => {
   const f = fixture()
-  const Refused = m.event({ id: z.string() })
+  const Refused = m.event({ id: t.string() })
   const create = m
     .slice()
     .command({ Create: f.Create })
@@ -1107,8 +1115,8 @@ test("an external event a call ends in is an outcome", () => {
 
 test("two slices claiming one service method", () => {
   const f = fixture()
-  const Rename = m.command({ id: z.string(), name: z.string() })
-  const Renamed = m.event({ id: z.string(), name: z.string() })
+  const Rename = m.command({ id: t.string(), name: t.string() })
+  const Renamed = m.event({ id: t.string(), name: t.string() })
   const rename = m
     .slice()
     .command({ Rename })
@@ -1150,8 +1158,8 @@ test("slices without a service claim no method", () => {
 
 test("an automation's command field its trigger does not carry", () => {
   const f = fixture()
-  const Process = m.command({ id: z.string(), label: z.string() })
-  const Processed = m.event({ id: z.string() })
+  const Process = m.command({ id: t.string(), label: t.string() })
+  const Processed = m.event({ id: t.string() })
   const processor = m
     .slice("Processor")
     .automation({ Created: f.Created })
@@ -1165,7 +1173,7 @@ test("an automation's command field its trigger does not carry", () => {
 })
 
 /** The table a created list is a row of, and stays one once processed. */
-const processedView = (f: Fixture, Processed: EventDecl<{ id: z.ZodString }>) =>
+const processedView = (f: Fixture, Processed: EventDecl<{ id: Field<string> }>) =>
   unspecifiedView(f, { Processed }).test("A processed list stays as it was", {
     given: [f.Created(list), Processed({ id: "list-1" })],
     then: f.Table(list),
@@ -1173,8 +1181,8 @@ const processedView = (f: Fixture, Processed: EventDecl<{ id: z.ZodString }>) =>
 
 test("an automation's trigger no specification's given has is left to do, and an error when strict; one a view starts has none", () => {
   const f = fixture()
-  const Process = m.command({ id: z.string() })
-  const Processed = m.event({ id: z.string() })
+  const Process = m.command({ id: t.string() })
+  const Processed = m.event({ id: t.string() })
   const model = () => {
     const triggered = m
       .slice("Processor")
@@ -1197,8 +1205,8 @@ test("an automation's trigger no specification's given has is left to do, and an
 
 test("an automation's mapping fills its command from the trigger", () => {
   const f = fixture()
-  const Process = m.command({ id: z.string(), label: z.string() })
-  const Processed = m.event({ id: z.string(), label: z.string().optional() })
+  const Process = m.command({ id: t.string(), label: t.string() })
+  const Processed = m.event({ id: t.string(), label: t.string().optional() })
   const processor = m
     .slice("Processor")
     .automation({ Created: f.Created })
@@ -1219,8 +1227,8 @@ test("an automation's mapping fills its command from the trigger", () => {
 
 test("a generated value in an automation's command is left to do, and an error when strict", () => {
   const f = fixture()
-  const Process = m.command({ id: z.string(), label: z.string() })
-  const Processed = m.event({ id: z.string(), label: z.string().optional() })
+  const Process = m.command({ id: t.string(), label: t.string() })
+  const Processed = m.event({ id: t.string(), label: t.string().optional() })
   const model = () => {
     const processor = m
       .slice("Processor")
@@ -1246,12 +1254,12 @@ test("the first system actor declared runs what names none, and .actor() names a
   const f = fixture()
   const Syncer = m.actor({ icon: "system" })
   const Mailer = m.actor({ icon: "system" })
-  const Process = m.command({ id: z.string() })
-  const Processed = m.event({ id: z.string() })
-  const Mail = m.command({ id: z.string() })
-  const Mailed = m.event({ id: z.string() })
+  const Process = m.command({ id: t.string() })
+  const Processed = m.event({ id: t.string() })
+  const Mail = m.command({ id: t.string() })
+  const Mailed = m.event({ id: t.string() })
   const Remote = m.external()
-  const Answered = m.event({ id: z.string() }).external(Remote)
+  const Answered = m.event({ id: t.string() }).external(Remote)
   const Ch = [
     create(f),
     m
@@ -1378,8 +1386,8 @@ test("a slice with several actors draws a screen in each one's lane", () => {
 
 test("a .automation() automation polls the view", () => {
   const f = fixture()
-  const Process = m.command({ id: z.string() })
-  const Processed = m.event({ id: z.string() })
+  const Process = m.command({ id: t.string() })
+  const Processed = m.event({ id: t.string() })
   const processor = m
     .slice("Processor")
     .automation({ Table: f.Table })
@@ -1403,8 +1411,8 @@ test("a .automation() automation polls the view", () => {
 
 test("a polled command's when matches the row given builds", () => {
   const f = fixture()
-  const Process = m.command({ id: z.string(), label: z.string() })
-  const Processed = m.event({ id: z.string(), label: z.string().optional() })
+  const Process = m.command({ id: t.string(), label: t.string() })
+  const Processed = m.event({ id: t.string(), label: t.string().optional() })
   const processor = (label: string) =>
     m
       .slice("Processor")
@@ -1430,10 +1438,10 @@ test("a polled command's when matches the row given builds", () => {
 
 test("a polled command's when whose row given builds none of, or several of, is a to-do", () => {
   const f = fixture()
-  const Table = m.view({ id: z.string(), owner: z.string(), name: z.string() }).key("id", "owner")
-  const Created = m.event({ id: z.string(), owner: z.string(), name: z.string() })
-  const Process = m.command({ id: z.string() })
-  const Processed = m.event({ id: z.string() })
+  const Table = m.view({ id: t.string(), owner: t.string(), name: t.string() }).key("id", "owner")
+  const Created = m.event({ id: t.string(), owner: t.string(), name: t.string() })
+  const Process = m.command({ id: t.string() })
+  const Processed = m.event({ id: t.string() })
   const mine = { ...list, owner: "u-1" }
   const theirs = { ...list, owner: "u-2" }
   const processor = m
@@ -1465,7 +1473,7 @@ test("same-named streams from two modules are one lane", () => {
   const f = fixture()
   const [Inventory, Stock] = [m.stream(), m.stream()]
   f.Created.stream(Inventory)
-  const Recounted = m.event({ id: z.string() }).stream(Stock)
+  const Recounted = m.event({ id: t.string() }).stream(Stock)
   const Ch = [create(f), view(f)]
   const json = assembleModules(
     [
@@ -1551,9 +1559,9 @@ test("a screen no one sees, and one no slice names, are left to do", () => {
 
 test("every m.slice().view() of a view is one slice: its events in, its screen out, drawn where the first is", () => {
   const f = fixture()
-  const Table = m.view({ id: z.string(), name: z.string(), status: z.string() }).key("id")
-  const Archive = m.command({ id: z.string() })
-  const Archived = m.event({ id: z.string() })
+  const Table = m.view({ id: t.string(), name: t.string(), status: t.string() }).key("id")
+  const Archive = m.command({ id: t.string() })
+  const Archived = m.event({ id: t.string() })
   const archive = m
     .slice()
     .command({ Archive })
@@ -1570,7 +1578,7 @@ test("every m.slice().view() of a view is one slice: its events in, its screen o
       m
         .slice()
         .view({ Table })
-        .event({ Created: f.Created }, () => ({ status: z.literal("open") }))
+        .event({ Created: f.Created }, () => ({ status: t.literal("open") }))
         .actor(f.User)
         .service(f.Svc, "Get")
         .test("A new list is open", {
@@ -1582,7 +1590,7 @@ test("every m.slice().view() of a view is one slice: its events in, its screen o
   })
   m.slice()
     .view({ Table })
-    .event({ Archived }, () => ({ status: z.literal("archived") }))
+    .event({ Archived }, () => ({ status: t.literal("archived") }))
     .actor(f.User)
     .service(f.Svc, "Get")
     .test("An archived list is archived", {
@@ -1627,7 +1635,7 @@ test("a later .view() that says where or how to draw the slice is a to-do", () =
     .view({ Table: f.Table })
     .event({ Created: f.Created })
     .chapter(story.Tidy as Chapter)
-    .context({ name: z.string() })
+    .context({ name: t.string() })
     .actor(Admin)
     .screen(Lock)
     .service(f.Svc, "List")
@@ -1655,7 +1663,7 @@ test("a later .view() that says where or how to draw the slice is a to-do", () =
 
 test("a column no m.slice().view() of the view writes is reported once", () => {
   const f = fixture()
-  const Table = m.view({ id: z.string(), name: z.string(), status: z.string() }).key("id")
+  const Table = m.view({ id: t.string(), name: t.string(), status: t.string() }).key("id")
   const Ch = [create(f), view({ ...f, Table }), view({ ...f, Table })]
   const json = assembleModules([{ ...f, Table, ...chapters({ Ch }), default: m.model("x") }], {
     partial: true,
@@ -1695,7 +1703,7 @@ test("a view in given is named as one", () => {
 
 test("a declaration in no slice is an error", () => {
   const f = fixture()
-  const Loose = m.event({ id: z.string() })
+  const Loose = m.event({ id: t.string() })
   assert.throws(
     () => assembled({ ...f, Loose }, [create(f), view(f)]),
     /Loose isn't in a slice yet\./,
@@ -1705,8 +1713,8 @@ test("a declaration in no slice is an error", () => {
 test("a partial assembly lists the dead ends and keeps the loose declarations in stream order", () => {
   const f = fixture()
   const Games = m.stream()
-  const Started = m.event({ id: z.string() }).stream(Games)
-  const Ended = m.event({ id: z.string() }).stream(Games)
+  const Started = m.event({ id: t.string() }).stream(Games)
+  const Ended = m.event({ id: t.string() }).stream(Games)
   const Ch = [create(f)]
   const json = assembleModules(
     [{ ...f, Ended, Started, Games, ...chapters({ Ch }), default: m.model("x") }],
@@ -1750,10 +1758,10 @@ test("an actor in no slice is still one of the model's actors", () => {
 
 test("an external event is drawn in its system's lane", () => {
   const Calendar = m.external()
-  const Authenticated = m.event({ accountId: z.string() }).external(Calendar)
-  const TaskMoved = m.event({ taskId: z.string() }).external(Calendar)
-  const Connect = m.command({ accountId: z.string() })
-  const Connected = m.event({ accountId: z.string() })
+  const Authenticated = m.event({ accountId: t.string() }).external(Calendar)
+  const TaskMoved = m.event({ taskId: t.string() }).external(Calendar)
+  const Connect = m.command({ accountId: t.string() })
+  const Connected = m.event({ accountId: t.string() })
   const Ch = [m.slice().translation({ Authenticated }).command({ Connect }).event({ Connected })]
   const json = assembleModules(
     [
@@ -1947,7 +1955,7 @@ test("a state view's context written as it once was, as a query, is drawn withou
   const f = fixture()
   const { Table, Created } = f
   // @ts-expect-error .context() declares the context
-  const shown = m.slice().view({ Table }).event({ Created }).query({ id: z.string() })
+  const shown = m.slice().view({ Table }).event({ Created }).query({ id: t.string() })
   const feed = feedOf([{ ...f, ...chapters({ Ch: [shown] }), default: m.model("x") }], {
     partial: true,
   })
@@ -2052,7 +2060,7 @@ test("loading a model from files sees only the slices its modules write", async 
 
 test("a name declared twice", () => {
   const f = fixture()
-  const Created = m.event({ id: z.string() })
+  const Created = m.event({ id: t.string() })
   assert.throws(
     () => assembleModules([{ ...f, default: m.model("x") }, { Created }]),
     /Created is declared twice\. Keep one and use it in both places\./,
@@ -2092,8 +2100,8 @@ test("an event in a stream and an external system", () => {
 
 test("a trigger nothing emits yet is drawn on its own", () => {
   const f = fixture()
-  const Process = m.command({ id: z.string() })
-  const Processed = m.event({ id: z.string() })
+  const Process = m.command({ id: t.string() })
+  const Processed = m.event({ id: t.string() })
   const Ch = [
     m
       .slice("Processor")
@@ -2116,8 +2124,8 @@ test("a trigger nothing emits yet is drawn on its own", () => {
 
 test("an example's nested values are printed", () => {
   const f = fixture()
-  const Order = m.command({ id: z.string(), items: z.array(z.object({ name: z.string() })) })
-  const Ordered = m.event({ id: z.string(), items: z.array(z.object({ name: z.string() })) })
+  const Order = m.command({ id: t.string(), items: t.array(t.object({ name: t.string() })) })
+  const Ordered = m.event({ id: t.string(), items: t.array(t.object({ name: t.string() })) })
   const slice = m
     .slice()
     .command({ Order })
@@ -2132,9 +2140,9 @@ test("an example's nested values are printed", () => {
     [{ Order, Ordered, ...f, ...chapters({ Ch: [slice] }), default: m.model("x") }],
     { partial: true },
   )
-  const t = json.chapters[0]?.slices[0]?.tests[0]
+  const spec = json.chapters[0]?.slices[0]?.tests[0]
   assert.deepEqual(
-    [t?.when, t?.then],
+    [spec?.when, spec?.then],
     ["Order(id=1, items=[{name=a}, {name=b}])", ["Ordered(id=1, items=[{name=a}])"]],
   )
 })
@@ -2154,19 +2162,19 @@ function disagreements(exports: Record<string, unknown>, slices: readonly Slice[
 
 test("a state change's then has what its command sends and its mapping sets", () => {
   const f = fixture()
-  const tags = z.array(z.object({ name: z.string() }))
-  const Add = m.command({ id: z.string(), text: z.string(), tags })
+  const tags = t.array(t.object({ name: t.string() }))
+  const Add = m.command({ id: t.string(), text: t.string(), tags })
   const Added = m.event({
-    id: z.string(),
-    title: z.string(),
-    status: z.string(),
-    at: z.string(),
+    id: t.string(),
+    title: t.string(),
+    status: t.string(),
+    at: t.string(),
     tags,
   })
   const slice = m
     .slice()
     .command({ Add })
-    .event({ Added }, (c) => ({ title: c.Add.text, status: z.literal("open"), at: m.generate() }))
+    .event({ Added }, (c) => ({ title: c.Add.text, status: t.literal("open"), at: m.generate() }))
     .test("agrees", {
       when: Add({ id: "a-1", text: "buy milk", tags: [{ name: "food" }] }),
       then: Added({
@@ -2212,7 +2220,7 @@ test("a state change's then has what its command sends and its mapping sets", ()
 test("an external event's fields come from outside, so its then may have anything", () => {
   const f = fixture()
   const Remote = m.external()
-  const Answered = m.event({ id: z.string(), name: z.string() }).external(Remote)
+  const Answered = m.event({ id: t.string(), name: t.string() }).external(Remote)
   const ask = m
     .slice()
     .command({ Create: f.Create })
@@ -2226,12 +2234,12 @@ test("an external event's fields come from outside, so its then may have anythin
 
 test("an automation's when has what its trigger in given carries and its mapping sets", () => {
   const f = fixture()
-  const Process = m.command({ id: z.string(), label: z.string(), by: z.string() })
-  const Processed = m.event({ id: z.string() })
+  const Process = m.command({ id: t.string(), label: t.string(), by: t.string() })
+  const Processed = m.event({ id: t.string() })
   const processor = m
     .slice("Processor")
     .automation({ Created: f.Created })
-    .command({ Process }, (c) => ({ label: c.Created.name, by: z.literal("processor") }))
+    .command({ Process }, (c) => ({ label: c.Created.name, by: t.literal("processor") }))
     .event({ Processed })
     .test("agrees", {
       given: f.Created(list),
@@ -2260,17 +2268,17 @@ test("an automation's when has what its trigger in given carries and its mapping
 test("a view's rows have what given builds, matched by key", () => {
   const Lists = m
     .view({
-      userId: z.string(),
-      listId: z.string(),
-      name: z.string(),
-      title: z.string(),
-      items: z.number().int(),
-      status: z.string(),
+      userId: t.string(),
+      listId: t.string(),
+      name: t.string(),
+      title: t.string(),
+      items: t.int(),
+      status: t.string(),
     })
     .key("userId", "listId")
-  const ListCreated = m.event({ userId: z.string(), listId: z.string(), name: z.string() })
-  const ItemAdded = m.event({ userId: z.string(), listId: z.string() })
-  const ListClosed = m.event({ userId: z.string(), listId: z.string() })
+  const ListCreated = m.event({ userId: t.string(), listId: t.string(), name: t.string() })
+  const ItemAdded = m.event({ userId: t.string(), listId: t.string() })
+  const ListClosed = m.event({ userId: t.string(), listId: t.string() })
   const groceries = { userId: "u-1", listId: "l-1" }
   const chores = { userId: "u-1", listId: "l-2" }
   const projection = m
@@ -2278,11 +2286,11 @@ test("a view's rows have what given builds, matched by key", () => {
     .view({ Lists })
     .event({ ListCreated }, (c) => ({
       title: c.ListCreated.name,
-      items: z.literal(0),
-      status: z.literal("open"),
+      items: t.literal(0),
+      status: t.literal("open"),
     }))
     .event({ ItemAdded }, (c) => ({ items: m.generate(c.ItemAdded) }))
-    .event({ ListClosed }, () => ({ status: z.literal("closed") }))
+    .event({ ListClosed }, () => ({ status: t.literal("closed") }))
   const given = [
     ListCreated({ ...groceries, name: "Groceries" }),
     ListCreated({ ...chores, name: "Chores" }),
@@ -2318,28 +2326,28 @@ test("a view's rows have what given builds, matched by key", () => {
 
 /** The eventsourcing book's cart: a price change archives the item in every cart that holds it. */
 function cart() {
-  const CreateCart = m.command({ aggregateId: z.uuid() })
-  const CartCreated = m.event({ aggregateId: z.uuid() })
+  const CreateCart = m.command({ aggregateId: t.uuid() })
+  const CartCreated = m.event({ aggregateId: t.uuid() })
   const AddItem = m.command({
-    aggregateId: z.uuid(),
-    itemId: z.uuid(),
-    productId: z.uuid(),
-    price: z.number(),
+    aggregateId: t.uuid(),
+    itemId: t.uuid(),
+    productId: t.uuid(),
+    price: t.number(),
   })
   const ItemAdded = m.event({
-    aggregateId: z.uuid(),
-    itemId: z.uuid(),
-    productId: z.uuid(),
-    price: z.number(),
+    aggregateId: t.uuid(),
+    itemId: t.uuid(),
+    productId: t.uuid(),
+    price: t.number(),
   })
-  const ChangePrice = m.command({ productId: z.uuid(), oldPrice: z.number(), newPrice: z.number() })
-  const PriceChanged = m.event({ productId: z.uuid(), oldPrice: z.number(), newPrice: z.number() })
+  const ChangePrice = m.command({ productId: t.uuid(), oldPrice: t.number(), newPrice: t.number() })
+  const PriceChanged = m.event({ productId: t.uuid(), oldPrice: t.number(), newPrice: t.number() })
   const CartsWithProducts = m
-    .view({ aggregateId: z.uuid(), productId: z.uuid(), itemId: z.uuid() })
+    .view({ aggregateId: t.uuid(), productId: t.uuid(), itemId: t.uuid() })
     .key("aggregateId", "productId")
-  const ArchiveItem = m.command({ aggregateId: z.uuid(), productId: z.uuid() })
-  const ItemArchived = m.event({ aggregateId: z.uuid(), itemId: z.uuid() })
-  const ArchivedItems = m.view({ aggregateId: z.uuid(), itemId: z.uuid() }).key("itemId")
+  const ArchiveItem = m.command({ aggregateId: t.uuid(), productId: t.uuid() })
+  const ItemArchived = m.event({ aggregateId: t.uuid(), itemId: t.uuid() })
+  const ArchivedItems = m.view({ aggregateId: t.uuid(), itemId: t.uuid() }).key("itemId")
   const User = m.actor()
   return {
     CreateCart,
@@ -2520,11 +2528,11 @@ test("a query that picks no row: an automation issues nothing, and a command is 
 
 test("a translation whose query picks no row is called a translation", () => {
   const Provider = m.external()
-  const Authorized = m.event({ state: z.string() }).external(Provider)
-  const Pending = m.view({ state: z.string() }).key("state")
-  const Requested = m.event({ state: z.string() })
-  const Complete = m.command({ state: z.string() })
-  const Completed = m.event({ state: z.string() })
+  const Authorized = m.event({ state: t.string() }).external(Provider)
+  const Pending = m.view({ state: t.string() }).key("state")
+  const Requested = m.event({ state: t.string() })
+  const Complete = m.command({ state: t.string() })
+  const Completed = m.event({ state: t.string() })
   const exports = { Provider, Authorized, Pending, Requested, Complete, Completed }
   const forged = m
     .slice()
@@ -2547,7 +2555,7 @@ test("a translation whose query picks no row is called a translation", () => {
 
 test("an event nothing uses is one line, naming every slice that records it", () => {
   const f = fixture()
-  const Recreate = m.command({ id: z.string(), name: z.string() })
+  const Recreate = m.command({ id: t.string(), name: t.string() })
   const again = m.slice().command({ Recreate }).event({ Created: f.Created })
   const story = chapters({ Ch: [unspecified(f), again] })
   const json = feedOf([{ ...f, Recreate, ...story, default: m.model("x") }], { partial: true })
@@ -2559,11 +2567,11 @@ test("an event nothing uses is one line, naming every slice that records it", ()
   )
 })
 
-test("z.literal([]) sets the empty list, a constant", () => {
+test("t.literal([]) sets the empty list, a constant", () => {
   const User = m.actor()
-  const Plan = m.command({ weekOf: z.string() })
-  const Planned = m.event({ weekOf: z.string() })
-  const Groceries = m.view({ weekOf: z.string(), added: z.array(z.string()) }).key("weekOf")
+  const Plan = m.command({ weekOf: t.string() })
+  const Planned = m.event({ weekOf: t.string() })
+  const Groceries = m.view({ weekOf: t.string(), added: t.array(t.string()) }).key("weekOf")
   const week = { weekOf: "2026-11-23" }
   const story = chapters({
     Ch: [
@@ -2576,7 +2584,7 @@ test("z.literal([]) sets the empty list, a constant", () => {
       m
         .slice()
         .view({ Groceries })
-        .event({ Planned }, () => ({ added: z.literal([]) }))
+        .event({ Planned }, () => ({ added: t.literal([]) }))
         .actor(User)
         .test("A new week has nothing added", {
           given: Planned(week),

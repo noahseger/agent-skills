@@ -22,7 +22,7 @@ function element(el: SpecElement): string {
   return fields.length > 0 ? `${el.title}(${fields.join(", ")})` : el.title
 }
 
-/** Each property, an object's own beneath it. */
+/** Each property, an object's own beneath it, and a oneOf's cases. */
 function fieldsOf(schema: JsonSchema): BoardField[] {
   return Object.entries(schema.properties ?? {}).map(([name, s]) => {
     let leaf = s
@@ -35,8 +35,10 @@ function fieldsOf(schema: JsonSchema): BoardField[] {
       ? leaf.enum.join(" | ")
       : leaf.const !== undefined
         ? JSON.stringify(leaf.const)
-        : (leaf.format ?? leaf.type ?? "any")
-    const fields = fieldsOf(leaf)
+        : leaf.oneOf
+          ? "one of"
+          : (leaf.format ?? leaf.type ?? "any")
+    const fields = leaf.oneOf ? leaf.oneOf.flatMap(fieldsOf) : fieldsOf(leaf)
     return {
       name,
       type: type + lists,

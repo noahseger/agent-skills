@@ -1,6 +1,6 @@
 // A tournament pairing arrives from outside and starts a game on a board and a clock.
 
-import { m, z } from "#em"
+import { m, t } from "#em"
 
 // The two players at the board. Either may act; the side is a field, not an actor.
 export const Player = m.actor()
@@ -23,69 +23,69 @@ export const PairingSystem = m.external()
 
 export const PairingPublished = m
   .event({
-    gameId: z.string(),
-    round: z.number().int(),
-    boardNumber: z.number().int(),
-    whitePlayerId: z.string(),
-    blackPlayerId: z.string(),
-    timeControl: z.string(),
-    baseMinutes: z.number().int(),
-    incrementSeconds: z.number().int(),
+    gameId: t.string(),
+    round: t.int(),
+    boardNumber: t.int(),
+    whitePlayerId: t.string(),
+    blackPlayerId: t.string(),
+    timeControl: t.string(),
+    baseMinutes: t.int(),
+    incrementSeconds: t.int(),
   })
   .external(PairingSystem)
 
 // The pairing becomes a game at the starting position, White to move.
 export const StartGame = m.command({
-  gameId: z.string(),
-  round: z.number().int(),
-  boardNumber: z.number().int(),
-  whitePlayerId: z.string(),
-  blackPlayerId: z.string(),
-  timeControl: z.string(),
-  baseMinutes: z.number().int(),
-  incrementSeconds: z.number().int(),
+  gameId: t.string(),
+  round: t.int(),
+  boardNumber: t.int(),
+  whitePlayerId: t.string(),
+  blackPlayerId: t.string(),
+  timeControl: t.string(),
+  baseMinutes: t.int(),
+  incrementSeconds: t.int(),
 })
 export const GameStarted = m
   .event({
-    gameId: z.string(),
-    round: z.number().int(),
-    boardNumber: z.number().int(),
-    whitePlayerId: z.string(),
-    blackPlayerId: z.string(),
-    timeControl: z.string(),
-    baseMinutes: z.number().int(),
-    incrementSeconds: z.number().int(),
-    fen: z.string(),
-    sideToMove: z.enum(["white", "black"]),
-    ply: z.number().int(),
+    gameId: t.string(),
+    round: t.int(),
+    boardNumber: t.int(),
+    whitePlayerId: t.string(),
+    blackPlayerId: t.string(),
+    timeControl: t.string(),
+    baseMinutes: t.int(),
+    incrementSeconds: t.int(),
+    fen: t.string(),
+    sideToMove: t.enum(["white", "black"]),
+    ply: t.int(),
   })
   .stream(Game)
 
 // Who is playing whom, on which board, in which round.
 export const GamePairing = m
   .view({
-    gameId: z.string(),
-    round: z.number().int(),
-    boardNumber: z.number().int(),
-    whitePlayerId: z.string(),
-    blackPlayerId: z.string(),
+    gameId: t.string(),
+    round: t.int(),
+    boardNumber: t.int(),
+    whitePlayerId: t.string(),
+    blackPlayerId: t.string(),
   })
   .key("gameId")
 
 // The arbiter starts White's clock. FIDE 6.7.1: the clock runs from the start signal.
 export const StartClock = m.command({
-  gameId: z.string(),
-  baseMinutes: z.number().int(),
-  incrementSeconds: z.number().int(),
+  gameId: t.string(),
+  baseMinutes: t.int(),
+  incrementSeconds: t.int(),
 })
 export const ClockStarted = m
   .event({
-    gameId: z.string(),
-    baseMinutes: z.number().int(),
-    incrementSeconds: z.number().int(),
-    whiteTimeMs: z.number().int(),
-    blackTimeMs: z.number().int(),
-    runningSide: z.enum(["white", "black"]),
+    gameId: t.string(),
+    baseMinutes: t.int(),
+    incrementSeconds: t.int(),
+    whiteTimeMs: t.int(),
+    blackTimeMs: t.int(),
+    runningSide: t.enum(["white", "black"]),
   })
   .stream(Clock)
 
@@ -122,9 +122,9 @@ m.slice("ReceivePairing")
   .translation({ PairingPublished })
   .command({ StartGame })
   .event({ GameStarted }, () => ({
-    fen: z.literal(START_FEN),
-    sideToMove: z.literal("white"),
-    ply: z.literal(0),
+    fen: t.literal(START_FEN),
+    sideToMove: t.literal("white"),
+    ply: t.literal(0),
   }))
   .chapter(GameSetup)
   .note("The pairing is translated, never stored. The starting position is ours to supply.")
@@ -164,7 +164,7 @@ m.slice("ClockStarter")
   .event({ ClockStarted }, (c) => ({
     whiteTimeMs: m.generate(c.StartClock.baseMinutes),
     blackTimeMs: m.generate(c.StartClock.baseMinutes),
-    runningSide: z.literal("white"),
+    runningSide: t.literal("white"),
   }))
   .chapter(GameSetup)
   .test("White's clock starts at 90 minutes", {

@@ -35,6 +35,8 @@ export interface JsonSchema {
   items?: JsonSchema
   properties?: Record<string, JsonSchema>
   required?: string[]
+  /** A `t.oneOf()`'s cases, each an object of one property. */
+  oneOf?: JsonSchema[]
 }
 
 export interface Dependency {

@@ -1,6 +1,6 @@
 // The game ends by checkmate, resignation, agreement, or flag fall, and the result is recorded.
 
-import { m, z } from "#em"
+import { m, t } from "#em"
 import { DrawAgreed, drawAgreed, GameResigned, gameResigned, Result, Termination } from "./draws.ts"
 import {
   ClockPressed,
@@ -29,15 +29,15 @@ import {
 
 // FIDE 6.8: a flag has fallen when the arbiter or a player observes it.
 export const ClaimFlagFall = m.command({
-  gameId: z.string(),
-  flaggedSide: z.enum(["white", "black"]),
+  gameId: t.string(),
+  flaggedSide: t.enum(["white", "black"]),
   result: Result,
   termination: Termination,
 })
 export const TimeForfeited = m
   .event({
-    gameId: z.string(),
-    flaggedSide: z.enum(["white", "black"]),
+    gameId: t.string(),
+    flaggedSide: t.enum(["white", "black"]),
     result: Result,
     termination: Termination,
   })
@@ -45,16 +45,16 @@ export const TimeForfeited = m
 
 // The position itself ends the game: checkmate, stalemate, or a dead position.
 export const AdjudicateOutcome = m.command({
-  gameId: z.string(),
-  ply: z.number().int(),
-  fen: z.string(),
+  gameId: t.string(),
+  ply: t.int(),
+  fen: t.string(),
   termination: Termination,
 })
 export const BoardOutcomeAdjudicated = m
   .event({
-    gameId: z.string(),
-    ply: z.number().int(),
-    fen: z.string(),
+    gameId: t.string(),
+    ply: t.int(),
+    fen: t.string(),
     result: Result,
     termination: Termination,
   })
@@ -62,15 +62,15 @@ export const BoardOutcomeAdjudicated = m
 
 // FIDE 7.5.5: the second illegal move by the same player loses the game.
 export const ForfeitGame = m.command({
-  gameId: z.string(),
-  offendingSide: z.enum(["white", "black"]),
-  illegalMoveCount: z.number().int(),
+  gameId: t.string(),
+  offendingSide: t.enum(["white", "black"]),
+  illegalMoveCount: t.int(),
 })
 export const IllegalMoveForfeited = m
   .event({
-    gameId: z.string(),
-    offendingSide: z.enum(["white", "black"]),
-    illegalMoveCount: z.number().int(),
+    gameId: t.string(),
+    offendingSide: t.enum(["white", "black"]),
+    illegalMoveCount: t.int(),
     result: Result,
     termination: Termination,
   })
@@ -79,7 +79,7 @@ export const IllegalMoveForfeited = m
 // How this game finished, whichever way it finished.
 export const GameResult = m
   .view({
-    gameId: z.string(),
+    gameId: t.string(),
     result: Result,
     termination: Termination,
   })
@@ -87,21 +87,21 @@ export const GameResult = m
 
 // The arbiter signs the scoresheet and the result goes on the pairing sheet.
 export const RecordResult = m.command({
-  gameId: z.string(),
-  round: z.number().int(),
-  boardNumber: z.number().int(),
-  whitePlayerId: z.string(),
-  blackPlayerId: z.string(),
+  gameId: t.string(),
+  round: t.int(),
+  boardNumber: t.int(),
+  whitePlayerId: t.string(),
+  blackPlayerId: t.string(),
   result: Result,
   termination: Termination,
 })
 export const ResultRecorded = m
   .event({
-    gameId: z.string(),
-    round: z.number().int(),
-    boardNumber: z.number().int(),
-    whitePlayerId: z.string(),
-    blackPlayerId: z.string(),
+    gameId: t.string(),
+    round: t.int(),
+    boardNumber: t.int(),
+    whitePlayerId: t.string(),
+    blackPlayerId: t.string(),
     result: Result,
     termination: Termination,
   })
@@ -110,11 +110,11 @@ export const ResultRecorded = m
 // The finished game as the crosstable shows it.
 export const GameRecord = m
   .view({
-    gameId: z.string(),
-    round: z.number().int(),
-    boardNumber: z.number().int(),
-    whitePlayerId: z.string(),
-    blackPlayerId: z.string(),
+    gameId: t.string(),
+    round: t.int(),
+    boardNumber: t.int(),
+    whitePlayerId: t.string(),
+    blackPlayerId: t.string(),
     result: Result,
     termination: Termination,
   })
@@ -275,7 +275,7 @@ m.slice("IllegalMoveForfeiter")
   .event({ IllegalMoveForfeited }, (c) => ({
     ...c.ForfeitGame,
     result: m.generate(c.ForfeitGame.offendingSide),
-    termination: z.literal("illegal_move_forfeit"),
+    termination: t.literal("illegal_move_forfeit"),
   }))
   .chapter(Conclusion)
   .test("The second illegal move forfeits the game", {
@@ -363,7 +363,7 @@ m.slice()
 m.slice()
   .view({ GameRecord })
   .event({ ResultRecorded })
-  .context({ round: z.number().int() })
+  .context({ round: t.int() })
   .chapter(Conclusion)
   .actor(Spectator)
   .service(ChessService, "GetCrosstable")

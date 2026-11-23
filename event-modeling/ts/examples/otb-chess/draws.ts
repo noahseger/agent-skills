@@ -1,12 +1,12 @@
 // A player may offer a draw, accept one, or resign. None of these touches the clock.
 
-import { m, z } from "#em"
+import { m, t } from "#em"
 import { e4, GameState, MovePlayed } from "./play.ts"
 import { ChessService, Game, Player } from "./setup.ts"
 
 // The result of a game, and how it came about, as they go on the scoresheet.
-export const Result = z.enum(["white_won", "black_won", "draw"])
-export const Termination = z.enum([
+export const Result = t.enum(["white_won", "black_won", "draw"])
+export const Termination = t.enum([
   "checkmate",
   "stalemate",
   "dead_position",
@@ -18,39 +18,39 @@ export const Termination = z.enum([
 
 // FIDE 9.1.2.1: a player offers a draw after making a move, before pressing the clock.
 export const OfferDraw = m.command({
-  gameId: z.string(),
-  offeringSide: z.enum(["white", "black"]),
-  ply: z.number().int(),
+  gameId: t.string(),
+  offeringSide: t.enum(["white", "black"]),
+  ply: t.int(),
 })
 export const DrawOffered = m
   .event({
-    gameId: z.string(),
-    offeringSide: z.enum(["white", "black"]),
-    ply: z.number().int(),
+    gameId: t.string(),
+    offeringSide: t.enum(["white", "black"]),
+    ply: t.int(),
   })
   .stream(Game)
 
 // The offer standing on the opponent. One offer at a time, and only the latest counts.
 export const PendingDrawOffer = m
   .view({
-    gameId: z.string(),
-    offeringSide: z.enum(["white", "black"]),
-    ply: z.number().int(),
-    status: z.enum(["pending", "declined", "accepted"]),
+    gameId: t.string(),
+    offeringSide: t.enum(["white", "black"]),
+    ply: t.int(),
+    status: t.enum(["pending", "declined", "accepted"]),
   })
   .key("gameId")
 
 // FIDE 9.1.2.3: the offer stands until the opponent accepts it, moves, or claims a draw.
 export const AcceptDraw = m.command({
-  gameId: z.string(),
-  offeringSide: z.enum(["white", "black"]),
+  gameId: t.string(),
+  offeringSide: t.enum(["white", "black"]),
   result: Result,
   termination: Termination,
 })
 export const DrawAgreed = m
   .event({
-    gameId: z.string(),
-    offeringSide: z.enum(["white", "black"]),
+    gameId: t.string(),
+    offeringSide: t.enum(["white", "black"]),
     result: Result,
     termination: Termination,
   })
@@ -58,15 +58,15 @@ export const DrawAgreed = m
 
 // FIDE 5.1.2: a player may resign at any time.
 export const Resign = m.command({
-  gameId: z.string(),
-  resigningSide: z.enum(["white", "black"]),
+  gameId: t.string(),
+  resigningSide: t.enum(["white", "black"]),
   result: Result,
   termination: Termination,
 })
 export const GameResigned = m
   .event({
-    gameId: z.string(),
-    resigningSide: z.enum(["white", "black"]),
+    gameId: t.string(),
+    resigningSide: t.enum(["white", "black"]),
     result: Result,
     termination: Termination,
   })
@@ -139,9 +139,9 @@ m.slice()
 
 m.slice()
   .view({ PendingDrawOffer })
-  .event({ DrawOffered }, () => ({ status: z.literal("pending") }))
-  .event({ MovePlayed }, () => ({ status: z.literal("declined") }))
-  .event({ DrawAgreed }, () => ({ status: z.literal("accepted") }))
+  .event({ DrawOffered }, () => ({ status: t.literal("pending") }))
+  .event({ MovePlayed }, () => ({ status: t.literal("declined") }))
+  .event({ DrawAgreed }, () => ({ status: t.literal("accepted") }))
   .chapter(DrawsAndResignation)
   .note("A move by the opponent declines the offer. FIDE 9.1.2.3.")
   .test("The offer is pending on the opponent", {
