@@ -132,7 +132,7 @@ m.slice()
   .chapter(d.Conclusion)
   .actor(d.Player)
   .service(d.ChessService)
-  .test("White claims Black's fallen flag", {
+  .spec("White claims Black's fallen flag", {
     given: d.ClockPressed({
       gameId: "otb-2024-ct-r5-b1",
       whiteTimeMs: 61000,
@@ -147,7 +147,7 @@ m.slice()
     }),
     then: timeForfeited,
   })
-  .test("A claim while time remains is rejected", {
+  .spec("A claim while time remains is rejected", {
     given: d.ClockPressed({
       gameId: "otb-2024-ct-r5-b1",
       whiteTimeMs: 61000,
@@ -173,7 +173,7 @@ m.slice("OutcomeAdjudicator")
   }))
   .chapter(d.Conclusion)
   .note("The move that ended the game says how. This turns that into a result.")
-  .test("Checkmate on the board ends the game", {
+  .spec("Checkmate on the board ends the game", {
     given: [gameStarted, mated],
     when: d.AdjudicateOutcome({
       gameId: "otb-2024-ct-r5-b1",
@@ -183,7 +183,7 @@ m.slice("OutcomeAdjudicator")
     }),
     then: checkmate,
   })
-  .test("Stalemate on the board draws the game", {
+  .spec("Stalemate on the board draws the game", {
     given: [
       gameStarted,
       d.GameEnded({
@@ -207,7 +207,7 @@ m.slice("OutcomeAdjudicator")
       termination: "stalemate",
     }),
   })
-  .test("A capture leaving king against king is a dead position", {
+  .spec("A capture leaving king against king is a dead position", {
     given: [
       gameStarted,
       d.GameEnded({
@@ -245,7 +245,7 @@ m.slice("IllegalMoveForfeiter")
     termination: t.literal("illegal_move_forfeit"),
   }))
   .chapter(d.Conclusion)
-  .test("The second illegal move forfeits the game", {
+  .spec("The second illegal move forfeits the game", {
     given: [illegalMoveRuled, secondIllegalMoveRuled, secondOffence],
     when: d.ForfeitGame({
       gameId: "otb-2024-ct-r5-b1",
@@ -264,7 +264,7 @@ m.slice()
   .event(d.IllegalMoveForfeited)
   .chapter(d.Conclusion)
   .note("Five ways a game ends. Each one carries the result and how it came about.")
-  .test("Settled after a resignation", {
+  .spec("Settled after a resignation", {
     given: gameResigned,
     then: d.GameResult({
       gameId: "otb-2024-ct-r5-b1",
@@ -272,7 +272,7 @@ m.slice()
       termination: "resignation",
     }),
   })
-  .test("Settled after a draw agreement", {
+  .spec("Settled after a draw agreement", {
     given: drawAgreed,
     then: d.GameResult({
       gameId: "otb-2024-ct-r5-b1",
@@ -280,7 +280,7 @@ m.slice()
       termination: "agreement",
     }),
   })
-  .test("Settled after checkmate on the board", {
+  .spec("Settled after checkmate on the board", {
     given: checkmate,
     then: d.GameResult({
       gameId: "otb-2024-ct-r5-b1",
@@ -288,7 +288,7 @@ m.slice()
       termination: "checkmate",
     }),
   })
-  .test("Settled after a time forfeit", {
+  .spec("Settled after a time forfeit", {
     given: timeForfeited,
     then: d.GameResult({
       gameId: "otb-2024-ct-r5-b1",
@@ -296,7 +296,7 @@ m.slice()
       termination: "time_forfeit",
     }),
   })
-  .test("Settled after a second illegal move", {
+  .spec("Settled after a second illegal move", {
     given: illegalMoveForfeited,
     then: d.GameResult({
       gameId: "otb-2024-ct-r5-b1",
@@ -313,7 +313,7 @@ m.slice()
   .chapter(d.Conclusion)
   .actor(d.Arbiter)
   .service(d.ChessService)
-  .test("The arbiter records the signed draw on the pairing sheet", {
+  .spec("The arbiter records the signed draw on the pairing sheet", {
     given: [gameStarted, drawAgreed],
     when: d.RecordResult({
       gameId: "otb-2024-ct-r5-b1",
@@ -335,7 +335,7 @@ m.slice()
   .actor(d.Spectator)
   .service(d.ChessService, "GetCrosstable")
   .note("The finished games of a round.")
-  .test("The recorded game enters the crosstable", {
+  .spec("The recorded game enters the crosstable", {
     given: resultRecorded,
     when: { round: 5 },
     then: d.GameRecord({

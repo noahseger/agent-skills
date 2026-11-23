@@ -61,11 +61,11 @@ const slices = [
     .screen(d.Till)
     .service(d.Shop, "Order")
     .note("The till takes the order.")
-    .test("An order is placed", {
+    .spec("An order is placed", {
       when: d.PlaceOrder(order),
       then: d.OrderPlaced({ orderId: "o-1", product: "Tea", placedAt: "noon" }),
     })
-    .test("A banned item is refused", { when: d.PlaceOrder(order), reject: "banned item" }),
+    .spec("A banned item is refused", { when: d.PlaceOrder(order), reject: "banned item" }),
   m
     .slice()
     .view(d.Unpaid)

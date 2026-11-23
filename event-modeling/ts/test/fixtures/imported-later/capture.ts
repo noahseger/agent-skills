@@ -14,7 +14,7 @@ m.slice()
   .command(d.CreateNote)
   .event(d.NoteCreated)
   .chapter(d.Capture)
-  .test("A note is created", {
+  .spec("A note is created", {
     when: d.CreateNote({ noteId: "note-1" }),
     then: d.NoteCreated({ noteId: "note-1" }),
   })
@@ -25,7 +25,7 @@ m.slice()
   .event(d.NoteFiled, () => ({ filed: t.literal(true) }))
   .chapter(d.Capture)
   .actor(d.Writer)
-  .test("A filed note shows filed", {
+  .spec("A filed note shows filed", {
     given: [d.NoteCreated({ noteId: "note-1" }), filed],
     then: d.Inbox({ noteId: "note-1", filed: true }),
   })

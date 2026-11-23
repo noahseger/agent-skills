@@ -23,7 +23,7 @@ m.slice()
   .chapter(d.Capture)
   .actor(d.Writer)
   .service(d.NoteService)
-  .test("A note lands in the inbox", {
+  .spec("A note lands in the inbox", {
     when: d.CreateNote({ noteId: "note-1", text: "Call the plumber" }),
     then: d.NoteCreated({ noteId: "note-1", text: "Call the plumber" }),
   })
@@ -35,7 +35,7 @@ m.slice()
   .chapter(d.Capture)
   .actor(d.Writer)
   .service(d.NoteService, "ListInbox")
-  .test("A new note is in the inbox", {
+  .spec("A new note is in the inbox", {
     given: d.NoteCreated({ noteId: "note-1", text: "Call the plumber" }),
     when: { status: "inbox" },
     then: d.Inbox({ noteId: "note-1", text: "Call the plumber", status: "inbox" }),
@@ -52,7 +52,7 @@ m.slice()
   .chapter(d.Filing)
   .actor(d.Writer)
   .service(d.NoteService)
-  .test("The writer files a note", {
+  .spec("The writer files a note", {
     when: d.FileNote({ noteId: "note-1" }),
     then: d.NoteFiled({ noteId: "note-1" }),
   })
@@ -61,7 +61,7 @@ m.slice()
   .view(d.Inbox)
   .event(d.NoteFiled, () => ({ status: t.literal("filed") }))
   .context({ status: t.string() })
-  .test("A filed note leaves the inbox", {
+  .spec("A filed note leaves the inbox", {
     given: [
       d.NoteCreated({ noteId: "note-1", text: "Call the plumber" }),
       d.NoteFiled({ noteId: "note-1" }),
@@ -69,7 +69,7 @@ m.slice()
     when: { status: "filed" },
     then: d.Inbox({ noteId: "note-1", text: "Call the plumber", status: "filed" }),
   })
-  .test("Only open notes show", {
+  .spec("Only open notes show", {
     given: [
       d.NoteCreated({ noteId: "note-1", text: "Call the plumber" }),
       d.NoteCreated({ noteId: "note-2", text: "Buy milk" }),

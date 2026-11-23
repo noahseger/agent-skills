@@ -107,7 +107,7 @@ m.slice().command(d.CreateList).event(d.ListCreated).query(d.TodoList, "listId")
 m.slice().view(d.TodoList).query(d.TodoList, "listId")
 
 // An incomplete slice compiles and is drawn as far as it goes. From its first step it takes a chapter, an
-// actor, a screen, a service and a note, each keeping its stage; .test() waits for its events.
+// actor, a screen, a service and a note, each keeping its stage; .spec() waits for its events.
 
 // @ts-expect-error a slice not yet started joins no chapter
 m.slice().chapter(d.Ch)
@@ -121,10 +121,10 @@ m.slice().automation(d.ListCreated).chapter(d.Ch).actor(d.Syncer).command(d.Name
 m.slice().view(d.TodoList).chapter(d.Ch).actor(d.User).service(d.TodoService, "GetList").event(d.ListCreated)
 
 // @ts-expect-error a state change with no event has no specification yet
-m.slice().command(d.CreateList).test("x", { when: d.CreateList({ listId: "l-1" }), then: [] })
+m.slice().command(d.CreateList).spec("x", { when: d.CreateList({ listId: "l-1" }), then: [] })
 
 // @ts-expect-error nor an automation with no command
-m.slice().automation(d.ListCreated).test("x", { when: d.NameList({ listId: "l-1" }), then: [] })
+m.slice().automation(d.ListCreated).spec("x", { when: d.NameList({ listId: "l-1" }), then: [] })
 
 // @ts-expect-error a machine of ours runs an automation, not a person, from its first step
 m.slice().automation(d.ListCreated).actor(d.User)
@@ -440,51 +440,51 @@ m.slice().view(d.Basket).event(d.ListCreated, () => ({ listId: m.generate() })).
 m.slice().view(d.Basket).event(d.ListCreated, () => ({ name: t.literal("x") }))
 m.slice().view(d.Basket).event(d.ListCreated, () => ({ listId: m.generate() })).event(d.ItemAdded, () => ({ listId: m.generate() }))
 
-// --- .test() -----------------------------------------------------------------
+// --- .spec() -----------------------------------------------------------------
 
 const create = m.slice().command(d.CreateList).event(d.ListCreated).actor(d.User).service(d.TodoService)
 
 // @ts-expect-error when is the slice's command
-create.test("x", { when: d.AddItem({ listId: "l-1" }), then: d.ListCreated({ listId: "l-1" }) })
+create.spec("x", { when: d.AddItem({ listId: "l-1" }), then: d.ListCreated({ listId: "l-1" }) })
 
 // @ts-expect-error then is the slice's events, not any event
-create.test("x", { when: d.CreateList({ listId: "l-1" }), then: d.ItemAdded({ listId: "l-1" }) })
+create.spec("x", { when: d.CreateList({ listId: "l-1" }), then: d.ItemAdded({ listId: "l-1" }) })
 
 // @ts-expect-error a specification has then or reject, not both
-create.test("x", { when: d.CreateList({ listId: "l-1" }), then: d.ListCreated({ listId: "l-1" }), reject: "nope" })
+create.spec("x", { when: d.CreateList({ listId: "l-1" }), then: d.ListCreated({ listId: "l-1" }), reject: "nope" })
 
 // @ts-expect-error a specification has then or reject, not neither
-create.test("x", { when: d.CreateList({ listId: "l-1" }) })
+create.spec("x", { when: d.CreateList({ listId: "l-1" }) })
 
 // @ts-expect-error a rejection is written in the specification, not declared on m
 m.reject
 
 // @ts-expect-error a state view's when is its context's values, never a command
-m.slice().view(d.TodoList).event(d.ListCreated).test("x", { given: d.ListCreated({ listId: "l-1" }), when: d.CreateList({}), then: d.TodoList({}) })
+m.slice().view(d.TodoList).event(d.ListCreated).spec("x", { given: d.ListCreated({ listId: "l-1" }), when: d.CreateList({}), then: d.TodoList({}) })
 
 // A state view's when is its context's values; its then, rows of the view it shows.
 const inbox = m.slice().view(d.TodoList).event(d.ListCreated).context({ name: t.string() })
 
 // @ts-expect-error name is a string
-inbox.test("x", { when: { name: 1 }, then: [] })
+inbox.spec("x", { when: { name: 1 }, then: [] })
 
 // @ts-expect-error the context has no field nope
-inbox.test("x", { when: { name: "a", nope: 1 }, then: [] })
+inbox.spec("x", { when: { name: "a", nope: 1 }, then: [] })
 
 // @ts-expect-error a state view with a context is asked with its values
-inbox.test("x", { then: [] })
+inbox.spec("x", { then: [] })
 
 // @ts-expect-error a state view with no context has no when
-m.slice().view(d.TodoList).event(d.ListCreated).test("x", { when: { name: "a" }, then: [] })
+m.slice().view(d.TodoList).event(d.ListCreated).spec("x", { when: { name: "a" }, then: [] })
 
 // @ts-expect-error then is rows of what the view shows, and it does not show Shelf
-inbox.test("x", { when: { name: "a" }, then: d.Shelf({ shelfId: "s-1" }) })
+inbox.spec("x", { when: { name: "a" }, then: d.Shelf({ shelfId: "s-1" }) })
 
 // @ts-expect-error then is rows, not events
-inbox.test("x", { when: { name: "a" }, then: d.ListCreated({ listId: "l-1" }) })
+inbox.spec("x", { when: { name: "a" }, then: d.ListCreated({ listId: "l-1" }) })
 
 // @ts-expect-error a state view cannot reject: a view cannot refuse an event
-inbox.test("x", { when: { name: "a" }, then: [], reject: "nope" })
+inbox.spec("x", { when: { name: "a" }, then: [], reject: "nope" })
 
 // @ts-expect-error an example is not a use in a slice
 m.slice().command(d.CreateList).event(d.ListCreated({ listId: "l-1" }))
@@ -553,16 +553,16 @@ m.slice().command(d.CreateList).readModel(d.TodoList)
 m.slice().command(d.CreateList).view(d.TodoList)
 
 // The legal forms of the same calls, so a check that fires too widely also fails.
-create.test("x", { given: d.ListCreated({ listId: "l-1" }), when: d.CreateList({ listId: "l-2" }), then: [d.ListCreated({ listId: "l-2" })] })
-create.test("x", { given: [d.ListCreated({ listId: "l-1" })], when: d.CreateList({ listId: "l-1" }), reject: "nope" })
-m.slice().automation(d.ListCreated).command(d.NameList).event(d.ListCreated).test("x", { given: d.ListCreated({ listId: "l-1" }), when: d.NameList({ listId: "l-1" }), then: d.ListCreated({ listId: "l-1" }) })
+create.spec("x", { given: d.ListCreated({ listId: "l-1" }), when: d.CreateList({ listId: "l-2" }), then: [d.ListCreated({ listId: "l-2" })] })
+create.spec("x", { given: [d.ListCreated({ listId: "l-1" })], when: d.CreateList({ listId: "l-1" }), reject: "nope" })
+m.slice().automation(d.ListCreated).command(d.NameList).event(d.ListCreated).spec("x", { given: d.ListCreated({ listId: "l-1" }), when: d.NameList({ listId: "l-1" }), then: d.ListCreated({ listId: "l-1" }) })
 m.slice().view(d.TodoList).event(d.ListCreated, () => ({ itemCount: t.literal(0) })).event(d.ItemAdded, (c) => ({ itemCount: m.generate(c.ItemAdded), name: c.ItemAdded.title }))
-inbox.test("x", { given: [d.ListCreated({ listId: "l-1", name: "a" }), d.ItemAdded({ listId: "l-1" })], when: { name: "a" }, then: [d.TodoList({ listId: "l-1" })] })
+inbox.spec("x", { given: [d.ListCreated({ listId: "l-1", name: "a" }), d.ItemAdded({ listId: "l-1" })], when: { name: "a" }, then: [d.TodoList({ listId: "l-1" })] })
 // then may describe an outcome its examples cannot show.
-create.test("x", { when: d.CreateList({ listId: "l-1" }), then: ["The list is new", d.ListCreated({ listId: "l-1" })] })
-inbox.test("x", { when: { name: "a" }, then: "No list is named a" })
-m.slice().view(d.TodoList).event(d.ListCreated).test("x", { given: d.ListCreated({ listId: "l-1" }), then: d.TodoList({ listId: "l-1" }) })
+create.spec("x", { when: d.CreateList({ listId: "l-1" }), then: ["The list is new", d.ListCreated({ listId: "l-1" })] })
+inbox.spec("x", { when: { name: "a" }, then: "No list is named a" })
+m.slice().view(d.TodoList).event(d.ListCreated).spec("x", { given: d.ListCreated({ listId: "l-1" }), then: d.TodoList({ listId: "l-1" }) })
 m.event("NoteKept", { noteId: t.string() }).stream(d.Notes)
 // A specification may be a function, and m.generate() is a value of any field's type.
-create.test("x", () => { const listId = m.generate(); return { when: d.CreateList({ listId, name: m.generate() }), then: d.ListCreated({ listId }) } })
-inbox.test("x", { given: d.ListCreated({ listId: m.generate() }), when: { name: m.generate() }, then: [] })
+create.spec("x", () => { const listId = m.generate(); return { when: d.CreateList({ listId, name: m.generate() }), then: d.ListCreated({ listId }) } })
+inbox.spec("x", { given: d.ListCreated({ listId: m.generate() }), when: { name: m.generate() }, then: [] })

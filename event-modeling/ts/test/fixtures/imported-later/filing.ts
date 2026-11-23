@@ -11,7 +11,7 @@ m.slice()
   .command(d.FileNote)
   .event(d.NoteFiled)
   .chapter(d.Filing)
-  .test("A note is filed", {
+  .spec("A note is filed", {
     when: d.FileNote({ noteId: "note-1" }),
     then: filed,
   })

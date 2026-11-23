@@ -728,7 +728,7 @@ function checkCovered({ slice, where }: Located, fail: Fail): void {
     fail({
       slice: slice.name ?? "",
       element: slice.view.name ?? "",
-      message: `${where}: no specification shows this view yet. Add a .test whose then has the ${slice.view.name} rows it shows.`,
+      message: `${where}: no specification shows this view yet. Add a .spec whose then has the ${slice.view.name} rows it shows.`,
     })
     return
   }
@@ -742,7 +742,7 @@ function checkCovered({ slice, where }: Located, fail: Fail): void {
   ]
   for (const [decl, clause] of missing)
     fail({
-      message: `${where}: no specification shows ${decl.name} yet. Add a .test whose ${clause} has ${decl.name}(...).`,
+      message: `${where}: no specification shows ${decl.name} yet. Add a .spec whose ${clause} has ${decl.name}(...).`,
       element: decl.name ?? "",
       slice: slice.name ?? "",
     })

@@ -610,9 +610,9 @@ type Queried<C extends Ctx, N, F> = readonly [
   readonly [NameOf<N>, FieldsOf<N>, Equal<F>],
 ]
 
-/** What a slice with no event yet offers in place of `.test()`: the instruction. */
+/** What a slice with no event yet offers in place of `.spec()`: the instruction. */
 interface Gate<Msg extends string> {
-  test(name: string, spec: Msg): never
+  spec(name: string, spec: Msg): never
 }
 
 /** A translation's start: an external event, or, for anything else, the instruction to fix it. */
@@ -687,7 +687,7 @@ export interface Start {
 /** What starts an automation or a translation is known; the command is not yet. */
 export interface Triggered<C extends Ctx, Fan extends boolean = true>
   extends Issuing<"automation">,
-    Gate<"add .command() and .event() before .test()"> {
+    Gate<"add .command() and .event() before .spec()"> {
   /** Reads the one row of a view with no key column. */
   query<N extends object>(
     view: OneRow<N>,
@@ -715,7 +715,7 @@ type Kept<C extends Ctx, N> = N extends ExternalEventDecl
 /** The command is issued; no event yet. */
 export interface Commanded<C extends Ctx, Cmd extends Fields, P extends "change" | "automation">
   extends Issuing<P>,
-    Gate<"add .event() before .test()"> {
+    Gate<"add .event() before .spec()"> {
   /** Reads the one row of a view with no key column. */
   query<N extends object>(
     view: OneRow<N>,
@@ -759,7 +759,7 @@ export interface Handled<
     event: Filled<C, N, AnyEvent, ".event()", O>,
     map: Mapping<C, N, O>,
   ): Handled<Kept<C, N>, Cmd, Em | FieldsOf<N>, P>
-  test(name: string, spec: Spec<Cmd, Em> | (() => Spec<Cmd, Em>)): this
+  spec(name: string, spec: Spec<Cmd, Em> | (() => Spec<Cmd, Em>)): this
 }
 
 /** The view's event as `d.Name`, or the instruction. */
@@ -775,7 +775,7 @@ type ViewMapping<R extends Fields, N> = (
 ) => Out<R, Misfit<FieldsOf<N>, R>>
 
 /** The view is known; no event builds it yet. */
-export interface Viewing<R extends Fields> extends Showing, Gate<"add .event() before .test()"> {
+export interface Viewing<R extends Fields> extends Showing, Gate<"add .event() before .spec()"> {
   /** An event that builds it. Each projects on its own, so a mapping reads only its event. */
   event<N extends object>(event: Projected<R, N>): Viewed<R, Record<never, never>>
   event<N extends object>(
@@ -799,7 +799,7 @@ export interface Viewed<R extends Fields, Q extends Fields> extends Showing {
   event<N extends object>(event: Single<N, AnyEvent>, map: ViewMapping<R, N>): Viewed<R, Q>
   /** The fields it is read with, each filtering by equality on its column; without them, none. */
   context<F extends Fields>(fields: F): Viewed<R, F>
-  test(name: string, spec: ViewSpec<Q, R> | (() => ViewSpec<Q, R>)): this
+  spec(name: string, spec: ViewSpec<Q, R> | (() => ViewSpec<Q, R>)): this
 }
 
 function many<T>(clauses: OneOrMany<T> | undefined): T[] {
@@ -968,7 +968,7 @@ function chain(data: SliceData, context: Context, scope: InScope) {
       return next({ service: method === undefined ? { service: api } : { service: api, method } })
     },
     // A function runs at assembly, after every module, so its examples may be declared below it.
-    test: (name: string, spec: AnySpec | (() => AnySpec)) => {
+    spec: (name: string, spec: AnySpec | (() => AnySpec)) => {
       const view = data.view ? data : undefined
       const test: TestData =
         typeof spec === "function"

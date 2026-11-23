@@ -74,14 +74,14 @@ type Slice = ReturnType<typeof m.slice>
 const list = { id: "list-1", name: "Groceries" }
 const unspecified = () => m.slice().command(d.Create).event(d.Created).actor(d.User).service(d.Svc)
 const create = () =>
-  unspecified().test("A list is created", { when: d.Create(list), then: d.Created(list) })
+  unspecified().spec("A list is created", { when: d.Create(list), then: d.Created(list) })
 const unspecifiedView = (...events: unknown[]) => {
   let built = m.slice().view(d.Table).event(d.Created)
   for (const e of events) built = built.event(e)
   return built.actor(d.User).service(d.Svc, "Get")
 }
 const view = (...events: unknown[]) =>
-  unspecifiedView(...events).test("A new list is a row", {
+  unspecifiedView(...events).spec("A new list is a row", {
     given: d.Created(list),
     then: d.Table(list),
   })
@@ -172,7 +172,7 @@ test("an optional field one slice leaves unfilled, another fills", () => {
       .slice()
       .command(d.CreateWith)
       .event(d.Created)
-      .test("A list is created with extra", {
+      .spec("A list is created with extra", {
         when: d.CreateWith(withExtra),
         then: d.Created(withExtra),
       }),
@@ -204,7 +204,7 @@ test("a mapping function fills what the command does not carry", () => {
     .event(d.Created, (c: C) => ({ extra: c.Create.name }))
     .actor(d.User)
     .service(d.Svc)
-    .test("A list is created", {
+    .spec("A list is created", {
       when: d.Create(list),
       then: d.Created({ ...list, extra: "Groceries" }),
     })
@@ -223,7 +223,7 @@ test("a mapping spreads a whole declaration and sets the rest from another", () 
     .event(d.Created, (c: C) => ({ ...c.Create, extra: c.Table.name }))
     .actor(d.User)
     .service(d.Svc)
-    .test("A list is renamed", {
+    .spec("A list is renamed", {
       given: d.Created({ ...list, extra: "" }),
       when: d.Create({ ...list, name: "Errands" }),
       then: d.Created({ ...list, name: "Errands", extra: "Groceries" }),
@@ -244,7 +244,7 @@ test("m.generate() records what a value is made from, and a specification gives 
     .event(d.Created, (c: C) => ({ at: m.generate(c.Create.id, c.Create.name) }))
     .actor(d.User)
     .service(d.Svc)
-    .test("Create", {
+    .spec("Create", {
       when: d.Create({ id: "id-1", name: "Groceries" }),
       then: d.Created({ id: "id-1", name: "Groceries", at: "2026-01-01T00:00:00Z" }),
     })
@@ -278,7 +278,7 @@ test("m.generate() in a specification is one value of its field's type wherever 
       .event(d.Moved)
       .actor(d.User)
       .service(d.Svc, "Get")
-      .test("agrees", () => {
+      .spec("agrees", () => {
         const move = {
           id: m.generate(),
           gameId: m.generate(),
@@ -292,7 +292,7 @@ test("m.generate() in a specification is one value of its field's type wherever 
         }
         return { given: d.Moved(move), then: d.Moves(move) }
       })
-      .test("disagrees", {
+      .spec("disagrees", {
         given: d.Moved({ id: m.generate() }),
         then: d.Moves({ id: m.generate() }),
       })
@@ -325,7 +325,7 @@ test("m.generate() nested in a list is one value of its field's type, as at the 
     .view(d.Cart)
     .event(d.Added, (c: C) => ({ items: m.generate(c.Added) }))
     .actor(d.User)
-    .test("lists", () => {
+    .spec("lists", () => {
       const itemId = m.generate()
       return {
         given: d.Added({ id: "c-1", itemId, price: 2 }),
@@ -354,7 +354,7 @@ test("an example Zod refuses is a to-do naming the spec and where in it, and the
     .view(d.Cart)
     .event(d.Created)
     .actor(d.User)
-    .test("lists", {
+    .spec("lists", {
       given: d.Created(list),
       then: d.Cart({ id: "list-1", items: [{ itemId: 7 }] }),
     })
@@ -376,8 +376,8 @@ test("an example Zod refuses is a to-do naming the spec and where in it, and the
 test("a specification written as a function runs at assembly, so its examples may be declared below it; one that throws is a to-do", () => {
   fixture()
   const shown = unspecified()
-    .test("A list is created", () => ({ when: creates, then: d.Created(list) }))
-    .test("A list is renamed", () => {
+    .spec("A list is created", () => ({ when: creates, then: d.Created(list) }))
+    .spec("A list is renamed", () => {
       throw new Error("renames is not defined")
     })
   const creates = d.Create(list)
@@ -407,7 +407,7 @@ test("a command field no event records is left to do, and an error when strict; 
       .event(d.Created, (c: C) => ({
         slug: recorded ? m.generate(c.Create.name) : m.generate(),
       }))
-      .test("Create", {
+      .spec("Create", {
         when: d.Create(list),
         then: d.Created({ id: "list-1", slug: "groceries" }),
       })
@@ -488,7 +488,7 @@ test("a mapping recognises a source field, a t.literal() and m.generate(); a sch
         label: c.Create.name.describe("loud"),
         size: t.literal(2),
       }))
-      .test("Create", {
+      .spec("Create", {
         when: d.Create(list),
         then: d.Created({ ...list, alias: "list-1", label: "x", size: 2 }),
       })
@@ -541,7 +541,7 @@ test("an event that carries none of the view's key columns", () => {
     .event(d.Renamed)
     .actor(d.User)
     .service(d.Svc)
-    .test("A list is renamed", {
+    .spec("A list is renamed", {
       when: d.Rename({ name: "Chores" }),
       then: d.Renamed({ name: "Chores" }),
     })
@@ -565,15 +565,15 @@ test("an event that carries only some of the view's key columns", () => {
     .event(d.Renamed)
     .actor(d.User)
     .service(d.Svc)
-    .test("A list is created", { when: d.Create(row), then: d.Created(row) })
-    .test("A list is renamed", { when: d.Create(row), then: d.Renamed(list) })
+    .spec("A list is created", { when: d.Create(row), then: d.Created(row) })
+    .spec("A list is renamed", { when: d.Create(row), then: d.Renamed(list) })
   const shown = m
     .slice()
     .view(d.Table)
     .event(d.Created)
     .event(d.Renamed)
     .actor(d.User)
-    .test("A list is a row", { given: [d.Created(row), d.Renamed(list)], then: d.Table(row) })
+    .spec("A list is a row", { given: [d.Created(row), d.Renamed(list)], then: d.Table(row) })
   assert.throws(
     () => assembled([create, shown]),
     /Ch › Table: Renamed doesn't say which Table row it changes\. Give it owner, or set it in its mapping\./,
@@ -606,8 +606,8 @@ test("an event no slice emits is one line, at the slices that react to it", () =
     .automation(d.Created)
     .command(d.Process)
     .event(d.Processed)
-    .test("one", { given: created, when: d.Process({ id: "1" }), then: d.Processed({ id: "1" }) })
-    .test("two", { given: created, when: d.Process({ id: "1" }), then: d.Processed({ id: "1" }) })
+    .spec("one", { given: created, when: d.Process({ id: "1" }), then: d.Processed({ id: "1" }) })
+    .spec("two", { given: created, when: d.Process({ id: "1" }), then: d.Processed({ id: "1" }) })
   m.command("Rename", { id: t.string() })
   m.event("Renamed", { id: t.string() })
   const assumes = m
@@ -615,7 +615,7 @@ test("an event no slice emits is one line, at the slices that react to it", () =
     .command(d.Rename)
     .event(d.Renamed)
     .actor(d.User)
-    .test("renames", { given: created, when: d.Rename({ id: "1" }), then: d.Renamed({ id: "1" }) })
+    .spec("renames", { given: created, when: d.Rename({ id: "1" }), then: d.Renamed({ id: "1" }) })
   chapters({ Ch: [processor, view()], Other: [assumes] })
   const json = assembleModules([{ default: m.model("x") }], { partial: true })
   assert.deepEqual(
@@ -637,7 +637,7 @@ test("a view nothing reads", () => {
     .slice()
     .view(d.Table)
     .event(d.Created)
-    .test("A new list is a row", { given: d.Created(list), then: d.Table(list) })
+    .spec("A new list is a row", { given: d.Created(list), then: d.Table(list) })
   assert.throws(
     () => assembled([create(), unseen]),
     /Ch › Table: nothing reads Table yet\. Add \.actor\(\) for who sees it, or \.query\(d\.Table, …\) or \.automation\(d\.Table\) where it's needed\./,
@@ -654,7 +654,7 @@ test("a view nothing projects", () => {
     .event(d.Created, (c: C) => ({ name: c.Create.name }))
     .actor(d.User)
     .service(d.Svc)
-    .test("t", {
+    .spec("t", {
       given: created,
       when: d.Create({ id: "1", name: "n" }),
       then: created,
@@ -679,7 +679,7 @@ function call(...except: Parameters<typeof fixture>) {
 
 /** `call()` with a specification that shows its answer. */
 function specifiedCall(...except: Parameters<typeof fixture>) {
-  return call(...except).test("The remote system answers", {
+  return call(...except).spec("The remote system answers", {
     when: d.Ask({ id: "list-1" }),
     then: d.Answered({ ...list, detail: "Two aisles over" }),
   })
@@ -692,7 +692,7 @@ test("a call ends in the external event, whose fields come from outside", () => 
     .translation(d.Answered)
     .command(d.Create)
     .event(d.Created)
-    .test("The answer is kept", {
+    .spec("The answer is kept", {
       given: d.Answered({ ...list, detail: "Two aisles over" }),
       when: d.Create(list),
       then: d.Created(list),
@@ -738,7 +738,7 @@ test("the outside event a call gets back fills an event of ours after it, in the
     .event(d.Kept, (c: C) => ({ id: c.Ask.id, said: c.Answered.detail }))
     .actor(d.User)
     .service(d.Svc)
-    .test("The answer is kept", {
+    .spec("The answer is kept", {
       when: d.Ask(list),
       then: [
         d.Answered({ ...list, detail: "Two aisles over" }),
@@ -776,7 +776,7 @@ test("a view refuses an external event, which isn't stored", () => {
       .view(d.Table)
       .event(d.Answered, (c: C) => ({ id: c.Answered.id }))
       .actor(d.User)
-      .test("The answer is a row", {
+      .spec("The answer is a row", {
         given: d.Answered({ ...list, detail: "Two aisles over" }),
         then: d.Table(list),
       })
@@ -802,7 +802,7 @@ test("an external event only a given has is still left to translate", () => {
   fixture()
   m.external("Remote")
   m.event("Answered", { id: t.string(), detail: t.string() }).external(d.Remote)
-  const after = create().test("A list is created after an answer", {
+  const after = create().spec("A list is created after an answer", {
     given: d.Answered({ id: "list-1", detail: "Two aisles over" }),
     when: d.Create(list),
     then: d.Created(list),
@@ -833,8 +833,8 @@ function outcomes(more = (created: Slice) => created) {
     .event(d.Refused)
     .actor(d.User)
     .service(d.Svc)
-    .test("A list is created", { when: d.Create(list), then: d.Created(list) })
-  const shown = unspecifiedView(d.Refused).test("A refused list stays as it was", {
+    .spec("A list is created", { when: d.Create(list), then: d.Created(list) })
+  const shown = unspecifiedView(d.Refused).spec("A refused list stays as it was", {
     given: [d.Created(list), d.Refused({ id: "list-1" })],
     then: d.Table(list),
   })
@@ -844,7 +844,7 @@ function outcomes(more = (created: Slice) => created) {
 
 test("an outcome no specification shows is left to do, and an error when strict", () => {
   const message =
-    "Ch › Create: no specification shows Refused yet. Add a .test whose then has Refused(...)."
+    "Ch › Create: no specification shows Refused yet. Add a .spec whose then has Refused(...)."
   const json = assembleModules(outcomes(), { partial: true })
   assert.deepEqual(json.warnings, [{ message, element: "Refused", slice: "Create" }])
   assert.throws(() => assembleModules(outcomes()), { message })
@@ -852,7 +852,7 @@ test("an outcome no specification shows is left to do, and an error when strict"
 
 test("a specification whose then has the outcome finishes it", () => {
   const refused = (created: Slice) =>
-    created.test("A second list with the same name is refused", {
+    created.spec("A second list with the same name is refused", {
       given: d.Created(list),
       when: d.Create(list),
       then: d.Refused({ id: "list-1" }),
@@ -863,11 +863,11 @@ test("a specification whose then has the outcome finishes it", () => {
 test("an event a view handles that no specification's given has is left to do, and an error when strict", () => {
   const model = () => {
     fixture()
-    chapters({ Ch: [create(), unspecifiedView().test(...nothing)] })
+    chapters({ Ch: [create(), unspecifiedView().spec(...nothing)] })
     return { default: m.model("x") }
   }
   const message =
-    "Ch › Table: no specification shows Created yet. Add a .test whose given has Created(...)."
+    "Ch › Table: no specification shows Created yet. Add a .spec whose given has Created(...)."
   const json = assembleModules([model()], { partial: true })
   assert.deepEqual(json.warnings, [{ message, element: "Created", slice: "Table" }])
   assert.throws(() => assembleModules([model()]), { message })
@@ -880,7 +880,7 @@ test("a view with no specification is left to do, and an error when strict", () 
     return { default: m.model("x") }
   }
   const message =
-    "Ch › Table: no specification shows this view yet. Add a .test whose then has the Table rows it shows."
+    "Ch › Table: no specification shows this view yet. Add a .spec whose then has the Table rows it shows."
   const json = assembleModules([model()], { partial: true })
   assert.deepEqual(json.warnings, [{ message, element: "Table", slice: "Table" }])
   assert.throws(() => assembleModules([model()]), { message })
@@ -898,7 +898,7 @@ test("a view's specification shows the rows given builds that its query asks for
   fixture()
   const byName = unspecifiedView()
     .context({ name: t.string() })
-    .test("Only Groceries shows", {
+    .spec("Only Groceries shows", {
       given: [d.Created(list), d.Created(hardware)],
       when: { name: "Groceries" },
       then: d.Table(list),
@@ -918,7 +918,7 @@ test("a view's specification shows the rows given builds that its query asks for
 
 test("a view's row given does not build, or with another value, is named", () => {
   fixture()
-  const wrong = unspecifiedView().test("Groceries shows", {
+  const wrong = unspecifiedView().spec("Groceries shows", {
     given: d.Created(list),
     then: [d.Table({ ...list, name: "Hardware" }), d.Table({ id: "list-9", name: "Nails" })],
   })
@@ -932,7 +932,7 @@ test("a row given does not build is an error when strict", () => {
   // A field an example leaves out is not compared, so the second row is the one given builds.
   const model = () => {
     fixture()
-    const missing = unspecifiedView().test("A new list is a row", {
+    const missing = unspecifiedView().spec("A new list is a row", {
       given: d.Created(list),
       then: [d.Table({ ...list, id: "missing" }), d.Table({ id: "list-1" })],
     })
@@ -952,7 +952,7 @@ test("a view's row its query excludes is named", () => {
   fixture()
   const byName = unspecifiedView()
     .context({ name: t.string() })
-    .test("Only Hardware shows", {
+    .spec("Only Hardware shows", {
       given: [d.Created(list), d.Created(hardware)],
       when: { name: "Hardware" },
       then: [d.Table(hardware), d.Table({ id: "list-1" })],
@@ -966,7 +966,7 @@ test("a row given builds that then leaves out is named, unless the query exclude
   fixture()
   const search = unspecifiedView()
     .context({ text: t.string() })
-    .test("A search finds Groceries", {
+    .spec("A search finds Groceries", {
       given: [d.Created(list), d.Created(hardware)],
       when: { text: "Groc" },
       then: d.Table(list),
@@ -978,7 +978,7 @@ test("a row given builds that then leaves out is named, unless the query exclude
 
 test("a then that describes its outcome may leave out rows given builds, and still checks the rows it has", () => {
   fixture()
-  const described = unspecifiedView().test("Only Groceries shows", {
+  const described = unspecifiedView().spec("Only Groceries shows", {
     given: [d.Created(list), d.Created(hardware)],
     then: ["Hardware is archived", d.Table({ ...list, name: "Hardware" })],
   })
@@ -1002,12 +1002,12 @@ test("a then that describes its outcome may leave out rows given builds, and sti
 
 test("a described outcome shows no event", () => {
   fixture()
-  const described = unspecified().test("A list is created", {
+  const described = unspecified().spec("A list is created", {
     when: d.Create(list),
     then: "The list exists",
   })
   const message =
-    "Ch › Create: no specification shows Created yet. Add a .test whose then has Created(...)."
+    "Ch › Create: no specification shows Created yet. Add a .spec whose then has Created(...)."
   chapters({ Ch: [described, view()] })
   const feed = feedOf([{ default: m.model("x") }], { partial: true })
   assert.deepEqual(
@@ -1026,14 +1026,14 @@ test("a specification's given may hold events its slice does not handle", () => 
     .event(d.Refused)
     .actor(d.User)
     .service(d.Svc)
-    .test("A list is created", { when: d.Create(list), then: d.Created(list) })
-    .test("A second list with the same name is refused", {
+    .spec("A list is created", { when: d.Create(list), then: d.Created(list) })
+    .spec("A second list with the same name is refused", {
       given: d.Created(list),
       when: d.Create(list),
       then: d.Refused({ id: "list-1" }),
     })
   const history = [d.Created(list), d.Refused({ id: "list-1" })]
-  const shown = unspecifiedView().test("The list shows after a refusal", {
+  const shown = unspecifiedView().spec("The list shows after a refusal", {
     given: history,
     then: d.Table(list),
   })
@@ -1061,7 +1061,7 @@ test("two slices claiming one service method", () => {
       .event(d.Renamed)
       .actor(d.User)
       .service(d.Svc, "Create")
-      .test("A list is renamed", { when: d.Rename(list), then: d.Renamed(list) })
+      .spec("A list is renamed", { when: d.Rename(list), then: d.Renamed(list) })
     chapters({ Ch: [create(), rename, view(d.Renamed)] })
     return { default: m.model("x") }
   }
@@ -1086,7 +1086,7 @@ test("slices without a service claim no method", () => {
     .command(d.Create)
     .event(d.Created)
     .actor(d.User)
-    .test("A list is created again", { when: d.Create(list), then: d.Created(list) })
+    .spec("A list is created again", { when: d.Create(list), then: d.Created(list) })
   const json = assembled([create(), again, view()])
   assert.equal(json.chapters[0]?.slices[1]?.ui, "Create")
 })
@@ -1105,7 +1105,7 @@ test("an automation's command field its trigger does not carry", () => {
 
 /** The table a created list is a row of, and stays one once processed. */
 const processedView = () =>
-  unspecifiedView(d.Processed).test("A processed list stays as it was", {
+  unspecifiedView(d.Processed).spec("A processed list stays as it was", {
     given: [d.Created(list), d.Processed({ id: "list-1" })],
     then: d.Table(list),
   })
@@ -1120,7 +1120,7 @@ test("an automation's trigger no specification's given has is left to do, and an
       .automation(d.Created)
       .command(d.Process)
       .event(d.Processed)
-      .test("A list is processed", {
+      .spec("A list is processed", {
         when: d.Process({ id: "list-1" }),
         then: d.Processed({ id: "list-1" }),
       })
@@ -1128,7 +1128,7 @@ test("an automation's trigger no specification's given has is left to do, and an
     return { default: m.model("x") }
   }
   const message =
-    "Ch › Processor: no specification shows Created yet. Add a .test whose given has Created(...)."
+    "Ch › Processor: no specification shows Created yet. Add a .spec whose given has Created(...)."
   const json = assembleModules([model()], { partial: true })
   assert.deepEqual(json.warnings, [{ message, element: "Created", slice: "Processor" }])
   assert.throws(() => assembleModules([model()]), { message })
@@ -1143,7 +1143,7 @@ test("an automation's mapping fills its command from the trigger", () => {
     .automation(d.Created)
     .command(d.Process, (c: C) => ({ label: c.Created.name }))
     .event(d.Processed)
-    .test("A created list is processed", {
+    .spec("A created list is processed", {
       given: d.Created(list),
       when: d.Process({ id: "list-1", label: "Groceries" }),
       then: d.Processed({ id: "list-1" }),
@@ -1162,7 +1162,7 @@ test("a generated value in an automation's command is left to do, and an error w
       .automation(d.Created)
       .command(d.Process, () => ({ label: m.generate() }))
       .event(d.Processed)
-      .test("A created list is processed", {
+      .spec("A created list is processed", {
         given: d.Created(list),
         when: d.Process({ id: "list-1", label: "x" }),
         then: d.Processed({ id: "list-1" }),
@@ -1232,7 +1232,7 @@ test("a state view without a service is named by its view and has a screen", () 
     .view(d.Table)
     .event(d.Created)
     .actor(d.User)
-    .test("A new list is a row", { given: d.Created(list), then: d.Table(list) })
+    .spec("A new list is a row", { given: d.Created(list), then: d.Table(list) })
   const json = assembled([create(), unserved])
   const slice = json.chapters[0]?.slices[1]
   assert.deepEqual([slice?.name, slice?.ui], ["Table", "Table"])
@@ -1244,13 +1244,13 @@ test("a slice with no actor has no screen", () => {
     .slice()
     .command(d.Create)
     .event(d.Created)
-    .test("A list is created", { when: d.Create(list), then: d.Created(list) })
+    .spec("A list is created", { when: d.Create(list), then: d.Created(list) })
   const unseen = m
     .slice()
     .view(d.Table)
     .event(d.Created)
     .service(d.Svc, "Get")
-    .test("A new list is a row", { given: d.Created(list), then: d.Table(list) })
+    .spec("A new list is a row", { given: d.Created(list), then: d.Table(list) })
   const json = assembled([create, unseen])
   assert.deepEqual(
     json.chapters[0]?.slices.map((s) => s.ui),
@@ -1268,7 +1268,7 @@ test("a slice with several actors draws a screen in each one's lane", () => {
     .event(d.Created)
     .actor(d.User, d.Admin)
     .service(d.Svc)
-    .test("A list is created", { when: d.Create(list), then: d.Created(list) })
+    .spec("A list is created", { when: d.Create(list), then: d.Created(list) })
   const json = assembled([both, view()])
   const slice = json.chapters[0]?.slices[0]
   assert.deepEqual([slice?.actor, slice?.actors], ["user", ["user", "admin"]])
@@ -1290,7 +1290,7 @@ test("a .automation() automation polls the view", () => {
     .automation(d.Table)
     .command(d.Process)
     .event(d.Processed)
-    .test("A listed row is processed", {
+    .spec("A listed row is processed", {
       given: d.Created(list),
       when: d.Process({ id: "list-1" }),
       then: d.Processed({ id: "list-1" }),
@@ -1312,7 +1312,7 @@ test("a polled command's when matches the row given builds", () => {
       .automation(d.Table)
       .command(d.Process, (c: C) => ({ label: c.Table.name }))
       .event(d.Processed)
-      .test("A listed row is processed", {
+      .spec("A listed row is processed", {
         given: d.Created(list),
         when: d.Process({ id: "list-1", label }),
         then: d.Processed({ id: "list-1" }),
@@ -1338,12 +1338,12 @@ test("a polled command's when whose row given builds none of, or several of, is 
     .automation(d.Table)
     .command(d.Process)
     .event(d.Processed)
-    .test("none", {
+    .spec("none", {
       given: d.Created(mine),
       when: d.Process({ id: "list-2" }),
       then: d.Processed({ id: "list-2" }),
     })
-    .test("several", {
+    .spec("several", {
       given: [d.Created(mine), d.Created(theirs)],
       when: d.Process({ id: "list-1" }),
       then: d.Processed({ id: "list-1" }),
@@ -1416,7 +1416,7 @@ test("a screen no one sees, and one no slice names, are left to do", () => {
     .command(d.Create)
     .event(d.Created)
     .screen(d.Lock)
-    .test("A list is created", { when: d.Create(list), then: d.Created(list) })
+    .spec("A list is created", { when: d.Create(list), then: d.Created(list) })
   chapters({ Ch: [unseen, view()] })
   const json = assembleModules([{ default: m.model("x") }], { partial: true })
   assert.deepEqual(json.warnings, [
@@ -1440,7 +1440,7 @@ test("every m.slice().view() of a view is one slice: its events in, its screen o
     .event(d.Archived)
     .actor(d.User)
     .service(d.Svc)
-    .test("A list is archived", {
+    .spec("A list is archived", {
       when: d.Archive({ id: "list-1" }),
       then: d.Archived({ id: "list-1" }),
     })
@@ -1453,7 +1453,7 @@ test("every m.slice().view() of a view is one slice: its events in, its screen o
         .event(d.Created, () => ({ status: t.literal("open") }))
         .actor(d.User)
         .service(d.Svc, "Get")
-        .test("A new list is open", {
+        .spec("A new list is open", {
           given: d.Created(list),
           then: d.Table({ ...list, status: "open" }),
         }),
@@ -1465,7 +1465,7 @@ test("every m.slice().view() of a view is one slice: its events in, its screen o
     .event(d.Archived, () => ({ status: t.literal("archived") }))
     .actor(d.User)
     .service(d.Svc, "Get")
-    .test("An archived list is archived", {
+    .spec("An archived list is archived", {
       given: [d.Created(list), d.Archived({ id: "list-1" })],
       then: d.Table({ ...list, status: "archived" }),
     })
@@ -1555,7 +1555,7 @@ test("a single file written top to bottom extends an earlier view in a later cha
 test("a view in given is named as one", () => {
   fixture()
   // The compiler refuses a view in given too.
-  const slice = create().test("t", {
+  const slice = create().spec("t", {
     given: d.Table({ id: "1", name: "n" }),
     when: d.Create({ id: "1", name: "n" }),
     then: d.Created({ id: "1", name: "n" }),
@@ -1640,7 +1640,7 @@ test("chapters come in the order of their numbers, each with its slices in the o
   m.slice("Recreate")
     .command(d.Create)
     .event(d.Created)
-    .test("A list is created", { when: d.Create(list), then: d.Created(list) })
+    .spec("A list is created", { when: d.Create(list), then: d.Created(list) })
     .chapter(d.First)
   const json = assembleModules([{ default: m.model("x") }])
   assert.deepEqual(
@@ -1901,7 +1901,7 @@ test("a mapping that throws is left to do, naming its slice, which is drawn whol
     json.warnings?.filter((w) => w.slice === "Create").map((w) => w.message),
     [
       "Ch › Create: Created's mapping threw: m.generate() takes fields of the mapping's argument, such as m.generate(c.AddNote.title), not id.",
-      "Ch › Create: no specification shows Created yet. Add a .test whose then has Created(...).",
+      "Ch › Create: no specification shows Created yet. Add a .spec whose then has Created(...).",
     ],
   )
 })
@@ -1928,7 +1928,7 @@ test("an example names its declaration in the assembly it is in, so one example 
     chapters({
       Ch: [
         create(),
-        unspecifiedView().test("A list is a row", { given: created, then: d.Table(list) }),
+        unspecifiedView().spec("A list is a row", { given: created, then: d.Table(list) }),
       ],
     })
     return feedOf([{ default: m.model("x") }], { partial: true }).warnings
@@ -2022,7 +2022,7 @@ test("an example's nested values are printed", () => {
     .event(d.Ordered)
     .actor(d.User)
     .service(d.Svc)
-    .test("t", {
+    .spec("t", {
       when: d.Order({ id: "1", items: [{ name: "a" }, { name: "b" }] }),
       then: d.Ordered({ id: "1", items: [{ name: "a" }] }),
     })
@@ -2066,7 +2066,7 @@ test("a state change's then has what its command sends and its mapping sets", ()
         status: t.literal("open"),
         at: m.generate(),
       }))
-      .test("agrees", {
+      .spec("agrees", {
         when: d.Add(sent),
         then: d.Added({
           id: "a-1",
@@ -2077,7 +2077,7 @@ test("a state change's then has what its command sends and its mapping sets", ()
         }),
       })
     if (!wrong) return slice
-    return slice.test("disagrees", {
+    return slice.spec("disagrees", {
       when: d.Add(sent),
       then: d.Added({
         id: "a-2",
@@ -2114,7 +2114,7 @@ test("an external event's fields come from outside, so its then may have anythin
     .slice()
     .command(d.Create)
     .event(d.Answered)
-    .test("answered", {
+    .spec("answered", {
       when: d.Create(list),
       then: d.Answered({ id: "other", name: "other" }),
     })
@@ -2132,17 +2132,17 @@ test("an automation's when has what its trigger in given carries and its mapping
       .automation(d.Created)
       .command(d.Process, (c: C) => ({ label: c.Created.name, by: t.literal("processor") }))
       .event(d.Processed)
-      .test("agrees", {
+      .spec("agrees", {
         given: d.Created(list),
         when: d.Process({ id: "list-1", label: "Groceries", by: "processor" }),
         then: d.Processed({ id: "list-1" }),
       })
-      .test("no trigger given", {
+      .spec("no trigger given", {
         when: d.Process({ id: "list-9", label: "Anything", by: "processor" }),
         then: d.Processed({ id: "list-9" }),
       })
     if (!wrong) return slice
-    return slice.test("disagrees", {
+    return slice.spec("disagrees", {
       given: d.Created(list),
       when: d.Process({ id: "list-2", label: "Chores", by: "someone" }),
       then: d.Processed({ id: "list-3" }),
@@ -2183,7 +2183,7 @@ test("a view's rows have what given builds, matched by key", () => {
       }))
       .event(d.ItemAdded, (c: C) => ({ items: m.generate(c.ItemAdded) }))
       .event(d.ListClosed, () => ({ status: t.literal("closed") }))
-      .test(name, {
+      .spec(name, {
         given: [
           d.ListCreated({ ...groceries, name: "Groceries" }),
           d.ListCreated({ ...chores, name: "Chores" }),
@@ -2224,7 +2224,7 @@ test("a list view: each event adds a row, told apart by every value, and drawn a
       .context({ noteId: t.string() })
   }
   const given = () => [d.Captured({ noteId: "n-1" }), d.Edited({ noteId: "n-1" })]
-  const both = projection().test("both", {
+  const both = projection().spec("both", {
     given: given(),
     when: { noteId: "n-1" },
     then: [
@@ -2233,7 +2233,7 @@ test("a list view: each event adds a row, told apart by every value, and drawn a
     ],
   })
   assert.deepEqual(disagreements([both]), [])
-  const one = projection().test("one", {
+  const one = projection().spec("one", {
     given: given(),
     when: { noteId: "n-1" },
     then: d.Activity({ noteId: "n-1", what: "captured" }),
@@ -2316,7 +2316,7 @@ test("the book's ArchiveItem slice: a price change archives the item in the cart
       .command(d.CreateCart)
       .event(d.CartCreated)
       .actor(d.User)
-      .test("A cart is created", {
+      .spec("A cart is created", {
         when: d.CreateCart({ aggregateId: cartId }),
         then: d.CartCreated({ aggregateId: cartId }),
       }),
@@ -2325,7 +2325,7 @@ test("the book's ArchiveItem slice: a price change archives the item in the cart
       .command(d.AddItem)
       .event(d.ItemAdded)
       .actor(d.User)
-      .test("An item is added", {
+      .spec("An item is added", {
         when: d.AddItem({ aggregateId: cartId, itemId, productId, price: 10 }),
         then: added,
       }),
@@ -2334,7 +2334,7 @@ test("the book's ArchiveItem slice: a price change archives the item in the cart
       .command(d.ChangePrice)
       .event(d.PriceChanged)
       .actor(d.User)
-      .test("A price changes", {
+      .spec("A price changes", {
         when: d.ChangePrice({ productId, oldPrice: 10, newPrice: 12 }),
         then: d.PriceChanged({ productId, oldPrice: 10, newPrice: 12 }),
       }),
@@ -2342,11 +2342,11 @@ test("the book's ArchiveItem slice: a price change archives the item in the cart
       .slice()
       .view(d.CartsWithProducts)
       .event(d.ItemAdded)
-      .test("An added item is in its cart", {
+      .spec("An added item is in its cart", {
         given: added,
         then: d.CartsWithProducts({ aggregateId: cartId, productId, itemId }),
       }),
-    archiveItem().test("A price change archives the item", {
+    archiveItem().spec("A price change archives the item", {
       given: [
         d.CartCreated({ aggregateId: cartId }),
         added,
@@ -2360,7 +2360,7 @@ test("the book's ArchiveItem slice: a price change archives the item in the cart
       .view(d.ArchivedItems)
       .event(d.ItemArchived)
       .actor(d.User)
-      .test("An archived item is listed", {
+      .spec("An archived item is listed", {
         given: d.ItemArchived({ aggregateId: cartId, itemId }),
         then: d.ArchivedItems({ aggregateId: cartId, itemId }),
       }),
@@ -2393,12 +2393,12 @@ test("an automation's when is for one of the rows its query picks", () => {
   const inCart = (aggregateId: string) => d.ItemAdded({ aggregateId, itemId, productId, price: 10 })
   const given = [inCart(cartId), inCart(otherCart), d.PriceChanged({ productId, newPrice: 12 })]
   const slice = archiveItem()
-    .test("agrees", {
+    .spec("agrees", {
       given,
       when: d.ArchiveItem({ aggregateId: otherCart, productId }),
       then: d.ItemArchived({ aggregateId: otherCart }),
     })
-    .test("disagrees", {
+    .spec("disagrees", {
       given,
       when: d.ArchiveItem({ aggregateId: "55555555-5555-4555-8555-555555555555", productId }),
       then: d.ItemArchived({ aggregateId: "55555555-5555-4555-8555-555555555555" }),
@@ -2410,7 +2410,7 @@ test("an automation's when is for one of the rows its query picks", () => {
 
 test("a query that picks no row: an automation issues nothing, and a command is refused", () => {
   cart()
-  const issues = archiveItem().test("no cart holds the product", {
+  const issues = archiveItem().spec("no cart holds the product", {
     given: d.PriceChanged({ productId, newPrice: 12 }),
     when: d.ArchiveItem({ aggregateId: cartId, productId }),
     then: d.ItemArchived({ aggregateId: cartId }),
@@ -2429,15 +2429,15 @@ test("a query that picks no row: an automation issues nothing, and a command is 
     .event(d.ItemArchived, (x: C) => ({
       itemId: m.generate(x.ArchiveItem.productId),
     }))
-    .test("archived", {
+    .spec("archived", {
       when: d.ArchiveItem({ aggregateId: cartId, productId }),
       then: d.ItemArchived({ aggregateId: cartId }),
     })
-    .test("refused", {
+    .spec("refused", {
       when: d.ArchiveItem({ aggregateId: cartId, productId }),
       reject: "the cart does not hold the product",
     })
-    .test("described", {
+    .spec("described", {
       when: d.ArchiveItem({ aggregateId: cartId, productId }),
       then: "The cart no longer holds the product",
     })
@@ -2460,7 +2460,7 @@ test("a translation whose query picks no row is called a translation", () => {
     .query(d.Pending, "state")
     .command(d.Complete)
     .event(d.Completed)
-    .test("forged", {
+    .spec("forged", {
       given: d.Authorized({ state: "s-1" }),
       when: d.Complete({ state: "s-1" }),
       then: d.Completed({ state: "s-1" }),
@@ -2497,13 +2497,13 @@ test("t.literal([]) sets the empty list, a constant", () => {
         .command(d.Plan)
         .event(d.Planned)
         .actor(d.User)
-        .test("A week is planned", { when: d.Plan(week), then: d.Planned(week) }),
+        .spec("A week is planned", { when: d.Plan(week), then: d.Planned(week) }),
       m
         .slice()
         .view(d.Groceries)
         .event(d.Planned, () => ({ added: t.literal([]) }))
         .actor(d.User)
-        .test("A new week has nothing added", {
+        .spec("A new week has nothing added", {
           given: d.Planned(week),
           then: d.Groceries({ ...week, added: [] }),
         }),

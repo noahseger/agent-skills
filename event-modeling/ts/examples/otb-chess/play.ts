@@ -178,7 +178,7 @@ m.slice()
   .chapter(d.Play)
   .actor(d.Player)
   .service(d.ChessService)
-  .test("White opens with 1. e4", {
+  .spec("White opens with 1. e4", {
     given: gameStarted,
     when: d.PlayMove({
       gameId: "otb-2024-ct-r5-b1",
@@ -194,7 +194,7 @@ m.slice()
     }),
     then: e4,
   })
-  .test("A capture that gives check sets both flags", {
+  .spec("A capture that gives check sets both flags", {
     given: gameStarted,
     when: d.PlayMove({
       gameId: "otb-2024-ct-r5-b1",
@@ -221,7 +221,7 @@ m.slice()
       isCapture: true,
     }),
   })
-  .test("Qxf7 mates, so the move ends the game", {
+  .spec("Qxf7 mates, so the move ends the game", {
     given: gameStarted,
     when: d.PlayMove({
       gameId: "otb-2024-ct-r5-b1",
@@ -252,7 +252,7 @@ m.slice()
       mated,
     ],
   })
-  .test("Black cannot move while it is White's turn", {
+  .spec("Black cannot move while it is White's turn", {
     given: gameStarted,
     when: d.PlayMove({
       gameId: "otb-2024-ct-r5-b1",
@@ -280,7 +280,7 @@ m.slice()
   .screen(d.Broadcast)
   .service(d.ChessService, "WatchBoard")
   .note("The live position, as the broadcast shows it.")
-  .test("The board advances after the opening move", {
+  .spec("The board advances after the opening move", {
     given: [gameStarted, e4],
     when: { gameId: "otb-2024-ct-r5-b1" },
     then: d.GameState({
@@ -290,7 +290,7 @@ m.slice()
       fen: OPENING_FEN,
     }),
   })
-  .test("The board reverts when an illegal move is struck", {
+  .spec("The board reverts when an illegal move is struck", {
     given: [gameStarted, e4, illegalMoveRuled],
     when: { gameId: "otb-2024-ct-r5-b1" },
     then: d.GameState({
@@ -309,7 +309,7 @@ m.slice()
   .actor(d.Player)
   .service(d.ChessService)
   .note("FIDE 6.2.1: pressing banks the increment and starts the opponent's clock.")
-  .test("White presses the clock, the increment is banked, Black's clock runs", {
+  .spec("White presses the clock, the increment is banked, Black's clock runs", {
     given: clockStarted,
     when: d.PressClock({
       gameId: "otb-2024-ct-r5-b1",
@@ -324,7 +324,7 @@ m.slice()
       runningSide: "black",
     }),
   })
-  .test("Black cannot press the clock while White's clock runs", {
+  .spec("Black cannot press the clock while White's clock runs", {
     given: clockStarted,
     when: d.PressClock({
       gameId: "otb-2024-ct-r5-b1",
@@ -340,7 +340,7 @@ m.slice()
   .event(d.ClockStarted)
   .event(d.ClockPressed)
   .chapter(d.Play)
-  .test("The clock starts with White's time running", {
+  .spec("The clock starts with White's time running", {
     given: clockStarted,
     then: d.ClockState({
       gameId: "otb-2024-ct-r5-b1",
@@ -349,7 +349,7 @@ m.slice()
       runningSide: "white",
     }),
   })
-  .test("The running side follows the press", {
+  .spec("The running side follows the press", {
     given: [
       clockStarted,
       d.ClockPressed({
@@ -377,7 +377,7 @@ m.slice()
   .screen(d.Broadcast)
   .service(d.ChessService, "WatchMoves")
   .note("The moves so far, as the broadcast shows them.")
-  .test("A move is recorded on the scoresheet", {
+  .spec("A move is recorded on the scoresheet", {
     given: e4,
     when: { gameId: "otb-2024-ct-r5-b1" },
     then: d.MoveList({
@@ -390,7 +390,7 @@ m.slice()
       status: "recorded",
     }),
   })
-  .test("An illegal move at ply 32 is struck, and stays on the sheet marked", {
+  .spec("An illegal move at ply 32 is struck, and stays on the sheet marked", {
     given: [kf1, illegalMoveRuled],
     when: { gameId: "otb-2024-ct-r5-b1" },
     then: d.MoveList({

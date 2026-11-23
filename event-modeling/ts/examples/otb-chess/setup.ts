@@ -120,7 +120,7 @@ m.slice("ReceivePairing")
   }))
   .chapter(d.GameSetup)
   .note("The pairing is translated, never stored. The starting position is ours to supply.")
-  .test("Round 5 board 1 pairing starts a classical game", {
+  .spec("Round 5 board 1 pairing starts a classical game", {
     given: pairing,
     when: d.StartGame({
       gameId: "otb-2024-ct-r5-b1",
@@ -139,7 +139,7 @@ m.slice()
   .view(d.GamePairing)
   .event(d.GameStarted)
   .chapter(d.GameSetup)
-  .test("Pairing identity available after the game starts", {
+  .spec("Pairing identity available after the game starts", {
     given: gameStarted,
     then: d.GamePairing({
       gameId: "otb-2024-ct-r5-b1",
@@ -159,7 +159,7 @@ m.slice("ClockStarter")
     runningSide: t.literal("white"),
   }))
   .chapter(d.GameSetup)
-  .test("White's clock starts at 90 minutes", {
+  .spec("White's clock starts at 90 minutes", {
     given: gameStarted,
     when: d.StartClock({ gameId: "otb-2024-ct-r5-b1", baseMinutes: 90, incrementSeconds: 30 }),
     then: d.ClockStarted({

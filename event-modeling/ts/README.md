@@ -71,9 +71,9 @@ that can come next.
 | translation | the external event | `.translation(d.ExternalEvent).command(d.Command).event(d.Event)` | An event from outside becomes an event of ours. No actor is involved. |
 
 A slice is complete once it has its command and an event, or its view and an event. Before then it
-compiles, is drawn as far as it goes, and what it lacks is left to do; `.test()` waits for its
+compiles, is drawn as far as it goes, and what it lacks is left to do; `.spec()` waits for its
 events. `.event()` again adds an event the command can record. `.query()` reads a view, before the
-events. `.context()` gives a state view the fields it is read with, `.test()` adds a specification,
+events. `.context()` gives a state view the fields it is read with, `.spec()` adds a specification,
 and `.chapter()` puts the slice in a chapter. A state change or state view also takes `.actor()`,
 `.screen()` and `.service()`, and needs none of them. An automation or a translation takes
 `.actor()` for the system actor that runs it. `.chapter()`, `.actor()`, `.screen()`, `.service()`
@@ -156,11 +156,11 @@ m.slice()
   .chapter(d.ListManagement)
   .actor(d.User)
   .service(d.TodoService)
-  .test("A user creates a list", {
+  .spec("A user creates a list", {
     when: d.CreateList({ userId: "u-1", listId: "list-1", name: "Groceries" }),
     then: groceries,
   })
-  .test("A second list with the same name is refused", {
+  .spec("A second list with the same name is refused", {
     given: groceries,
     when: d.CreateList({ userId: "u-1", listId: "list-2", name: "Groceries" }),
     reject: "list name already exists",
@@ -168,7 +168,7 @@ m.slice()
 ```
 
 Every field of `ListCreated` has a namesake in `CreateList`, so it flows on its own. Called with
-data, `d.ListCreated` is an example; `groceries` is one, reused below. Each `.test()` is a
+data, `d.ListCreated` is an example; `groceries` is one, reused below. Each `.spec()` is a
 [specification](#specifications): `then` is what is recorded, or `reject` why the command is refused.
 
 A user adds an item. The command says `text` and the event says `title`, so the event's step maps
@@ -196,7 +196,7 @@ m.slice()
   .chapter(d.ListManagement)
   .actor(d.User)
   .service(d.TodoService)
-  .test("A user adds an item", {
+  .spec("A user adds an item", {
     given: groceries,
     when: d.AddItem({ userId: "u-1", listId: "list-1", itemId: "item-1", text: "Milk" }),
     then: milk,
@@ -222,12 +222,12 @@ m.slice()
   .chapter(d.Views)
   .actor(d.User)
   .service(d.TodoService, "ListTodoLists")
-  .test("Each item added counts", {
+  .spec("Each item added counts", {
     given: [groceries, milk],
     when: { userId: "u-1" },
     then: d.TodoList({ userId: "u-1", listId: "list-1", name: "Groceries", itemCount: 1 }),
   })
-  .test("A user sees only their own lists", {
+  .spec("A user sees only their own lists", {
     given: [groceries, d.ListCreated({ userId: "u-2", listId: "list-2", name: "Hardware" })],
     when: { userId: "u-1" },
     then: d.TodoList({ userId: "u-1", listId: "list-1", name: "Groceries", itemCount: 0 }),
@@ -491,7 +491,7 @@ needs no screen, actor or service.
 
 ### Specifications
 
-A specification is a Given, When, Then example attached to a slice with `.test()`. Calling
+A specification is a Given, When, Then example attached to a slice with `.spec()`. Calling
 `d.Name` with data builds an example of it, and its fields check the values: one they refuse is left
 to do, with where in the example. `given` and `then` accept one example or a list. A state change's specification has `then`, the events recorded, or `reject`,
 why the command is refused; never both. A state view's has `given`, the events that build the rows;
@@ -522,7 +522,7 @@ run, so one used in both `given` and `then` agrees, and two different ones do no
 the specification as a function:
 
 ```ts
-.test("A captured note shows in the inbox", () => {
+.spec("A captured note shows in the inbox", () => {
   const noteId = m.generate()
   return {
     given: d.NoteCaptured({ noteId, text: "buy milk" }),
@@ -670,7 +670,7 @@ The compiler catches:
 | Where | What |
 |---|---|
 | any reference | It is `d.Name`. A name nothing declares is no member of `d`, a string is not a reference, and a declaration of another kind is refused where a step takes one, with the fix: `ListCreated is an event: pass a command`. Two declarations with the same fields are still two. |
-| the chain | Only a legal chain compiles; each step offers only what can come next. `.test()` refuses a slice with no event yet and says what to add, such as `add .event() before .test()`. |
+| the chain | Only a legal chain compiles; each step offers only what can come next. `.spec()` refuses a slice with no event yet and says what to add, such as `add .event() before .spec()`. |
 | a step's declaration | It is one `d.Name`. What `m.command()` returns is not, nor is an example. |
 | a mapping | Its argument holds each declaration before its step by name, with its fields: what starts the slice, the rows it queries, the command and the outside events it gets back; in a state view, the event. Its result must be fields of the target, each a field that fits it, a `t.literal()` or `m.generate()`. A string format, such as `t.uuid()`, takes only that format. |
 | a field that flows by name | It must fit its target as a mapped one does, and only one declaration before the step may carry it; a filter column and its namesake are one. The error names the field to set in the mapping, and where two carry it, both. |
@@ -681,7 +681,7 @@ The compiler catches:
 | what starts an automation or a translation | `.automation()` refuses an external event, and the error says to use `.translation()`; `.translation()` takes nothing else. |
 | `.key()` | Only a view's field takes it, so `.query()` can count the rows a filter picks. An event's or a command's is refused: `only a view has key columns`. |
 | `.service()` on a state view | It names the method. |
-| `.test()` | `when` is the slice's command, or a state view's context values. `then` is its events, or the rows of the view a state view shows, and strings that describe an outcome; `reject` replaces `then`, and a state view has none. The values have their fields' types; a oneOf holds exactly one case. |
+| `.spec()` | `when` is the slice's command, or a state view's context values. `then` is its events, or the rows of the view a state view shows, and strings that describe an outcome; `reject` replaces `then`, and a state view has none. The values have their fields' types; a oneOf holds exactly one case. |
 
 Assembly catches the rest, and each error names the slice it found the problem in:
 
@@ -703,7 +703,7 @@ Assembly catches the rest, and each error names the slice it found the problem i
 | A view built from an external event | `em json` runs the model without `tsc`. |
 | An event in both a stream and an external system | `.stream()` and `.external()` can be called on it in separate statements. |
 | An event of ours in no stream, once the model declares one | Whether a value is used is not a type. |
-| A slice's event, or a state view, that no specification covers, as [Specifications](#specifications) says | Each `.test()` is checked on its own, not against the slice's other specifications. |
+| A slice's event, or a state view, that no specification covers, as [Specifications](#specifications) says | Each `.spec()` is checked on its own, not against the slice's other specifications. |
 | A specification value that is not what flows in: from `when`, the trigger in `given`, or the events that build the row or a queried row | Example values are data, not types. |
 | A queried row `given` does not build, in a specification that does not `reject`; in an automation, before its command, any specification | Same. |
 | A state view's row that `given` does not build, or a built row `then` leaves out, describes nothing about, and the context does not exclude | Same. |

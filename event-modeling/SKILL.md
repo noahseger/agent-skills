@@ -314,7 +314,7 @@ For one workflow at a time, trace from trigger to completion:
 Define GWT tests **collaboratively with business experts** — not in isolation. Each slice gets GWT tests with **concrete example data** — real IDs, real numbers, real outcomes. Business knowledge becomes an executable specification in code:
 
 ```ts
-.test("Inventory reserved after order placed", {
+.spec("Inventory reserved after order placed", {
   given: d.OrderPlaced({ orderId: "ord-100", items: ["sku-1"] }),
   when:  d.ReserveInventory({ orderId: "ord-100", items: ["sku-1"] }),
   then:  d.InventoryReserved({ orderId: "ord-100", items: ["sku-1"], warehouseId: "wh-east" }),

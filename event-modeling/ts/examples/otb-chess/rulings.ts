@@ -65,7 +65,7 @@ m.slice()
   .note(
     "FIDE 7.5.1: the position before the illegal move is reinstated. 7.5.5: the first one adds two minutes to the opponent, the second one loses the game.",
   )
-  .test("An illegal move is struck and two minutes are added to the opponent", {
+  .spec("An illegal move is struck and two minutes are added to the opponent", {
     given: illegalMoveRuled,
     when: d.RuleIllegalMove({
       gameId: "otb-2024-ct-r5-b1",
@@ -79,7 +79,7 @@ m.slice()
     }),
     then: illegalMoveRuled,
   })
-  .test("A second illegal move by the same player carries the loss", {
+  .spec("A second illegal move by the same player carries the loss", {
     given: [illegalMoveRuled, kingIntoOwnPawn],
     when: d.RuleIllegalMove({
       gameId: "otb-2024-ct-r5-b1",
@@ -98,7 +98,7 @@ m.slice()
   .view(d.IllegalMoveTally)
   .event(d.IllegalMoveRuled, (c) => ({ illegalMoveCount: m.generate(c.IllegalMoveRuled) }))
   .chapter(d.ArbiterRulings)
-  .test("One ruling puts the offender on one illegal move", {
+  .spec("One ruling puts the offender on one illegal move", {
     given: illegalMoveRuled,
     then: d.IllegalMoveTally({
       gameId: "otb-2024-ct-r5-b1",
@@ -106,7 +106,7 @@ m.slice()
       illegalMoveCount: 1,
     }),
   })
-  .test("A second ruling puts the offender on two", {
+  .spec("A second ruling puts the offender on two", {
     given: [illegalMoveRuled, secondIllegalMoveRuled],
     then: d.IllegalMoveTally({
       gameId: "otb-2024-ct-r5-b1",

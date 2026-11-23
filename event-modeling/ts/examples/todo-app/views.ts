@@ -50,7 +50,7 @@ m.slice()
   .chapter(d.Views)
   .actor(d.User)
   .service(d.TodoService, "ListTodoLists")
-  .test("A new list shows with no items", {
+  .spec("A new list shows with no items", {
     given: groceries,
     when: { userId: "u-1" },
     then: d.TodoList({
@@ -61,7 +61,7 @@ m.slice()
       status: "open",
     }),
   })
-  .test("Items are counted as they are added", {
+  .spec("Items are counted as they are added", {
     given: [groceries, milk, eggs],
     when: { userId: "u-1" },
     then: d.TodoList({
@@ -72,7 +72,7 @@ m.slice()
       status: "open",
     }),
   })
-  .test("A completed list shows as completed", {
+  .spec("A completed list shows as completed", {
     given: [groceries, d.ListCompleted({ userId: "u-1", listId: "list-1" })],
     when: { userId: "u-1" },
     then: d.TodoList({
@@ -83,7 +83,7 @@ m.slice()
       status: "completed",
     }),
   })
-  .test("A deleted list shows as deleted", {
+  .spec("A deleted list shows as deleted", {
     given: [groceries, d.ListDeleted({ userId: "u-1", listId: "list-1" })],
     when: { userId: "u-1" },
     then: d.TodoList({
@@ -94,7 +94,7 @@ m.slice()
       status: "deleted",
     }),
   })
-  .test("A user sees only their own lists", {
+  .spec("A user sees only their own lists", {
     given: [groceries, d.ListCreated({ listId: "list-2", userId: "u-2", name: "Hardware" })],
     when: { userId: "u-1" },
     then: d.TodoList({
@@ -116,7 +116,7 @@ m.slice()
   .actor(d.User)
   .screen(d.ListScreen)
   .service(d.TodoService, "GetList")
-  .test("A completed item shows as done", {
+  .spec("A completed item shows as done", {
     given: [milk, milkDone],
     when: { listId: "list-1" },
     then: d.ListItems({
@@ -127,7 +127,7 @@ m.slice()
       deleted: false,
     }),
   })
-  .test("A deleted item shows as deleted", {
+  .spec("A deleted item shows as deleted", {
     given: [milk, d.ItemDeleted({ listId: "list-1", itemId: "item-1" })],
     when: { listId: "list-1" },
     then: d.ListItems({
@@ -138,7 +138,7 @@ m.slice()
       deleted: true,
     }),
   })
-  .test("A list shows its own items", {
+  .spec("A list shows its own items", {
     given: [
       groceries,
       milk,
@@ -173,7 +173,7 @@ m.slice()
   .chapter(d.Views)
   .actor(d.User)
   .service(d.TodoService, "SearchItems")
-  .test("An added item shows as not done", {
+  .spec("An added item shows as not done", {
     given: milk,
     when: { text: "Milk" },
     then: d.ItemSearch({
@@ -184,7 +184,7 @@ m.slice()
       deleted: false,
     }),
   })
-  .test("A search finds a deleted item as deleted", {
+  .spec("A search finds a deleted item as deleted", {
     given: [milk, d.ItemDeleted({ listId: "list-1", itemId: "item-1" })],
     when: { text: "Milk" },
     then: d.ItemSearch({
@@ -195,7 +195,7 @@ m.slice()
       deleted: true,
     }),
   })
-  .test("A search finds a done item by its title", {
+  .spec("A search finds a done item by its title", {
     given: [milk, milkDone],
     when: { text: "Milk" },
     then: d.ItemSearch({
@@ -215,7 +215,7 @@ m.slice("ListCompleter")
   .query(d.TodoList, (c) => ({ userId: c.CompleteList.userId, listId: c.CompleteList.listId }))
   .event(d.ListCompleted)
   .chapter(d.Automations)
-  .test("List completes when every item is done", {
+  .spec("List completes when every item is done", {
     given: [groceries, milk, milkDone],
     when: d.CompleteList({ userId: "u-1", listId: "list-1" }),
     then: d.ListCompleted({ userId: "u-1", listId: "list-1" }),
@@ -238,7 +238,7 @@ m.slice()
   .command(d.AddItem)
   .event(d.ItemAdded, (c) => ({ title: c.AddItem.text }))
   .chapter(d.Integrations)
-  .test("A scheduled task becomes an item", {
+  .spec("A scheduled task becomes an item", {
     given: [
       groceries,
       d.TaskScheduled({ userId: "u-1", listId: "list-1", itemId: "item-4", text: "Flour" }),

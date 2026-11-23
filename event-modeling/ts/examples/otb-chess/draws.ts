@@ -122,7 +122,7 @@ m.slice()
   .chapter(d.DrawsAndResignation)
   .actor(d.Player)
   .service(d.ChessService)
-  .test("White offers a draw on move 21", {
+  .spec("White offers a draw on move 21", {
     given: rd1,
     when: d.OfferDraw({ gameId: "otb-2024-ct-r5-b1", offeringSide: "white", ply: 41 }),
     then: drawOffered,
@@ -135,7 +135,7 @@ m.slice()
   .event(d.DrawAgreed, () => ({ status: t.literal("accepted") }))
   .chapter(d.DrawsAndResignation)
   .note("A move by the opponent declines the offer. FIDE 9.1.2.3.")
-  .test("The offer is pending on the opponent", {
+  .spec("The offer is pending on the opponent", {
     given: drawOffered,
     then: d.PendingDrawOffer({
       gameId: "otb-2024-ct-r5-b1",
@@ -144,7 +144,7 @@ m.slice()
       status: "pending",
     }),
   })
-  .test("The offer is declined when the opponent replies with a move", {
+  .spec("The offer is declined when the opponent replies with a move", {
     given: [drawOffered, e4],
     then: d.PendingDrawOffer({
       gameId: "otb-2024-ct-r5-b1",
@@ -153,7 +153,7 @@ m.slice()
       status: "declined",
     }),
   })
-  .test("The offer is closed once the draw is agreed", {
+  .spec("The offer is closed once the draw is agreed", {
     given: [drawOffered, drawAgreed],
     then: d.PendingDrawOffer({
       gameId: "otb-2024-ct-r5-b1",
@@ -170,7 +170,7 @@ m.slice()
   .chapter(d.DrawsAndResignation)
   .actor(d.Player)
   .service(d.ChessService)
-  .test("Black accepts the pending draw offer", {
+  .spec("Black accepts the pending draw offer", {
     given: drawOffered,
     when: d.AcceptDraw({
       gameId: "otb-2024-ct-r5-b1",
@@ -180,7 +180,7 @@ m.slice()
     }),
     then: drawAgreed,
   })
-  .test("Accepting with no offer pending is rejected", {
+  .spec("Accepting with no offer pending is rejected", {
     given: e4,
     when: d.AcceptDraw({
       gameId: "otb-2024-ct-r5-b1",
@@ -198,7 +198,7 @@ m.slice()
   .chapter(d.DrawsAndResignation)
   .actor(d.Player)
   .service(d.ChessService)
-  .test("Black resigns a lost endgame", {
+  .spec("Black resigns a lost endgame", {
     given: kf6,
     when: d.Resign({
       gameId: "otb-2024-ct-r5-b1",

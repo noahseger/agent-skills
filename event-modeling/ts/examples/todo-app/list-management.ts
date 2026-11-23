@@ -64,11 +64,11 @@ m.slice()
   .chapter(d.ListManagement)
   .actor(d.User)
   .service(d.TodoService)
-  .test("User creates a new list", {
+  .spec("User creates a new list", {
     when: d.CreateList({ userId: "u-1", listId: "list-1", name: "Groceries" }),
     then: groceries,
   })
-  .test("Duplicate list name rejected", {
+  .spec("Duplicate list name rejected", {
     given: groceries,
     when: d.CreateList({ userId: "u-1", listId: "list-2", name: "Groceries" }),
     reject: "list name already exists",
@@ -81,12 +81,12 @@ m.slice()
   .actor(d.User)
   .screen(d.ListScreen)
   .service(d.TodoService)
-  .test("User adds an item to a list", {
+  .spec("User adds an item to a list", {
     given: groceries,
     when: d.AddItem({ userId: "u-1", listId: "list-1", itemId: "item-1", text: "Milk" }),
     then: milk,
   })
-  .test("Adding a fourth item is rejected", {
+  .spec("Adding a fourth item is rejected", {
     given: [
       milk,
       d.ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-2", title: "Eggs" }),
@@ -103,7 +103,7 @@ m.slice()
   .actor(d.User)
   .screen(d.ListScreen)
   .service(d.TodoService)
-  .test("User completes an item", {
+  .spec("User completes an item", {
     given: milk,
     when: d.CompleteItem({ userId: "u-1", listId: "list-1", itemId: "item-1" }),
     then: d.ItemCompleted({ userId: "u-1", listId: "list-1", itemId: "item-1" }),
@@ -116,7 +116,7 @@ m.slice()
   .actor(d.User)
   .screen(d.ListScreen)
   .service(d.TodoService)
-  .test("User deletes an item from a list", {
+  .spec("User deletes an item from a list", {
     given: milk,
     when: d.DeleteItem({ listId: "list-1", itemId: "item-1" }),
     then: d.ItemDeleted({ listId: "list-1", itemId: "item-1" }),
@@ -128,7 +128,7 @@ m.slice()
   .chapter(d.ListManagement)
   .actor(d.User)
   .service(d.TodoService)
-  .test("User deletes a list", {
+  .spec("User deletes a list", {
     given: groceries,
     when: d.DeleteList({ userId: "u-1", listId: "list-1" }),
     then: d.ListDeleted({ userId: "u-1", listId: "list-1" }),
