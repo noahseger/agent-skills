@@ -252,7 +252,7 @@ onUnmounted(() => {
       />
       <div v-else class="empty">Waiting for the model…</div>
       <Detail
-        v-if="selectedColumn && drawn && model && !present"
+        v-if="selectedColumn && drawn && model && !present && (!sliceOpen || selectedBox)"
         :box="selectedBox"
         :column="selectedColumn"
         :layout="drawn"
