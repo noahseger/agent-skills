@@ -2,9 +2,10 @@
 import { computed } from "vue"
 import { words } from "../../src/types.ts"
 import type { Board, BoardField } from "./board.ts"
-import { type Box, type Column, KIND, type Layout, parse, parseClause, source } from "./layout.ts"
+import { type Box, type Column, KIND, type Layout, parse, type Spec, source } from "./layout.ts"
 import Messages from "./Messages.vue"
 import Name from "./Name.vue"
+import Specs from "./Specs.vue"
 
 const props = defineProps<{
   box: Box | null
@@ -58,42 +59,21 @@ const triggers = computed(() => {
 })
 
 // The element's specifications, or the slice's when nothing is selected.
-interface Group {
-  column: number
-  heading: string
-  tests: { name: string; given: string[]; when: string; then: string[] }[]
-}
-const groups = computed<Group[]>(() => {
+const groups = computed(() => {
   const name = props.box?.name
-  const out: Group[] = []
-  for (const col of props.layout.columns) {
-    const tests = name
-      ? col.slice.tests.filter((t) =>
-          [...t.given, t.when, ...t.then].some((c) => c && parseClause(c).name === name),
-        )
-      : col.index === props.column.index
-        ? col.slice.tests
-        : []
-    if (tests.length === 0) continue
+  const mine = (s: Spec) =>
+    name
+      ? s.steps.some((st) => st.cards.some((c) => c.name === name))
+      : s.column === props.column.index
+  return props.layout.columns.flatMap((col) => {
+    const specs = props.layout.specs.filter((s) => s.column === col.index && mine(s))
+    if (specs.length === 0) return []
     const chapter = props.layout.chapters[col.chapter]?.title ?? ""
-    out.push({
-      column: col.index,
-      heading: chapter ? `${chapter} › ${col.title}` : col.title,
-      tests,
-    })
-  }
-  return out
+    return [
+      { column: col.index, heading: chapter ? `${chapter} › ${col.title}` : col.title, specs },
+    ]
+  })
 })
-
-const isError = (clause: string) => clause.startsWith("Error:")
-/** The JSON says `Error:`; the model and the manual say rejected. A name reads as words. */
-const show = (clause: string) => {
-  const { name } = parseClause(clause)
-  const named = clause.startsWith(name) ? words(name) + clause.slice(name.length) : clause
-  return named.replace(/^Error:/, "Rejected:")
-}
-const mentions = (clause: string) =>
-  props.box !== null && parseClause(clause).name === props.box.name
 </script>
 
 <template>
@@ -140,23 +120,7 @@ const mentions = (clause: string) =>
       <h3>Specifications</h3>
       <template v-for="g in groups" :key="g.column">
         <button v-if="box" type="button" class="group" @click="$emit('goto', g.column)">{{ g.heading }}</button>
-        <div v-for="t in g.tests" :key="t.name" class="spec">
-          <div class="name">{{ t.name }}</div>
-          <div v-if="t.given.length" class="step">
-            <span class="word">given</span>
-            <span><code v-for="c in t.given" :key="c" :class="{ mark: mentions(c) }">{{ show(c) }}</code></span>
-          </div>
-          <div v-if="t.when" class="step">
-            <span class="word">when</span>
-            <span><code :class="{ mark: mentions(t.when) }">{{ show(t.when) }}</code></span>
-          </div>
-          <div class="step">
-            <span class="word">then</span>
-            <span>
-              <code v-for="c in t.then" :key="c" :class="{ rejected: isError(c), mark: mentions(c) }">{{ show(c) }}</code>
-            </span>
-          </div>
-        </div>
+        <Specs :specs="g.specs" :mark="box?.name" />
       </template>
     </template>
   </aside>

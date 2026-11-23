@@ -1,19 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue"
-import { words } from "../../src/types.ts"
 import Card from "./Card.vue"
-import {
-  ARROW_H,
-  type Box,
-  HEADER_H,
-  type Layout,
-  NAME_H,
-  path,
-  polyline,
-  SPEC_CARD_TITLE,
-  SPEC_LINE_H,
-  SPEC_TITLE_LINE,
-} from "./layout.ts"
+import { ARROW_H, type Box, HEADER_H, type Layout, NAME_H, path, polyline } from "./layout.ts"
 import Mark from "./Mark.vue"
 
 const props = defineProps<{
@@ -285,43 +273,6 @@ const transform = computed(
           @pointerenter="hoverCard(box)"
           @pointerleave="hoverCard(null)"
         />
-
-        <g v-for="spec in layout.specs" :key="spec.column + spec.title.join()" class="spec-block">
-          <text
-            v-for="(line, i) in spec.title"
-            :key="i"
-            class="spec-title"
-            :x="spec.x"
-            :y="spec.y + 11 + i * SPEC_TITLE_LINE"
-          >
-            {{ line }}
-          </text>
-          <g v-for="step in spec.steps" :key="step.word">
-            <text class="spec-word" :x="spec.x" :y="step.y + 10">{{ step.word }}</text>
-            <g
-              v-for="(card, ci) in step.cards"
-              :key="ci"
-              class="card spec"
-              :class="[card.kind, { lit: hovered === card.name, dim: lit !== null && hovered !== card.name }]"
-              :transform="`translate(${card.x} ${card.y})`"
-              @pointerenter="emit('hover', card.name)"
-              @pointerleave="emit('hover', null)"
-            >
-              <rect class="shape" :width="card.w" :height="card.h" rx="6" />
-              <text class="title" :x="10" :y="16">{{ words(card.name) }}</text>
-              <text
-                v-for="(line, li) in card.lines"
-                :key="li"
-                class="field"
-                style="white-space: pre"
-                :x="10"
-                :y="SPEC_CARD_TITLE + li * SPEC_LINE_H"
-              >
-                {{ line }}
-              </text>
-            </g>
-          </g>
-        </g>
       </g>
     </svg>
   </div>

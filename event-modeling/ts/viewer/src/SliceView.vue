@@ -17,6 +17,7 @@ import {
 } from "./layout.ts"
 import Mark from "./Mark.vue"
 import Name from "./Name.vue"
+import Specs from "./Specs.vue"
 
 // One slice at full width, with room to read its specifications.
 const props = defineProps<{
@@ -44,7 +45,7 @@ const local = computed(() => {
   const blocks: { label: string; boxes: Box[] }[] = []
   for (const r of props.layout.rows) {
     const inRow = mine.filter((b) => within(b, r))
-    if (r.kind === "specs" || inRow.length === 0) continue
+    if (inRow.length === 0) continue
     blocks.push({ label: r.label, boxes: inRow })
   }
 
@@ -120,10 +121,6 @@ function follow(name: string) {
   const id = canonical(name)
   if (id) emit("link", id)
 }
-// A specification line is `field = value`; the value gets its own column so it wraps under itself.
-const field = (line: string) => line.split(" = ")[0] ?? line
-const value = (line: string) => line.slice(field(line).length + 3)
-
 function cardClass(b: Box) {
   return { selected: b.id === props.selectedBox, lit: props.hovered === b.name }
 }
@@ -213,23 +210,7 @@ function cardClass(b: Box) {
         </div>
 
         <h3 v-if="specs.length" class="specs-title">Specifications</h3>
-        <div class="specs-grid">
-          <article v-for="spec in specs" :key="spec.title.join()" class="hspec">
-            <h4>{{ spec.title.join(" ") }}</h4>
-            <div v-for="step in spec.steps" :key="step.word" class="hstep">
-              <span class="word">{{ step.word }}</span>
-              <div class="hcards">
-                <div v-for="(card, i) in step.cards" :key="i" class="hcard" :class="card.kind" @pointerenter="emit('hover', card.name)" @pointerleave="emit('hover', null)">
-                  <div class="hname"><Name :name="card.name" /></div>
-                  <div v-for="line in card.lines" :key="line" class="hline">
-                    <span class="k">{{ field(line) }}</span>
-                    <span class="v">{{ value(line) }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </article>
-        </div>
+        <Specs :specs="specs" @hover="emit('hover', $event)" />
       </div>
     </div>
   </section>

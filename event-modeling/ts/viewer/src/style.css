@@ -95,7 +95,6 @@ svg .slice-head:focus-visible > rect {
 /* tags: the small uppercase labels used everywhere */
 .tag,
 .lane-kind,
-.spec-word,
 .card .key-mark,
 .detail h3,
 .detail .kind,
@@ -439,7 +438,8 @@ svg .mark-error text {
   fill: transparent;
 }
 
-.error {
+/* The model that didn't load; `pre`, so a rejection's card, also `.error`, keeps its own look. */
+pre.error {
   margin: 0;
   padding: 12px 20px;
   border-bottom: 1px solid #fecaca;
@@ -463,10 +463,6 @@ svg .mark-error text {
 
 .lane.stream {
   fill: #fbfbfc;
-}
-
-.lane.specs {
-  fill: #f8fafc;
 }
 
 .lane-line {
@@ -690,40 +686,6 @@ svg .mark-error text {
   font-weight: 500;
 }
 
-/* specifications drawn under the slice */
-.spec-title {
-  font-size: 12px;
-  font-weight: 700;
-  fill: var(--ink);
-}
-
-.spec-word {
-  fill: var(--muted);
-}
-
-.card.spec {
-  cursor: default;
-}
-
-.card.spec .title {
-  font-size: 11px;
-}
-
-.card.spec .field {
-  font-size: 10px;
-}
-
-.card.spec .title {
-  font-size: 11px;
-}
-
-.card.error .shape { fill: var(--danger-fill); stroke: var(--danger-stroke); }
-.card.error .title { fill: var(--danger-ink); }
-.card.error .field { fill: var(--danger-ink); }
-.card.description .shape { fill: var(--panel); stroke: var(--faint); stroke-dasharray: 3 3; }
-.card.description .title { fill: var(--muted); }
-.card.description .field { fill: var(--ink); font-family: var(--sans); }
-
 .card.ui .shape { fill: var(--ui-fill); stroke: var(--ui-stroke); }
 .card.ui .title { fill: var(--ui-ink); }
 .card.command .shape { fill: var(--command-fill); stroke: var(--command-stroke); }
@@ -809,11 +771,6 @@ svg .mark-error text {
 
 .detail .group:hover {
   color: var(--accent);
-}
-
-.spec .step code.mark {
-  color: var(--accent);
-  font-weight: 600;
 }
 
 .detail .close {
@@ -941,46 +898,6 @@ svg .mark-error text {
   margin: 0;
   font-family: var(--mono);
   font-size: 12px;
-}
-
-.spec {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px 12px;
-  margin-bottom: 10px;
-}
-
-.spec .name {
-  font-weight: 600;
-  margin-bottom: 8px;
-}
-
-.spec .step {
-  display: grid;
-  grid-template-columns: 44px 1fr;
-  gap: 8px;
-  font-size: 12px;
-  margin-top: 4px;
-}
-
-.spec .step .word {
-  color: var(--muted);
-  font-weight: 600;
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking);
-  text-transform: uppercase;
-  padding-top: 2px;
-}
-
-.spec .step code {
-  font-family: var(--mono);
-  display: block;
-  color: var(--ink);
-  overflow-wrap: anywhere;
-}
-
-.spec .step code.rejected {
-  color: var(--danger);
 }
 
 /* the slice at full width */
@@ -1218,3 +1135,11 @@ svg .mark-error text {
 .hcard.automation { background: var(--automation-fill); border-color: var(--automation-stroke); color: var(--automation-ink); }
 .hcard.ui { background: var(--ui-fill); border-color: var(--ui-stroke); color: var(--ui-ink); }
 .hcard.error { background: var(--danger-fill); border-color: var(--danger-stroke); color: var(--danger-ink); }
+.hcard.description { background: var(--panel); border-color: var(--faint); border-style: dashed; color: var(--ink); }
+
+/* The selected element's cards in the detail's specifications. */
+.hcard.mark { box-shadow: 0 0 0 2px var(--accent); }
+
+.hcard .hsaid {
+  font-size: 12px;
+}

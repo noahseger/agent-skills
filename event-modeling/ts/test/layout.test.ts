@@ -12,6 +12,7 @@ import {
   type Box,
   fitColumns,
   grouped,
+  LANE_PAD,
   layout,
   nextError,
   parse,
@@ -66,10 +67,6 @@ test("parseClause gives one line per field, and a rejection its message", () => 
     error: false,
     described: true,
   })
-  assert.deepEqual(wrap("Adding a fourth item is rejected", 20), [
-    "Adding a fourth item",
-    "is rejected",
-  ])
 })
 
 test("a mapped field shows where its value came from", () => {
@@ -117,16 +114,12 @@ test("every card sits inside its column and inside one row", () => {
   }
 })
 
-test("no two cards overlap, specifications included", () => {
-  const all = [...out.boxes, ...out.specs]
-  for (const a of all) {
-    for (const b of all) {
+test("no two cards overlap", () => {
+  for (const a of out.boxes) {
+    for (const b of out.boxes) {
       if (a === b) continue
       const apart = a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y
-      assert.ok(
-        apart,
-        `${"name" in a ? a.name : "spec"} and ${"name" in b ? b.name : "spec"} overlap`,
-      )
+      assert.ok(apart, `${a.name} and ${b.name} overlap`)
     }
   }
 })
@@ -323,15 +316,16 @@ test("a note marks the card and the slice", () => {
   assert.ok(!out.boxes.find((b) => b.name === "ItemAdded")?.noted)
 })
 
-test("specifications sit under their slice, one card per clause with a line per field", () => {
+test("specifications are off the canvas, which ends at its last lane; each is its slice's, a card per clause with a line per field", () => {
+  const lanes = out.boxes.map((b) => rowOf(b) ?? { y: 0, h: 0 })
+  assert.equal(out.height, Math.max(...lanes.map((r) => r.y + r.h)) + LANE_PAD)
   const column = out.columns.find((c) => c.label === "AddItem")
   assert.ok(column)
   const specs = out.specs.filter((s) => s.column === column.index)
-  assert.equal(specs.length, column.slice.tests.length)
-  for (const s of specs) {
-    assert.equal(rowOf(s)?.id, "specs")
-    assert.ok(s.x >= column.x && s.x + s.w <= column.x + column.w)
-  }
+  assert.deepEqual(
+    specs.map((s) => s.title),
+    column.slice.tests.map((t) => t.name),
+  )
   const rejected = specs[1]
   assert.ok(rejected)
   const then = rejected.steps.find((st) => st.word === "then")
@@ -505,19 +499,11 @@ test("a command's outcomes stand side by side in their lane, each joined to the 
     assert.ok(both.edges.some((e) => e.from === command.id && e.to === outcome.id))
 })
 
-test("a long value wraps inside its specification card", () => {
-  const fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-  const copy: Board = JSON.parse(JSON.stringify(model))
-  const slice = copy.chapters[0]?.slices[0]
-  assert.ok(slice?.tests[0])
-  slice.tests[0].then = [`ListCreated(listId=list-1, fen=${fen})`]
-  const spec = layout(copy).specs.find((s) => s.column === 0)
-  const card = spec?.steps.find((st) => st.word === "then")?.cards[0]
-  assert.ok(card && card.lines.length >= 3)
-  for (const line of card.lines) assert.ok(line.length <= 24, line)
-  assert.ok(card.lines[1]?.startsWith("fen = rnbq"), "the value starts on the field's own line")
-  for (const line of card.lines.slice(2)) assert.ok(line.startsWith("  "), "overflow is indented")
-  assert.equal(card.lines.slice(1).join("").replace(/\s/g, ""), `fen=${fen}`.replace(/\s/g, ""))
+test("wrap breaks at words, and splits only a word longer than a line, indenting the rest", () => {
+  assert.deepEqual(wrap("Adding a fourth item is rejected", 20), [
+    "Adding a fourth item",
+    "is rejected",
+  ])
   assert.equal(wrap("abcdefghijklmnopqrstuvwxyz", 10).join("|"), "abcdefghij|klmnopqrst|uvwxyz")
   assert.deepEqual(wrap("Duplicate list name rejected", 26), ["Duplicate list name", "rejected"])
   assert.deepEqual(wrap("a bbbbbbbbbb", 8, 2), ["a bbbbbb", "  bbbb"])

@@ -77,7 +77,7 @@ export interface Row {
   label: string
   /** What the lane is: Actor, Admin, System for a machine of ours, External, or Stream. */
   sub?: string
-  kind: "actor" | "middle" | "stream" | "specs"
+  kind: "actor" | "middle" | "stream"
   y: number
   h: number
 }
@@ -112,25 +112,17 @@ export interface SpecCard {
   name: string
   /** One `field = value` per line. */
   lines: string[]
-  x: number
-  y: number
-  w: number
-  h: number
 }
 
 export interface SpecStep {
   word: "given" | "when" | "then"
-  y: number
   cards: SpecCard[]
 }
 
+/** A specification, drawn as cards in the slice's detail and in the opened slice, not on the canvas. */
 export interface Spec {
   column: number
-  title: string[]
-  x: number
-  y: number
-  w: number
-  h: number
+  title: string
   steps: SpecStep[]
 }
 
@@ -173,15 +165,6 @@ export const TABLE_H = 52
 export const TABLE_CHAR = 5.2
 export const TABLE_PAD = 12
 export const TABLE_MORE_W = 26
-export const SPEC_TITLE_LINE = 14
-export const SPEC_WORD_H = 22
-export const SPEC_CARD_TITLE = 30
-export const SPEC_LINE_H = 13
-export const SPEC_GAP = 8
-export const SPEC_TEST_GAP = 26
-export const SPEC_TITLE_CHARS = 26
-export const SPEC_LINE_CHARS = 24
-export const SPEC_INDENT = 2
 
 const PAD_X = (COL_W - CARD_W) / 2
 
@@ -819,70 +802,37 @@ export function layout(model: Board): Layout {
     ]
   }
 
-  // Specifications, under the slice they belong to.
-  const specs: Spec[] = []
-  const specsTop = y + LANE_PAD
-  let specsBottom = specsTop
-  for (const col of columns) {
-    let sy = specsTop
-    for (const t of col.slice.tests) {
-      const title = wrap(t.name, SPEC_TITLE_CHARS)
-      const spec: Spec = {
-        column: col.index,
-        title,
-        x: col.x + (col.w - CARD_W) / 2,
-        y: sy,
-        w: CARD_W,
-        h: 0,
-        steps: [],
-      }
-      let cy = sy + title.length * SPEC_TITLE_LINE + SPEC_GAP
+  const specs: Spec[] = columns.flatMap((col) =>
+    col.slice.tests.map((t) => {
       const steps: [SpecStep["word"], string[]][] = [
         ["given", t.given],
         ["when", t.when ? [t.when] : []],
         ["then", t.then],
       ]
-      for (const [word, clauses] of steps) {
-        if (clauses.length === 0) continue
-        const step: SpecStep = { word, y: cy, cards: [] }
-        cy += SPEC_WORD_H
-        for (const clause of clauses) {
-          const parsed = parseClause(clause)
-          const lines = parsed.lines.flatMap((l) => wrap(l, SPEC_LINE_CHARS, SPEC_INDENT))
-          const { name, error, described } = parsed
-          const h = lines.length > 0 ? SPEC_CARD_TITLE + lines.length * SPEC_LINE_H + 6 : 26
-          // A view's when is the context its screen asks for.
-          const asked = word === "when" && !col.slice.command
-          step.cards.push({
-            kind: error
-              ? "error"
-              : described
-                ? "description"
-                : asked
-                  ? "ui"
-                  : (kinds.get(name) ?? "command"),
-            name,
-            lines,
-            x: spec.x,
-            y: cy,
-            w: CARD_W,
-            h,
-          })
-          cy += h + SPEC_GAP
-        }
-        spec.steps.push(step)
+      return {
+        column: col.index,
+        title: t.name,
+        steps: steps
+          .filter(([, clauses]) => clauses.length > 0)
+          .map(([word, clauses]) => ({
+            word,
+            cards: clauses.map((clause): SpecCard => {
+              const { name, lines, error, described } = parseClause(clause)
+              // A view's when is the context its screen asks for.
+              const asked = word === "when" && !col.slice.command
+              const kind = error
+                ? "error"
+                : described
+                  ? "description"
+                  : asked
+                    ? "ui"
+                    : (kinds.get(name) ?? "command")
+              return { kind, name, lines }
+            }),
+          })),
       }
-      spec.h = cy - sy
-      specs.push(spec)
-      sy = cy + SPEC_TEST_GAP
-    }
-    specsBottom = Math.max(specsBottom, sy)
-  }
-  if (specs.length > 0) {
-    const h = specsBottom - specsTop + LANE_PAD
-    rows.push({ id: "specs", label: "Specifications", kind: "specs", y, h })
-    y += h
-  }
+    }),
+  )
 
   const placed = new Set(columns.flatMap((c) => c.messages))
   return {
