@@ -454,6 +454,9 @@ A view's key columns, the fields marked `.key()`, say how many rows it has:
 | with no key column | `m.view("TotalRevenue", { total: t.number() })` | changes its one row | needs no filter: `.query(d.TotalRevenue)` |
 | a list | `m.view("NoteActivity", t.array({ … }))` | adds a row | every matching row |
 
+The screen of a view with no key column shows its one row, and its state view's response is that
+row.
+
 A list of what happened to each note:
 
 ```ts

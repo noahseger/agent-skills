@@ -40,6 +40,8 @@ export interface Box {
   form?: string[]
   button?: string
   table?: string[]
+  /** One for the table of a view with no key column, which has one row; otherwise the table shows two. */
+  tableRows?: 1
   /** The columns of `table` that fit the card, and how many did not. */
   tableColumns?: { name: string; x: number; w: number }[]
   tableMore?: number
@@ -487,6 +489,7 @@ export function layout(model: Board): Layout {
       form?: string[]
       button?: string
       table?: string[]
+      tableRows?: 1
     } = {},
   ): Placed => {
     const key = `${kind === "external" ? "event" : kind}:${el.name}`
@@ -506,6 +509,7 @@ export function layout(model: Board): Layout {
         ? {}
         : {
             table: extra.table,
+            ...(extra.tableRows && { tableRows: extra.tableRows }),
             tableColumns: fitColumns(extra.table, CARD_W - 24).columns,
             tableMore: fitColumns(extra.table, CARD_W - 24).more,
           }),
@@ -569,7 +573,8 @@ export function layout(model: Board): Layout {
       const method = slash < 0 ? s.ui : s.ui.slice(slash + 1)
       // The wireframe is the command's form or the view's table.
       const commandFields = s.command ? parse(s.command).fields : []
-      const shown = s.read_models?.[0] ? parse(s.read_models[0]).fields : undefined
+      const view = s.read_models?.[0] ? parse(s.read_models[0]) : undefined
+      const one = view !== undefined && view.keys.length === 0 && !view.list
       for (const actor of s.actors ?? [s.actor]) {
         const ui = make(
           i,
@@ -579,7 +584,8 @@ export function layout(model: Board): Layout {
             ...(service === undefined ? {} : { detail: service }),
             form: s.command ? commandFields : (s.context ?? []),
             ...(s.command ? { button: parse(s.command).name } : {}),
-            ...(shown === undefined ? {} : { table: shown }),
+            ...(view === undefined ? {} : { table: view.fields }),
+            ...(one && { tableRows: 1 as const }),
           },
         )
         uis.push(ui)

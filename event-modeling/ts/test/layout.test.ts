@@ -227,6 +227,32 @@ test("a screen is a wireframe of its command or its view", () => {
   assert.ok(list?.tableColumns && list.tableColumns.length < 5 && list.tableMore)
 })
 
+test("a screen's table shows one row for a view with no key column, and two for any other", () => {
+  const revenue = layout({
+    ...model,
+    chapters: [
+      {
+        name: "Sales",
+        slices: [
+          {
+            name: "Revenue",
+            actor: "user",
+            aggregate: "lists",
+            ui: "Revenue",
+            read_models: ["Revenue(total)"],
+            trigger: ["ItemAdded(listId)"],
+            tests: [],
+          },
+        ],
+      },
+    ],
+  })
+  const ui = (board: ReturnType<typeof layout>, name: string) =>
+    board.boxes.find((b) => b.kind === "ui" && b.name === name)
+  assert.equal(ui(revenue, "Revenue")?.tableRows, 1)
+  assert.equal(ui(out, "ListTodoLists")?.tableRows, undefined)
+})
+
 test("a table shows the columns that fit and counts the rest", () => {
   const { columns, more } = fitColumns(["userId", "listId", "name", "itemCount", "status"], 144)
   assert.ok(columns.length >= 2 && columns.length < 5)

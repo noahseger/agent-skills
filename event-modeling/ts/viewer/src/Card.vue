@@ -65,7 +65,7 @@ const centred = computed(
         <text v-for="col in box.tableColumns ?? []" :key="col.name" class="col" :x="col.x + 6" :y="11">
           {{ col.name }}
         </text>
-        <template v-for="r in 2" :key="r">
+        <template v-for="r in box.tableRows ?? 2" :key="r">
           <line :x1="0" :x2="box.w - 24" :y1="16 + r * 14" :y2="16 + r * 14" />
           <rect
             v-for="col in box.tableColumns ?? []"
