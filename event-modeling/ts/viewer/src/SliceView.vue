@@ -96,9 +96,9 @@ const specs = computed(() => props.layout.specs.filter((s) => s.column === props
 const viewBox = computed(() => `${props.column.x} 0 ${props.column.w} ${local.value.height}`)
 
 const slice = computed(() => props.column.slice)
-const warnings = computed(() =>
-  (props.model.warnings ?? []).filter(
-    (w) => w.slice === slice.value.name || w.element === slice.value.name,
+const messages = computed(() =>
+  (props.model.messages ?? []).filter(
+    (m) => m.slice === slice.value.name || m.element === slice.value.name,
   ),
 )
 const actor = computed(() =>
@@ -180,7 +180,7 @@ function cardClass(b: Box) {
       <div class="slice-right">
         <div class="facts">
           <p v-if="slice.note" class="note"><span class="badge" aria-hidden="true">i</span>{{ slice.note }}</p>
-          <p v-for="w in warnings" :key="w.message" class="note warning"><span class="badge" aria-hidden="true">!</span>{{ w.message }}</p>
+          <p v-for="m in messages" :key="m.message" class="note warning"><span class="badge" aria-hidden="true">!</span>{{ m.ui ?? m.message }}</p>
           <dl>
             <template v-if="actor"><dt>Actor</dt><dd>{{ actor }}</dd></template>
             <template v-if="slice.ui"><dt>Service</dt><dd>{{ slice.ui }}</dd></template>

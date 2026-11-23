@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { type Box, BUTTON_H, FIELD_H, INPUT_H, TITLE_H, words } from "./layout.ts"
+import { words } from "../../src/types.ts"
+import { type Box, BUTTON_H, FIELD_H, INPUT_H, TITLE_H } from "./layout.ts"
 
 const props = defineProps<{ box: Box }>()
 defineEmits<{ link: [canonical: string]; pick: [] }>()

@@ -1,7 +1,7 @@
 // What the layout draws: the model as columns and lanes, read from the spec JSON by `read.ts`.
 // An element is written `Name(field, *key)`, a clause `Name(field=value)`, `Error: reason` or
 // `Described: outcome`.
-import type { Source, Warning } from "../../src/types.ts"
+import type { Message, Source } from "../../src/types.ts"
 
 /** A field as the card detail shows it: `type` is a format, enum values or a JSON type, `[]` per list. */
 export interface BoardField {
@@ -80,5 +80,6 @@ export interface Board {
   /** Per element, its fields as its schema types them. */
   fields?: Record<string, BoardField[]>
   loose?: Loose[]
-  warnings?: Warning[]
+  /** The errors, then the warnings. */
+  messages?: Message[]
 }

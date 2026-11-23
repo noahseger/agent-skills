@@ -11,6 +11,7 @@ import {
   type Fields,
   type Flow,
   inputNames,
+  type Message,
   origin,
   recorded,
   type SliceData,
@@ -18,7 +19,6 @@ import {
   slug,
   type TestData,
   taken,
-  type Warning,
 } from "./types.ts"
 
 // --- The spec's types, as much as is written or read ---------------------------
@@ -126,8 +126,10 @@ export interface Feed {
   actors?: SpecActor[]
   /** Declarations in no slice yet. */
   loose?: SpecElement[]
-  /** What is left to do. */
-  warnings?: Warning[]
+  /** Data that is wrong or has no source. */
+  errors?: Message[]
+  /** What is unfinished, with nothing wrong. */
+  warnings?: Message[]
 }
 
 // --- From the assembled model ----------------------------------------------------
@@ -222,7 +224,7 @@ export function toFeed({
   externals,
   loose,
   unchaptered,
-  warnings,
+  messages,
 }: Assembled): Feed {
   const streamOf = (d: DeclData): string | undefined => {
     for (const [name, members] of streams) if (members.includes(d)) return name
@@ -255,8 +257,15 @@ export function toFeed({
     streams: [...streams.keys()].sort((a, b) => first(a) - first(b)),
     actors: [...looseActors, ...systems],
     ...(looseElements.length > 0 && { loose: looseElements }),
-    ...(warnings.length > 0 && { warnings }),
+    ...kinds(messages),
   }
+}
+
+/** The messages as the feed carries them: `errors` and `warnings`, each only when there are some. */
+export function kinds(messages: readonly Message[]): Pick<Feed, "errors" | "warnings"> {
+  const errors = messages.filter((m) => m.kind === "error")
+  const warnings = messages.filter((m) => m.kind === "warning")
+  return { ...(errors.length > 0 && { errors }), ...(warnings.length > 0 && { warnings }) }
 }
 
 function sliceOf(

@@ -349,7 +349,7 @@ svg .warn-dot {
   white-space: pre-wrap;
 }
 
-/* What a model still being written has left to do. */
+/* What is wrong with a model, or unfinished. */
 .warnings {
   margin: 0;
   padding: 8px 20px;

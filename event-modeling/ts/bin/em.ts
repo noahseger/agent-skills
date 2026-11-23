@@ -5,12 +5,13 @@
 //   types  <path> [--check]       write em-registry.d.ts beside the model, so d is typed; --check
 //                                 exits 1 if it is out of date
 //   json   <path> [--partial]     print the model as event-modeling-spec JSON; --partial keeps
-//                                 going past dead ends and prints what the viewer reads
-//   proto  <path> -o dir          write one .proto per service whose own slices are finished
+//                                 going past errors and prints what the viewer reads
+//   proto  <path> -o dir          write one .proto per service whose own slices have no errors
 //   view   <path> [--port n]      serve the live diagram; --no-open keeps the browser closed
 //   export <path> -o out.html     one self-contained page of the model, for sharing
 //
-// <path> is a model directory or a single module. An assembly error stops every command.
+// <path> is a model directory or a single module. An assembly error stops every command; a
+// warning stops none.
 // `view` and `export` also take a spec JSON file, and list where it breaks the schema.
 import { execFile, spawn, spawnSync } from "node:child_process"
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs"
@@ -24,15 +25,16 @@ import {
   importModel,
   load,
   loadModules,
+  type Message,
   modelFiles,
-  type Warning,
 } from "../src/assemble.ts"
 import { type Checker, COMPILER_OPTIONS, checker } from "../src/check.ts"
 import { exportHtml } from "../src/export.ts"
 import { generateProto } from "../src/proto.ts"
 import { current, GENERATED, registry, specifierOf, writeRegistry } from "../src/registry.ts"
 import { type Snapshot, serve } from "../src/serve.ts"
-import { type SpecModel, toFeed } from "../src/spec.ts"
+import { kinds, type SpecModel, toFeed } from "../src/spec.ts"
+import { counted } from "../src/types.ts"
 import { validate } from "../src/validate.ts"
 
 // Node 22 needs a flag to run TypeScript, so rerun with it. Node 23.6 does not.
@@ -120,7 +122,7 @@ async function types(path: string): Promise<void> {
   if (!values.check)
     console.log(writeRegistry(dir, made) ? `Wrote ${file}` : `${file} is up to date.`)
   else if (!current(dir, made)) {
-    console.error(`${file} is out of date. Run em types ${path}.`)
+    console.error(`${file}: out of date. Run em types ${path}.`)
     process.exitCode = 1
   }
 }
@@ -138,22 +140,26 @@ async function json(path: string): Promise<void> {
   }
   const { modules, dir } = imported
   const feed = toFeed(loadModules(modules, { partial: values.partial }, dir))
-  // Warnings go to stderr so stdout stays valid JSON.
-  for (const w of feed.warnings ?? []) console.error(w.message)
+  // Messages go to stderr so stdout stays valid JSON.
+  for (const m of [...(feed.errors ?? []), ...(feed.warnings ?? [])]) console.error(m.message)
   console.log(JSON.stringify(values.partial ? feed : feed.model, null, 2))
 }
 
-/** A service whose own slices are finished is written, whatever is left to do elsewhere. */
+/** A service whose own slices have no errors is written, whatever is wrong elsewhere. */
 async function proto(path: string, out: string): Promise<void> {
   const files = generateProto(await load(path, { partial: true }))
+  // Nothing is wrong: the model has no API yet.
   if (files.length === 0)
-    throw new Error(
-      'No slice has a service, so no .proto was written. Add .service(d.Api) to the state changes and views the API serves, after `m.service("Api", "my.v1")`.',
+    console.error(
+      'No service: no .proto written. Add .service(d.Api) to the state changes and views it serves, after m.service("Api", "my.v1").',
     )
   for (const file of files) {
     const target = join(out, file.path)
-    if ("problems" in file) {
-      console.error(`Skipped ${target}. Its service has left to do:\n${file.problems.join("\n")}`)
+    if ("errors" in file) {
+      const n = file.errors.length
+      console.error(
+        `Skipped ${target}: ${file.service} has ${n} ${n === 1 ? "error" : "errors"}:\n${file.errors.join("\n")}`,
+      )
       process.exitCode = 1
       continue
     }
@@ -175,15 +181,18 @@ function assembleFresh(path: string): Promise<{ ok: boolean; stdout: string; std
   })
 }
 
-/** Assembles and type-checks at once, and logs everything left to fix in one block. */
+/** Assembles and type-checks at once, and logs every error and warning in one block. */
 async function reload(path: string, types: Checker, cause = "Started"): Promise<Snapshot> {
   const started = Date.now()
   const check = () =>
-    types
-      .check()
-      .catch((e: unknown): Warning[] => [
-        { message: `The type check stopped: ${String(e)}`, element: "" },
-      ])
+    types.check().catch((e: unknown): Message[] => [
+      {
+        kind: "error",
+        message: `Type check stopped: ${String(e)}`,
+        ui: "Type check stopped",
+        element: "",
+      },
+    ])
   const generated = join(statSync(path).isDirectory() ? path : dirname(path), GENERATED)
   const read = () => (existsSync(generated) ? readFileSync(generated, "utf8") : undefined)
   const before = read()
@@ -191,8 +200,8 @@ async function reload(path: string, types: Checker, cause = "Started"): Promise<
   // The run writes em-registry.d.ts when a declaration changed, after the check beside it read it.
   const errors = read() === before ? first : await check()
   if (run.ok) {
-    const feed = JSON.parse(run.stdout) as Feed
-    return report(cause, started, { ...feed, warnings: mergeFindings(errors, feed.warnings ?? []) })
+    const { errors: wrong = [], warnings = [], ...feed } = JSON.parse(run.stdout) as Feed
+    return report(cause, started, { ...feed, ...kinds(merged(errors, [...wrong, ...warnings])) })
   }
   // A compiler error says where and why; the JavaScript error it caused only says what broke.
   return failed(
@@ -202,11 +211,18 @@ async function reload(path: string, types: Checker, cause = "Started"): Promise<
   )
 }
 
-/** A spec JSON file is drawn as it is; where it breaks the schema is left to do. */
+/** A spec JSON file is drawn as it is; each place it breaks the schema is an error. */
 function readSpec(path: string): Feed {
   const model: unknown = JSON.parse(readFileSync(path, "utf8"))
-  const warnings = validate(model).map((m) => ({ message: `${basename(path)}${m}`, element: "" }))
-  return { name: basename(path, ".json"), model: model as SpecModel, warnings }
+  const errors = validate(model).map(
+    ({ at, problem }): Message => ({
+      kind: "error",
+      message: `${basename(path)} ${at}: ${problem}`,
+      ui: `${basename(path)}: ${at} ${problem}`,
+      element: "",
+    }),
+  )
+  return { name: basename(path, ".json"), model: model as SpecModel, ...kinds(errors) }
 }
 
 async function reloadSpec(path: string, cause = "Started"): Promise<Snapshot> {
@@ -221,17 +237,15 @@ async function reloadSpec(path: string, cause = "Started"): Promise<Snapshot> {
 const stamp = (cause: string, started: number) =>
   `${new Date().toTimeString().slice(0, 8)} ${cause} (${Date.now() - started}ms).`
 
-/** Logs everything left to fix in one block. */
+/** Logs every error, then every warning, in one block. */
 function report(cause: string, started: number, feed: Feed): Snapshot {
-  const count = feed.warnings?.length ?? 0
+  const all = [...(feed.errors ?? []), ...(feed.warnings ?? [])]
   const summary =
-    count === 0
+    all.length === 0
       ? "Nothing left to do."
-      : count === 1
-        ? "1 thing left to do:"
-        : `${count} things left to do:`
+      : `${counted(feed.errors?.length ?? 0, feed.warnings?.length ?? 0)}:`
   console.log(`${stamp(cause, started)} ${summary}`)
-  for (const w of feed.warnings ?? []) console.log(`  ${w.message}`)
+  for (const m of all) console.log(`  ${m.message}`)
   return { json: JSON.stringify(feed) }
 }
 
@@ -242,10 +256,10 @@ function failed(cause: string, started: number, error: string): Snapshot {
 }
 
 /**
- * The compiler and assembly both report a field with no value. Keep the compiler's
+ * The compiler and assembly both report a field with no source. Keep the compiler's
  * line, which says where to type, and the slice assembly marks.
  */
-function mergeFindings(compiled: readonly Warning[], found: readonly Warning[]): Warning[] {
+function merged(compiled: readonly Message[], found: readonly Message[]): Message[] {
   const merged = compiled.map((c) => ({ ...c }))
   const rest = found.filter((w) => {
     const same = merged.find(

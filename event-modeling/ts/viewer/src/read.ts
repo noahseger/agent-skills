@@ -9,7 +9,7 @@ import type {
   SpecSlice,
   SpecStep,
 } from "../../src/spec.ts"
-import { type Source, slug } from "../../src/types.ts"
+import { type Message, type Source, slug } from "../../src/types.ts"
 import type { Board, BoardActor, BoardField, BoardSlice, BoardTest, Loose } from "./board.ts"
 
 const SYSTEM: BoardActor = { id: "system", name: "System", type: "system" }
@@ -314,6 +314,7 @@ export function read(written: Feed): Board {
     return { kind, element: element(el), aggregate }
   })
   for (const a of feed.actors ?? []) person(a)
+  const messages = [...list<Message>(feed.errors), ...list<Message>(feed.warnings)]
 
   return {
     name: feed.name,
@@ -324,6 +325,6 @@ export function read(written: Feed): Board {
     notes,
     fields,
     ...(loose.length > 0 && { loose }),
-    ...(feed.warnings && feed.warnings.length > 0 && { warnings: feed.warnings }),
+    ...(messages.length > 0 && { messages }),
   }
 }

@@ -45,13 +45,42 @@ function declaredWith(name: string, as?: string): string {
     : `${as}("${name}")`
 }
 
+/**
+ * Why a step was left out, such as a `d.Name` that names nothing: the terminal's wording,
+ * `lead: rest`, and the viewer's problem. `element` is the name, when there is one.
+ */
+export class Misstep extends Error {
+  readonly element: string
+  readonly lead: string
+  readonly rest: string
+  readonly problem: string
+  constructor(element: string, lead: string, rest: string, problem: string) {
+    super(lead === "" ? rest : `${lead}: ${rest}`)
+    this.element = element
+    this.lead = lead
+    this.rest = rest
+    this.problem = problem
+  }
+}
+
 /** What `d.Name` names, or why it names nothing. `as` is the m. function that would declare it. */
 export function resolve(ref: unknown, as?: string): Exported {
   const name = typeof ref === "function" ? ref.name : undefined
   const found = name === undefined ? undefined : REGISTRY.get(name)
   if (found) return found.data
-  if (name === undefined) throw new Error(`${String(ref)} is not a declaration: pass d.Name.`)
-  throw new Error(`d.${name} is not declared. Declare it with ${declaredWith(name, as)}.`)
+  if (name === undefined)
+    throw new Misstep(
+      "",
+      "",
+      `${String(ref)} is not a declaration. Pass d.Name.`,
+      "a step names no element",
+    )
+  throw new Misstep(
+    name,
+    `d.${name}`,
+    `not declared. Declare it with ${declaredWith(name, as)}.`,
+    "not declared",
+  )
 }
 
 export type Fields = Record<string, z.ZodType>
@@ -150,25 +179,32 @@ export interface Assembled {
   loose: Declaration[]
   /** Slices in no chapter, drawn after the chapters with no heading. */
   unchaptered: SliceData[]
-  /** The dead ends a partial assembly went on past. Empty otherwise. */
-  warnings: Warning[]
-  /** Each slice's own dead ends: what checking it alone finds, not what connects it to others. */
-  unfinished: Map<SliceData, string[]>
+  /** The errors and warnings, in the order found. A strict assembly throws its errors instead. */
+  messages: Message[]
+  /** Each slice's own errors: what checking it alone finds, not what connects it to others. */
+  errors: Map<SliceData, Message[]>
 }
 
-/** A dead end, with the element and slice the viewer marks. */
-export interface Warning {
+/**
+ * What the modeler is told: an error when data is wrong or has no source, a warning when the model
+ * is unfinished but nothing is wrong. The viewer marks its element and slice.
+ */
+export interface Message {
+  kind: "error" | "warning"
+  /** The terminal's wording: the element first, then the problem and its fix in code. */
   message: string
+  /** The viewer's wording: the element's name as words, then the problem, with no code. */
+  ui?: string
   element: string
   slice?: string
-  /** The fields of `element` that have no value, when that is the dead end. */
+  /** The fields of `element` that have no value, when that is the problem. */
   fields?: string[]
 }
 
 /**
  * Where a mapping function got one target field from: a field before its step, by name; a constant;
  * or a generated value, with what it is made from: fields by name, or, in a state view, the event by
- * declaration. `built` marks one the mapping computed instead, which is left to do.
+ * declaration. `built` marks one the mapping computed instead, which is an error.
  */
 export type Source =
   | { from: string; decl?: DeclData }
@@ -221,8 +257,8 @@ export interface TestData {
   /** A state view's `when`: the values of its context. */
   context?: Record<string, unknown>
   then: ClauseData[]
-  /** What Zod refused in an example or the context, with where in it. */
-  invalid?: { decl: DeclData; message: string }[]
+  /** What Zod refused in an example or the context: where in it, and Zod's message. */
+  invalid?: { decl: DeclData; path: string; message: string }[]
   /** A specification written as a function, run at assembly once every module has. */
   later?: () => TestData
   /** What that function threw, which leaves the specification empty. */
@@ -259,7 +295,7 @@ export interface SliceData {
   /** The chapters it joined; assembly allows one. */
   chapters: ChapterData[]
   /** What its calls threw when assembly made it, such as naming what nothing declares. */
-  failed?: string[]
+  failed?: Misstep[]
 }
 
 /** The events a slice records. A state view records none. */
@@ -288,6 +324,42 @@ export function taken(flow: Flow, from: DeclData): string[] {
 export function heard(slice: SliceData): DeclData[] {
   if (slice.view) return slice.events.map((f) => f.decl)
   return slice.trigger ? [slice.trigger] : []
+}
+
+const SMALL = new Set([
+  "a",
+  "an",
+  "and",
+  "as",
+  "at",
+  "by",
+  "for",
+  "in",
+  "of",
+  "on",
+  "or",
+  "the",
+  "to",
+  "with",
+])
+
+/**
+ * `DrawsAndResignation` -> `Draws and Resignation`. Names are code; the picture and its messages
+ * show words. An acronym is two capitals or more, so `OAuth` is one word.
+ */
+export function words(name: string): string {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]{2,})([A-Z][a-z])/g, "$1 $2")
+    .split(" ")
+    .map((w, i) => (i > 0 && SMALL.has(w.toLowerCase()) ? w.toLowerCase() : w))
+    .join(" ")
+}
+
+/** `2 errors, 1 warning`: how many of each there are, leaving out a kind there are none of. */
+export function counted(errors: number, warnings: number): string {
+  const of = (n: number, word: string) => (n === 0 ? [] : [`${n} ${word}${n === 1 ? "" : "s"}`])
+  return [...of(errors, "error"), ...of(warnings, "warning")].join(", ")
 }
 
 /** `ListCreated` -> `list-created`: an id. */

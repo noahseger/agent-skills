@@ -58,7 +58,7 @@ declared for `text`, and the editor refuses one that does not fit its target: a 
 not fit a `t.uuid()`. A field that flows by name must fit too, and only one declaration before the step
 may carry it; where two do, the mapping says which. A constant is `t.literal("open")`, or
 `t.literal([])` for the empty list. A step that lacks a field is an error on that step, worded as
-the fix: `add title to a step before .event() or set it in the mapping`. The editor offers only the calls
+the fix: `ItemAdded.title: no source. Add title to a step before .event(), or set it in the mapping.` The editor offers only the calls
 that can come next.
 
 ## The slice patterns
@@ -71,7 +71,7 @@ that can come next.
 | translation | the external event | `.translation(d.ExternalEvent).command(d.Command).event(d.Event)` | An event from outside becomes an event of ours. No actor is involved. |
 
 A slice is complete once it has its command and an event, or its view and an event. Before then it
-compiles, is drawn as far as it goes, and what it lacks is left to do; `.spec()` waits for its
+compiles, is drawn as far as it goes, and what it lacks is a warning; `.spec()` waits for its
 events. `.event()` again adds an event the command can record. `.query()` reads a view, before the
 events. `.context()` gives a state view the fields it is read with, `.spec()` adds a specification,
 and `.chapter()` puts the slice in a chapter. A state change or state view also takes `.actor()`,
@@ -117,7 +117,8 @@ If `npm install` answers `401` or `404`, the token is missing or lacks `read:pac
 writes `model/index.ts`; a `tsconfig.json` that lets node run the model with no build step and
 type-checks the directory, `em-registry.d.ts` included; that file, which types `d`; and a
 `package.json` that marks the directory as ES modules. Leave `view` running in its own terminal: on
-every save it rewrites `em-registry.d.ts`, redraws, and lists above the picture what is left to do.
+every save it rewrites `em-registry.d.ts`, redraws, and lists above the picture its errors, then
+its warnings.
 
 ### 3. Write the model
 
@@ -325,7 +326,7 @@ string. `em view` rewrites it on every save. Commit it, so a fresh clone type-ch
 A name nothing declares is a compiler error, `Property 'ArchivItem' does not exist on type
 'Registry'`, and a declaration of another kind is refused where a step takes one. Two declarations
 with the same fields are still two: `d.ArchiveCart` is not `d.ArchiveItem`. A name declared twice is
-left to do; a stream, a system or a chapter is one by name, so two modules may each declare it.
+an error; a stream, a system or a chapter is one by name, so two modules may each declare it.
 
 One tsconfig is one model: `d` holds every name in the files it type-checks, so a second model there
 would mix its names in. The tsconfig `em init` writes covers its own directory.
@@ -373,7 +374,7 @@ m.slice().command(d.ShareText).event(d.NoteShared) // ShareText has no imageUri
 m.slice().command(d.ShareImage).event(d.NoteShared) // ShareImage carries it
 ```
 
-An optional field no slice fills is left to do. The same holds for an automation's command. A
+An optional field no slice fills has no source, an error. The same holds for an automation's command. A
 mapping has no default for a missing value: make the field optional instead.
 
 A value the handler makes has no field to copy. Say what it is made from with `m.generate()`: fields
@@ -383,13 +384,13 @@ before its step. From nothing, it is an id or a clock. A specification may give 
 .command(d.AddNote).event(d.NoteAdded, (c) => ({ noteId: m.generate(), slug: m.generate(c.AddNote.title) }))
 ```
 
-An automation's command is filled from what is before it, so a value generated there is left to do.
+An automation's command is filled from what is before it, so a value generated there is an error.
 
 A mapping only copies, sets constants and says what a value is made from; it computes nothing. A
 string built from a field, such as `` `${c.AddNote.title}!` ``, or arithmetic, such as
 `c.SetTimer.minutes * 60`, is not a field, so the editor refuses it. A field changed by a method,
-such as `c.AddNote.title.describe("loud")`, is not a source field: it is drawn as generated and left
-to do, with the fix: `m.generate(c.AddNote.title)`.
+such as `c.AddNote.title.describe("loud")`, is not a source field: it is drawn as generated and is an
+error, with the fix: `m.generate(c.AddNote.title)`.
 
 The events of `.command(d.AddItem).event(d.ItemAdded).event(d.ListFull)` are what the command
 can produce, not a sequence; the diagram draws them side by side. Each specification's `then` says
@@ -472,7 +473,7 @@ is empty.
 A view has one state view slice, so a later chapter can extend a table next to the event that
 changes it. Every `m.slice().view()` of it adds its events, mappings and specifications to that
 slice, which is drawn where the first one is: in its chapter, seen by its actors on its screen,
-served by its method. A later call that names another of those is left to do.
+served by its method. A later call that names another of those is an error.
 
 ```ts
 m.slice()
@@ -492,8 +493,8 @@ needs no screen, actor or service.
 ### Specifications
 
 A specification is a Given, When, Then example attached to a slice with `.spec()`. Calling
-`d.Name` with data builds an example of it, and its fields check the values: one they refuse is left
-to do, with where in the example. `given` and `then` accept one example or a list. A state change's specification has `then`, the events recorded, or `reject`,
+`d.Name` with data builds an example of it, and its fields check the values: one they refuse is an
+error, with where in the example. `given` and `then` accept one example or a list. A state change's specification has `then`, the events recorded, or `reject`,
 why the command is refused; never both. A state view's has `given`, the events that build the rows;
 `when`, the values of its context, only once it has a `.context()`; and `then`, the rows the screen
 shows. It has no `reject`, because a view cannot reject an event. Any `then` may also hold strings,
@@ -607,7 +608,7 @@ An external event builds no view: it isn't stored, so the view would be empty af
 replay. Translate it into an event of ours with `.translation()`, as above, and project that.
 `.translation()` takes only an external event, and `.automation()` refuses one; fields flow and
 map as in an automation an event starts, but it reads one row at most. An external event a slice of ours produces is published
-and needs no translation; any other no `.translation()` reads is left to do, even if a
+and needs no translation; any other no `.translation()` reads is a warning, even if a
 specification's `given` has it. Translation is for an event that arrives on its own.
 
 The model says that data arrives, not how. A call to such a system is our command and the outside
@@ -652,7 +653,7 @@ nothing. The CLI finds every declaration, and every slice, by running each modul
 
 A chapter is a heading on the timeline, declared with `m.chapter("Capture", 1)`, like a stream. A
 slice joins it with `.chapter(d.Capture)`, complete or not, and joins at most one. A chapter no slice
-has joined yet is drawn as a title with no columns, and is left to do. A slice in no chapter is
+has joined yet is drawn as a title with no columns, and is a warning. A slice in no chapter is
 drawn after the story with no heading: chapters are optional, like their numbers. Two
 modules that declare one name declare one chapter.
 
@@ -669,8 +670,8 @@ The compiler catches:
 
 | Where | What |
 |---|---|
-| any reference | It is `d.Name`. A name nothing declares is no member of `d`, a string is not a reference, and a declaration of another kind is refused where a step takes one, with the fix: `ListCreated is an event: pass a command`. Two declarations with the same fields are still two. |
-| the chain | Only a legal chain compiles; each step offers only what can come next. `.spec()` refuses a slice with no event yet and says what to add, such as `add .event() before .spec()`. |
+| any reference | It is `d.Name`. A name nothing declares is no member of `d`, a string is not a reference, and a declaration of another kind is refused where a step takes one, with the fix: `ListCreated: is an event; pass a command.` Two declarations with the same fields are still two. |
+| the chain | Only a legal chain compiles; each step offers only what can come next. `.spec()` refuses a slice with no event yet and says what to add, such as `no event. Add .event() before .spec().` |
 | a step's declaration | It is one `d.Name`. What `m.command()` returns is not, nor is an example. |
 | a mapping | Its argument holds each declaration before its step by name, with its fields: what starts the slice, the rows it queries, the command and the outside events it gets back; in a state view, the event. Its result must be fields of the target, each a field that fits it, a `t.literal()` or `m.generate()`. A string format, such as `t.uuid()`, takes only that format. |
 | a field that flows by name | It must fit its target as a mapped one does, and only one declaration before the step may carry it; a filter column and its namesake are one. The error names the field to set in the mapping, and where two carry it, both. |
@@ -679,11 +680,18 @@ The compiler catches:
 | `.query()` | The filter names columns of the view, each from a field before the step that fits it. A filter that does not name every key column, and any filter of a list, picks many rows, which only an automation reads, before its command. A view with no key column has one row, and needs no filter; any other view does. |
 | a state view's event | An external event is refused, because it isn't stored. The error says to translate it first. |
 | what starts an automation or a translation | `.automation()` refuses an external event, and the error says to use `.translation()`; `.translation()` takes nothing else. |
-| `.key()` | Only a view's field takes it, so `.query()` can count the rows a filter picks. An event's or a command's is refused: `only a view has key columns`. |
+| `.key()` | Only a view's field takes it, so `.query()` can count the rows a filter picks. An event's or a command's is refused: `id: only a view has key columns. Remove .key().` |
 | `.service()` on a state view | It names the method. |
 | `.spec()` | `when` is the slice's command, or a state view's context values. `then` is its events, or the rows of the view a state view shows, and strings that describe an outcome; `reject` replaces `then`, and a state view has none. The values have their fields' types; a oneOf holds exactly one case. |
 
-Assembly catches the rest, and each error names the slice it found the problem in:
+Assembly catches the rest. Each finding is an error when data is wrong or has no source, and a
+warning when the model is unfinished but nothing is wrong, such as a missing specification or a
+slice with no event yet. Each names its element first, then the slice it was found in, and the
+fix: `ItemAdded.title (ListManagement › AddItem): no source. Add title to a step before .event(),
+or set it in the mapping.` The diagram says the same without the code: `Item Added: title has no
+source`.
+
+| What | Why the compiler cannot |
 
 | What | Why the compiler cannot |
 |---|---|
@@ -750,8 +758,8 @@ follows; a model written by hand can do the same, and the viewer draws it.
 
 The top level holds only `slices`, so the rest travels beside the JSON, only to the viewer: the
 model's name and description; the chapters, with their notes, and the streams, in the order
-drawn; the actors no slice names and every external system; and, while the model is unfinished,
-the declarations in no slice and what is left to do. That is what `em json --partial` prints. Notes
+drawn; the actors no slice names and every external system; the declarations in no slice; and
+the model's `errors` and `warnings`. That is what `em json --partial` prints. Notes
 on actors, services and external systems have no place in either.
 
 ## Protobuf
@@ -759,10 +767,10 @@ on actors, services and external systems have no place in either.
 `proto` writes one `.proto` file per service, at the path its package implies, ready for
 `buf generate` with your own `buf.gen.yaml`. The output passes `buf lint` under `STANDARD`.
 
-A service's file is written once its own slices are finished: the state changes and state views with
-`.service()` naming it, each with its command, views and context fields. What is left to do
-elsewhere does not hold it back; a service with its own left to do is skipped, its to-dos printed,
-and `proto` exits 1.
+A service's file is written once its own slices have no errors: the state changes and state views
+with `.service()` naming it, each with its command, views and context fields. An error elsewhere,
+or a warning anywhere, such as a missing specification, does not hold it back; a service whose own
+slices have errors is skipped, its errors printed, and `proto` exits 1.
 
 | Slice | Generates |
 |---|---|
@@ -794,18 +802,20 @@ npx em proto  model/ -o proto        # one .proto per service
 
 Every command also accepts a single self-contained file.
 
-`json` assembles the model and fails when assembly reports errors. With `--partial` it goes on past dead ends
-and prints what the viewer reads: the spec JSON as `model`, beside it what the spec has no place
-for, and the dead ends as `warnings`. `view` and `export` assemble that way.
+`json` assembles the model and fails when assembly finds errors; its warnings go to stderr. With
+`--partial` it goes on past errors and prints what the viewer reads: the spec JSON as `model`, and
+beside it what the spec has no place for, the `errors` and `warnings` among it. `view` and `export`
+assemble that way.
 
 `view` rewrites `em-registry.d.ts` and type-checks the model on every save, with the
 `tsconfig.json` that `init` wrote. It logs each compiler error as `file:line`, with what assembly
-left to do, in the terminal and above the picture. An example used above its declaration is one
-line per file, listing what to move up.
+finds, in the terminal under a count such as `2 errors, 3 warnings:`, errors first, or `Nothing
+left to do.`; above the picture it lists the same in plain words. An example used above its
+declaration is one line per file, listing what to move up.
 
 `view` and `export` also draw a model written as spec JSON, by hand or extracted from a running
-system. It is drawn as far as it goes, and each place it breaks the schema is listed as left to do,
-as `model.json/slices/0/sliceType must be equal to one of the allowed values ...`. The file has only
+system. It is drawn as far as it goes, and each place it breaks the schema is listed as an error, as
+`model.json /slices/0/sliceType: must be equal to one of the allowed values ...`. The file has only
 what the spec has, so lanes and chapters come in the order its slices first name them, and a screen
 no actor is said to see is a User's.
 

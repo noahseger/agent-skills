@@ -18,6 +18,7 @@ test("the checked-in proto is what the model generates", async () => {
   assert.deepEqual(generateProto(await load(here("../examples/todo-app"))), [
     {
       path: "todo/v1/todo_service.proto",
+      service: "TodoService",
       source: readFileSync(here("../examples/proto/todo/v1/todo_service.proto"), "utf8"),
     },
   ])
@@ -26,7 +27,7 @@ test("the checked-in proto is what the model generates", async () => {
 // --- The generator reads the named model. Assembly's checks are another test's
 // business, so these fixtures assemble partially and pass on no dead end. -----
 
-type Chapters = Pick<Assembled, "chapters" | "unchaptered" | "unfinished">
+type Chapters = Pick<Assembled, "chapters" | "unchaptered" | "errors">
 
 /** A one-service model of what the test declared and wrote, with the names every test shares. */
 function modelOf(): Chapters {
@@ -37,13 +38,13 @@ function modelOf(): Chapters {
   // What a state change records; the generator never reads it.
   m.event("Done", {})
   const { chapters, unchaptered } = loadModules([{ default: m.model("x") }], { partial: true })
-  return { chapters, unchaptered, unfinished: new Map() }
+  return { chapters, unchaptered, errors: new Map() }
 }
 
 /** The first file's source, or else what stopped it. */
 function source(model: Chapters): string {
   const file = generateProto(model)[0]
-  return file === undefined ? "" : "source" in file ? file.source : file.problems.join("\n")
+  return file === undefined ? "" : "source" in file ? file.source : file.errors.join("\n")
 }
 
 const stateChange = () =>
@@ -161,12 +162,12 @@ test("a field's description is the comment above it", () => {
 test("a field protobuf has no form for stops its service, naming the declaration and the field", () => {
   m.command("Create", { id: t.string(), tags: t.array(t.record(t.string())) })
   stateChange()
-  assert.match(source(modelOf()), /^Create\.tags can't become protobuf: a list of records\./)
+  assert.match(source(modelOf()), /^Create\.tags: no protobuf type for a list of records\./)
   m.view("Table", { id: t.string().key(), end: t.oneOf({ moves: t.array(t.string()) }) })
   m.slice().view(d.Table).event(d.Created).actor(d.User).service(d.TestService, "Get")
   assert.match(
     source(modelOf()),
-    /^Table\.end\.moves can't become protobuf: a oneOf case that is a list or a record\./,
+    /^Table\.end\.moves: no protobuf type for a oneOf case that is a list or a record\./,
   )
 })
 

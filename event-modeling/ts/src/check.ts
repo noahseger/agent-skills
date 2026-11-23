@@ -4,11 +4,11 @@ import { dirname, join, relative, resolve } from "node:path"
 import { API, type Diagnostic, DiagnosticCategory, type Snapshot } from "typescript/unstable/async"
 
 import { GENERATED } from "./registry.ts"
-import type { Warning } from "./types.ts"
+import { type Message, words } from "./types.ts"
 
 export interface Checker {
   /** Every compiler error in the model, one line each. */
-  check(): Promise<Warning[]>
+  check(): Promise<Message[]>
 }
 
 /**
@@ -72,7 +72,7 @@ export function checker(path: string): Checker {
       seen = now
       const program = snapshot.getProject(config)?.program
       if (!program) return []
-      const lines: Warning[] = []
+      const lines: Message[] = []
       for (const file of files) {
         const found = [
           ...(await program.getSyntacticDiagnostics(file)),
@@ -81,13 +81,16 @@ export function checker(path: string): Checker {
         const text = readFileSync(file, "utf8")
         const errors = found.filter((d) => d.category === DiagnosticCategory.Error)
         const early = [...new Set(errors.flatMap(usedEarly))]
+        const many = early.length > 1
         if (early.length > 0)
           lines.push({
-            message: `${relative(root, file)}: declare ${early.join(", ")} above where ${early.length > 1 ? "they are" : "it is"} used.`,
+            kind: "error",
+            message: `${early.join(", ")}: used above ${many ? "their declarations" : "its declaration"} in ${relative(root, file)}. Move ${many ? "them" : "it"} up.`,
+            ui: `${early.join(", ")}: used before ${many ? "they're" : "it's"} declared`,
             element: "",
           })
         for (const d of errors)
-          if (usedEarly(d).length === 0) lines.push(describe(d, text, relative(root, file)))
+          if (usedEarly(d).length === 0) lines.push(...describe(d, text, relative(root, file)))
       }
       return lines
     },
@@ -115,69 +118,105 @@ function usedEarly(d: Diagnostic): string[] {
   return name === undefined ? [] : [name]
 }
 
-const MISSING = /"add (\w+) to a step before (\S+) or set it in the mapping"/g
-const MISFIT =
-  /"(\w+) does not fit: set it to a field of its type, a t\.literal\(\) or m\.generate\(\)"/g
-const SHARED = /"(\w+) comes from ([^"]+): set it in the mapping"/g
+/** A string literal type in a diagnostic, its quotes escaped. */
+const QUOTED = /"((?:[^"\\]|\\.)*)"/g
 /** A mapping's result that is not a field its target takes; the target may be `O[K] & Fit<…>`. */
 const UNFIT = /^Type '.*' is not assignable to type '(?:[^']* & )?(?:Fit<|\{ readonly __value)/
 const UNSET = /Property '(\w+)' is missing in type '.*' but required in type 'Pick</
-/** Any other sentence the package's types put where a step goes wrong. */
-const INSTRUCTION =
-  /"((?:add |the |key column |start with |pass |say |only a view |\w+ is |(?:\w+ )?comes from |is a view|is ours|isn't stored|no one |an automation |a state view )(?:[^"\\]|\\.)*)"/
 const LAST_OVERLOAD = "The last overload gave the following error."
 
-/** `file:line  message`. The package's own type errors become the instruction they carry. */
-function describe(d: Diagnostic, text: string, file: string): Warning {
-  const said = (message: string): Warning => ({ message, element: "" })
-  const at = (pos: number) => `${file}:${text.slice(0, pos).split("\n").length}  `
+/** How the viewer says an instruction: about `element`, or, with none, as a sentence of its own. */
+type Worded = Pick<Message, "kind" | "element" | "fields" | "ui">
+const about = (
+  kind: Message["kind"],
+  element: string,
+  problem: string,
+  field?: string,
+): Worded => ({
+  kind,
+  element,
+  ui: element === "" ? problem : `${words(element)}: ${problem}`,
+  ...(field !== undefined && { fields: [field] }),
+})
+
+/** What a field's instruction says; the types give one per field. */
+const FIELD: [RegExp, (field: string) => string][] = [
+  [/^(\w+)\.(\w+): no source\. /, (f) => `${f} has no source`],
+  [/^(\w+)\.(\w+): doesn't fit/, (f) => `${f} doesn't fit`],
+  [/^(\w+)\.(\w+): comes from /, (f) => `${f} has two sources`],
+]
+
+/** Every other instruction the package's types put where a step goes wrong, as src/index.ts words it. */
+const INSTRUCTIONS: [RegExp, (m: RegExpMatchArray) => Worded][] = [
+  [/^(\w+): is an? \w+; pass (an? \w+)\.$/, (m) => about("error", m[1] ?? "", `not ${m[2]}`)],
+  [/^not a declaration\. /, () => about("error", "", "A step names no element")],
+  [/^(\w+): only a view has key columns\. /, (m) => about("error", "", `${m[1]} can't be a key`)],
+  [/^(\w+): many rows /, (m) => about("error", m[1] ?? "", "query finds many rows")],
+  [/^(\w+): no column (\w+)\.$/, (m) => about("error", m[1] ?? "", `no column ${m[2]}`)],
+  [/^(\w+): say which rows: /, (m) => about("error", m[1] ?? "", "query doesn't say which rows")],
+  [
+    /^(\w+): not an outside event\. /,
+    (m) => about("error", m[1] ?? "", "not from an External System"),
+  ],
+  [/^(\w+): comes from outside\. /, (m) => about("error", m[1] ?? "", "needs a translation")],
+  [/^(\w+): not stored\. /, (m) => about("error", m[1] ?? "", "not stored")],
+  [/^method has no name\. /, () => about("error", "", "A state view's method has no name")],
+  [/^no one sees an automation\. /, () => about("error", "", "An automation has no screen")],
+  [/^an automation has no method\. /, () => about("error", "", "An automation has no method")],
+  [/^empty\. Start it with /, () => about("warning", "", "A slice is empty")],
+  [/^no command\. Add \.command\(\) /, () => about("warning", "", "A slice has no command")],
+  [/^no event\. Add \.event\(\) /, () => about("warning", "", "A slice has no event")],
+]
+
+/**
+ * `file:line  instruction`. The package's own type errors become the instruction they carry, one
+ * line per field when they are about fields.
+ */
+function describe(d: Diagnostic, text: string, file: string): Message[] {
+  const at = `${file}:${text.slice(0, d.pos).split("\n").length}  `
   const lines = messages(d)
-  // A call's `d.Name` is named by its name.
-  const target = text.slice(d.pos, d.end).replace(/^d\.(\w+)$/, "$1")
-  const element = target.match(/\w+$/)?.[0] ?? ""
-  // One sentence per field the step lacks.
-  const missing = [...d.text.matchAll(MISSING)]
-  if (missing[0]) {
-    const fields = missing.flatMap((f) => (f[1] ? [f[1]] : []))
-    return {
-      message: `${at(d.pos)}${target}: add ${fields.join(", ")} to a step before ${missing[0][2]} or set it in the mapping`,
-      element,
-      fields,
+  const quoted = (said: string) =>
+    [...said.matchAll(QUOTED)].map((q) => (q[1] ?? "").replaceAll('\\"', '"'))
+  const fields = quoted(d.text).flatMap((said): Message[] => {
+    for (const [pattern, problem] of FIELD) {
+      const [, element = "", field = ""] = said.match(pattern) ?? []
+      if (element !== "")
+        return [{ message: `${at}${said}`, ...about("error", element, problem(field), field) }]
     }
-  }
-  // One sentence per field that would flow by name but does not fit.
-  const misfit = [...d.text.matchAll(MISFIT)]
-  if (misfit[0]) {
-    const fields = misfit.flatMap((f) => (f[1] ? [f[1]] : []))
-    const them = fields.length > 1 ? "do not fit: set each" : "does not fit: set it"
-    return {
-      message: `${at(d.pos)}${target}: ${fields.join(", ")} ${them} to a field of its type, a t.literal() or m.generate()`,
-      element,
-      fields,
-    }
-  }
-  // One sentence per field that two declarations before the step carry.
-  const shared = [...d.text.matchAll(SHARED)]
-  if (shared[0]) {
-    const fields = shared.flatMap((f) => (f[1] ? [f[1]] : []))
-    const from = shared.map((f) => `${f[1]} comes from ${f[2]}`).join(", ")
-    return {
-      message: `${at(d.pos)}${target}: ${from}: set ${fields.length > 1 ? "them" : "it"} in the mapping`,
-      element,
-      fields,
-    }
-  }
+    return []
+  })
+  if (fields.length > 0) return fields
+  // The mapping's key whose value does not fit.
+  const target = text.slice(d.pos, d.end)
   if (UNFIT.test(d.text))
-    return said(
-      `${at(d.pos)}${target} does not fit: set it to a field of its type, a t.literal() or m.generate()`,
-    )
+    return [
+      {
+        message: `${at}${target}: doesn't fit. Set it to a field of its type, a t.literal() or m.generate().`,
+        ...about("error", "", `${target} doesn't fit`),
+      },
+    ]
   const unset = lines.map((l) => l.match(UNSET)?.[1]).find((f) => f !== undefined)
-  if (unset) return said(`${at(d.pos)}the mapping must set ${unset}`)
-  const instruction = lines.map((l) => l.match(INSTRUCTION)?.[1]).find((m) => m !== undefined)
-  if (instruction) return said(`${at(d.pos)}${instruction.replaceAll('\\"', '"')}`)
+  if (unset)
+    return [
+      {
+        message: `${at}${unset}: doesn't fit, so the mapping must set it.`,
+        ...about("error", "", `${unset} doesn't fit`),
+      },
+    ]
+  for (const said of lines.flatMap(quoted))
+    for (const [pattern, worded] of INSTRUCTIONS) {
+      const m = said.match(pattern)
+      if (m) return [{ message: `${at}${said}`, ...worded(m) }]
+    }
   // A failed overload call heads a chain; the last overload's reason is the line after it.
   const last = lines.indexOf(LAST_OVERLOAD)
-  return said(`${at(d.pos)}${(last >= 0 ? lines[last + 1] : lines[0]) ?? ""}`)
+  return [
+    {
+      kind: "error",
+      message: `${at}${(last >= 0 ? lines[last + 1] : lines[0]) ?? ""}`,
+      element: "",
+    },
+  ]
 }
 
 function messages(d: Diagnostic): string[] {

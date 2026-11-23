@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue"
 import type { Feed } from "../../src/spec.ts"
+import { counted } from "../../src/types.ts"
 import type { Board } from "./board.ts"
 import Canvas from "./Canvas.vue"
 import Detail from "./Detail.vue"
@@ -25,6 +26,11 @@ const hovered = ref<string | null>(null)
 const focus = ref<{ column: number | null; seq: number }>({ column: null, seq: 0 })
 
 const drawn = computed(() => (model.value ? layout(model.value) : null))
+const summary = computed(() => {
+  const all = model.value?.messages ?? []
+  const errors = all.filter((m) => m.kind === "error").length
+  return counted(errors, all.length - errors)
+})
 const selectedBox = computed<Box | null>(() => {
   const sel = selection.value
   if (!sel?.name) return null
@@ -186,8 +192,8 @@ onUnmounted(() => {
       </span>
     </header>
     <pre v-if="error !== null" class="error" role="alert">{{ error }}</pre>
-    <ul v-if="model?.warnings?.length" class="warnings" role="status" aria-label="Left to do">
-      <li v-for="w in model.warnings" :key="w.message">{{ w.message }}</li>
+    <ul v-if="model?.messages?.length" class="warnings" role="status" :aria-label="summary">
+      <li v-for="m in model.messages" :key="m.message">{{ m.ui ?? m.message }}</li>
     </ul>
     <main class="body">
       <Nav

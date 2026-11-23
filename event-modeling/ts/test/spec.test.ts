@@ -113,8 +113,12 @@ const titles = (els: { title: string }[] | undefined) => (els ?? []).map((e) => 
 test("the model validates against the vendored schema, and a broken one says where", () => {
   assert.deepEqual(validate(json), [])
   assert.deepEqual(validate({ slices: [{ ...place, sliceType: "VIEW", extra: 1 }] }), [
-    "/slices/0 must NOT have additional properties: extra",
-    "/slices/0/sliceType must be equal to one of the allowed values STATE_CHANGE, STATE_VIEW, AUTOMATION, TRANSLATION",
+    { at: "/slices/0", problem: "must NOT have additional properties: extra" },
+    {
+      at: "/slices/0/sliceType",
+      problem:
+        "must be equal to one of the allowed values STATE_CHANGE, STATE_VIEW, AUTOMATION, TRANSLATION",
+    },
   ])
 })
 
@@ -412,7 +416,12 @@ test("a model from elsewhere draws from the spec alone", () => {
 })
 
 test("a file that breaks the schema below its slices is drawn as far as its lists go", () => {
-  const warnings = [{ message: "x.json/slices/0/events/0 must be object", element: "" }]
+  const errors = [
+    { kind: "error" as const, message: "x.json /slices/0/events/0: must be object", element: "" },
+  ]
+  const warnings = [
+    { kind: "warning" as const, message: "Loose: nothing records it.", element: "Loose" },
+  ]
   const board = read({
     name: "x",
     model: JSON.parse(
@@ -421,10 +430,11 @@ test("a file that breaks the schema below its slices is drawn as far as its list
     chapters: JSON.parse("[null]"),
     loose: JSON.parse("[null]"),
     warnings,
+    errors,
   })
   assert.deepEqual(
     board.chapters.flatMap((c) => c.slices.map((s) => [s.name, s.tests])),
     [["x", [{ name: "t", given: [], when: "", then: [] }]]],
   )
-  assert.deepEqual(board.warnings, warnings)
+  assert.deepEqual(board.messages, [...errors, ...warnings], "errors first")
 })

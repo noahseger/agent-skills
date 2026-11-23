@@ -63,7 +63,7 @@ m.slice().automation(d.CreateList)
 
 // @ts-expect-error a step takes d.Name, not what declaring it returns
 m.slice().command(m.command("RenameList", { listId: t.string() }))
-const kind: Parameters<typeof start.command<typeof d.ListCreated>>[0] = "ListCreated is an event: pass a command"
+const kind: Parameters<typeof start.command<typeof d.ListCreated>>[0] = "ListCreated: is an event; pass a command."
 
 // @ts-expect-error one declaration per call
 m.slice().command(d.CreateList, d.NameList)
@@ -167,7 +167,7 @@ m.model("x", { description: "A model lists no chapters." })
 // @ts-expect-error a state view names its method: it has no command to take one from
 m.slice().view(d.TodoList).event(d.ListCreated).service(d.TodoService)
 declare const shown: Viewing<typeof d.TodoList.__fields>
-const nameless: Bare<typeof shown.service> = 'a state view names its method: .service(d.Api, "ListX")'
+const nameless: Bare<typeof shown.service> = 'method has no name. Write .service(d.Api, "ListX").'
 
 // --- a mapping: its argument is what is before the step, its result is the target --
 
@@ -178,7 +178,7 @@ m.slice().command(d.AddItem).event(d.ItemAdded, (c) => ({ nope: c.AddItem.text }
 m.slice().command(d.AddItem).event(d.ItemAdded)
 // The editor's error is the instruction: the parameter's type is the sentence.
 declare const adding: Commanded<readonly [readonly ["AddItem", typeof d.AddItem.__fields, never]], typeof d.AddItem.__fields, "change">
-const said: Bare<typeof adding.event<typeof d.ItemAdded>> = "add title to a step before .event() or set it in the mapping"
+const said: Bare<typeof adding.event<typeof d.ItemAdded>> = "ItemAdded.title: no source. Add title to a step before .event(), or set it in the mapping."
 
 // @ts-expect-error every event is checked the same: an event of ours is an outcome, so the second does not see the first's title
 m.slice().command(d.AddItem).event(d.ItemAdded, (c) => ({ title: c.AddItem.text })).event(d.ItemAdded)
@@ -289,7 +289,7 @@ m.slice().automation(d.ListCreated).query(d.Shelves, () => ({})).command(d.Resto
 // @ts-expect-error a view with key columns is read by them: the filter is stated
 m.slice().automation(d.PriceChanged).query(d.CartsWithProducts)
 declare const priced: Triggered<readonly [readonly ["PriceChanged", typeof d.PriceChanged.__fields, never]]>
-const unfiltered: Parameters<typeof priced.query<typeof d.CartsWithProducts>>[0] = "say which rows: a column or a mapping, () => ({}) for every row"
+const unfiltered: Parameters<typeof priced.query<typeof d.CartsWithProducts>>[0] = "CartsWithProducts: say which rows: a column, a mapping, or () => ({}) for every row."
 // A mapping that names no column reads every row.
 m.slice().automation(d.PriceChanged).query(d.CartsWithProducts, () => ({}))
 
@@ -330,7 +330,7 @@ m.slice().command(d.CaptureNote).event(d.NoteCaptured, (c) => ({ noteId: c.Captu
 // @ts-expect-error CaptureText's noteId is a string, and TextCaptured's a uuid
 m.slice().command(d.CaptureText).event(d.TextCaptured)
 declare const capturing: Commanded<readonly [readonly ["CaptureText", typeof d.CaptureText.__fields, never]], typeof d.CaptureText.__fields, "change">
-const misfit: Bare<typeof capturing.event<typeof d.TextCaptured>> = "noteId does not fit: set it to a field of its type, a t.literal() or m.generate()"
+const misfit: Bare<typeof capturing.event<typeof d.TextCaptured>> = "TextCaptured.noteId: doesn't fit. Set it to a field of its type, a t.literal() or m.generate()."
 m.slice().command(d.CaptureText).event(d.TextCaptured, () => ({ noteId: m.generate() }))
 
 // --- a call ends in the external event that brings the data back -------------
@@ -354,7 +354,7 @@ m.slice().translation(d.ListCreated)
 
 // @ts-expect-error nor does a view start one
 m.slice().translation(d.TodoList)
-const polled: Parameters<typeof start.translation<typeof d.TodoList>>[0] = "is a view: poll it with .automation()"
+const polled: Parameters<typeof start.translation<typeof d.TodoList>>[0] = "TodoList: not an outside event. Start its slice with .automation(d.TodoList)."
 
 // @ts-expect-error ItemAdded is ours, so it still needs a title: the outside event the call gets back has none
 m.slice().command(d.AddItem).event(d.CartUpdated).event(d.ItemAdded)
@@ -365,7 +365,7 @@ m.slice().command(d.AddItem).event(d.CartUpdated).event(d.CartKept, (c) => ({ li
 // @ts-expect-error AddItem and the CartUpdated it gets back both carry listId: the mapping says which
 m.slice().command(d.AddItem).event(d.CartUpdated).event(d.CartKept)
 declare const calling: Commanded<readonly [readonly ["AddItem", typeof d.AddItem.__fields, never], readonly ["CartUpdated", typeof d.CartUpdated.__fields, never]], typeof d.AddItem.__fields, "change">
-const twice: Bare<typeof calling.event<typeof d.CartKept>> = "listId comes from AddItem and CartUpdated: set it in the mapping"
+const twice: Bare<typeof calling.event<typeof d.CartKept>> = "CartKept.listId: comes from AddItem and CartUpdated. Set it in the mapping."
 
 m.slice().command(d.AddItem).event(d.CartUpdated).event(d.ItemsMissing, (c) => ({ listId: c.AddItem.listId, items: c.CartUpdated.unavailable })).event(d.ItemAdded, (c) => ({ listId: c.AddItem.listId, title: c.AddItem.text }))
 m.slice().automation(d.ListCreated).command(d.AddItem, () => ({ text: t.literal("") })).event(d.CartUpdated).event(d.CartKept, (c) => ({ listId: c.AddItem.listId }))
@@ -431,7 +431,7 @@ m.slice().view(d.TodoList).event(d.ListCreated).event(d.ItemAdded, () => ({ item
 // @ts-expect-error ListCreated's listId is a string, and Basket's a uuid
 m.slice().view(d.Basket).event(d.ListCreated)
 declare const basket: Viewing<typeof d.Basket.__fields>
-const unfit: Bare<typeof basket.event<typeof d.ListCreated>> = "listId does not fit: set it to a field of its type, a t.literal() or m.generate()"
+const unfit: Bare<typeof basket.event<typeof d.ListCreated>> = "ListCreated.listId: doesn't fit. Set it to a field of its type, a t.literal() or m.generate()."
 
 // @ts-expect-error beside a mapped event too
 m.slice().view(d.Basket).event(d.ListCreated, () => ({ listId: m.generate() })).event(d.ListCreated)

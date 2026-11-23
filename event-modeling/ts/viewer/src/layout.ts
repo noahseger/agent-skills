@@ -1,7 +1,7 @@
 // Lays out the eventmodeling.org canvas from the board `read.ts` makes. Pure, so it
 // is tested without a browser.
 
-import { inputNames, type Source } from "../../src/types.ts"
+import { inputNames, type Source, words } from "../../src/types.ts"
 import type { Board, BoardSlice } from "./board.ts"
 
 /** Where a mapped field got its value, as the detail panes show it. */
@@ -235,36 +235,6 @@ export function parseClause(clause: string): {
   }
 }
 
-const SMALL = new Set([
-  "a",
-  "an",
-  "and",
-  "as",
-  "at",
-  "by",
-  "for",
-  "in",
-  "of",
-  "on",
-  "or",
-  "the",
-  "to",
-  "with",
-])
-
-/**
- * `DrawsAndResignation` -> `Draws and Resignation`. Names are code; the picture shows words. An
- * acronym is two capitals or more, so `OAuth` is one word.
- */
-export function words(name: string): string {
-  return name
-    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .replace(/([A-Z]{2,})([A-Z][a-z])/g, "$1 $2")
-    .split(" ")
-    .map((w, i) => (i > 0 && SMALL.has(w.toLowerCase()) ? w.toLowerCase() : w))
-    .join(" ")
-}
-
 /** Wraps by character count, breaking only words longer than a line. */
 export function wrap(text: string, max: number, indent = 0): string[] {
   const lines: string[] = []
@@ -407,8 +377,8 @@ export function layout(model: Board): Layout {
     }
   }
 
-  const warnedElements = new Set((model.warnings ?? []).map((w) => w.element))
-  const warnedSlices = new Set((model.warnings ?? []).map((w) => w.slice))
+  const warnedElements = new Set((model.messages ?? []).map((m) => m.element))
+  const warnedSlices = new Set((model.messages ?? []).map((m) => m.slice))
 
   const columns: Column[] = []
   const chapters: Chapter[] = []

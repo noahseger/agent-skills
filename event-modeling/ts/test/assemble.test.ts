@@ -112,20 +112,25 @@ test("a well-formed model assembles", () => {
   assert.deepEqual(json.aggregates, [{ id: "events", name: "Events" }])
 })
 
-test("a declaration used in a slice that nothing declares is drawn without that call, and the to-do names it", () => {
+test("a declaration used in a slice that nothing declares is drawn without that call, and the error names it", () => {
   const modules = () => {
     fixture("Created")
     chapters({ Ch: [unspecified(), unspecifiedView()] })
     return [{ default: m.model("x") }]
   }
-  const message = 'd.Created is not declared. Declare it with m.event("Created", …).'
+  const message = (where: string) =>
+    `d.Created (${where}): not declared. Declare it with m.event("Created", …).`
   const partial = feedOf(modules(), { partial: true })
+  const undeclared = (slice: string) => ({
+    kind: "error",
+    message: message(`Ch › ${slice}`),
+    ui: "Created: not declared",
+    element: "Created",
+    slice,
+  })
   assert.deepEqual(
-    partial.warnings?.filter((w) => w.message.includes("d.Created")),
-    [
-      { message: `Ch › Create: ${message}`, element: "", slice: "Create" },
-      { message: `Ch › Table: ${message}`, element: "", slice: "Table" },
-    ],
+    partial.errors?.filter((m) => m.message.includes("d.Created")),
+    [undeclared("Create"), undeclared("Table")],
   )
   assert.deepEqual(
     drawn(partial).chapters[0]?.slices.map((s) => [s.name, s.command, s.events]),
@@ -137,7 +142,7 @@ test("a declaration used in a slice that nothing declares is drawn without that 
   assert.throws(
     () => feedOf(modules()),
     (e: Error) =>
-      [`Ch › Create: ${message}`, `Ch › Table: ${message}`].every((m) =>
+      [message("Ch › Create"), message("Ch › Table")].every((m) =>
         e.message.split("\n").includes(m),
       ),
   )
@@ -148,7 +153,7 @@ test("an event field the command does not carry", () => {
   m.event("Created", { id: t.string(), name: t.string(), extra: t.string() })
   assert.throws(
     () => assembled([unspecified(), view()]),
-    /Ch › Create: Created\.extra has no value\. Add extra to a step before \.event\(\) or set it in the mapping\./,
+    /Created\.extra \(Ch › Create\): no source\. Add extra to a step before \.event\(\), or set it in the mapping\./,
   )
 })
 
@@ -158,7 +163,9 @@ test("a model still being written draws with a field that has no value", () => {
   chapters({ Ch: [unspecified()] })
   const json = assembleModules([{ default: m.model("x") }], { partial: true })
   assert.equal(json.chapters[0]?.slices.length, 1)
-  assert.ok(json.warnings?.some((w) => w.message.includes("Created.extra has no value")))
+  assert.ok(
+    json.messages?.some((m) => m.message.startsWith("Created.extra (Ch › Create): no source.")),
+  )
 })
 
 test("an optional field one slice leaves unfilled, another fills", () => {
@@ -178,7 +185,7 @@ test("an optional field one slice leaves unfilled, another fills", () => {
       }),
     view(),
   ])
-  assert.equal(json.warnings, undefined)
+  assert.equal(json.messages, undefined)
 })
 
 test("an optional field no slice fills", () => {
@@ -189,10 +196,12 @@ test("an optional field no slice fills", () => {
     return [{ default: m.model("x") }]
   }
   const message =
-    "Created.extra is never filled by any slice. Add extra to a command that records Created, or set it in a mapping."
+    "Created.extra: no slice fills it. Add extra to a command that records Created, or set it in a mapping."
   assert.throws(() => assembleModules(modules()), { message })
   const json = assembleModules(modules(), { partial: true })
-  assert.deepEqual(json.warnings, [{ message, element: "Created" }])
+  assert.deepEqual(json.messages, [
+    { kind: "error", message, ui: "Created: extra has no source", element: "Created" },
+  ])
 })
 
 test("a mapping function fills what the command does not carry", () => {
@@ -302,11 +311,11 @@ test("m.generate() in a specification is one value of its field's type wherever 
   const feed = feedOf([model()], { partial: true })
   drawn(feed)
   const said = (name: string) =>
-    (feed.warnings ?? []).filter((w) => w.message.includes(`"${name}"`)).map((w) => w.message)
+    (feed.errors ?? []).filter((m) => m.message.includes(`"${name}"`)).map((m) => m.message)
   assert.deepEqual(said("agrees"), [])
   assert.match(
     said("disagrees")[0] ?? "",
-    /then has Moves \{"id":"[^"]+"\}, but given builds no such row\./,
+    /^Moves in "disagrees" \(Ch › Moves\): then has \{"id":"[^"]+"\}, but given builds no such row\./,
   )
   const [agrees] = feed.model.slices[0]?.specifications ?? []
   const given = agrees?.given[0]?.examples?.[0]
@@ -335,7 +344,7 @@ test("m.generate() nested in a list is one value of its field's type, as at the 
   chapters({ Ch: [shown] })
   const feed = feedOf([{ default: m.model("x") }], { partial: true })
   assert.deepEqual(
-    feed.warnings?.filter((w) => w.message.includes('"lists"')),
+    [...(feed.errors ?? []), ...(feed.warnings ?? [])].filter((m) => m.message.includes('"lists"')),
     [],
   )
   const [spec] = feed.model.slices[0]?.specifications ?? []
@@ -345,7 +354,7 @@ test("m.generate() nested in a list is one value of its field's type, as at the 
   assert.equal(z.uuid().safeParse(given.itemId).success, true)
 })
 
-test("an example Zod refuses is a to-do naming the spec and where in it, and the model still draws", () => {
+test("an example Zod refuses is an error naming the spec and where in it, and the model still draws", () => {
   fixture()
   const Item = t.object({ itemId: t.uuid() })
   m.view("Cart", { id: t.string().key(), items: t.array(Item) })
@@ -362,10 +371,12 @@ test("an example Zod refuses is a to-do naming the spec and where in it, and the
   const feed = feedOf([{ default: m.model("x") }], { partial: true })
   drawn(feed)
   assert.deepEqual(
-    feed.warnings?.filter((w) => w.message.includes('"lists"')),
+    feed.errors?.filter((m) => m.message.includes('"lists"')),
     [
       {
-        message: `Ch › Cart › "lists": items[0].itemId: Invalid input: expected string, received number`,
+        kind: "error",
+        message: `Cart.items[0].itemId in "lists" (Ch › Cart): Invalid input: expected string, received number`,
+        ui: "Cart: items[0].itemId isn't valid",
         element: "Cart",
         slice: "Cart",
       },
@@ -373,7 +384,7 @@ test("an example Zod refuses is a to-do naming the spec and where in it, and the
   )
 })
 
-test("a specification written as a function runs at assembly, so its examples may be declared below it; one that throws is a to-do", () => {
+test("a specification written as a function runs at assembly, so its examples may be declared below it; one that throws is an error", () => {
   fixture()
   const shown = unspecified()
     .spec("A list is created", () => ({ when: creates, then: d.Created(list) }))
@@ -386,10 +397,12 @@ test("a specification written as a function runs at assembly, so its examples ma
   drawn(feed)
   assert.deepEqual(feed.model.slices[0]?.specifications[0]?.when?.[0]?.examples, [list])
   assert.deepEqual(
-    feed.warnings?.filter((w) => w.message.includes('"A list is')),
+    feed.errors?.filter((m) => m.message.includes('"A list is')),
     [
       {
-        message: `Ch › Create › "A list is renamed" threw: renames is not defined`,
+        kind: "error",
+        message: `"A list is renamed" (Ch › Create): threw: renames is not defined`,
+        ui: `"A list is renamed": didn't run`,
         element: "",
         slice: "Create",
       },
@@ -397,7 +410,7 @@ test("a specification written as a function runs at assembly, so its examples ma
   )
 })
 
-test("a command field no event records is left to do, and an error when strict; generating from it records it", () => {
+test("a command field no event records is an error; generating from it records it", () => {
   const model = (recorded: boolean) => {
     fixture("Created")
     m.event("Created", { id: t.string(), slug: t.string() })
@@ -414,13 +427,15 @@ test("a command field no event records is left to do, and an error when strict; 
     chapters({ Ch: [slice] })
     return { default: m.model("x") }
   }
-  const message =
-    "Ch › Create: Create.name reaches no event. Record it in Created, or remove it from Create."
+  const message = "Create.name (Ch › Create): reaches no event. Record it in Created, or remove it."
   const json = feedOf([model(false)], { partial: true })
-  assert.ok(json.warnings?.some((w) => w.message === message))
-  assert.throws(() => feedOf([model(false)]), { message: new RegExp(message) })
+  assert.ok(json.errors?.some((m) => m.message === message))
+  assert.throws(
+    () => feedOf([model(false)]),
+    (e: Error) => e.message.includes(message),
+  )
   const fixed = feedOf([model(true)], { partial: true })
-  assert.ok(!fixed.warnings?.some((w) => w.message.includes("reaches no event")))
+  assert.ok(!fixed.errors?.some((m) => m.message.includes("reaches no event")))
 })
 
 test("a call sends out only the command fields its outside event carries", () => {
@@ -431,8 +446,8 @@ test("a call sends out only the command fields its outside event carries", () =>
   chapters({ Ch: [m.slice().command(d.Ask).event(d.Answered).actor(d.User).service(d.Svc)] })
   const json = feedOf([{ default: m.model("x") }], { partial: true })
   assert.deepEqual(
-    json.warnings?.filter((w) => w.message.includes("reaches no event")).map((w) => w.message),
-    ["Ch › Ask: Ask.note reaches no event. Record it in Answered, or remove it from Ask."],
+    json.errors?.filter((m) => m.message.includes("reaches no event")).map((m) => m.message),
+    ["Ask.note (Ch › Ask): reaches no event. Record it in Answered, or remove it."],
   )
 })
 
@@ -447,7 +462,7 @@ test("a command field that filters a query after the command is used", () => {
     .actor(d.User)
   chapters({ Ch: [rename] })
   const json = feedOf([{ default: m.model("x") }], { partial: true })
-  assert.ok(!json.warnings?.some((w) => w.message.includes("reaches no event")))
+  assert.ok(!json.errors?.some((m) => m.message.includes("reaches no event")))
 })
 
 test("a mapping that returns a whole command records only the fields its event has", () => {
@@ -461,15 +476,15 @@ test("a mapping that returns a whole command records only the fields its event h
   chapters({ Ch: [rename] })
   const json = feedOf([{ default: m.model("x") }], { partial: true })
   assert.ok(
-    json.warnings?.some(
-      (w) =>
-        w.message ===
-        "Ch › Create: Create.name reaches no event. Record it in Renamed, or remove it from Create.",
+    json.errors?.some(
+      (m) =>
+        m.message ===
+        "Create.name (Ch › Create): reaches no event. Record it in Renamed, or remove it.",
     ),
   )
 })
 
-test("a mapping recognises a source field, a t.literal() and m.generate(); a schema it computes is left to do", () => {
+test("a mapping recognises a source field, a t.literal() and m.generate(); a schema it computes is an error", () => {
   // An assembly takes what was declared and written since the last, so each declares and writes afresh.
   const modules = () => {
     fixture("Created")
@@ -496,11 +511,11 @@ test("a mapping recognises a source field, a t.literal() and m.generate(); a sch
     return [{ default: m.model("x") }]
   }
   const label =
-    "Ch › Create: Created.label is computed in the mapping. Set it to a source field, a t.literal() or m.generate() with what it is made from."
+    "Created.label (Ch › Create): computed in the mapping. Set it to a source field, a t.literal(), or m.generate() with what it is made from."
   const partial = feedOf(modules(), { partial: true })
   assert.deepEqual(
-    partial.warnings?.filter((w) => w.slice === "Create").map((w) => w.message),
-    [label],
+    partial.errors?.filter((m) => m.slice === "Create").map((m) => [m.message, m.ui]),
+    [[label, "Created: label is computed"]],
   )
   assert.deepEqual(drawn(partial).chapters[0]?.slices[0]?.mapping, {
     Created: { alias: { from: "id" }, label: { generate: [] }, size: { value: 2 } },
@@ -527,7 +542,7 @@ test("a column no event writes", () => {
   m.view("Table", { id: t.string().key(), name: t.string(), count: t.number() })
   assert.throws(
     () => assembled([create(), view()]),
-    /Ch › Table: Table\.count has no value\. Add \.event\(\) with an event that carries count, or set it in a mapping\./,
+    /Table\.count \(Ch › Table\): no source\. Add \.event\(\) with an event that carries count, or set it in a mapping\./,
   )
 })
 
@@ -547,7 +562,7 @@ test("an event that carries none of the view's key columns", () => {
     })
   assert.throws(
     () => assembled([create(), rename, view(d.Renamed)]),
-    /Ch › Table: Renamed doesn't say which Table row it changes\. Give it id, or set it in its mapping\./,
+    /Renamed \(Ch › Table\): doesn't say which Table row\. Give it id, or set it in its mapping\./,
   )
 })
 
@@ -576,27 +591,33 @@ test("an event that carries only some of the view's key columns", () => {
     .spec("A list is a row", { given: [d.Created(row), d.Renamed(list)], then: d.Table(row) })
   assert.throws(
     () => assembled([create, shown]),
-    /Ch › Table: Renamed doesn't say which Table row it changes\. Give it owner, or set it in its mapping\./,
+    /Renamed \(Ch › Table\): doesn't say which Table row\. Give it owner, or set it in its mapping\./,
   )
 })
 
-test("an event nothing consumes", () => {
+test("an event nothing consumes is unused: a warning, which a strict assembly does not refuse", () => {
   fixture()
-  assert.throws(
-    () => assembled([create()]),
-    /Ch › Create: nothing uses Created yet\. Add \.automation\(d\.Created\), or \.event\(d\.Created\) to a state view, where something reacts to it\./,
-  )
+  assert.deepEqual(assembled([create()]).messages, [
+    {
+      kind: "warning",
+      message:
+        "Created (Ch › Create): unused. Add .automation(d.Created), or .event(d.Created) to a state view.",
+      ui: "Created: unused",
+      element: "Created",
+      slice: "Create",
+    },
+  ])
 })
 
-test("an event no slice emits", () => {
+test("an event no slice records, that a view reads, has no source: an error", () => {
   fixture()
   assert.throws(
     () => assembled([view()]),
-    /Ch › Table: nothing emits Created yet\. Add \.event\(d\.Created\) to the slice that causes it\./,
+    /Created \(Ch › Table\): nothing records it\. Add \.event\(d\.Created\) to the slice that causes it\./,
   )
 })
 
-test("an event no slice emits is one line, at the slices that react to it", () => {
+test("an event no slice records is one line, at the slices that react to it", () => {
   fixture()
   const created = d.Created({ id: "1", name: "n" })
   m.command("Process", { id: t.string(), name: t.string() })
@@ -619,11 +640,13 @@ test("an event no slice emits is one line, at the slices that react to it", () =
   chapters({ Ch: [processor, view()], Other: [assumes] })
   const json = assembleModules([{ default: m.model("x") }], { partial: true })
   assert.deepEqual(
-    json.warnings?.filter((w) => w.message.includes("nothing emits Created")),
+    json.messages?.filter((m) => m.message.includes("nothing records it")),
     [
       {
+        kind: "error",
         message:
-          "Ch › Processor, Ch › Table: nothing emits Created yet. Add .event(d.Created) to the slice that causes it.",
+          "Created (Ch › Processor, Ch › Table): nothing records it. Add .event(d.Created) to the slice that causes it.",
+        ui: "Created: nothing records it",
         element: "Created",
         slice: "Processor",
       },
@@ -631,20 +654,25 @@ test("an event no slice emits is one line, at the slices that react to it", () =
   )
 })
 
-test("a view nothing reads", () => {
+test("a view nothing reads is unused: a warning", () => {
   fixture()
   const unseen = m
     .slice()
     .view(d.Table)
     .event(d.Created)
     .spec("A new list is a row", { given: d.Created(list), then: d.Table(list) })
-  assert.throws(
-    () => assembled([create(), unseen]),
-    /Ch › Table: nothing reads Table yet\. Add \.actor\(\) for who sees it, or \.query\(d\.Table, …\) or \.automation\(d\.Table\) where it's needed\./,
-  )
+  assert.deepEqual(assembled([create(), unseen]).messages, [
+    {
+      kind: "warning",
+      message: "Ch › Table: unused. Add .actor(), .query(d.Table, …) or .automation(d.Table).",
+      ui: "Table: unused",
+      element: "Table",
+      slice: "Table",
+    },
+  ])
 })
 
-test("a view nothing projects", () => {
+test("a view nothing builds", () => {
   fixture()
   const created = d.Created({ id: "1", name: "n" })
   const slice = m
@@ -661,7 +689,7 @@ test("a view nothing projects", () => {
     })
   assert.throws(
     () => assembled([slice]),
-    /Ch › Create: nothing fills Table yet\. Add a state view, m\.slice\(\)\.view\(d\.Table\)\.event\(d\.Event\)\./,
+    /Table \(Ch › Create\): nothing builds it\. Add a state view: m\.slice\(\)\.view\(d\.Table\)\.event\(d\.Event\)\./,
   )
 })
 
@@ -748,10 +776,10 @@ test("the outside event a call gets back fills an event of ours after it, in the
   chapters({ Ch: [ask] })
   const feed = feedOf([{ default: m.model("x") }], { partial: true })
   assert.deepEqual(
-    feed.warnings?.filter((w) => w.slice === "Ask").map((w) => w.message),
-    [
-      "Ch › Ask: nothing uses Kept yet. Add .automation(d.Kept), or .event(d.Kept) to a state view, where something reacts to it.",
-    ],
+    [...(feed.errors ?? []), ...(feed.warnings ?? [])]
+      .filter((m) => m.slice === "Ask")
+      .map((m) => m.message),
+    ["Kept (Ch › Ask): unused. Add .automation(d.Kept), or .event(d.Kept) to a state view."],
   )
   const kept = feed.model.slices[0]?.events.find((e) => e.title === "Kept")
   assert.deepEqual(
@@ -784,10 +812,10 @@ test("a view refuses an external event, which isn't stored", () => {
     return [{ default: m.model("x") }]
   }
   const message =
-    "Ch › Table: Table is built from Answered, which is Remote's and isn't stored. Translate it into an event of ours first, then project that."
+    "Answered (Ch › Table): Remote's, not stored, so it can't build Table. Translate it into an event of ours, then project that."
   assert.deepEqual(
-    feedOf(modules(), { partial: true }).warnings?.map((w) => w.message),
-    [message],
+    feedOf(modules(), { partial: true }).errors?.map((m) => [m.message, m.ui]),
+    [[message, "Answered: not stored"]],
   )
   assert.throws(() => feedOf(modules()), { message })
 })
@@ -795,10 +823,10 @@ test("a view refuses an external event, which isn't stored", () => {
 test("an external event we produce is published, and needs no translation", () => {
   chapters({ Ch: [specifiedCall("Create", "Created", "Table")] })
   const json = assembleModules([{ default: m.model("x") }], { partial: true })
-  assert.equal(json.warnings, undefined)
+  assert.equal(json.messages, undefined)
 })
 
-test("an external event only a given has is still left to translate", () => {
+test("an external event only a given has is still left to translate: a warning", () => {
   fixture()
   m.external("Remote")
   m.event("Answered", { id: t.string(), detail: t.string() }).external(d.Remote)
@@ -809,10 +837,11 @@ test("an external event only a given has is still left to translate", () => {
   })
   chapters({ Ch: [after, view()] })
   const json = assembleModules([{ default: m.model("x") }], { partial: true })
-  assert.deepEqual(json.warnings, [
+  assert.deepEqual(json.messages, [
     {
-      message:
-        "Ch › Create: nothing translates Answered yet. Add .translation(d.Answered) to make it an event of ours.",
+      kind: "warning",
+      message: "Answered (Ch › Create): nothing translates it. Add .translation(d.Answered).",
+      ui: "Answered: nothing translates it",
       element: "Answered",
       slice: "Create",
     },
@@ -842,12 +871,22 @@ function outcomes(more = (created: Slice) => created) {
   return [{ default: m.model("x") }]
 }
 
-test("an outcome no specification shows is left to do, and an error when strict", () => {
-  const message =
-    "Ch › Create: no specification shows Refused yet. Add a .spec whose then has Refused(...)."
-  const json = assembleModules(outcomes(), { partial: true })
-  assert.deepEqual(json.warnings, [{ message, element: "Refused", slice: "Create" }])
-  assert.throws(() => assembleModules(outcomes()), { message })
+/** A missing specification: a warning, which a strict assembly lets through. */
+function missing(model: () => object[], element: string, slice: string, message: string) {
+  const expected = [
+    { kind: "warning", message, ui: `${element}: missing specification`, element, slice },
+  ]
+  assert.deepEqual(assembleModules(model(), { partial: true }).messages, expected)
+  assert.deepEqual(assembleModules(model()).messages, expected)
+}
+
+test("an outcome no specification shows is a missing specification", () => {
+  missing(
+    outcomes,
+    "Refused",
+    "Create",
+    "Refused (Ch › Create): missing specification. Add a .spec whose then has Refused(…).",
+  )
 })
 
 test("a specification whose then has the outcome finishes it", () => {
@@ -860,38 +899,40 @@ test("a specification whose then has the outcome finishes it", () => {
   assembleModules(outcomes(refused))
 })
 
-test("an event a view handles that no specification's given has is left to do, and an error when strict", () => {
+test("an event a view handles that no specification's given has is a missing specification", () => {
   const model = () => {
     fixture()
     chapters({ Ch: [create(), unspecifiedView().spec(...nothing)] })
-    return { default: m.model("x") }
+    return [{ default: m.model("x") }]
   }
-  const message =
-    "Ch › Table: no specification shows Created yet. Add a .spec whose given has Created(...)."
-  const json = assembleModules([model()], { partial: true })
-  assert.deepEqual(json.warnings, [{ message, element: "Created", slice: "Table" }])
-  assert.throws(() => assembleModules([model()]), { message })
+  missing(
+    model,
+    "Created",
+    "Table",
+    "Created (Ch › Table): missing specification. Add a .spec whose given has Created(…).",
+  )
 })
 
-test("a view with no specification is left to do, and an error when strict", () => {
+test("a view with no specification is a missing specification", () => {
   const model = () => {
     fixture()
     chapters({ Ch: [create(), unspecifiedView()] })
-    return { default: m.model("x") }
+    return [{ default: m.model("x") }]
   }
-  const message =
-    "Ch › Table: no specification shows this view yet. Add a .spec whose then has the Table rows it shows."
-  const json = assembleModules([model()], { partial: true })
-  assert.deepEqual(json.warnings, [{ message, element: "Table", slice: "Table" }])
-  assert.throws(() => assembleModules([model()]), { message })
+  missing(
+    model,
+    "Table",
+    "Table",
+    "Ch › Table: missing specification. Add a .spec whose then has Table(…).",
+  )
 })
 
 const hardware = { id: "list-2", name: "Hardware" }
 
-/** What is left to do in a model whose view is `view`. */
+/** The errors in a model whose view is `view`. */
 const viewed = (view: Slice) => {
   chapters({ Ch: [create(), view] })
-  return feedOf([{ default: m.model("x") }], { partial: true }).warnings?.map((w) => w.message)
+  return feedOf([{ default: m.model("x") }], { partial: true }).errors?.map((m) => m.message)
 }
 
 test("a view's specification shows the rows given builds that its query asks for", () => {
@@ -913,7 +954,7 @@ test("a view's specification shows the rows given builds that its query asks for
       examples: [{ name: "Groceries" }],
     },
   ])
-  assert.equal(feed.warnings, undefined)
+  assert.deepEqual([feed.errors, feed.warnings], [undefined, undefined])
 })
 
 test("a view's row given does not build, or with another value, is named", () => {
@@ -923,8 +964,8 @@ test("a view's row given does not build, or with another value, is named", () =>
     then: [d.Table({ ...list, name: "Hardware" }), d.Table({ id: "list-9", name: "Nails" })],
   })
   assert.deepEqual(viewed(wrong), [
-    'Ch › Table › "Groceries shows": then has name "Hardware", but Created in given has "Groceries".',
-    'Ch › Table › "Groceries shows": then has Table {"id":"list-9"}, but given builds no such row.',
+    'Table.name in "Groceries shows" (Ch › Table): then has "Hardware", but Created in given has "Groceries".',
+    'Table in "Groceries shows" (Ch › Table): then has {"id":"list-9"}, but given builds no such row.',
   ])
 })
 
@@ -940,10 +981,10 @@ test("a row given does not build is an error when strict", () => {
     return { default: m.model("x") }
   }
   const message =
-    'Ch › Table › "A new list is a row": then has Table {"id":"missing"}, but given builds no such row.'
+    'Table in "A new list is a row" (Ch › Table): then has {"id":"missing"}, but given builds no such row.'
   assert.deepEqual(
-    feedOf([model()], { partial: true }).warnings?.map((w) => w.message),
-    [message],
+    feedOf([model()], { partial: true }).errors?.map((m) => [m.message, m.ui]),
+    [[message, "Table: shows a row nothing builds"]],
   )
   assert.throws(() => feedOf([model()]), { message })
 })
@@ -958,7 +999,7 @@ test("a view's row its query excludes is named", () => {
       then: [d.Table(hardware), d.Table({ id: "list-1" })],
     })
   assert.deepEqual(viewed(byName), [
-    'Ch › Table › "Only Hardware shows": then has Table {"id":"list-1"}, but when excludes it. Remove it from then.',
+    'Table in "Only Hardware shows" (Ch › Table): then has {"id":"list-1"}, but when excludes it. Remove it from then.',
   ])
 })
 
@@ -972,7 +1013,7 @@ test("a row given builds that then leaves out is named, unless the query exclude
       then: d.Table(list),
     })
   assert.deepEqual(viewed(search), [
-    'Ch › Table › "A search finds Groceries": given builds Table {"id":"list-2"}, but then leaves it out and when does not exclude it. Add it to then.',
+    'Table in "A search finds Groceries" (Ch › Table): given builds {"id":"list-2"}, but then leaves it out. Add it to then.',
   ])
 })
 
@@ -985,9 +1026,12 @@ test("a then that describes its outcome may leave out rows given builds, and sti
   chapters({ Ch: [create(), described] })
   const feed = feedOf([{ default: m.model("x") }], { partial: true })
   assert.deepEqual(
-    feed.warnings?.map((w) => w.message),
+    feed.errors?.map((m) => [m.message, m.ui]),
     [
-      'Ch › Table › "Only Groceries shows": then has name "Hardware", but Created in given has "Groceries".',
+      [
+        'Table.name in "Only Groceries shows" (Ch › Table): then has "Hardware", but Created in given has "Groceries".',
+        "Table: name doesn't match",
+      ],
     ],
   )
   assert.deepEqual(validate(feed.model), [])
@@ -1007,11 +1051,11 @@ test("a described outcome shows no event", () => {
     then: "The list exists",
   })
   const message =
-    "Ch › Create: no specification shows Created yet. Add a .spec whose then has Created(...)."
+    "Created (Ch › Create): missing specification. Add a .spec whose then has Created(…)."
   chapters({ Ch: [described, view()] })
   const feed = feedOf([{ default: m.model("x") }], { partial: true })
   assert.deepEqual(
-    feed.warnings?.map((w) => w.message),
+    feed.warnings?.map((m) => m.message),
     [message],
   )
 })
@@ -1044,8 +1088,8 @@ test("an external event a call ends in is an outcome", () => {
   chapters({ Ch: [call("Create", "Created", "Table")] })
   const json = assembleModules([{ default: m.model("x") }], { partial: true })
   assert.ok(
-    json.warnings?.some(
-      (w) => w.element === "Answered" && w.message.includes("no specification shows Answered"),
+    json.messages?.some(
+      (m) => m.element === "Answered" && m.message.includes("missing specification"),
     ),
   )
 })
@@ -1067,14 +1111,17 @@ test("two slices claiming one service method", () => {
   }
   assert.throws(
     () => assembleModules([model()]),
-    /Ch › Rename: Svc\/Create is already used by Ch › Create\. Name this one/,
+    /Svc\/Create \(Ch › Rename\): already used by Ch › Create\. Name this one/,
   )
   const partial = feedOf([model()], { partial: true })
   assert.equal(drawn(partial).chapters[0]?.slices.length, 3)
   assert.deepEqual(
-    partial.warnings?.filter((w) => w.slice === "Rename").map((w) => w.message),
+    partial.errors?.filter((m) => m.slice === "Rename").map((m) => [m.message, m.ui]),
     [
-      'Ch › Rename: Svc/Create is already used by Ch › Create. Name this one with .service(d.Svc, "Name").',
+      [
+        'Svc/Create (Ch › Rename): already used by Ch › Create. Name this one with .service(d.Svc, "Name").',
+        "Svc: Create used twice",
+      ],
     ],
   )
 })
@@ -1099,7 +1146,7 @@ test("an automation's command field its trigger does not carry", () => {
   const processor = m.slice("Processor").automation(d.Created).command(d.Process).event(d.Processed)
   assert.throws(
     () => assembled([create(), processor]),
-    /Ch › Processor: Process\.label has no value\. Add label to a step before \.command\(\) or set it in the mapping\./,
+    /Process\.label \(Ch › Processor\): no source\. Add label to a step before \.command\(\), or set it in the mapping\./,
   )
 })
 
@@ -1110,7 +1157,7 @@ const processedView = () =>
     then: d.Table(list),
   })
 
-test("an automation's trigger no specification's given has is left to do, and an error when strict; one a view starts has none", () => {
+test("an automation's trigger no specification's given has is a missing specification; one a view starts has none", () => {
   const model = () => {
     fixture()
     m.command("Process", { id: t.string() })
@@ -1125,13 +1172,14 @@ test("an automation's trigger no specification's given has is left to do, and an
         then: d.Processed({ id: "list-1" }),
       })
     chapters({ Ch: [create(), triggered, processedView()] })
-    return { default: m.model("x") }
+    return [{ default: m.model("x") }]
   }
-  const message =
-    "Ch › Processor: no specification shows Created yet. Add a .spec whose given has Created(...)."
-  const json = assembleModules([model()], { partial: true })
-  assert.deepEqual(json.warnings, [{ message, element: "Created", slice: "Processor" }])
-  assert.throws(() => assembleModules([model()]), { message })
+  missing(
+    model,
+    "Created",
+    "Processor",
+    "Created (Ch › Processor): missing specification. Add a .spec whose given has Created(…).",
+  )
 })
 
 test("an automation's mapping fills its command from the trigger", () => {
@@ -1152,7 +1200,7 @@ test("an automation's mapping fills its command from the trigger", () => {
   assert.deepEqual(json.chapters[0]?.slices[1]?.mapping, { Process: { label: { from: "name" } } })
 })
 
-test("a generated value in an automation's command is left to do, and an error when strict", () => {
+test("a generated value in an automation's command has no source: an error", () => {
   const model = () => {
     fixture()
     m.command("Process", { id: t.string(), label: t.string() })
@@ -1171,9 +1219,17 @@ test("a generated value in an automation's command is left to do, and an error w
     return { default: m.model("x") }
   }
   const message =
-    "Ch › Processor: Process.label is generated, but an automation's command is filled from what is before it. Add label to Created or a view it queries, or generate it in an event Process records."
+    "Process.label (Ch › Processor): an automation can't generate it. Add label to Created or a view it queries, or generate it in an event Process records."
   const json = assembleModules([model()], { partial: true })
-  assert.deepEqual(json.warnings, [{ message, element: "Process", slice: "Processor" }])
+  assert.deepEqual(json.messages, [
+    {
+      kind: "error",
+      message,
+      ui: "Process: label has no source",
+      element: "Process",
+      slice: "Processor",
+    },
+  ])
   assert.throws(() => assembleModules([model()]), { message })
 })
 
@@ -1256,7 +1312,7 @@ test("a slice with no actor has no screen", () => {
     json.chapters[0]?.slices.map((s) => s.ui),
     [undefined, undefined],
   )
-  assert.deepEqual(json.warnings, undefined)
+  assert.deepEqual(json.messages, undefined)
 })
 
 test("a slice with several actors draws a screen in each one's lane", () => {
@@ -1321,11 +1377,11 @@ test("a polled command's when matches the row given builds", () => {
   }
   model("Groceries")
   assert.throws(() => model("Milk"), {
-    message: `Ch › Processor › "A listed row is processed": when has label "Milk", but the Table row given builds has name "Groceries".`,
+    message: `Process.label in "A listed row is processed" (Ch › Processor): when has "Milk", but the Table row given builds has name "Groceries".`,
   })
 })
 
-test("a polled command's when whose row given builds none of, or several of, is a to-do", () => {
+test("a polled command's when whose row given builds none of, or several of, is an error", () => {
   fixture("Table", "Created")
   m.view("Table", { id: t.string().key(), owner: t.string().key(), name: t.string() })
   m.event("Created", { id: t.string(), owner: t.string(), name: t.string() })
@@ -1349,10 +1405,23 @@ test("a polled command's when whose row given builds none of, or several of, is 
       then: d.Processed({ id: "list-1" }),
     })
   const projection = m.slice().view(d.Table).event(d.Created)
-  assert.deepEqual(disagreements([processor, projection]), [
-    'Ch › Processor › "none": when is for the Table row {"id":"list-2"}, but given builds no such row. Add the event that does.',
-    'Ch › Processor › "several": when is for the Table row {"id":"list-1"}, but given builds 2 such rows. Copy every key column into Process.',
-  ])
+  chapters({ Ch: [processor, projection] })
+  const json = assembleModules([{ default: m.model("x") }], { partial: true })
+  assert.deepEqual(
+    json.messages
+      ?.filter((m) => m.element === "Table" && m.kind === "error")
+      .map((m) => [m.message, m.ui]),
+    [
+      [
+        'Table in "none" (Ch › Processor): when is for row {"id":"list-2"}, but given builds none. Add the event that does.',
+        "Table: no row for Process",
+      ],
+      [
+        'Table in "several" (Ch › Processor): when is for row {"id":"list-1"}, but given builds 2. Copy every key column into Process.',
+        "Table: several rows for Process",
+      ],
+    ],
+  )
 })
 
 test("same-named streams from two modules are one lane", () => {
@@ -1369,14 +1438,21 @@ test("same-named streams from two modules are one lane", () => {
   assert.equal(json.loose?.[0]?.aggregate, "inventory")
 })
 
-test("a stream no event joins is an empty lane, left to do", () => {
+test("a stream no event joins is an empty lane: a warning", () => {
   fixture("Created")
   m.stream("Inventory")
   m.event("Created", { id: t.string(), name: t.string() }).stream(d.Inventory)
   m.stream("Returns")
   chapters({ Ch: [create(), view()] })
   const json = assembleModules([{ default: m.model("x") }], { partial: true })
-  assert.deepEqual(json.warnings, [{ message: "Returns has no events yet.", element: "Returns" }])
+  assert.deepEqual(json.messages, [
+    {
+      kind: "warning",
+      message: "Returns: no events. Add .stream(d.Returns) to one.",
+      ui: "Returns: empty",
+      element: "Returns",
+    },
+  ])
   assert.deepEqual(json.aggregates, [
     { id: "inventory", name: "Inventory" },
     { id: "returns", name: "Returns" },
@@ -1407,7 +1483,7 @@ test("slices on one screen draw it, titled with its name, in the actor's lane", 
   )
 })
 
-test("a screen no one sees is left to do, and one no slice names is storming, with nothing to do", () => {
+test("a screen no one sees is a warning, and one no slice names is storming, with nothing to do", () => {
   fixture()
   m.screen("Lock")
   m.screen("Home")
@@ -1419,9 +1495,11 @@ test("a screen no one sees is left to do, and one no slice names is storming, wi
     .spec("A list is created", { when: d.Create(list), then: d.Created(list) })
   chapters({ Ch: [unseen, view()] })
   const json = assembleModules([{ default: m.model("x") }], { partial: true })
-  assert.deepEqual(json.warnings, [
+  assert.deepEqual(json.messages, [
     {
-      message: "Ch › Create: no one sees Lock yet. Add .actor() for who does.",
+      kind: "warning",
+      message: "Lock (Ch › Create): no one sees it. Add .actor() for who does.",
+      ui: "Lock: no one sees it",
       element: "Lock",
       slice: "Create",
     },
@@ -1494,7 +1572,7 @@ test("every m.slice().view() of a view is one slice: its events in, its screen o
   )
 })
 
-test("a later .view() that says where or how to draw the slice is a to-do", () => {
+test("a later .view() that says where or how to draw the slice is an error", () => {
   fixture()
   m.actor("Admin", { icon: "admin" })
   m.screen("Lock")
@@ -1509,20 +1587,24 @@ test("a later .view() that says where or how to draw the slice is a to-do", () =
     .service(d.Svc, "List")
     .note("Rebuilt nightly.")
   const drawnAs = (rest: string) =>
-    `Table: this .view() ${rest}, where it is first written. Remove it, or move the first.`
-  const expected = [
-    drawnAs("names chapter Tidy, but Table is drawn in Capture"),
-    drawnAs('names the slice "Other", but Table is drawn as "Table"'),
-    drawnAs("names actor Admin, but Table is seen by User"),
-    drawnAs("names screen Lock, but Table is shown on no screen"),
-    drawnAs("names method Svc/List, but Table is served by Svc/Get"),
-    drawnAs("asks with name, but Table is asked with nothing"),
-    drawnAs('has the note "Rebuilt nightly.", but Table is drawn with no note'),
-    "Tidy has no slices yet.",
-  ]
+    `Table: a later .view() says ${rest}. Remove it, or move the first.`
+  const feed = feedOf([{ default: m.model("x") }], { partial: true })
   assert.deepEqual(
-    feedOf([{ default: m.model("x") }], { partial: true }).warnings?.map((w) => w.message),
-    expected,
+    feed.errors?.map((m) => m.message),
+    [
+      drawnAs("chapter Tidy; the first says chapter Capture"),
+      drawnAs('the name "Other"; the first says the name "Table"'),
+      drawnAs("actor Admin; the first says actor User"),
+      drawnAs("screen Lock; the first says no screen"),
+      drawnAs("method Svc/List; the first says method Svc/Get"),
+      drawnAs("context name; the first says no context"),
+      drawnAs('the note "Rebuilt nightly."; the first says no note'),
+    ],
+  )
+  assert.equal(feed.errors?.[0]?.ui, "Table: its slices disagree on its chapter")
+  assert.deepEqual(
+    feed.warnings?.map((m) => m.message),
+    ["Tidy: no slices. Add .chapter(d.Tidy) to one."],
   )
 })
 
@@ -1532,16 +1614,16 @@ test("a column no m.slice().view() of the view writes is reported once", () => {
   chapters({ Ch: [create(), view(), view()] })
   const json = assembleModules([{ default: m.model("x") }], { partial: true })
   assert.deepEqual(
-    json.warnings?.map((w) => w.message),
+    json.messages?.map((m) => m.message),
     [
-      "Ch › Table: Table.status has no value. Add .event() with an event that carries status, or set it in a mapping.",
+      "Table.status (Ch › Table): no source. Add .event() with an event that carries status, or set it in a mapping.",
     ],
   )
 })
 
 test("a single file written top to bottom extends an earlier view in a later chapter", async () => {
   const json = await assemble(here("./fixtures/top-to-bottom"))
-  assert.equal(json.warnings, undefined)
+  assert.equal(json.messages, undefined)
   assert.equal(json.loose, undefined)
   assert.deepEqual(
     json.aggregates.map((a) => a.id),
@@ -1559,52 +1641,62 @@ test("a view in given is named as one", () => {
   })
   assert.throws(
     () => assembled([slice, view()]),
-    /Ch › Create: Table in given is a view\. given lists events that already happened\./,
+    /Table \(Ch › Create\): in given, but is a view\. given lists events that already happened\./,
   )
 })
 
-test("an event of ours no slice records is left to do even when nothing reads it; any other declaration in no slice is storming", () => {
+test("an event of ours no slice records is a warning even when nothing reads it; any other declaration in no slice is storming", () => {
   fixture()
   m.event("Loose", { id: t.string() })
   m.command("Idle", { id: t.string() })
   chapters({ Ch: [create(), view()] })
   const json = assembleModules([{ default: m.model("x") }], { partial: true })
-  assert.deepEqual(json.warnings, [
+  assert.deepEqual(json.messages, [
     {
+      kind: "warning",
       message: "Loose: nothing records it. Add .event(d.Loose) to the slice that causes it.",
+      ui: "Loose: nothing records it",
       element: "Loose",
     },
   ])
+  // Nothing is wrong, so a strict assembly lets it through.
+  fixture()
+  m.event("Loose", { id: t.string() })
+  assert.equal(assembled([create(), view()]).messages?.length, 1)
 })
 
-test("a partial assembly lists the dead ends and keeps the loose declarations in stream order", () => {
+test("a partial assembly lists the warnings and keeps the loose declarations in stream order", () => {
   fixture()
   m.stream("Games")
   m.event("Started", { id: t.string() }).stream(d.Games)
   m.event("Ended", { id: t.string() }).stream(d.Games)
   chapters({ Ch: [create()] })
   const json = assembleModules([{ default: m.model("x") }], { partial: true })
-  assert.deepEqual(json.warnings, [
-    {
-      message:
-        "Ch › Create: nothing uses Created yet. Add .automation(d.Created), or .event(d.Created) to a state view, where something reacts to it.",
-      element: "Created",
-      slice: "Create",
-    },
-    {
-      message: "Started: nothing records it. Add .event(d.Started) to the slice that causes it.",
-      element: "Started",
-    },
-    {
-      message: "Ended: nothing records it. Add .event(d.Ended) to the slice that causes it.",
-      element: "Ended",
-    },
-    {
-      message:
-        "Created isn't in a stream yet. Add .stream() where it's declared, with the stream it belongs to.",
-      element: "Created",
-    },
-  ])
+  assert.deepEqual(
+    json.messages?.map((m) => [m.kind, m.message, m.ui]),
+    [
+      [
+        "warning",
+        "Created (Ch › Create): unused. Add .automation(d.Created), or .event(d.Created) to a state view.",
+        "Created: unused",
+      ],
+      [
+        "warning",
+        "Started: nothing records it. Add .event(d.Started) to the slice that causes it.",
+        "Started: nothing records it",
+      ],
+      [
+        "warning",
+        "Ended: nothing records it. Add .event(d.Ended) to the slice that causes it.",
+        "Ended: nothing records it",
+      ],
+      [
+        "warning",
+        "Created: no stream. Add .stream() where it's declared, with the stream it belongs to.",
+        "Created: no stream",
+      ],
+    ],
+  )
   assert.deepEqual(json.loose, [
     { kind: "event", element: "Started(id)", aggregate: "games" },
     { kind: "event", element: "Ended(id)", aggregate: "games" },
@@ -1666,7 +1758,7 @@ test("chapters come in the order of their numbers, each with its slices in the o
 
 test("a file that imports an example from a later chapter's file still comes first, and so do its lanes", async () => {
   const json = await assemble(here("./fixtures/imported-later"))
-  assert.equal(json.warnings, undefined)
+  assert.equal(json.messages, undefined)
   assert.deepEqual(
     json.chapters.map((c) => c.name),
     ["Capture", "Filing"],
@@ -1677,7 +1769,7 @@ test("a file that imports an example from a later chapter's file still comes fir
   )
 })
 
-test("two chapters of one number are left to do, and drawn in the order declared", () => {
+test("two chapters of one number are an error, and drawn in the order declared", () => {
   const modules = () => {
     fixture()
     m.chapter("A", 1)
@@ -1688,15 +1780,20 @@ test("two chapters of one number are left to do, and drawn in the order declared
   }
   assert.throws(
     () => assembleModules(modules()),
-    /^Error: A and B are both chapter 1\. Give each its own number\.$/,
+    /^Error: B: chapter 1 is taken by A\. Give each its own number\.$/,
   )
   const json = assembleModules(modules(), { partial: true })
   assert.deepEqual(
     json.chapters.map((c) => c.name),
     ["A", "B"],
   )
-  assert.deepEqual(json.warnings, [
-    { message: "A and B are both chapter 1. Give each its own number.", element: "" },
+  assert.deepEqual(json.messages, [
+    {
+      kind: "error",
+      message: "B: chapter 1 is taken by A. Give each its own number.",
+      ui: "A, B: both chapter 1",
+      element: "",
+    },
   ])
 })
 
@@ -1713,8 +1810,8 @@ test("a chapter with no number comes after the numbered ones, in the order decla
     ["Filing", "Capture", "Review"],
   )
   assert.deepEqual(
-    json.warnings?.map((w) => w.message),
-    ["Review has no slices yet."],
+    json.messages?.map((m) => m.message),
+    ["Review: no slices. Add .chapter(d.Review) to one."],
   )
 })
 
@@ -1734,13 +1831,20 @@ test("a second .note() adds to the first, on a slice and on a declaration", () =
   assert.equal(json.notes.Created, "Recorded once.\nNever edited.")
 })
 
-test("a chapter no slice joins is drawn empty, as a to-do", () => {
+test("a chapter no slice joins is drawn empty, as a warning", () => {
   fixture()
   chapters({ Ch: [create(), view()] })
   m.chapter("Later", 2)
   const json = assembleModules([{ default: m.model("x") }], { partial: true })
   assert.deepEqual(json.chapters.at(-1), { name: "Later", slices: [] })
-  assert.deepEqual(json.warnings, [{ message: "Later has no slices yet.", element: "" }])
+  assert.deepEqual(json.messages, [
+    {
+      kind: "warning",
+      message: "Later: no slices. Add .chapter(d.Later) to one.",
+      ui: "Later: empty",
+      element: "",
+    },
+  ])
   assert.equal(layout(json).chapters.at(-1)?.title, "Later")
 })
 
@@ -1752,7 +1856,7 @@ test("a slice joins one chapter", () => {
   create().chapter(d.A).chapter(d.B)
   assert.throws(
     () => assembleModules([{ default: m.model("x") }]),
-    /^Error: Create: this slice joins A and B\. Keep one \.chapter\(\)\.$/,
+    /^Error: Create: joins A and B\. Keep one \.chapter\(\)\.$/,
   )
 })
 
@@ -1771,8 +1875,10 @@ test("a partial assembly draws a slice in two chapters in the first, and lists i
     ],
   )
   assert.ok(
-    json.warnings?.some(
-      (w) => w.message === "Create: this slice joins A and B. Keep one .chapter().",
+    json.messages?.some(
+      (m) =>
+        m.message === "Create: joins A and B. Keep one .chapter()." &&
+        m.ui === "Create: in two chapters",
     ),
   )
 })
@@ -1783,23 +1889,22 @@ test("a chapter a slice joins that nothing declares", () => {
     create().chapter(d.Later)
     return [{ default: m.model("x") }]
   }
-  const message = 'Create: d.Later is not declared. Declare it with m.chapter("Later").'
+  const message = 'd.Later (Create): not declared. Declare it with m.chapter("Later").'
   const partial = feedOf(modules(), { partial: true })
   assert.deepEqual(
-    partial.warnings?.filter((w) => w.slice === "Create").map((w) => w.message),
+    [...(partial.errors ?? []), ...(partial.warnings ?? [])]
+      .filter((m) => m.slice === "Create")
+      .map((m) => m.message),
     [
       message,
-      "Create: nothing uses Created yet. Add .automation(d.Created), or .event(d.Created) to a state view, where something reacts to it.",
+      "Created (Create): unused. Add .automation(d.Created), or .event(d.Created) to a state view.",
     ],
   )
   assert.deepEqual(
     drawn(partial).chapters.map((c) => [c.name, c.slices.map((s) => s.name)]),
     [["", ["Create"]]],
   )
-  assert.throws(
-    () => feedOf(modules()),
-    (e: Error) => e.message.startsWith(`${message}\n`),
-  )
+  assert.throws(() => feedOf(modules()), { message })
 })
 
 // --- Slices in no chapter -----------------------------------------------------
@@ -1817,7 +1922,7 @@ test("a slice in no chapter is drawn after the story, and is not left to do: cha
     [["", ["Create", "Create", "Table"]]],
   )
   assert.deepEqual(
-    json.warnings?.filter((w) => w.message.includes("chapter")),
+    json.messages?.filter((m) => m.message.includes("chapter")),
     [],
   )
 })
@@ -1833,10 +1938,12 @@ test("a state view's context written as it once was, as a query, is drawn withou
     ["Table"],
   )
   assert.deepEqual(
-    feed.warnings?.filter((w) => w.message.includes("not a declaration")),
+    feed.errors?.filter((m) => m.message.includes("not a declaration")),
     [
       {
-        message: "Ch › Table: [object Object] is not a declaration: pass d.Name.",
+        kind: "error",
+        message: "Ch › Table: [object Object] is not a declaration. Pass d.Name.",
+        ui: "Table: a step names no element",
         element: "",
         slice: "Table",
       },
@@ -1844,7 +1951,7 @@ test("a state view's context written as it once was, as a query, is drawn withou
   )
 })
 
-test("a slice missing part of its core is drawn with the rest and says what it lacks; strict assembly refuses it", () => {
+test("a slice missing part of its core is drawn with the rest and warns of what it lacks, which a strict assembly lets through", () => {
   const slices = () => {
     fixture()
     return [
@@ -1866,28 +1973,29 @@ test("a slice missing part of its core is drawn with the rest and says what it l
     ],
   )
   assert.deepEqual(
-    json.warnings?.filter((w) => / no (event|command) yet\./.test(w.message)),
+    json.messages?.filter((m) => /: no (event|command)\. /.test(m.message)),
     [
       {
-        message: "Ch › Create: no event yet. Add .event() after .command(d.Create).",
+        kind: "warning",
+        message: "Ch › Create: no event. Add .event() after .command(d.Create).",
+        ui: "Create: no event",
         element: "",
         slice: "Create",
       },
       {
-        message: "Ch › Created: no command yet. Add .command() after .automation(d.Created).",
+        kind: "warning",
+        message: "Ch › Created: no command. Add .command() after .automation(d.Created).",
+        ui: "Created: no command",
         element: "",
         slice: "Created",
       },
     ],
   )
   assert.ok(layout(json).boxes.length > 0)
-  assert.throws(
-    () => assembled(slices()),
-    /Ch › Create: no event yet\. Add \.event\(\) after \.command\(d\.Create\)\./,
-  )
+  assert.doesNotThrow(() => assembled(slices()))
 })
 
-test("a mapping that throws is left to do, naming its slice, which is drawn whole", () => {
+test("a mapping that throws is an error, naming its slice, which is drawn whole", () => {
   fixture()
   const throws = m
     .slice()
@@ -1903,10 +2011,16 @@ test("a mapping that throws is left to do, naming its slice, which is drawn whol
     ],
   )
   assert.deepEqual(
-    json.warnings?.filter((w) => w.slice === "Create").map((w) => w.message),
+    json.messages?.filter((m) => m.slice === "Create").map((m) => [m.message, m.ui]),
     [
-      "Ch › Create: Created's mapping threw: m.generate() takes fields of the mapping's argument, such as m.generate(c.AddNote.title), not id.",
-      "Ch › Create: no specification shows Created yet. Add a .spec whose then has Created(...).",
+      [
+        "Created (Ch › Create): m.generate() takes fields of c, such as m.generate(c.AddNote.title), not id.",
+        "Created: generated from something that isn't a field",
+      ],
+      [
+        "Created (Ch › Create): missing specification. Add a .spec whose then has Created(…).",
+        "Created: missing specification",
+      ],
     ],
   )
 })
@@ -1936,11 +2050,12 @@ test("an example names its declaration in the assembly it is in, so one example 
         unspecifiedView().spec("A list is a row", { given: created, then: d.Table(list) }),
       ],
     })
-    return feedOf([{ default: m.model("x") }], { partial: true }).warnings
+    const { errors, warnings } = feedOf([{ default: m.model("x") }], { partial: true })
+    return [errors, warnings]
   }
   // Nothing is left to do either time.
-  assert.equal(twice(), undefined)
-  assert.equal(twice(), undefined)
+  assert.deepEqual(twice(), [undefined, undefined])
+  assert.deepEqual(twice(), [undefined, undefined])
 })
 
 test("loading a model from files sees only the slices its modules write", async () => {
@@ -1960,13 +2075,13 @@ test("a name declared twice", () => {
     return [{ default: m.model("x") }]
   }
   const twice =
-    /^Created is declared twice, at test\/assemble\.test\.ts:\d+ and test\/assemble\.test\.ts:\d+\. Keep one\.$/
+    /^Created: declared twice, at test\/assemble\.test\.ts:\d+ and test\/assemble\.test\.ts:\d+\. Keep one\.$/
   assert.throws(
     () => assembleModules(modules()),
     (e: Error) => twice.test(e.message),
   )
   const json = assembleModules(modules(), { partial: true })
-  assert.ok(json.warnings?.some((w) => twice.test(w.message)))
+  assert.ok(json.messages?.some((m) => twice.test(m.message) && m.ui === "Created: declared twice"))
 })
 
 test("an external system declared in two modules is one lane", async () => {
@@ -1996,7 +2111,7 @@ test("an event in a stream and an external system", () => {
   m.event("Created", { id: t.string(), name: t.string() }).stream(d.Lists).external(d.Mail)
   assert.throws(
     () => assembled([create(), view()]),
-    /^Error: Created is in the Lists stream and the Mail system\. Keep one: \.stream\(\) for ours, \.external\(\) for theirs\.$/,
+    /^Error: Created: in stream Lists and system Mail\. Keep one: \.stream\(\) for ours, \.external\(\) for theirs\.$/,
   )
 })
 
@@ -2046,7 +2161,7 @@ test("an example's nested values are printed", () => {
 function disagreements(slices: readonly Slice[]): string[] {
   chapters({ Ch: slices })
   const json = assembleModules([{ default: m.model("x") }], { partial: true })
-  return (json.warnings ?? []).map((w) => w.message).filter((w) => w.includes('› "'))
+  return (json.messages ?? []).map((m) => m.message).filter((m) => / in ".*" \(/.test(m))
 }
 
 test("a state change's then has what its command sends and its mapping sets", () => {
@@ -2095,19 +2210,19 @@ test("a state change's then has what its command sends and its mapping sets", ()
   }
   assert.deepEqual(disagreements([add(false)]), [])
   assert.deepEqual(disagreements([add(true)]), [
-    'Ch › Add › "disagrees": then has id "a-2", but when sends "a-1".',
-    'Ch › Add › "disagrees": then has title "buy bread", but when sends text "buy milk".',
-    `Ch › Add › "disagrees": then has status "done", but Added's mapping sets "open".`,
-    'Ch › Add › "disagrees": then has tags [{"name":"drink"}], but when sends [{"name":"food"}].',
+    'Added.id in "disagrees" (Ch › Add): then has "a-2", but when sends "a-1".',
+    'Added.title in "disagrees" (Ch › Add): then has "buy bread", but when sends text "buy milk".',
+    `Added.status in "disagrees" (Ch › Add): then has "done", but Added's mapping sets "open".`,
+    'Added.tags in "disagrees" (Ch › Add): then has [{"name":"drink"}], but when sends [{"name":"food"}].',
   ])
   chapters({ Ch: [add(true)] })
   const json = assembleModules([{ default: m.model("x") }], { partial: true })
-  assert.ok(json.warnings?.some((w) => w.element === "Added" && w.slice === "Add"))
+  assert.ok(json.messages?.some((m) => m.element === "Added" && m.slice === "Add"))
   chapters({ Ch: [add(true)] })
   assert.throws(
     () => assembleModules([{ default: m.model("x") }]),
     // Every problem, not just the first.
-    /^Error: Ch › Add › "disagrees": then has id "a-2", but when sends "a-1"\.\nCh › Add › "disagrees": then has title /,
+    /^Error: Added\.id in "disagrees" \(Ch › Add\): then has "a-2", but when sends "a-1"\.\nAdded\.title in "disagrees" /,
   )
 })
 
@@ -2155,10 +2270,10 @@ test("an automation's when has what its trigger in given carries and its mapping
   }
   assert.deepEqual(disagreements([processor(false)]), [])
   assert.deepEqual(disagreements([processor(true)]), [
-    'Ch › Processor › "disagrees": when has id "list-2", but Created in given has "list-1".',
-    'Ch › Processor › "disagrees": when has label "Chores", but Created in given has name "Groceries".',
-    `Ch › Processor › "disagrees": when has by "someone", but Process's mapping sets "processor".`,
-    'Ch › Processor › "disagrees": then has id "list-3", but when sends "list-2".',
+    'Process.id in "disagrees" (Ch › Processor): when has "list-2", but Created in given has "list-1".',
+    'Process.label in "disagrees" (Ch › Processor): when has "Chores", but Created in given has name "Groceries".',
+    `Process.by in "disagrees" (Ch › Processor): when has "someone", but Process's mapping sets "processor".`,
+    'Processed.id in "disagrees" (Ch › Processor): then has "list-3", but when sends "list-2".',
   ])
 })
 
@@ -2209,10 +2324,10 @@ test("a view's rows have what given builds, matched by key", () => {
     { ...chores, status: "open" },
   ])
   assert.deepEqual(disagreements([wrong]), [
-    'Ch › Lists › "disagrees": then has name "Chores", but ListCreated in given has "Groceries".',
-    'Ch › Lists › "disagrees": then has title "Chores", but ListCreated in given has name "Groceries".',
-    `Ch › Lists › "disagrees": then has status "closed", but ListCreated's mapping sets "open".`,
-    `Ch › Lists › "disagrees": then has status "open", but ListClosed's mapping sets "closed".`,
+    'Lists.name in "disagrees" (Ch › Lists): then has "Chores", but ListCreated in given has "Groceries".',
+    'Lists.title in "disagrees" (Ch › Lists): then has "Chores", but ListCreated in given has name "Groceries".',
+    `Lists.status in "disagrees" (Ch › Lists): then has "closed", but ListCreated's mapping sets "open".`,
+    `Lists.status in "disagrees" (Ch › Lists): then has "open", but ListClosed's mapping sets "closed".`,
   ])
 })
 
@@ -2244,7 +2359,7 @@ test("a list view: each event adds a row, told apart by every value, and drawn a
     then: d.Activity({ noteId: "n-1", what: "captured" }),
   })
   assert.deepEqual(disagreements([one]), [
-    'Ch › Activity › "one": given builds Activity {"noteId":"n-1","what":"edited"}, but then leaves it out and when does not exclude it. Add it to then.',
+    'Activity in "one" (Ch › Activity): given builds {"noteId":"n-1","what":"edited"}, but then leaves it out. Add it to then.',
   ])
   chapters({ Ch: [projection()] })
   const feed = feedOf([{ default: m.model("x") }], { partial: true })
@@ -2372,7 +2487,7 @@ test("the book's ArchiveItem slice: a price change archives the item in the cart
   ]
   chapters({ Ch: story })
   const feed = feedOf([{ default: m.model("x") }])
-  assert.equal(feed.warnings, undefined)
+  assert.deepEqual([feed.errors, feed.warnings], [undefined, undefined])
   drawn(feed)
   const slice = feed.model.slices.find((s) => s.title === "ArchiveItemScheduler")
   const command = slice?.commands[0]
@@ -2409,7 +2524,7 @@ test("an automation's when is for one of the rows its query picks", () => {
       then: d.ItemArchived({ aggregateId: "55555555-5555-4555-8555-555555555555" }),
     })
   assert.deepEqual(disagreements([slice, cartsView()]), [
-    `Ch › ArchiveItemScheduler › "disagrees": when is for none of the 2 CartsWithProducts rows with {"productId":"${productId}"} that given builds.`,
+    `CartsWithProducts in "disagrees" (Ch › ArchiveItemScheduler): when matches none of the 2 rows with {"productId":"${productId}"}.`,
   ])
 })
 
@@ -2421,7 +2536,7 @@ test("a query that picks no row: an automation issues nothing, and a command is 
     then: d.ItemArchived({ aggregateId: cartId }),
   })
   assert.deepEqual(disagreements([issues, cartsView()]), [
-    `Ch › ArchiveItemScheduler › "no cart holds the product": given builds no CartsWithProducts row with {"productId":"${productId}"}, so the automation issues no ArchiveItem. Add the event that builds it.`,
+    `CartsWithProducts in "no cart holds the product" (Ch › ArchiveItemScheduler): given builds no row with {"productId":"${productId}"}, so ArchiveItem is never issued. Add the event that builds it.`,
   ])
   cart()
   const archive = m
@@ -2447,12 +2562,12 @@ test("a query that picks no row: an automation issues nothing, and a command is 
       then: "The cart no longer holds the product",
     })
   assert.deepEqual(disagreements([archive, cartsView()]), [
-    `Ch › ArchiveItem › "archived": given builds no CartsWithProducts row with {"aggregateId":"${cartId}","productId":"${productId}"}, so ArchiveItem is refused. Add the event that builds it, or reject.`,
-    `Ch › ArchiveItem › "described": given builds no CartsWithProducts row with {"aggregateId":"${cartId}","productId":"${productId}"}, so ArchiveItem is refused. Add the event that builds it, or reject.`,
+    `CartsWithProducts in "archived" (Ch › ArchiveItem): given builds no row with {"aggregateId":"${cartId}","productId":"${productId}"}, so ArchiveItem is refused. Add the event that builds it, or reject.`,
+    `CartsWithProducts in "described" (Ch › ArchiveItem): given builds no row with {"aggregateId":"${cartId}","productId":"${productId}"}, so ArchiveItem is refused. Add the event that builds it, or reject.`,
   ])
 })
 
-test("a translation whose query picks no row is called a translation", () => {
+test("a translation whose query picks no row never issues its command", () => {
   m.external("Provider")
   m.event("Authorized", { state: t.string() }).external(d.Provider)
   m.view("Pending", { state: t.string().key() })
@@ -2471,7 +2586,7 @@ test("a translation whose query picks no row is called a translation", () => {
       then: d.Completed({ state: "s-1" }),
     })
   assert.deepEqual(disagreements([forged, m.slice().view(d.Pending).event(d.Requested)]), [
-    `Ch › Complete › "forged": given builds no Pending row with {"state":"s-1"}, so the translation issues no Complete. Add the event that builds it.`,
+    `Pending in "forged" (Ch › Complete): given builds no row with {"state":"s-1"}, so Complete is never issued. Add the event that builds it.`,
   ])
 })
 
@@ -2482,9 +2597,9 @@ test("an event nothing uses is one line, naming every slice that records it", ()
   chapters({ Ch: [unspecified(), again] })
   const json = feedOf([{ default: m.model("x") }], { partial: true })
   assert.deepEqual(
-    json.warnings?.flatMap((w) => (w.message.includes("nothing uses") ? [w.message] : [])),
+    json.warnings?.flatMap((m) => (m.message.includes("unused") ? [m.message] : [])),
     [
-      "Ch › Create, Ch › Recreate: nothing uses Created yet. Add .automation(d.Created), or .event(d.Created) to a state view, where something reacts to it.",
+      "Created (Ch › Create, Ch › Recreate): unused. Add .automation(d.Created), or .event(d.Created) to a state view.",
     ],
   )
 })

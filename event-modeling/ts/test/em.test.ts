@@ -83,7 +83,7 @@ test("an assembly error is one line and exit 1", () => {
   assert.equal(run.status, 1)
   assert.equal(
     run.stderr.trim(),
-    "Created is declared twice, at index.ts:5 and index.ts:6. Keep one.",
+    "Created: declared twice, at index.ts:5 and index.ts:6. Keep one.",
   )
 })
 
@@ -136,7 +136,7 @@ m.actor("Filer", { icon: "system" })
     writeFileSync(join(dir, "index.ts"), model())
     const stale = em("types", "--check", dir)
     assert.equal(stale.status, 1)
-    assert.match(stale.stderr, /em-registry\.d\.ts is out of date\. Run em types /)
+    assert.match(stale.stderr, /em-registry\.d\.ts: out of date\. Run em types /)
     const wrote = em("types", dir)
     assert.equal(wrote.status, 0, wrote.stderr)
     assert.match(wrote.stdout, /^Wrote .*em-registry\.d\.ts\n$/)
@@ -178,7 +178,7 @@ test("--help prints the usage", () => {
   assert.match(run.stdout, /^usage:/)
 })
 
-test("proto with no service says so and exits 1", () => {
+test("proto with no service warns so, writes nothing, and exits 0: nothing is wrong", () => {
   const dir = mkdtempSync(here("../tmp-proto-"))
   try {
     writeFileSync(
@@ -196,11 +196,8 @@ export default m.model("x")
 `,
     )
     const run = em("proto", dir, "-o", join(dir, "out"))
-    assert.equal(run.status, 1)
-    assert.match(
-      run.stderr,
-      /^No slice has a service, so no \.proto was written\. Add \.service\(d\.Api\)/,
-    )
+    assert.equal(run.status, 0)
+    assert.match(run.stderr, /^No service: no \.proto written\. Add \.service\(d\.Api\)/)
     assert.ok(!existsSync(join(dir, "out")))
   } finally {
     rmSync(dir, { recursive: true, force: true })
@@ -235,17 +232,28 @@ function protoOf(source: string) {
   }
 }
 
-test("proto writes a finished service whatever is left to do elsewhere", () => {
+test("proto writes a service with no errors whatever is wrong elsewhere", () => {
   const { run, api } = protoOf(API_DONE)
   assert.equal(run.status, 0, run.stderr)
   assert.match(api ?? "", /rpc Start\(StartRequest\) returns \(StartResponse\);/)
 })
 
-test("proto skips a service with an unfinished slice, says why, and exits 1", () => {
-  const { run, api, board } = protoOf(
+test("proto writes a service whose slices only warn: a missing specification holds nothing back", () => {
+  const { run, board } = protoOf(
     `${API_DONE}m.service("Board", "board.v1")
 m.view("Listing", { id: t.string().key() })
 m.slice().view(d.Listing).event(d.Started).service(d.Board, "List").chapter(d.Ch)
+`,
+  )
+  assert.equal(run.status, 0, run.stderr)
+  assert.match(board ?? "", /rpc List\(ListRequest\) returns \(ListResponse\);/)
+})
+
+test("proto skips a service whose own slice has an error, says why, and exits 1", () => {
+  const { run, api, board } = protoOf(
+    `${API_DONE}m.service("Board", "board.v1")
+m.view("Listing", { id: t.string().key(), name: t.string() })
+m.slice().view(d.Listing).event(d.Started).service(d.Board, "List").chapter(d.Ch).spec("lists", { given: d.Started({ id: "1" }), then: d.Listing({ id: "1" }) })
 `,
   )
   assert.equal(run.status, 1)
@@ -253,11 +261,11 @@ m.slice().view(d.Listing).event(d.Started).service(d.Board, "List").chapter(d.Ch
   assert.equal(board, undefined)
   assert.match(
     run.stderr,
-    /Skipped .*board\/v1\/board\.proto\. Its service has left to do:\nCh › Listing: no specification shows this view yet\./,
+    /Skipped .*board\/v1\/board\.proto: Board has 1 error:\nListing\.name \(Ch › Listing\): no source\./,
   )
 })
 
-test("proto never writes a nameless rpc: a state view's service with no method is left to do", () => {
+test("proto never writes a nameless rpc: a state view's service with no method is an error", () => {
   const { run, api, board } = protoOf(
     `${API_DONE}m.service("Board", "board.v1")
 m.view("Games", { id: t.string().key() })
@@ -269,7 +277,7 @@ m.slice().view(d.Games).event(d.Started).service(d.Board).chapter(d.Ch).spec("li
   assert.equal(board, undefined)
   assert.match(
     run.stderr,
-    /Skipped .*board\/v1\/board\.proto\. Its service has left to do:\nCh › Games: a state view names its method: \.service\(d\.Board, "ListGames"\)\./,
+    /Skipped .*board\/v1\/board\.proto: Board has 1 error:\nCh › Games: method has no name\. Write \.service\(d\.Board, "ListGames"\)\./,
   )
 })
 
@@ -312,6 +320,7 @@ async function reloaded(url: string, act: () => void) {
 test("view serves the app, the model, and a change feed", async () => {
   const server = await view(EXAMPLE)
   try {
+    assert.match(server.log(), /^\d\d:\d\d:\d\d Started \(\d+ms\)\. Nothing left to do\.\n/)
     const { url } = server
     const page = await fetch(`${url}/`)
     assert.equal(page.status, 200)
@@ -367,16 +376,24 @@ m.slice().command(d.StartGame).event(${emits}).actor(d.User).service(d.Chess).ch
 export default m.model("Chess")
 `
   const error =
-    "index.ts:9  GameStarted: add black, white to a step before .event() or set it in the mapping"
-  const warnings = async (url: string) =>
-    (
-      (await (await fetch(`${url}/model.json`)).json()) as { warnings?: { message: string }[] }
-    ).warnings?.map((w) => w.message) ?? []
+    "index.ts:9  GameStarted.black: no source. Add black to a step before .event(), or set it in the mapping."
+  type Said = { message: string }[]
+  const messages = async (url: string) => {
+    const feed = (await (await fetch(`${url}/model.json`)).json()) as {
+      errors?: Said
+      warnings?: Said
+    }
+    return [...(feed.errors ?? []), ...(feed.warnings ?? [])].map((m) => m.message)
+  }
   writeFileSync(file, model("d.GameStarted"))
   const server = await view(dir)
   try {
+    assert.match(
+      server.log(),
+      /\(\d+ms\)\. 2 errors, 2 warnings:\n {2}index\.ts:9 {2}GameStarted\.black: /,
+    )
     assert.ok(server.log().includes(`\n  ${error}\n`), server.log())
-    assert.ok((await warnings(server.url)).includes(error))
+    assert.ok((await messages(server.url)).includes(error))
 
     // Saved the way many editors save: a hidden temporary file renamed over the model.
     await reloaded(server.url, () => {
@@ -386,7 +403,7 @@ export default m.model("Chess")
       )
       renameSync(join(dir, ".!1!index.ts"), file)
     })
-    assert.ok(!(await warnings(server.url)).includes(error))
+    assert.ok(!(await messages(server.url)).includes(error))
     const saved = server.log().slice(server.log().indexOf("Saved"))
     assert.ok(saved.startsWith("Saved index.ts ") && !saved.includes(error), server.log())
 
@@ -406,7 +423,7 @@ m.event("GameEnded", { gameId: t.string() }).stream(d.Games)
       ),
     )
     assert.match(readFileSync(join(dir, "em-registry.d.ts"), "utf8"), /GameEnded: EventDecl/)
-    const ended = (await warnings(server.url)).filter((w) => w.startsWith("ending.ts"))
+    const ended = (await messages(server.url)).filter((m) => m.startsWith("ending.ts"))
     assert.deepEqual(ended, [])
   } finally {
     server.close()
@@ -434,21 +451,23 @@ export default m.model("Chess")
   )
   const server = await view(dir)
   try {
-    const { warnings = [] } = (await (await fetch(`${server.url}/model.json`)).json()) as {
-      warnings?: { message: string; element: string; slice?: string }[]
+    const { errors = [] } = (await (await fetch(`${server.url}/model.json`)).json()) as {
+      errors?: { message: string; ui?: string; element: string; slice?: string }[]
     }
     assert.deepEqual(
-      warnings
-        .filter((w) => w.message.includes("white"))
-        .map((w) => [w.message, w.element, w.slice]),
+      errors
+        .filter((m) => m.message.includes("white"))
+        .map((m) => [m.message, m.ui, m.element, m.slice]),
       [
         [
-          "index.ts:10  GameStarted: add white to a step before .event() or set it in the mapping",
+          "index.ts:10  GameStarted.white: no source. Add white to a step before .event(), or set it in the mapping.",
+          "Game Started: white has no source",
           "GameStarted",
           "StartGame",
         ],
         [
-          "index.ts:11  Started: add white to a step before .event() or set it in the mapping",
+          "index.ts:11  Started.white: no source. Add white to a step before .event(), or set it in the mapping.",
+          "Started: white has no source",
           "Started",
           "Begin",
         ],
@@ -490,17 +509,17 @@ export default m.model("Notes")
   )
   const server = await view(dir)
   try {
-    const { warnings = [] } = (await (await fetch(`${server.url}/model.json`)).json()) as {
-      warnings?: { message: string }[]
+    const { errors = [] } = (await (await fetch(`${server.url}/model.json`)).json()) as {
+      errors?: { message: string }[]
     }
     assert.deepEqual(
-      warnings.filter((w) => w.message.startsWith("index.ts:")).map((w) => w.message),
+      errors.filter((m) => m.message.startsWith("index.ts:")).map((m) => m.message),
       [
-        "index.ts:7  noteId does not fit: set it to a field of its type, a t.literal() or m.generate()",
-        "index.ts:10  NoteTaken: noteId does not fit: set it to a field of its type, a t.literal() or m.generate()",
-        "index.ts:15  NoteLinked: noteId comes from LinkNote and PageMade: set it in the mapping",
-        "index.ts:17  NoteFiled: noteId comes from LinkNote and PageMade: set it in the mapping",
-        "index.ts:21  Published: text does not fit: set it to a field of its type, a t.literal() or m.generate()",
+        "index.ts:7  noteId: doesn't fit. Set it to a field of its type, a t.literal() or m.generate().",
+        "index.ts:10  NoteTaken.noteId: doesn't fit. Set it to a field of its type, a t.literal() or m.generate().",
+        "index.ts:15  NoteLinked.noteId: comes from LinkNote and PageMade. Set it in the mapping.",
+        "index.ts:17  NoteFiled.noteId: comes from LinkNote and PageMade. Set it in the mapping.",
+        "index.ts:21  Published.text: doesn't fit. Set it to a field of its type, a t.literal() or m.generate().",
       ],
     )
   } finally {
@@ -536,17 +555,29 @@ export default m.model("Fix")
   )
   const server = await view(dir)
   try {
-    const { warnings = [] } = (await (await fetch(`${server.url}/model.json`)).json()) as {
-      warnings?: { message: string }[]
+    const { errors = [] } = (await (await fetch(`${server.url}/model.json`)).json()) as {
+      errors?: { message: string; ui?: string }[]
     }
     assert.deepEqual(
-      warnings.filter((w) => w.message.startsWith("index.ts:")).map((w) => w.message),
+      errors.filter((m) => m.message.startsWith("index.ts:")).map((m) => [m.message, m.ui]),
       [
-        "index.ts:9  say which rows: a column or a mapping, () => ({}) for every row",
-        'index.ts:10  a state view names its method: .service(d.Api, "ListX")',
-        "index.ts:13  comes from outside: start its slice with .translation()",
-        "index.ts:17  name comes from Rename and Names: map it",
-        "index.ts:18  it is not a declaration: pass a command",
+        [
+          "index.ts:9  Table: say which rows: a column, a mapping, or () => ({}) for every row.",
+          "Table: query doesn't say which rows",
+        ],
+        [
+          'index.ts:10  method has no name. Write .service(d.Api, "ListX").',
+          "A state view's method has no name",
+        ],
+        [
+          "index.ts:13  Scheduled: comes from outside. Start its slice with .translation(d.Scheduled).",
+          "Scheduled: needs a translation",
+        ],
+        [
+          "index.ts:17  Titles.name: comes from Rename and Names. Map it.",
+          "Titles: name has two sources",
+        ],
+        ["index.ts:18  not a declaration. Pass a command as d.Name.", "A step names no element"],
       ],
     )
   } finally {
@@ -579,9 +610,9 @@ export default m.model("x")
     assert.equal(
       shown,
       [
-        "  index.ts: declare synced above where it is used.",
+        "  synced: used above its declaration in index.ts. Move it up.",
         "  index.ts:3  Argument of type 'string' is not assignable to parameter of type 'Stream'.",
-        "  index.ts:8  the view is a list: many rows: only an automation reads them, before its .command()",
+        "  index.ts:8  Pending: many rows (the view is a list); only an automation reads many, before its .command().",
         "",
       ].join("\n"),
     )
@@ -608,11 +639,12 @@ test("export writes one self-contained page carrying the model", () => {
   }
 })
 
-test("json refuses a storm of events; --partial prints it with what is still to do", () => {
+test("json prints a storm of events, with its warnings on stderr; --partial prints what the viewer reads", () => {
   const storm = here("./fixtures/storm")
   const strict = em("json", storm)
-  assert.equal(strict.status, 1)
-  assert.match(strict.stderr, /GameStarted: nothing records it\./)
+  assert.equal(strict.status, 0, strict.stderr)
+  assert.deepEqual(JSON.parse(strict.stdout), { slices: [] })
+  assert.match(strict.stderr, /^GameStarted: nothing records it\./)
   const partial = em("json", "--partial", storm)
   assert.equal(partial.status, 0, partial.stderr)
   const json = JSON.parse(partial.stdout) as {
@@ -659,22 +691,22 @@ test("view and export draw a spec JSON file, and list where it breaks the schema
         (await (await fetch(`${server.url}/model.json`)).json()) as {
           name: string
           model: unknown
-          warnings: { message: string }[]
+          errors?: { message: string }[]
         }
       const valid = await fetched()
-      assert.deepEqual([valid.name, valid.model, valid.warnings], ["shop", json, []])
+      assert.deepEqual([valid.name, valid.model, valid.errors], ["shop", json, undefined])
       await reloaded(server.url, () => {
         json.slices[0].sliceType = "VIEW"
         writeFileSync(file, JSON.stringify(json))
       })
       const broken = await fetched()
       assert.deepEqual(
-        broken.warnings.map((w) => w.message),
+        broken.errors?.map((m) => m.message),
         [
-          "shop.json/slices/0/sliceType must be equal to one of the allowed values STATE_CHANGE, STATE_VIEW, AUTOMATION, TRANSLATION",
+          "shop.json /slices/0/sliceType: must be equal to one of the allowed values STATE_CHANGE, STATE_VIEW, AUTOMATION, TRANSLATION",
         ],
       )
-      assert.match(server.log(), /1 thing left to do:\n {2}shop\.json\/slices\/0\/sliceType/)
+      assert.match(server.log(), /1 error:\n {2}shop\.json \/slices\/0\/sliceType: /)
     } finally {
       server.close()
     }
@@ -682,7 +714,7 @@ test("view and export draw a spec JSON file, and list where it breaks the schema
     assert.equal(run.status, 0, run.stderr)
     const html = readFileSync(join(dir, "shop.html"), "utf8")
     assert.match(html, /<title>shop<\/title>/)
-    assert.match(html, /shop\.json\/slices\/0\/sliceType must be equal/)
+    assert.match(html, /shop\.json \/slices\/0\/sliceType: must be equal/)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

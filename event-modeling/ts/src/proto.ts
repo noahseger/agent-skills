@@ -4,11 +4,12 @@ import { z } from "zod"
 
 import type { Assembled, Fields, ServiceData, SliceData } from "./types.ts"
 
-/** A service's file, or what stops it: its slices' own dead ends, or a field with no protobuf equivalent. */
+/** A service's file, or what stops it: its slices' own errors, or a field with no protobuf equivalent. */
 export type ProtoFile = {
   /** Under the output directory, where the package puts it for buf. */
   path: string
-} & ({ source: string } | { problems: string[] })
+  service: string
+} & ({ source: string } | { errors: string[] })
 
 interface Field {
   name: string
@@ -58,7 +59,7 @@ const WELL_KNOWN: Record<string, [type: string, file: string]> = {
 const snake = (name: string) => name.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase()
 const pascal = (name: string) => name.charAt(0).toUpperCase() + name.slice(1)
 const unmappable = (where: string, why: string) =>
-  new Error(`${where} can't become protobuf: ${why}. The README's Protobuf section says what can.`)
+  new Error(`${where}: no protobuf type for ${why}. See the README's Protobuf section.`)
 
 /** The proto type of one schema. An object becomes a message nested in `parent`, a record a map. */
 function typeOf(schema: JsonSchema, where: string, field: string, parent: Message): string {
@@ -208,8 +209,8 @@ function render(msg: Message, indent = ""): string {
 export function generateProto({
   chapters,
   unchaptered,
-  unfinished,
-}: Pick<Assembled, "chapters" | "unchaptered" | "unfinished">): ProtoFile[] {
+  errors,
+}: Pick<Assembled, "chapters" | "unchaptered" | "errors">): ProtoFile[] {
   const byService = new Map<ServiceData, SliceData[]>()
   for (const slice of [...chapters.flatMap((c) => c.slices), ...unchaptered]) {
     if (!slice.service) continue
@@ -219,13 +220,17 @@ export function generateProto({
   return [...byService].map(([service, slices]) => {
     const name = service.name ?? ""
     const path = `${service.pkg.replaceAll(".", "/")}/${snake(name)}.proto`
-    const problems = slices.flatMap((s) => unfinished.get(s) ?? [])
-    if (problems.length > 0) return { path, problems }
+    const wrong = slices.flatMap((s) => errors.get(s) ?? []).map((m) => m.message)
+    if (wrong.length > 0) return { path, service: name, errors: wrong }
     let methods: Method[]
     try {
       methods = slices.map(methodOf)
     } catch (error) {
-      return { path, problems: [error instanceof Error ? error.message : String(error)] }
+      return {
+        path,
+        service: name,
+        errors: [error instanceof Error ? error.message : String(error)],
+      }
     }
     const rpcs = methods.map(
       (m) => `  rpc ${m.name}(${m.name}Request) returns (${m.name}Response);\n`,
@@ -236,6 +241,7 @@ export function generateProto({
     )
     return {
       path,
+      service: name,
       source: [
         'syntax = "proto3";\n',
         `package ${service.pkg};\n`,

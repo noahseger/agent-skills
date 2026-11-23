@@ -6,6 +6,7 @@ import { test } from "node:test"
 import { fileURLToPath } from "node:url"
 
 import type { Source } from "../src/types.ts"
+import { words } from "../src/types.ts"
 import type { Board } from "../viewer/src/board.ts"
 import {
   type Box,
@@ -16,7 +17,6 @@ import {
   path,
   polyline,
   source,
-  words,
   wrap,
 } from "../viewer/src/layout.ts"
 import { read } from "../viewer/src/read.ts"
@@ -527,10 +527,11 @@ test("a loose declaration is a column after the story, with no heading, its card
       { kind: "event", element: "Started(id)", aggregate: "lists" },
       { kind: "command", element: "Start(id)", aggregate: "lists" },
     ],
-    warnings: [
-      { message: "Started is in no slice yet.", element: "Started" },
+    messages: [
+      { kind: "warning", message: "Started: nothing records it.", element: "Started" },
       {
-        message: "slice 'CreateList' emits ListCreated, which nothing uses yet.",
+        kind: "warning",
+        message: "ListCreated (CreateList): unused.",
         element: "ListCreated",
         slice: "CreateList",
       },

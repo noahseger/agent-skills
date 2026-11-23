@@ -237,7 +237,9 @@ function decl(name: string, kind: DeclKind, fields: Fields): [Noted, DeclData] {
 
 /** `F`, or, for a field marked `.key()`, the instruction. */
 type Unkeyed<F extends Fields> = {
-  [K in keyof F]: F[K] extends { readonly __key: true } ? "only a view has key columns" : F[K]
+  [K in keyof F]: F[K] extends { readonly __key: true }
+    ? `${K & string}: only a view has key columns. Remove .key().`
+    : F[K]
 }
 
 /** Something that happened, in the past tense, with its fields. */
@@ -367,7 +369,7 @@ function input(value: unknown): string | DeclData {
   const source = (value as { [SOURCE]?: DeclData } | undefined)?.[SOURCE]
   if (source) return source
   throw new Error(
-    `m.generate() takes fields of the mapping's argument, such as m.generate(c.AddNote.title), not ${String(value)}.`,
+    `m.generate() takes fields of c, such as m.generate(c.AddNote.title), not ${String(value)}.`,
   )
 }
 
@@ -395,7 +397,7 @@ function probe(decl: DeclData, context: Context, scope: InScope, map?: MapFn): F
   try {
     result = map(c as never)
   } catch (error) {
-    // The picture never refuses a model: the step is drawn, and what threw is left to do.
+    // The picture never refuses a model: the step is drawn, and what threw is an error.
     flow.threw = error instanceof Error ? error.message : String(error)
     return flow
   }
@@ -473,25 +475,39 @@ type Join<N> = N extends readonly [infer A extends string, infer B extends strin
 /** An optional source field fits only an optional target, as it does in a mapping. */
 type Fits<S, T extends AnyField> = S extends Fit<T> ? true : false
 
-/** A field that would flow by name but does not fit: the sentence a mapping that sets it gets. */
-type Unfit<K extends string> =
-  `${K} does not fit: set it to a field of its type, a t.literal() or m.generate()`
+/** A field of `D` that would flow by name but does not fit: the sentence a mapping that sets it gets. */
+type Unfit<
+  D extends string,
+  K extends string,
+> = `${D}.${K}: doesn't fit. Set it to a field of its type, a t.literal() or m.generate().`
 
-/** What keeps target field `K` from flowing by name, as the instruction; never if it flows. */
-type Problem<C extends Ctx, T extends Fields, K extends keyof T & string, Step extends string> =
+/** What keeps field `K` of `D` from flowing by name, as the instruction; never if it flows. */
+type Problem<
+  C extends Ctx,
+  D extends string,
+  T extends Fields,
+  K extends keyof T & string,
+  Step extends string,
+> =
   Sources<C, K> extends readonly [infer N extends string]
     ? Fits<FieldIn<C, N, K>, T[K]> extends true
       ? never
-      : Unfit<K>
+      : Unfit<D, K>
     : Sources<C, K> extends readonly []
       ? K extends Needed<T>
-        ? `add ${K} to a step before ${Step} or set it in the mapping`
+        ? `${D}.${K}: no source. Add ${K} to a step before ${Step}, or set it in the mapping.`
         : never
-      : `${K} comes from ${Join<Sources<C, K>>}: set it in the mapping`
+      : `${D}.${K}: comes from ${Join<Sources<C, K>>}. Set it in the mapping.`
 
-/** The instruction for each field of `T` but those a mapping sets. */
-type Problems<C extends Ctx, T extends Fields, Step extends string, Set = never> = {
-  [K in Exclude<keyof T & string, Set>]: Problem<C, T, K, Step>
+/** The instruction for each field of `T`, which `D` declares, but those a mapping sets. */
+type Problems<
+  C extends Ctx,
+  D extends string,
+  T extends Fields,
+  Step extends string,
+  Set = never,
+> = {
+  [K in Exclude<keyof T & string, Set>]: Problem<C, D, T, K, Step>
 }[Exclude<keyof T & string, Set>] extends infer P extends string
   ? P
   : never
@@ -500,12 +516,13 @@ type Problems<C extends Ctx, T extends Fields, Step extends string, Set = never>
 type NameOf<N> = N extends { readonly __name: infer S extends string } ? S : "it"
 
 /** `N` if it is a declaration of kind `D`, or else the instruction. */
-type Single<N, D> = N extends D ? N : `${NameOf<N>} is ${KindOf<N>}: pass ${Kinds<D>}`
+type Single<N, D> = N extends D
+  ? N
+  : N extends { readonly __name: infer S extends string; readonly __kind: infer K }
+    ? `${S}: is ${Article<K>}; pass ${Kinds<D>}.`
+    : `not a declaration. Pass ${Kinds<D>} as d.Name.`
 
 type Article<K> = K extends "event" ? "an event" : `a ${K & string}`
-type KindOf<A> = A extends { readonly __name: string; readonly __kind: infer K }
-  ? Article<K>
-  : "not a declaration"
 type Kinds<D> = D extends { readonly __kind: infer K } ? Article<K> : never
 
 /** One declaration and its own fields, as the context its step starts. */
@@ -526,9 +543,9 @@ type Filled<
   ? Single<N, D>
   : unknown extends O
     ? Single<N, D>
-    : [Problems<C, FieldsOf<N>, Step, keyof O>] extends [never]
+    : [Problems<C, NameOf<N>, FieldsOf<N>, Step, keyof O>] extends [never]
       ? Single<N, D>
-      : Problems<C, FieldsOf<N>, Step, keyof O>
+      : Problems<C, NameOf<N>, FieldsOf<N>, Step, keyof O>
 
 /** The mapping a step takes: `c` holds each declaration before it, and `O` is what it sets. */
 type Mapping<C extends Ctx, A, O> = (c: Scope<C>) => O & Out<FieldsOf<A>>
@@ -547,12 +564,9 @@ type Rows<R, L, Cols> = L extends true
     ? "one"
     : "many"
 
-type Many = "many rows: only an automation reads them, before its .command()"
-
-/** Why a filter picks many rows. */
-type Unpicked<R, L, Cols> = L extends true
-  ? `the view is a list: ${Many}`
-  : `key column ${Exclude<KeysOf<R>, Cols>} is not in the filter: ${Many}`
+/** Why a filter of view `V` picks many rows. */
+type Unpicked<V, R, L, Cols> =
+  `${NameOf<V>}: many rows (${L extends true ? "the view is a list" : `key column ${Exclude<KeysOf<R>, Cols> & string} isn't in the filter`}); only an automation reads many, before its .command().`
 
 /** The filter's columns, or the instruction. `Fan` says whether many rows are allowed here. */
 type Filter<C extends Ctx, V, F, Fan extends boolean> =
@@ -565,12 +579,12 @@ type Filter<C extends Ctx, V, F, Fan extends boolean> =
               ? F
               : Fan extends true
                 ? F
-                : Unpicked<R, L, F>
-            : `the ${F} before .query() does not fit the column: map it`
+                : Unpicked<V, R, L, F>
+            : `${NameOf<V>}.${F}: doesn't fit the column. Map it.`
           : Sources<C, F> extends readonly []
-            ? `add ${F} to a step before .query(), or map it: (c) => ({ ${F}: c.… })`
-            : `${F} comes from ${Join<Sources<C, F>>}: map it`
-        : `the view has no column ${F}`
+            ? `${NameOf<V>}.${F}: no source. Add ${F} to a step before .query(), or map it: (c) => ({ ${F}: c.… }).`
+            : `${NameOf<V>}.${F}: comes from ${Join<Sources<C, F>>}. Map it.`
+        : `${NameOf<V>}: no column ${F}.`
       : F extends (c: Marked<C>) => infer O
         ? [Exclude<keyof O, keyof R>] extends [never]
           ? [O] extends [{ [Col in keyof O]: Col extends keyof R ? Fit<R[Col]> : never }]
@@ -578,9 +592,9 @@ type Filter<C extends Ctx, V, F, Fan extends boolean> =
               ? F
               : Fan extends true
                 ? F
-                : (c: Marked<C>) => Unpicked<R, L, keyof O>
+                : (c: Marked<C>) => Unpicked<V, R, L, keyof O>
             : (c: Marked<C>) => { [Col in keyof O]: Col extends keyof R ? Fit<R[Col]> : never }
-          : (c: Marked<C>) => `the view has no column ${Exclude<keyof O, keyof R> & string}`
+          : (c: Marked<C>) => `${NameOf<V>}: no column ${Exclude<keyof O, keyof R> & string}.`
         : never
     : never
 
@@ -618,22 +632,21 @@ interface Gate<Msg extends string> {
 /** A translation's start: an external event, or, for anything else, the instruction to fix it. */
 type Translated<E> = E extends ExternalEventDecl
   ? E
-  : E extends { readonly __kind: "view" }
-    ? "is a view: poll it with .automation()"
-    : "is ours: start its slice with .automation()"
+  : `${NameOf<E>}: not an outside event. Start its slice with .automation(d.${NameOf<E>}).`
 
-/** What a `.query()` with no filter is told, unless its view has one row. */
-type Unfiltered = "say which rows: a column or a mapping, () => ({}) for every row"
+/** What a `.query()` of view `N` with no filter is told, unless the view has one row. */
+type Unfiltered<N> =
+  `${NameOf<N>}: say which rows: a column, a mapping, or () => ({}) for every row.`
 
 /** `N` if it is a view of one row, with no key column, which needs no filter; or else the instruction. */
 type OneRow<N> =
   N extends ViewDecl<string, infer R, false>
     ? [KeysOf<R>] extends [never]
       ? Single<N, AnyView>
-      : Unfiltered
-    : Unfiltered
+      : Unfiltered<N>
+    : Unfiltered<N>
 
-/** A slice past its first step. Until it is complete it is drawn as far as it goes, and left to do. */
+/** A slice past its first step. Until it is complete it is drawn as far as it goes, and warns of what it lacks. */
 export interface Slice {
   /** The chapter it is drawn in; without one, it is drawn after the chapters, with no heading. */
   chapter(chapter: Chapter): this
@@ -645,10 +658,10 @@ interface Issuing<P extends "change" | "automation"> extends Slice {
   /** Who issues the command; for an automation, the machine of ours that runs it, without one the first declared, or else System. */
   actor(...actors: P extends "change" ? [Actor, ...Actor[]] : [SystemActor]): this
   /** Where the actors see it; without one, the command's form is drawn as their screen. */
-  screen(screen: P extends "change" ? Screen : "no one sees an automation"): this
+  screen(screen: P extends "change" ? Screen : "no one sees an automation. Remove .screen()."): this
   /** The method is named after the command unless given. */
   service(
-    service: P extends "change" ? Service : "an automation has no method",
+    service: P extends "change" ? Service : "an automation has no method. Remove .service().",
     method?: string,
   ): this
 }
@@ -658,7 +671,7 @@ interface Showing extends Slice {
   actor(...actors: [Actor, ...Actor[]]): this
   /** Where the actors see it; without one, the view's table is drawn as their screen. */
   screen(screen: Screen): this
-  service(service: 'a state view names its method: .service(d.Api, "ListX")'): this
+  service(service: 'method has no name. Write .service(d.Api, "ListX").'): this
   /** A state view has no command to name its method after. */
   service(service: Service, method: string): this
 }
@@ -674,20 +687,22 @@ export interface Start {
   /** Automation: an event of ours as it happens, or each row of a view it polls. */
   automation<N extends object>(
     trigger: N extends ExternalEventDecl
-      ? "comes from outside: start its slice with .translation()"
+      ? `${NameOf<N>}: comes from outside. Start its slice with .translation(d.${NameOf<N>}).`
       : Single<N, AnyEvent | AnyView>,
   ): Triggered<Own<N>>
   /** Translation: an external event, which becomes a command. */
   translation<N extends object>(
     external: Translated<N> extends string ? Translated<N> : Single<N, AnyEvent>,
   ): Triggered<Own<N>, false>
-  chapter(chapter: "start with .command(), .view(), .automation() or .translation()"): never
+  chapter(
+    chapter: "empty. Start it with .command(), .view(), .automation() or .translation().",
+  ): never
 }
 
 /** What starts an automation or a translation is known; the command is not yet. */
 export interface Triggered<C extends Ctx, Fan extends boolean = true>
   extends Issuing<"automation">,
-    Gate<"add .command() and .event() before .spec()"> {
+    Gate<"no command. Add .command() and .event() before .spec()."> {
   /** Reads the one row of a view with no key column. */
   query<N extends object>(
     view: OneRow<N>,
@@ -715,7 +730,7 @@ type Kept<C extends Ctx, N> = N extends ExternalEventDecl
 /** The command is issued; no event yet. */
 export interface Commanded<C extends Ctx, Cmd extends Fields, P extends "change" | "automation">
   extends Issuing<P>,
-    Gate<"add .event() before .spec()"> {
+    Gate<"no event. Add .event() before .spec()."> {
   /** Reads the one row of a view with no key column. */
   query<N extends object>(
     view: OneRow<N>,
@@ -764,10 +779,10 @@ export interface Handled<
 
 /** The view's event as `d.Name`, or the instruction. */
 type Projected<R extends Fields, N> = N extends ExternalEventDecl
-  ? "isn't stored: translate it into an event of ours, then project that"
+  ? `${NameOf<N>}: not stored. Translate it into an event of ours, then project that.`
   : [Misfit<FieldsOf<N>, R>] extends [never]
     ? Single<N, AnyEvent>
-    : Unfit<Misfit<FieldsOf<N>, R>>
+    : Unfit<NameOf<N>, Misfit<FieldsOf<N>, R>>
 
 /** A state view's mapping: `c` holds only its event, and it sets columns. */
 type ViewMapping<R extends Fields, N> = (
@@ -775,7 +790,9 @@ type ViewMapping<R extends Fields, N> = (
 ) => Out<R, Misfit<FieldsOf<N>, R>>
 
 /** The view is known; no event builds it yet. */
-export interface Viewing<R extends Fields> extends Showing, Gate<"add .event() before .spec()"> {
+export interface Viewing<R extends Fields>
+  extends Showing,
+    Gate<"no event. Add .event() before .spec()."> {
   /** An event that builds it. Each projects on its own, so a mapping reads only its event. */
   event<N extends object>(event: Projected<R, N>): Viewed<R, Record<never, never>>
   event<N extends object>(
@@ -817,7 +834,7 @@ interface AnySpec {
 /**
  * A state view's `when` is its context's values, which Zod checks as it checks an example's. Each
  * generated value, at any depth, becomes one value wherever the specification uses it, so the check
- * compares it as any other. A value Zod refuses is kept as written and left to do.
+ * compares it as any other. A value Zod refuses is kept as written and is an error.
  */
 function testData(name: string, spec: AnySpec, view?: SliceData): TestData {
   const made = new Map<unknown, unknown>()
@@ -840,7 +857,7 @@ function testData(name: string, spec: AnySpec, view?: SliceData): TestData {
     const filled = fill(z.object(fields), data)
     const parsed = z.object(fields).partial().safeParse(filled)
     for (const issue of parsed.error?.issues ?? [])
-      invalid.push({ decl, message: `${z.core.toDotPath(issue.path)}: ${issue.message}` })
+      invalid.push({ decl, path: z.core.toDotPath(issue.path), message: issue.message })
     return (parsed.data ?? filled) as Record<string, unknown>
   }
   const example = (c: Example): ExampleData => ({
