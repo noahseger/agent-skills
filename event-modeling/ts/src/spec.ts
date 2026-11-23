@@ -124,8 +124,6 @@ export interface Feed {
   streams?: string[]
   /** Actors in no slice, and every External System, so each has a lane. */
   actors?: SpecActor[]
-  /** Declarations in no slice yet. */
-  loose?: SpecElement[]
   /** Data that is wrong or has no source. */
   errors?: Message[]
   /** What is unfinished, with nothing wrong. */
@@ -223,41 +221,55 @@ export function toFeed({
   chapters,
   externals,
   loose,
-  unchaptered,
+  story,
   messages,
 }: Assembled): Feed {
   const streamOf = (d: DeclData): string | undefined => {
     for (const [name, members] of streams) if (members.includes(d)) return name
     return undefined
   }
-  const stories: [string | undefined, SliceData[]][] = [
-    ...chapters.map((c): [string, SliceData[]] => [c.name, c.slices]),
-    [undefined, unchaptered],
-  ]
-  const slices = stories.flatMap(([context, written]) =>
-    written.map((slice) => ({ slice, context })),
-  )
+  const chapterOf = new Map(chapters.flatMap((c) => c.slices.map((s) => [s, c.name] as const)))
   // A lane comes where the story first uses it; one no slice uses comes after, as declared.
-  const used = slices.flatMap(({ slice }) => slice.events.map((f) => streamOf(f.decl)))
+  const used = story.flatMap((c) => ("kind" in c ? [] : c.events.map((f) => streamOf(f.decl))))
   const first = (lane: string) => (used.includes(lane) ? used.indexOf(lane) : used.length)
   const looseActors = loose.flatMap((d) => (d.kind === "actor" ? [actorOf(d)] : []))
   const systems = externals.map((name) => ({ name, authRequired: false, tags: ["external"] }))
-  const looseElements = loose.flatMap((d) =>
-    d.kind === "event" || d.kind === "command" || d.kind === "view"
-      ? [looseElement(d, streamOf, `loose:${slug(d.name ?? "")}`)]
-      : [],
-  )
   return {
     name: model.name,
     ...(model.description !== "" && { description: model.description }),
     model: {
-      slices: slices.map(({ slice, context }, index) => sliceOf(slice, index, context, streamOf)),
+      slices: story.map((c, index) =>
+        "kind" in c ? alone(c, index, streamOf) : sliceOf(c, index, chapterOf.get(c), streamOf),
+      ),
     },
     chapters: chapters.map(({ name, note }) => ({ name, ...(note !== undefined && { note }) })),
     streams: [...streams.keys()].sort((a, b) => first(a) - first(b)),
     actors: [...looseActors, ...systems],
-    ...(looseElements.length > 0 && { loose: looseElements }),
     ...kinds(messages),
+  }
+}
+
+/** A declaration in no slice, as a slice of its own that holds only it. */
+function alone(
+  decl: DeclData,
+  index: number,
+  streamOf: (d: DeclData) => string | undefined,
+): SpecSlice {
+  const name = decl.name ?? ""
+  const id = slug(name)
+  const el = looseElement(decl, streamOf, `${id}:${TYPE[decl.kind].toLowerCase()}:${id}`)
+  return {
+    id,
+    index,
+    title: name,
+    sliceType: decl.kind === "view" ? "STATE_VIEW" : "STATE_CHANGE",
+    commands: decl.kind === "command" ? [el] : [],
+    events: decl.kind === "event" ? [el] : [],
+    readmodels: decl.kind === "view" ? [el] : [],
+    screens: [],
+    processors: [],
+    tables: [],
+    specifications: [],
   }
 }
 

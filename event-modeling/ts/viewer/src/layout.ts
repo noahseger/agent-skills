@@ -431,7 +431,7 @@ export function layout(model: Board): Layout {
       w: x - start,
     })
   })
-  // A declaration in no slice gets its own column after the story, in a nameless chapter.
+  // A loose element gets its own column after the story, in a nameless chapter.
   if (model.loose && model.loose.length > 0) {
     if (chapters.length > 0) x += CHAPTER_GAP
     const start = x

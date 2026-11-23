@@ -132,7 +132,7 @@ function assembled(modules: readonly object[], options: Options, dir: string): A
     if (chapter) chapter.slices.push(s)
     else unchaptered.push(s)
   }
-  check(chapters, unchaptered, declared, fail, conflict)
+  check(chapters, unchaptered, fail, conflict)
   for (const { name } of chapters.filter((c) => c.slices.length === 0))
     fail(
       warning({
@@ -141,7 +141,8 @@ function assembled(modules: readonly object[], options: Options, dir: string): A
         element: "",
       }),
     )
-  const loose = looseOf(drafts, streams, declared)
+  const loose = looseOf(drafts, declared)
+  const story = storyOf(chapters, unchaptered, loose, declared)
   for (const [name, members] of streams)
     if (members.length === 0)
       fail(
@@ -165,7 +166,7 @@ function assembled(modules: readonly object[], options: Options, dir: string): A
   // Every error at once, so one run shows all there is to fix.
   const wrong = messages.filter((m) => m.kind === "error")
   if (!options.partial && wrong.length > 0) throw new Error(wrong.map((m) => m.message).join("\n"))
-  return { model, streams, chapters, externals, loose, unchaptered, messages, errors }
+  return { model, streams, chapters, externals, loose, unchaptered, story, messages, errors }
 }
 
 /**
@@ -438,17 +439,55 @@ function chapterOf(slice: SliceData, conflict: Fail): string | undefined {
   return names[0]
 }
 
-/** Declarations in no slice yet, stream members first. */
-function looseOf(
-  slices: SliceData[],
-  streams: Map<string, DeclData[]>,
+/**
+ * Declarations no slice draws, in the order declared. An event is drawn by the slice that records
+ * it, or translates it from outside; anything else by a slice that names it.
+ */
+function looseOf(slices: SliceData[], declared: Declaration[]): Declaration[] {
+  const drawn = new Set<object>()
+  for (const slice of slices) {
+    for (const [kind, d] of used(slice)) if (kind !== "event") drawn.add(d)
+    for (const e of recorded(slice)) drawn.add(e)
+    if (slice.trigger?.external) drawn.add(slice.trigger)
+  }
+  return declared.filter((d) => !drawn.has(d))
+}
+
+/**
+ * Every column, in story order. Chapters, in order, hold their slices in the order written. What is
+ * in no chapter sits where it is declared, after the chapter of the slice declared before it: a
+ * declaration in no slice, or a slice, by the first of its own elements, its view, its command or an
+ * event it records, not what starts it or what it reads, which other slices place.
+ */
+function storyOf(
+  chapters: Assembled["chapters"],
+  unchaptered: SliceData[],
+  loose: Declaration[],
   declared: Declaration[],
-): Declaration[] {
-  const inUse = new Set<object>()
-  for (const slice of slices) for (const [, d] of used(slice)) inUse.add(d)
-  const members = [...streams.values()].flat()
-  const ordered = [...members, ...declared.filter((d) => !members.includes(d as DeclData))]
-  return ordered.filter((d) => !inUse.has(d))
+): Assembled["story"] {
+  const at = (d: Declaration | undefined) => (d ? declared.indexOf(d) : -1)
+  const first = (slice: SliceData) =>
+    Math.min(...[slice.view, slice.command?.decl, ...recorded(slice)].map(at).filter((i) => i >= 0))
+  const columns = [
+    ...chapters.flatMap((c, rank) =>
+      c.slices.map((column, written) => ({ column, rank, written, at: first(column) })),
+    ),
+    ...unchaptered.map((column) => ({ column, rank: undefined, written: 0, at: first(column) })),
+    ...loose.flatMap((column) =>
+      column.kind === "event" || column.kind === "command" || column.kind === "view"
+        ? [{ column, rank: undefined, written: 0, at: at(column) }]
+        : [],
+    ),
+  ].sort((a, b) => a.at - b.at)
+  let follows = -1
+  const placed = columns.map(({ column, rank, written }, i) => {
+    if (rank !== undefined) follows = rank
+    return rank === undefined
+      ? { column, chapter: follows, after: 1, order: i }
+      : { column, chapter: rank, after: 0, order: written }
+  })
+  placed.sort((a, b) => a.chapter - b.chapter || a.after - b.after || a.order - b.order)
+  return placed.map((p) => p.column)
 }
 
 // ---------------------------------------------------------------------------
@@ -480,7 +519,6 @@ const titled = ({ slice, where }: Located) => words(slice.name ?? where)
 function check(
   chapters: Assembled["chapters"],
   unchaptered: SliceData[],
-  declared: Declaration[],
   fail: Fail,
   conflict: Fail,
 ): void {
@@ -504,7 +542,7 @@ function check(
     checkGenerated(at, own)
   }
   checkFilledSomewhere(located, fail)
-  checkConnected(located, built, declared, fail)
+  checkConnected(located, built, fail)
   checkMethods(located, conflict)
 }
 
@@ -600,7 +638,7 @@ function heading(slice: SliceData): string | undefined {
   )
 }
 
-/** Everything a slice refers to, with the word an error uses for it. */
+/** Everything a slice's steps name, with the word an error uses for it. */
 function used(slice: SliceData): [keyof typeof KIND_LABEL, { name?: string }][] {
   const out: [keyof typeof KIND_LABEL, { name?: string }][] = []
   for (const a of [...slice.actors, ...(slice.system ? [slice.system] : [])]) out.push(["actor", a])
@@ -613,10 +651,6 @@ function used(slice: SliceData): [keyof typeof KIND_LABEL, { name?: string }][] 
   }
   for (const r of [...slice.reads.map((q) => q.decl), slice.polls, slice.view])
     if (r) out.push(["view", r])
-  for (const t of slice.tests) {
-    for (const c of [...t.given, t.when, ...t.then])
-      if (c && "decl" in c) out.push([c.decl.kind, c.decl])
-  }
   return out
 }
 
@@ -1186,12 +1220,7 @@ function checkSeen(at: Located, fail: Fail): void {
 }
 
 /** Anything produced and never used, or used and never produced. */
-function checkConnected(
-  located: Located[],
-  built: Built,
-  declared: Declaration[],
-  fail: Fail,
-): void {
+function checkConnected(located: Located[], built: Built, fail: Fail): void {
   // The slices that record an event, those that react to it, and those whose specifications
   // assume it happened.
   const recording = new Map<DeclData, Set<Located>>()
@@ -1210,9 +1239,8 @@ function checkConnected(
     for (const r of [...slice.reads.map((q) => q.decl), slice.polls]) if (r) read.add(r)
   }
   const consumed = new Set([...reacting.keys(), ...assuming.keys()])
-  /** `name (where, …)`, or `name` alone where no slice is about it. */
-  const found = (name: string, at: Located[]) =>
-    at.length === 0 ? name : `${name} (${at.map((a) => a.where).join(", ")})`
+  /** `name (where, …)`. */
+  const found = (name: string, at: Located[]) => `${name} (${at.map((a) => a.where).join(", ")})`
   for (const at of located) {
     const { slice, where } = at
     // tsc rejects these too, but the CLI does not run tsc, and without this a
@@ -1292,29 +1320,28 @@ function checkConnected(
         )
     }
   }
-  // One line per event, at the slices that react to it, or else at those that assume it, or else
-  // on its own: an event of ours no slice records. Data something reads has no source, an error;
-  // an event nothing reads is unfinished. An external event comes from outside, and only a
-  // translation uses it; a given does not, so one nothing translates is unfinished too.
-  const ours = declared.flatMap((d) => (d.kind === "event" && !d.external ? [d] : []))
-  for (const e of new Set([...consumed, ...ours])) {
+  // One line per event something reads, at the slices that react to it, or else at those that
+  // assume it. Data something reads and nothing records has no source, an error; an event nothing
+  // reads is storming. An external event comes from outside, and only a translation uses it; a
+  // given does not, so one nothing translates is unfinished.
+  for (const e of consumed) {
     if (recording.has(e) || (e.external && reacting.has(e))) continue
     const at = [...(reacting.get(e) ?? assuming.get(e) ?? [])]
     const name = e.name ?? ""
-    const slice = at[0] && { slice: at[0].slice.name ?? "" }
+    const slice = at[0]?.slice.name ?? ""
     fail(
       e.external
         ? warning({
             message: `${found(name, at)}: nothing translates it. Add .translation(d.${name}).`,
             ui: `${words(name)}: nothing translates it`,
             element: name,
-            ...slice,
+            slice,
           })
-        : (at.length > 0 ? error : warning)({
+        : error({
             message: `${found(name, at)}: nothing records it. Add .event(d.${name}) to the slice that causes it.`,
             ui: `${words(name)}: nothing records it`,
             element: name,
-            ...slice,
+            slice,
           }),
     )
   }

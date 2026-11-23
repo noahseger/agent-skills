@@ -304,8 +304,9 @@ message ListTodoListsResponse {
 and more slices, is `examples/todo-app/`.
 
 You do not have to finish first. `view` draws a model as far as it goes: an event in no slice
-stands on its own in its lane, a slice in no chapter is drawn after the story, and what is left
-to do is listed above the picture. So the first thing to write is the events, each in its stream.
+stands on its own in its lane, where it is declared, and what is left to do is marked on the slice
+it belongs to. So the first thing to write is the events, each in its stream, in the order they
+happen.
 
 ## Writing a model
 
@@ -656,13 +657,18 @@ nothing. The CLI finds every declaration, and every slice, by running each modul
 
 A chapter is a heading on the timeline, declared with `m.chapter("Capture", 1)`, like a stream. A
 slice joins it with `.chapter(d.Capture)`, complete or not, and joins at most one. A chapter no slice
-has joined yet is drawn as a title with no columns, and is a warning. A slice in no chapter is
-drawn after the story with no heading: chapters are optional, like their numbers. Two
-modules that declare one name declare one chapter.
+has joined yet is drawn as a title with no columns, and is a warning. A slice in no chapter has
+no heading: chapters are optional, like their numbers. Two modules that declare one name declare
+one chapter.
 
-Chapters appear in the order of their numbers: `m.chapter("Capture", 1)`, then
-`m.chapter("Filing", 2)`. One with no number yet comes after them. Lanes appear in the order of the first chapter that uses
-them.
+All elements appear on the timeline in declaration order until organized into slices and chapters.
+
+A slice sits where the first of its own elements is declared: its view, its command, or an event
+it records. Chapters appear in the order of their numbers: `m.chapter("Capture", 1)`, then
+`m.chapter("Filing", 2)`. One with no number yet comes after them. A chapter holds its slices in
+the order written. An element in no slice, and a slice in no chapter, stays where it is declared,
+after the chapter of the slice declared before it. Lanes appear in the order of the first chapter
+that uses them.
 
 ## Validation
 
@@ -695,8 +701,6 @@ or set it in the mapping.` The diagram says the same without the code: `Item Add
 source`.
 
 | What | Why the compiler cannot |
-
-| What | Why the compiler cannot |
 |---|---|
 | A `d.Name` nothing declares: the call is drawn without it | `em-registry.d.ts` can be older than the model, and `em json` runs the model without `tsc`. |
 | A name declared twice, such as `ListCreated`, other than a stream, an External System or a chapter | `em-registry.d.ts` holds one declaration per name. |
@@ -706,7 +710,7 @@ source`.
 | A command field that reaches no event of its slice, ours or outside: none carries it by name, maps it or generates from it, and no later query filters by it | Each event's mapping is checked on its own, not against the slice's other events. |
 | A state view's event that lacks one of the view's key columns | Its step checks that its fields fit the view's, not that it carries the view's key columns. |
 | An event nothing consumes: no `.automation()`, no state view, no `given`; for an external event no slice produces, no `.translation()` | Whether a declaration is used is not a type. |
-| An event no slice records; a view nothing reads or builds | Same. |
+| An event something consumes that no slice records; a view nothing reads or builds | Same. |
 | A field with no value, in a model the compiler did not check | `em json` runs the model without `tsc`. |
 | Two slices claiming one service method; a slice without a service claims none | A union of literal types dedupes rather than counts. |
 | A chapter no slice joins, or a stream no event joins | Whether a value is used is not a type. |
@@ -734,6 +738,7 @@ Naming is yours: the conventions above are not checked.
 |---|---|
 | a slice | a `Slice`, in story order, with `index`. A state change is `STATE_CHANGE`; an `.automation()` is `AUTOMATION`; a `.translation()` is `TRANSLATION`; a state view is `STATE_VIEW`, the spec's pattern of events in, view out, to the screen |
 | a chapter | the slice's `context`. A slice in no chapter has none |
+| an element in no slice | a `Slice` of its own, titled with it, that holds only it: an event or a command in a `STATE_CHANGE`, a view in a `STATE_VIEW` |
 | a command, event, view | an `Element` of type `COMMAND`, `EVENT`, `READMODEL`, in each slice that uses it, with `fields` and `dependencies` along the slice's arrows |
 | an automation's gear | an `AUTOMATION` element in `processors`, named after the slice: what starts it points at it, it points at the command |
 | a screen | one `SCREEN` per slice with an actor: the screen's name, or the method's. Its fields are the command's, or a state view's `.context()` |
@@ -761,8 +766,8 @@ follows; a model written by hand can do the same, and the viewer draws it.
 
 The top level holds only `slices`, so the rest travels beside the JSON, only to the viewer: the
 model's name and description; the chapters, with their notes, and the streams, in the order
-drawn; the actors no slice names and every External System; the declarations in no slice; and
-the model's `errors` and `warnings`. That is what `em json --partial` prints. Notes
+drawn; the actors no slice names and every External System; and the model's `errors` and
+`warnings`. That is what `em json --partial` prints. Notes
 on actors, services and External Systems have no place in either.
 
 ## Protobuf

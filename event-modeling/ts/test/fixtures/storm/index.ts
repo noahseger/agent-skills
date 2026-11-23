@@ -1,4 +1,4 @@
-// An event storm: events in a stream and no slice yet. `view` draws it; `json` refuses it.
+// An event storm: events in a stream and no slice yet, each on the timeline where it is declared.
 
 import { d, m, t } from "#em"
 

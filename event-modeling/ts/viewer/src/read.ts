@@ -170,7 +170,6 @@ export function read(written: Feed): Board {
       streams: Array.isArray(written.streams) ? written.streams.map(String) : [],
     }),
     ...(written.actors !== undefined && { actors: list(written.actors) }),
-    ...(written.loose !== undefined && { loose: elements(written.loose) }),
   }
   const slices = list<SpecSlice>(written.model?.slices)
     .map(usable)
@@ -182,7 +181,6 @@ export function read(written: Feed): Board {
     if (name !== undefined && !lanes.includes(name)) lanes.push(name)
   }
   for (const s of slices) for (const e of s.events ?? []) if (!external(e)) lane(e.aggregate)
-  for (const e of feed.loose ?? []) if (!external(e)) lane(e.aggregate)
   const aggregates =
     lanes.length > 0
       ? lanes.map((name) => ({ id: slug(name), name }))
@@ -227,9 +225,10 @@ export function read(written: Feed): Board {
         : [{ name: "User", authRequired: false }]
 
     const outside = trigger && external(trigger) ? trigger : undefined
+    // Only what runs on its own needs System; a slice no one acts in has no actor.
     const actor = outside
       ? system(systemOf(outside))
-      : ((runner ? [runner] : seers).map(person)[0] ?? add(SYSTEM))
+      : ((runner ? [runner] : seers).map(person)[0] ?? (runs ? add(SYSTEM) : ""))
     const laneOf = [...recorded, ...heard].find((e) => !external(e) && e.aggregate !== undefined)
     const out: BoardSlice = {
       name: s.title,
@@ -281,17 +280,29 @@ export function read(written: Feed): Board {
     return out
   }
 
-  // Chapters in the order declared, then as the slices name them; the rest last, nameless.
+  // Chapters in the order declared, then as the slices name them. A slice in no chapter follows
+  // the chapter of the slice before it, in a nameless one.
   const order = (feed.chapters ?? []).map((c) => c.name)
   for (const s of slices)
     if (s.context !== undefined && !order.includes(s.context)) order.push(s.context)
   const drawn = slices.map((s) => ({ context: s.context, slice: boardSlice(s) }))
-  const chapters = order.map((name) => ({
-    name,
-    slices: drawn.filter((d) => d.context === name).map((d) => d.slice),
-  }))
-  const unchaptered = drawn.filter((d) => d.context === undefined).map((d) => d.slice)
-  if (unchaptered.length > 0) chapters.push({ name: "", slices: unchaptered })
+  const after = new Map<string | undefined, BoardSlice[]>()
+  let last: string | undefined
+  for (const d of drawn) {
+    if (d.context !== undefined) last = d.context
+    else after.set(last, [...(after.get(last) ?? []), d.slice])
+  }
+  const nameless = (name: string | undefined) => {
+    const run = after.get(name)
+    return run ? [{ name: "", slices: run }] : []
+  }
+  const chapters = [
+    ...nameless(undefined),
+    ...order.flatMap((name) => [
+      { name, slices: drawn.filter((d) => d.context === name).map((d) => d.slice) },
+      ...nameless(name),
+    ]),
+  ]
 
   // An event heard and never recorded stands alone, so the arrow into what hears it has a start.
   const recordedNames = new Set(slices.flatMap((s) => parts(s).recorded.map((e) => e.title)))
@@ -300,18 +311,10 @@ export function read(written: Feed): Board {
     for (const e of parts(s).heard)
       if (!external(e) && !recordedNames.has(e.title) && !unrecorded.has(e.title))
         unrecorded.set(e.title, e)
-  const loose: Loose[] = [...(feed.loose ?? []), ...unrecorded.values()].map((el) => {
+  const loose: Loose[] = [...unrecorded.values()].map((el) => {
     noted(el)
     const aggregate = el.aggregate === undefined ? fallback : slug(el.aggregate)
-    if (external(el))
-      return {
-        kind: "external",
-        element: element(el),
-        aggregate: fallback,
-        actor: system(systemOf(el)),
-      }
-    const kind = el.type === "COMMAND" ? "command" : el.type === "READMODEL" ? "readModel" : "event"
-    return { kind, element: element(el), aggregate }
+    return { kind: "event", element: element(el), aggregate }
   })
   for (const a of feed.actors ?? []) person(a)
   // A feed from before errors were split from warnings has only warnings, with no kind.

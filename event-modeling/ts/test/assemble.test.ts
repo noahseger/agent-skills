@@ -317,7 +317,7 @@ test("m.generate() in a specification is one value of its field's type wherever 
     said("disagrees")[0] ?? "",
     /^Moves in "disagrees" \(Ch › Moves\): then has \{"id":"[^"]+"\}, but given builds no such row\./,
   )
-  const [agrees] = feed.model.slices[0]?.specifications ?? []
+  const [agrees] = feed.model.slices.find((s) => s.title === "Moves")?.specifications ?? []
   const given = agrees?.given[0]?.examples?.[0]
   assert.deepEqual(given, agrees?.then[0]?.examples?.[0])
   assert.equal(z.object(fields as never).safeParse(given).success, true)
@@ -347,7 +347,7 @@ test("m.generate() nested in a list is one value of its field's type, as at the 
     [...(feed.errors ?? []), ...(feed.warnings ?? [])].filter((m) => m.message.includes('"lists"')),
     [],
   )
-  const [spec] = feed.model.slices[0]?.specifications ?? []
+  const [spec] = feed.model.slices.find((s) => s.title === "Cart")?.specifications ?? []
   const given = spec?.given[0]?.examples?.[0] as { itemId: string }
   const then = spec?.then[0]?.examples?.[0] as { items: { itemId: string }[] }
   assert.equal(then.items[0]?.itemId, given.itemId)
@@ -781,7 +781,8 @@ test("the outside event a call gets back fills an event of ours after it, in the
       .map((m) => m.message),
     ["Kept (Ch › Ask): unused. Add .automation(d.Kept), or .event(d.Kept) to a state view."],
   )
-  const kept = feed.model.slices[0]?.events.find((e) => e.title === "Kept")
+  const asked = feed.model.slices.find((s) => s.title === "Ask")
+  const kept = asked?.events.find((e) => e.title === "Kept")
   assert.deepEqual(
     kept?.dependencies.map((d) => [d.type, d.title]),
     [
@@ -789,10 +790,10 @@ test("the outside event a call gets back fills an event of ours after it, in the
       ["INBOUND", "Answered"],
     ],
   )
-  assert.equal(feed.model.slices[0]?.mappings?.Kept?.said, "detail")
+  assert.equal(asked?.mappings?.Kept?.said, "detail")
   const out = layout(drawn(feed))
   const from = out.boxes.find((b) => b.name === "Answered")
-  const to = out.boxes.find((b) => b.name === "Kept" && b.column === 0)
+  const to = out.boxes.find((b) => b.name === "Kept" && !b.compact)
   assert.ok(from && to && out.edges.some((e) => e.from === from.id && e.to === to.id))
 })
 
@@ -1434,8 +1435,14 @@ test("same-named streams from two modules are one lane", () => {
   chapters({ Ch: [create(), view()] })
   const json = assembleModules([{ default: m.model("x") }], { partial: true })
   assert.deepEqual(json.aggregates, [{ id: "inventory", name: "Inventory" }])
-  assert.equal(json.chapters[0]?.slices[0]?.aggregate, "inventory")
-  assert.equal(json.loose?.[0]?.aggregate, "inventory")
+  assert.deepEqual(
+    json.chapters.flatMap((c) => c.slices.map((s) => [s.name, s.aggregate])),
+    [
+      ["Create", "inventory"],
+      ["Table", "inventory"],
+      ["Recounted", "inventory"],
+    ],
+  )
 })
 
 test("a stream no event joins is an empty lane: a warning", () => {
@@ -1645,27 +1652,71 @@ test("a view in given is named as one", () => {
   )
 })
 
-test("an event of ours no slice records is a warning even when nothing reads it; any other declaration in no slice is storming", () => {
+test("a declaration in no slice is storming, with nothing to do", () => {
   fixture()
   m.event("Loose", { id: t.string() })
   m.command("Idle", { id: t.string() })
   chapters({ Ch: [create(), view()] })
   const json = assembleModules([{ default: m.model("x") }], { partial: true })
-  assert.deepEqual(json.messages, [
-    {
-      kind: "warning",
-      message: "Loose: nothing records it. Add .event(d.Loose) to the slice that causes it.",
-      ui: "Loose: nothing records it",
-      element: "Loose",
-    },
-  ])
-  // Nothing is wrong, so a strict assembly lets it through.
-  fixture()
-  m.event("Loose", { id: t.string() })
-  assert.equal(assembled([create(), view()]).messages?.length, 1)
+  assert.equal(json.messages, undefined)
 })
 
-test("a partial assembly lists the warnings and keeps the loose declarations in stream order", () => {
+test("everything is on the timeline in declaration order until organized into slices and chapters", () => {
+  m.stream("Notes")
+  m.chapter("Capture", 1)
+  m.event("NoteCaptured", { noteId: t.uuid() }).stream(d.Notes)
+  m.event("NoteFiled", { noteId: t.uuid() }).stream(d.Notes)
+  m.event("NoteArchived", { noteId: t.uuid() }).stream(d.Notes)
+  m.command("FileNote", { noteId: t.uuid() })
+  m.slice().command(d.FileNote).event(d.NoteFiled).chapter(d.Capture)
+  const feed = feedOf([{ default: m.model("x") }], { partial: true })
+  // A slice sits where the first of its elements is declared.
+  assert.deepEqual(
+    feed.model.slices.map((s) => [s.title, s.sliceType, s.context, s.events.map((e) => e.title)]),
+    [
+      ["NoteCaptured", "STATE_CHANGE", undefined, ["NoteCaptured"]],
+      ["FileNote", "STATE_CHANGE", "Capture", ["NoteFiled"]],
+      ["NoteArchived", "STATE_CHANGE", undefined, ["NoteArchived"]],
+    ],
+  )
+  assert.deepEqual(
+    feed.warnings?.map((w) => w.ui),
+    ["Note Filed: missing specification", "Note Filed: unused"],
+  )
+  const drawing = layout(drawn(feed))
+  assert.deepEqual(
+    drawing.columns.map((c) => c.title),
+    ["Note Captured", "File Note", "Note Archived"],
+  )
+  assert.deepEqual(
+    drawing.rows.map((r) => r.label),
+    ["", "Notes"],
+    "nothing here has an actor, so no actor has a lane",
+  )
+})
+
+test("chapters group their slices, and what is in no chapter follows the column declared before it", () => {
+  m.chapter("Late", 2)
+  m.chapter("Early", 1)
+  for (const name of ["C", "A", "X", "B", "Y"]) m.event(name, { id: t.string() })
+  for (const name of ["DoC", "DoA", "DoB"]) m.command(name, { id: t.string() })
+  m.slice().command(d.DoC).event(d.C)
+  m.slice().command(d.DoA).event(d.A).chapter(d.Late)
+  m.slice().command(d.DoB).event(d.B).chapter(d.Early)
+  const board = assembleModules([{ default: m.model("x") }], { partial: true })
+  assert.deepEqual(
+    board.chapters.map((c) => [c.name, c.slices.map((s) => s.name)]),
+    [
+      ["", ["DoC"]],
+      ["Early", ["DoB"]],
+      ["", ["Y"]],
+      ["Late", ["DoA"]],
+      ["", ["X"]],
+    ],
+  )
+})
+
+test("a partial assembly lists the warnings and draws each declaration in no slice where it is declared", () => {
   fixture()
   m.stream("Games")
   m.event("Started", { id: t.string() }).stream(d.Games)
@@ -1682,26 +1733,26 @@ test("a partial assembly lists the warnings and keeps the loose declarations in 
       ],
       [
         "warning",
-        "Started: nothing records it. Add .event(d.Started) to the slice that causes it.",
-        "Started: nothing records it",
-      ],
-      [
-        "warning",
-        "Ended: nothing records it. Add .event(d.Ended) to the slice that causes it.",
-        "Ended: nothing records it",
-      ],
-      [
-        "warning",
         "Created: no stream. Add .stream() where it's declared, with the stream it belongs to.",
         "Created: no stream",
       ],
     ],
   )
-  assert.deepEqual(json.loose, [
-    { kind: "event", element: "Started(id)", aggregate: "games" },
-    { kind: "event", element: "Ended(id)", aggregate: "games" },
-    { kind: "readModel", element: "Table(*id, name)", aggregate: "games" },
-  ])
+  assert.deepEqual(
+    json.chapters.map((c) => [c.name, c.slices.map((s) => [s.name, s.events, s.read_models])]),
+    [
+      ["Ch", [["Create", ["Created(id, name)"], undefined]]],
+      [
+        "",
+        [
+          ["Table", undefined, ["Table(*id, name)"]],
+          ["Started", ["Started(id)"], undefined],
+          ["Ended", ["Ended(id)"], undefined],
+        ],
+      ],
+    ],
+  )
+  assert.equal(json.loose, undefined)
 })
 
 test("an actor in no slice is still one of the model's actors", () => {
@@ -1723,10 +1774,17 @@ test("an external event is drawn in its system's lane", () => {
   m.event("Connected", { accountId: t.string() })
   chapters({ Ch: [m.slice().translation(d.Authenticated).command(d.Connect).event(d.Connected)] })
   const json = assembleModules([{ default: m.model("x") }], { partial: true })
-  assert.equal(json.chapters[0]?.slices[0]?.external_event, "Authenticated(accountId)")
-  assert.deepEqual(json.loose, [
-    { kind: "external", element: "TaskMoved(taskId)", aggregate: "events", actor: "calendar" },
+  assert.deepEqual(
+    json.chapters.map((c) => [c.name, c.slices.map((s) => s.name)]),
+    [
+      ["", ["TaskMoved"]],
+      ["Ch", ["Connect"]],
+    ],
+  )
+  assert.deepEqual(json.chapters[0]?.slices[0]?.calls, [
+    { actor: "calendar", event: "TaskMoved(taskId)" },
   ])
+  assert.equal(json.chapters[1]?.slices[0]?.external_event, "Authenticated(accountId)")
 })
 
 // --- Chapters -----------------------------------------------------------------
@@ -1885,7 +1943,7 @@ test("a partial assembly draws a slice in two chapters in the first, and lists i
 
 test("a chapter a slice joins that nothing declares", () => {
   const modules = () => {
-    fixture()
+    fixture("Table")
     create().chapter(d.Later)
     return [{ default: m.model("x") }]
   }
@@ -1909,7 +1967,7 @@ test("a chapter a slice joins that nothing declares", () => {
 
 // --- Slices in no chapter -----------------------------------------------------
 
-test("a slice in no chapter is drawn after the story, and is not left to do: chapters are optional", () => {
+test("a slice in no chapter is drawn where it is declared, and is not left to do: chapters are optional", () => {
   fixture()
   const base = m.slice().command(d.Create).event(d.Created)
   base.actor(d.User)
@@ -1934,7 +1992,9 @@ test("a state view's context written as it once was, as a query, is drawn withou
   chapters({ Ch: [shown] })
   const feed = feedOf([{ default: m.model("x") }], { partial: true })
   assert.deepEqual(
-    drawn(feed).chapters[0]?.slices.map((s) => s.name),
+    drawn(feed)
+      .chapters.find((c) => c.name === "Ch")
+      ?.slices.map((s) => s.name),
     ["Table"],
   )
   assert.deepEqual(
@@ -2032,7 +2092,7 @@ test("a slice in no chapter is no error", () => {
 })
 
 test("an assembly sees only the slices written since the last one", () => {
-  fixture()
+  fixture("Table")
   create()
   const first = assembleModules([{ default: m.model("x") }], { partial: true })
   assert.equal(first.chapters[0]?.slices.length, 1)
@@ -2115,8 +2175,8 @@ test("an event in a stream and an external system", () => {
   )
 })
 
-test("a trigger nothing emits yet is drawn on its own", () => {
-  fixture()
+test("a trigger nothing emits yet is drawn on its own, where it is declared", () => {
+  fixture("Create", "Table")
   m.command("Process", { id: t.string() })
   m.event("Processed", { id: t.string() })
   chapters({
@@ -2124,8 +2184,11 @@ test("a trigger nothing emits yet is drawn on its own", () => {
   })
   const json = assembleModules([{ default: m.model("x") }], { partial: true })
   assert.deepEqual(
-    json.loose?.find((l) => l.element.startsWith("Created")),
-    { kind: "event", element: "Created(id, name)", aggregate: "events" },
+    json.chapters.map((c) => [c.name, c.slices.map((s) => [s.name, s.events])]),
+    [
+      ["", [["Created", ["Created(id, name)"]]]],
+      ["Ch", [["Processor", ["Processed(id)"]]]],
+    ],
   )
   const { boxes, edges } = layout(json)
   const id = (name: string) => boxes.find((b) => b.name === name)?.id
@@ -2133,7 +2196,7 @@ test("a trigger nothing emits yet is drawn on its own", () => {
 })
 
 test("an example's nested values are printed", () => {
-  fixture()
+  fixture("Create", "Created", "Table")
   m.command("Order", { id: t.string(), items: t.array(t.object({ name: t.string() })) })
   m.event("Ordered", { id: t.string(), items: t.array(t.object({ name: t.string() })) })
   const slice = m
@@ -2363,10 +2426,11 @@ test("a list view: each event adds a row, told apart by every value, and drawn a
   ])
   chapters({ Ch: [projection()] })
   const feed = feedOf([{ default: m.model("x") }], { partial: true })
-  const [table] = feed.model.slices[0]?.readmodels ?? []
+  const [table] = feed.model.slices.find((s) => s.title === "Activity")?.readmodels ?? []
   assert.deepEqual([table?.fields.type, table?.key], ["array", ["noteId"]])
   const board = drawn(feed)
-  assert.deepEqual(board.chapters[0]?.slices[0]?.read_models, ["Activity[](*noteId, what)"])
+  const activity = board.chapters.find((c) => c.name === "Ch")?.slices[0]
+  assert.deepEqual(activity?.read_models, ["Activity[](*noteId, what)"])
   assert.deepEqual(
     layout(board)
       .boxes.filter((b) => b.name === "Activity")

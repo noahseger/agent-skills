@@ -42,17 +42,17 @@ test("the packed tarball installs into a project and em runs there", () => {
     )
     const json = spawnSync(em, ["json", "--partial", "model"], { cwd: dir, encoding: "utf8" })
     assert.equal(json.status, 0, json.stderr)
-    const out = JSON.parse(json.stdout) as { chapters: unknown[]; loose: { title: string }[] }
+    const out = JSON.parse(json.stdout) as {
+      chapters: unknown[]
+      model: { slices: { title: string }[] }
+    }
     assert.deepEqual(out.chapters, [])
     assert.deepEqual(
-      out.loose.map((l) => l.title),
+      out.model.slices.map((s) => s.title),
       ["Started"],
     )
-    // stderr carries what is left to do, and nothing else: no node warning.
-    assert.equal(
-      json.stderr.trim(),
-      "Started: nothing records it. Add .event(d.Started) to the slice that causes it.",
-    )
+    // A lone event is storming, with nothing left to do, so stderr is empty: no node warning.
+    assert.equal(json.stderr, "")
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

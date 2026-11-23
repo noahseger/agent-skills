@@ -639,28 +639,25 @@ test("export writes one self-contained page carrying the model", () => {
   }
 })
 
-test("json prints a storm of events, with its warnings on stderr; --partial prints what the viewer reads", () => {
+test("json prints a storm of events as the timeline, each in a slice of its own, with nothing left to do", () => {
   const storm = here("./fixtures/storm")
   const strict = em("json", storm)
   assert.equal(strict.status, 0, strict.stderr)
-  assert.deepEqual(JSON.parse(strict.stdout), { slices: [] })
-  assert.match(strict.stderr, /^GameStarted: nothing records it\./)
-  const partial = em("json", "--partial", storm)
-  assert.equal(partial.status, 0, partial.stderr)
-  const json = JSON.parse(partial.stdout) as {
-    loose: { title: string }[]
-    warnings: { message: string }[]
+  assert.equal(strict.stderr, "")
+  const { slices } = JSON.parse(strict.stdout) as {
+    slices: { title: string; events: { title: string }[] }[]
   }
   assert.deepEqual(
-    json.loose.map((l) => l.title),
-    ["GameStarted", "MoveMade", "GameEnded"],
+    slices.map((s) => [s.title, s.events.map((e) => e.title)]),
+    [
+      ["GameStarted", ["GameStarted"]],
+      ["MoveMade", ["MoveMade"]],
+      ["GameEnded", ["GameEnded"]],
+    ],
   )
-  assert.deepEqual(
-    json.warnings.map((w) => w.message),
-    ["GameStarted", "MoveMade", "GameEnded"].map(
-      (e) => `${e}: nothing records it. Add .event(d.${e}) to the slice that causes it.`,
-    ),
-  )
+  const partial = em("json", "--partial", storm)
+  assert.equal(partial.status, 0, partial.stderr)
+  assert.deepEqual(JSON.parse(partial.stdout).model, JSON.parse(strict.stdout))
 })
 
 test("a directory's dependencies, hidden files and .d.ts files are not the model", () => {

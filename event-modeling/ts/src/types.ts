@@ -175,10 +175,12 @@ export interface Assembled {
   chapters: { name: string; note?: string; slices: SliceData[] }[]
   /** The systems we do not own, by name. Each is a lane, with or without events. */
   externals: string[]
-  /** Declared but in no slice: storming, drawn on its own. */
+  /** Declared and drawn by no slice: storming, each event, command and view a column of its own. */
   loose: Declaration[]
-  /** Slices in no chapter, drawn after the chapters with no heading. */
+  /** Slices in no chapter. */
   unchaptered: SliceData[]
+  /** Every column in story order: each slice, and each event, command and view in no slice. */
+  story: (SliceData | DeclData)[]
   /** The errors and warnings, in the order found. A strict assembly throws its errors instead. */
   messages: Message[]
   /** Each slice's own errors: what checking it alone finds, not what connects it to others. */

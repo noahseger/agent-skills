@@ -107,7 +107,7 @@ const feed = assembleModules([{ default: m.model("Shop", { description: "A small
   partial: true,
 })
 const json = JSON.parse(JSON.stringify(feed.model)) as { slices: SpecSlice[] }
-const [place, view, charge, refund, translate] = json.slices
+const [place, view, charge, refund, translate, loose] = json.slices
 const titles = (els: { title: string }[] | undefined) => (els ?? []).map((e) => e.title)
 
 test("the model validates against the vendored schema, and a broken one says where", () => {
@@ -123,7 +123,7 @@ test("the model validates against the vendored schema, and a broken one says whe
 })
 
 test("each slice has its spec type, in story order, its chapter as its context", () => {
-  assert.equal(json.slices.length, slices.length)
+  assert.equal(slices.length, 5)
   assert.deepEqual(
     json.slices.map((s) => [s.index, s.title, s.sliceType, s.context]),
     [
@@ -132,6 +132,7 @@ test("each slice has its spec type, in story order, its chapter as its context",
       [2, "Charger", "AUTOMATION", "Sales"],
       [3, "Refunder", "AUTOMATION", "Sales"],
       [4, "RecordPayment", "TRANSLATION", undefined],
+      [5, "Loose", "STATE_CHANGE", undefined],
     ],
   )
 })
@@ -193,7 +194,7 @@ test("an element's fields are Zod's JSON Schema, less what repeats a format, wit
     required: ["orderId", "product", "lines", "placedAt"],
   })
   assert.deepEqual(charge?.events[0]?.fields.properties?.amount, { type: "integer" })
-  assert.deepEqual(feed.loose?.[0]?.fields.properties?.id, { type: "string", format: "uuid" })
+  assert.deepEqual(loose?.events[0]?.fields.properties?.id, { type: "string", format: "uuid" })
   assert.deepEqual(view?.readmodels[0]?.key, ["orderId"])
   assert.equal(place?.commands[0]?.key, undefined)
 })
@@ -316,15 +317,15 @@ test("what the spec has no place for travels beside it, to the viewer", () => {
   assert.deepEqual(feed.chapters, [{ name: "Sales", note: "Where money comes in." }])
   assert.deepEqual(feed.streams, ["Orders", "Payments"])
   assert.deepEqual(feed.actors, [{ name: "Bank", authRequired: false, tags: ["external"] }])
-  assert.deepEqual(titles(feed.loose), ["Loose"])
-  assert.ok(feed.warnings?.some((w) => w.message.startsWith("Loose: nothing records it.")))
   const board = read(feed)
   assert.equal(board.notes.Sales, "Where money comes in.")
   assert.deepEqual(
-    board.chapters.map((c) => c.name),
-    ["Sales", ""],
+    board.chapters.map((c) => [c.name, c.slices.map((s) => s.name)]),
+    [
+      ["Sales", ["PlaceOrder", "Unpaid", "Charger", "Refunder"]],
+      ["", ["RecordPayment", "Loose"]],
+    ],
   )
-  assert.deepEqual(board.loose?.[0], { kind: "event", element: "Loose(id)", aggregate: "orders" })
 })
 
 test("the viewer types each field from its schema: format, enum, list, nested, oneOf, optional, described", () => {
@@ -359,7 +360,19 @@ test("the viewer types each field from its schema: format, enum, list, nested, o
     key: ["id"],
     dependencies: [],
   }
-  const drawn = read({ name: "x", model: { slices: [] }, loose: [element] })
+  const alone: SpecSlice = {
+    id: "noted",
+    title: "Noted",
+    sliceType: "STATE_CHANGE",
+    commands: [],
+    events: [element],
+    readmodels: [],
+    screens: [],
+    processors: [],
+    tables: [],
+    specifications: [],
+  }
+  const drawn = read({ name: "x", model: { slices: [alone] } })
   assert.deepEqual(drawn.fields?.Noted, [
     { name: "id", type: "uuid", optional: true },
     { name: "at", type: "date-time", optional: true },
@@ -374,7 +387,7 @@ test("the viewer types each field from its schema: format, enum, list, nested, o
       ],
     },
   ])
-  assert.equal(drawn.loose?.[0]?.element, "Noted(*id, at, kind, result)")
+  assert.deepEqual(drawn.chapters[0]?.slices[0]?.events, ["Noted(*id, at, kind, result)"])
 })
 
 test("a model from elsewhere draws from the spec alone", () => {
@@ -428,7 +441,6 @@ test("a file that breaks the schema below its slices is drawn as far as its list
       '{"slices":[null,{"title":"x","events":[null],"commands":"c","specifications":[null,{"title":"t","given":null}]}]}',
     ),
     chapters: JSON.parse("[null]"),
-    loose: JSON.parse("[null]"),
     warnings,
     errors,
   })

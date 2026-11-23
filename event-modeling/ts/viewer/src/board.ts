@@ -60,7 +60,7 @@ export interface BoardActor {
   type: "user" | "admin" | "system" | "external"
 }
 
-/** A declaration in no slice yet, or an event a slice hears and none records. */
+/** An element drawn on its own, such as an event a slice hears and none records. */
 export interface Loose {
   kind: "event" | "external" | "command" | "readModel"
   element: string
