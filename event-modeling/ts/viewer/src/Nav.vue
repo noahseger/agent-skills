@@ -32,7 +32,7 @@ defineEmits<{ select: [column: number]; model: [] }>()
         :key="col.index"
         type="button"
         class="slice"
-        :class="{ selected: col.index === selected }"
+        :class="{ selected: col.index === selected, inside: chapter.title }"
         :aria-current="col.index === selected ? 'true' : undefined"
         @click="$emit('select', col.index)"
       >

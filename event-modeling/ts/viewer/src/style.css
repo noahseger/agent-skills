@@ -286,6 +286,11 @@ body,
   cursor: pointer;
 }
 
+/* A chapter's slices indent under its heading, so a column in no chapter after them reads as outside it. */
+.nav .slice.inside {
+  padding-left: 24px;
+}
+
 .nav .slice:hover {
   background: var(--bg);
 }
