@@ -302,7 +302,7 @@ function stream(name: string): void {
   declare(name, { kind: "stream", order: streams++ } as StreamData)
 }
 
-/** A system we do not own: a lane its events join with `.external()`. */
+/** An External System, a system we do not own: a lane its events join with `.external()`. */
 function external(name: string): void {
   declare(name, { kind: "external" } as ExternalData)
 }

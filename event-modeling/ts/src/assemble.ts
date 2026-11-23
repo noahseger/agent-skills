@@ -462,7 +462,7 @@ const KIND_LABEL = {
   actor: "an actor",
   screen: "a screen",
   service: "a service",
-  external: "an external system",
+  external: "an External System",
 }
 
 interface Located {

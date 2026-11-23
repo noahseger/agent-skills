@@ -1272,7 +1272,7 @@ test("the first system actor declared runs what names none, and .actor() names a
   const lanes = drawing.rows.filter((r) => r.kind === "actor")
   assert.deepEqual(
     lanes.map((r) => `${r.label} (${r.sub})`),
-    ["User (Actor)", "Syncer (System)", "Mailer (System)", "Remote (System)"],
+    ["User (Actor)", "Syncer (System)", "Mailer (System)", "Remote (External)"],
   )
   const gears = drawing.boxes.filter((b) => b.kind === "automation")
   assert.deepEqual(

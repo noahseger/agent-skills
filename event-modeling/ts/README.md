@@ -16,7 +16,7 @@ import { d, m, t } from "@noahseger/event-modeling"
 | **command** | something an actor wants to happen | `CreateList` |
 | **view** | a table built from events | `TodoList` |
 | **actor** | who acts: a person, a role, or a machine of ours | `User` |
-| **external** | a system we do not own, whose events we translate and never store | `Calendar` |
+| **External System** | a system we do not own, whose events we translate and never store | `Calendar` |
 | **service** | the API that exposes a slice's procedure | `TodoService` |
 | **stream** | a lane of events in the diagram | `Lists` |
 | **slice** | one column of the diagram | the "Create List" column |
@@ -33,8 +33,9 @@ Your own names follow the practice: events in the past tense (`NoteCreated`), co
 imperative (`CreateNote`), views as nouns (`Inbox`). Everything you declare, chapters included, is
 named by the string you declare it with.
 
-A lane says whose it is and what it holds. Name a system after the system (`Calendar`) and a stream
-after what we keep track of (`Connections`), never after the system it is about (`CalendarStream`).
+A lane says whose it is and what it holds. Name an External System after the system (`Calendar`)
+and a stream after what we keep track of (`Connections`), never after the system it is about
+(`CalendarStream`).
 
 ## How it fits together
 
@@ -326,7 +327,8 @@ string. `em view` rewrites it on every save. Commit it, so a fresh clone type-ch
 A name nothing declares is a compiler error, `Property 'ArchivItem' does not exist on type
 'Registry'`, and a declaration of another kind is refused where a step takes one. Two declarations
 with the same fields are still two: `d.ArchiveCart` is not `d.ArchiveItem`. A name declared twice is
-an error; a stream, a system or a chapter is one by name, so two modules may each declare it.
+an error; a stream, an External System or a chapter is one by name, so two modules may each
+declare it.
 
 One tsconfig is one model: `d` holds every name in the files it type-checks, so a second model there
 would mix its names in. The tsconfig `em init` writes covers its own directory.
@@ -599,10 +601,11 @@ m.slice()
   .chapter(d.Integrations)
 ```
 
-A system you do not own is a lane, declared with `m.external("Calendar")`, like a stream. An event
-joins it where the event is declared, with `.external()`. We translate its events and never store
-them, so an event is in a stream or a system, not both. A system no event has joined yet is drawn
-empty, and two modules that declare one name declare one system.
+An External System, a system we do not own, is a lane, declared with `m.external("Calendar")`,
+like a stream, and captioned EXTERNAL. An event joins it where the event is declared, with
+`.external()`. We translate its events and never store them, so an event is in a stream or an
+External System, not both. An External System no event has joined yet is drawn empty, and two
+modules that declare one name declare one External System.
 
 An external event builds no view: it isn't stored, so the view would be empty after a
 replay. Translate it into an event of ours with `.translation()`, as above, and project that.
@@ -639,7 +642,7 @@ this data externally for when it's needed using a secure keystore or other mecha
 
 A stream is a lane in the diagram, declared with `m.stream("Lists")`. An event joins it where it is
 declared, with `.stream(d.Lists)`. Once a model declares a stream, every event must join one; an
-external event joins its system instead. A model that declares no stream has one lane, called
+external event joins its External System instead. A model that declares no stream has one lane, called
 Events.
 
 `.stream()` takes `d.Lists`, not a string, so a typo does not compile. A slice is drawn in the lane
@@ -696,7 +699,7 @@ source`.
 | What | Why the compiler cannot |
 |---|---|
 | A `d.Name` nothing declares: the call is drawn without it | `em-registry.d.ts` can be older than the model, and `em json` runs the model without `tsc`. |
-| A name declared twice, such as `ListCreated`, other than a stream, a system or a chapter | `em-registry.d.ts` holds one declaration per name. |
+| A name declared twice, such as `ListCreated`, other than a stream, an External System or a chapter | `em-registry.d.ts` holds one declaration per name. |
 | A column no event of the view's `m.slice().view()` calls writes | The calls can be in several modules. |
 | An optional field no slice fills | Same. |
 | A slice with no command, or no event | An incomplete slice compiles, so it can be drawn while it is written. |
@@ -709,7 +712,7 @@ source`.
 | A chapter no slice joins, or a stream no event joins | Whether a value is used is not a type. |
 | A slice joining two chapters | `.chapter()` can be called again further down the chain. |
 | A view built from an external event | `em json` runs the model without `tsc`. |
-| An event in both a stream and an external system | `.stream()` and `.external()` can be called on it in separate statements. |
+| An event in both a stream and an External System | `.stream()` and `.external()` can be called on it in separate statements. |
 | An event of ours in no stream, once the model declares one | Whether a value is used is not a type. |
 | A slice's event, or a state view, that no specification covers, as [Specifications](#specifications) says | Each `.spec()` is checked on its own, not against the slice's other specifications. |
 | A specification value that is not what flows in: from `when`, the trigger in `given`, or the events that build the row or a queried row | Example values are data, not types. |
@@ -749,7 +752,7 @@ follows; a model written by hand can do the same, and the viewer draws it.
 
 | What | Where |
 |---|---|
-| a system we do not own | its events have `context: "EXTERNAL"`, and `service` names the system. No `aggregate`: we never store them |
+| an External System | its events have `context: "EXTERNAL"`, and `service` names the system. No `aggregate`: we never store them |
 | a call to one | the external event among the command's outbound events |
 | what an event of ours keeps from the outside event a call gets back | the external event pointing at it |
 | outcomes that are alternatives | no field: a command's outbound events are what it can record, and each specification's `then` says which it did |
@@ -758,9 +761,9 @@ follows; a model written by hand can do the same, and the viewer draws it.
 
 The top level holds only `slices`, so the rest travels beside the JSON, only to the viewer: the
 model's name and description; the chapters, with their notes, and the streams, in the order
-drawn; the actors no slice names and every external system; the declarations in no slice; and
+drawn; the actors no slice names and every External System; the declarations in no slice; and
 the model's `errors` and `warnings`. That is what `em json --partial` prints. Notes
-on actors, services and external systems have no place in either.
+on actors, services and External Systems have no place in either.
 
 ## Protobuf
 

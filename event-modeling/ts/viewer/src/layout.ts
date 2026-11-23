@@ -63,7 +63,7 @@ export interface Edge {
 export interface Row {
   id: string
   label: string
-  /** What the lane is: Actor, System, or Stream. */
+  /** What the lane is: Actor, Admin, System for a machine of ours, External, or Stream. */
   sub?: string
   kind: "actor" | "middle" | "stream" | "specs"
   y: number
@@ -710,7 +710,7 @@ export function layout(model: Board): Layout {
           : actor?.type === "admin"
             ? "Admin"
             : actor?.type === "external"
-              ? "System"
+              ? "External"
               : "Actor"
       rows.push({ id: slot, label, sub, kind: "actor", y, h })
       const top = y + LANE_PAD

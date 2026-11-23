@@ -122,7 +122,7 @@ export interface Feed {
   chapters?: { name: string; note?: string }[]
   /** Every stream in the order drawn, so a lane no event has joined yet is drawn. */
   streams?: string[]
-  /** Actors in no slice, and every external system, so each has a lane. */
+  /** Actors in no slice, and every External System, so each has a lane. */
   actors?: SpecActor[]
   /** Declarations in no slice yet. */
   loose?: SpecElement[]

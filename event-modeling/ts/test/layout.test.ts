@@ -203,7 +203,7 @@ test("a view nothing draws in full still gets a reference card", () => {
   assert.ok(ref?.compact && ref.canonical === undefined)
 })
 
-test("lanes say what they are, and the system lane is the automations", () => {
+test("lanes say what they are: the system lane is the automations, and an External System's is External", () => {
   const labels = out.rows.filter((r) => r.sub).map((r) => `${r.label} (${r.sub})`)
   assert.deepEqual(labels, [
     "User (Actor)",
@@ -211,7 +211,7 @@ test("lanes say what they are, and the system lane is the automations", () => {
     // From the JSON alone, lanes come in the order the slices first name them.
     "Lists (Stream)",
     "Items (Stream)",
-    "Calendar (System)",
+    "Calendar (External)",
   ])
 })
 
