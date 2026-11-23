@@ -672,7 +672,8 @@ All elements appear on the timeline in declaration order until organized into sl
 
 A slice sits where you declare the first of its own elements: its view, its command, or an event
 it records. Chapters appear in the order of their numbers: `m.chapter("Capture", 1)`, then
-`m.chapter("Filing", 2)`. One with no number yet comes after them. A chapter holds its slices in
+`m.chapter("Filing", 2)`. A chapter with no number is 0, and chapters of one number keep the order
+you declare them. A chapter holds its slices in
 the order you write them. An element in no slice, and a slice in no chapter, stays where you
 declare it, after the chapter of the slice you declare before it. Lanes appear in the order of the first chapter
 that uses them.

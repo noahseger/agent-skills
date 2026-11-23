@@ -343,8 +343,8 @@ function at(where: string, dir: string): string {
 /**
  * Everything the model declares, by name, with its lanes found. A stream, a system and a chapter are
  * one by name, however often declared; anything else declared twice is reported. Chapters come in
- * the order of their numbers, then those with none in the order declared. An event is in one lane,
- * so not in both.
+ * the order of their numbers, a chapter with none being 0, and chapters of one number in the order
+ * declared. An event is in one lane, so not in both.
  */
 function nameDeclarations(
   modules: readonly object[],
@@ -417,25 +417,12 @@ function nameDeclarations(
     else streams.get(stream.name ?? "")?.push(e)
   }
   const chapters: Assembled["chapters"] = []
-  const numbered = new Map<number, string>()
-  const place = ({ number }: ChapterData) => number ?? Number.POSITIVE_INFINITY
-  for (const { name = "", notes, number } of headings.sort(
+  // Removing a chapter's number keeps it ahead of the numbered ones instead of sending it last.
+  const place = ({ number }: ChapterData) => number ?? 0
+  for (const { name = "", notes } of headings.sort(
     (a, b) => place(a) - place(b) || a.order - b.order,
-  )) {
-    if (number !== undefined) {
-      const other = numbered.get(number)
-      if (other !== undefined)
-        conflict(
-          error({
-            message: `${name}: chapter ${number} is taken by ${other}. Give each its own number.`,
-            ui: `${words(other)}, ${words(name)}: both chapter ${number}`,
-            element: "",
-          }),
-        )
-      numbered.set(number, name)
-    }
+  ))
     chapters.push({ name, ...(notes !== undefined && { notes }), slices: [] })
-  }
   return { model, streams, chapters, externals, declared }
 }
 

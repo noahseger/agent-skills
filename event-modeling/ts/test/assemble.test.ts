@@ -1862,49 +1862,30 @@ test("a file that imports an example from a later chapter's file still comes fir
   )
 })
 
-test("two chapters of one number are an error, and drawn in the order declared", () => {
-  const modules = () => {
-    fixture()
-    m.chapter("A", 1)
-    m.chapter("B", 1)
-    create().chapter(d.B)
-    view().chapter(d.A)
-    return [{ default: m.model("x") }]
-  }
-  assert.throws(
-    () => assembleModules(modules()),
-    /^Error: B: chapter 1 is taken by A\. Give each its own number\.$/,
-  )
-  const json = assembleModules(modules(), { partial: true })
+test("chapters of one number keep the order declared", () => {
+  fixture()
+  m.chapter("A", 1)
+  m.chapter("B", 1)
+  create().chapter(d.B)
+  view().chapter(d.A)
+  const json = assembleModules([{ default: m.model("x") }])
   assert.deepEqual(
     json.chapters.map((c) => c.name),
     ["A", "B"],
   )
-  assert.deepEqual(json.messages, [
-    {
-      kind: "error",
-      message: "B: chapter 1 is taken by A. Give each its own number.",
-      ui: "A, B: both chapter 1",
-      element: "",
-    },
-  ])
 })
 
-test("a chapter with no number comes after the numbered ones, in the order declared", () => {
+test("a chapter with no number is 0, so removing a number keeps the chapter ahead", () => {
   fixture()
   m.chapter("Capture")
   m.chapter("Filing", 2)
-  m.chapter("Review")
+  m.chapter("Review", -1)
   create().chapter(d.Capture)
   view().chapter(d.Filing)
   const json = assembleModules([{ default: m.model("x") }], { partial: true })
   assert.deepEqual(
     json.chapters.map((c) => c.name),
-    ["Filing", "Capture", "Review"],
-  )
-  assert.deepEqual(
-    json.messages?.map((m) => m.message),
-    ["Review: no slices. Add .chapter(d.Review) to one."],
+    ["Review", "Capture", "Filing"],
   )
 })
 
