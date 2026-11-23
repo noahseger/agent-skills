@@ -1,33 +1,33 @@
-// The first chapter's file imports the second's, so the second's module runs first.
+// The first chapter's file imports an example from the second's, so the second's module runs first.
 
-import { m, t } from "#em"
-import { NoteFiled } from "./filing.ts"
+import { d, m, t } from "#em"
+import { filed } from "./filing.ts"
 
-export const Writer = m.actor()
-export const Notes = m.stream()
-export const Capture = m.chapter(1)
-export const CreateNote = m.command({ noteId: t.string() })
-export const NoteCreated = m.event({ noteId: t.string() }).stream(Notes)
-export const Inbox = m.view({ noteId: t.string().key(), filed: t.boolean() })
+m.actor("Writer")
+m.stream("Notes")
+m.chapter("Capture", 1)
+m.command("CreateNote", { noteId: t.string() })
+m.event("NoteCreated", { noteId: t.string() }).stream(d.Notes)
+m.view("Inbox", { noteId: t.string().key(), filed: t.boolean() })
 
 m.slice()
-  .command({ CreateNote })
-  .event({ NoteCreated })
-  .chapter(Capture)
+  .command(d.CreateNote)
+  .event(d.NoteCreated)
+  .chapter(d.Capture)
   .test("A note is created", {
-    when: CreateNote({ noteId: "note-1" }),
-    then: NoteCreated({ noteId: "note-1" }),
+    when: d.CreateNote({ noteId: "note-1" }),
+    then: d.NoteCreated({ noteId: "note-1" }),
   })
 
 m.slice()
-  .view({ Inbox })
-  .event({ NoteCreated }, () => ({ filed: t.literal(false) }))
-  .event({ NoteFiled }, () => ({ filed: t.literal(true) }))
-  .chapter(Capture)
-  .actor(Writer)
+  .view(d.Inbox)
+  .event(d.NoteCreated, () => ({ filed: t.literal(false) }))
+  .event(d.NoteFiled, () => ({ filed: t.literal(true) }))
+  .chapter(d.Capture)
+  .actor(d.Writer)
   .test("A filed note shows filed", {
-    given: [NoteCreated({ noteId: "note-1" }), NoteFiled({ noteId: "note-1" })],
-    then: Inbox({ noteId: "note-1", filed: true }),
+    given: [d.NoteCreated({ noteId: "note-1" }), filed],
+    then: d.Inbox({ noteId: "note-1", filed: true }),
   })
 
 export default m.model("Imported later")

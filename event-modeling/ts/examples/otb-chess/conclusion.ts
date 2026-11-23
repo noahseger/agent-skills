@@ -1,90 +1,63 @@
 // The game ends by checkmate, resignation, agreement, or flag fall, and the result is recorded.
 
-import { m, t } from "#em"
-import { DrawAgreed, drawAgreed, GameResigned, gameResigned, Result, Termination } from "./draws.ts"
-import {
-  ClockPressed,
-  ClockState,
-  GameEnded,
-  GameState,
-  illegalMoveRuled,
-  MATE_FEN,
-  mated,
-} from "./play.ts"
-import {
-  IllegalMoveTally,
-  SecondIllegalMoveRuled,
-  secondIllegalMoveRuled,
-  secondOffence,
-} from "./rulings.ts"
-import {
-  Arbiter,
-  ChessService,
-  Game,
-  GamePairing,
-  gameStarted,
-  Player,
-  Spectator,
-} from "./setup.ts"
+import { d, m, t } from "#em"
+import { drawAgreed, gameResigned, Result, Termination } from "./draws.ts"
+import { illegalMoveRuled, MATE_FEN, mated } from "./play.ts"
+import { secondIllegalMoveRuled, secondOffence } from "./rulings.ts"
+import { gameStarted } from "./setup.ts"
 
 // FIDE 6.8: a flag has fallen when the arbiter or a player observes it.
-export const ClaimFlagFall = m.command({
+m.command("ClaimFlagFall", {
   gameId: t.string(),
   flaggedSide: t.enum(["white", "black"]),
   result: Result,
   termination: Termination,
 })
-export const TimeForfeited = m
-  .event({
-    gameId: t.string(),
-    flaggedSide: t.enum(["white", "black"]),
-    result: Result,
-    termination: Termination,
-  })
-  .stream(Game)
+m.event("TimeForfeited", {
+  gameId: t.string(),
+  flaggedSide: t.enum(["white", "black"]),
+  result: Result,
+  termination: Termination,
+}).stream(d.Game)
 
 // The position itself ends the game: checkmate, stalemate, or a dead position.
-export const AdjudicateOutcome = m.command({
+m.command("AdjudicateOutcome", {
   gameId: t.string(),
   ply: t.int(),
   fen: t.string(),
   termination: Termination,
 })
-export const BoardOutcomeAdjudicated = m
-  .event({
-    gameId: t.string(),
-    ply: t.int(),
-    fen: t.string(),
-    result: Result,
-    termination: Termination,
-  })
-  .stream(Game)
+m.event("BoardOutcomeAdjudicated", {
+  gameId: t.string(),
+  ply: t.int(),
+  fen: t.string(),
+  result: Result,
+  termination: Termination,
+}).stream(d.Game)
 
 // FIDE 7.5.5: the second illegal move by the same player loses the game.
-export const ForfeitGame = m.command({
+m.command("ForfeitGame", {
   gameId: t.string(),
   offendingSide: t.enum(["white", "black"]),
   illegalMoveCount: t.int(),
 })
-export const IllegalMoveForfeited = m
-  .event({
-    gameId: t.string(),
-    offendingSide: t.enum(["white", "black"]),
-    illegalMoveCount: t.int(),
-    result: Result,
-    termination: Termination,
-  })
-  .stream(Game)
+m.event("IllegalMoveForfeited", {
+  gameId: t.string(),
+  offendingSide: t.enum(["white", "black"]),
+  illegalMoveCount: t.int(),
+  result: Result,
+  termination: Termination,
+}).stream(d.Game)
 
 // How this game finished, whichever way it finished.
-export const GameResult = m.view({
+m.view("GameResult", {
   gameId: t.string().key(),
   result: Result,
   termination: Termination,
 })
 
 // The arbiter signs the scoresheet and the result goes on the pairing sheet.
-export const RecordResult = m.command({
+m.command("RecordResult", {
   gameId: t.string(),
   round: t.int(),
   boardNumber: t.int(),
@@ -93,20 +66,18 @@ export const RecordResult = m.command({
   result: Result,
   termination: Termination,
 })
-export const ResultRecorded = m
-  .event({
-    gameId: t.string(),
-    round: t.int(),
-    boardNumber: t.int(),
-    whitePlayerId: t.string(),
-    blackPlayerId: t.string(),
-    result: Result,
-    termination: Termination,
-  })
-  .stream(Game)
+m.event("ResultRecorded", {
+  gameId: t.string(),
+  round: t.int(),
+  boardNumber: t.int(),
+  whitePlayerId: t.string(),
+  blackPlayerId: t.string(),
+  result: Result,
+  termination: Termination,
+}).stream(d.Game)
 
 // The finished game as the crosstable shows it.
-export const GameRecord = m.view({
+m.view("GameRecord", {
   gameId: t.string().key(),
   round: t.int(),
   boardNumber: t.int(),
@@ -119,14 +90,14 @@ export const GameRecord = m.view({
 const STALEMATE_FEN = "7k/5Q2/6K1/8/8/8/8/8 b - - 0 52"
 const BARE_KINGS_FEN = "8/8/4k3/8/8/4K3/8/8 w - - 0 45"
 
-const timeForfeited = TimeForfeited({
+const timeForfeited = d.TimeForfeited({
   gameId: "otb-2024-ct-r5-b1",
   flaggedSide: "black",
   result: "white_won",
   termination: "time_forfeit",
 })
 
-const checkmate = BoardOutcomeAdjudicated({
+const checkmate = d.BoardOutcomeAdjudicated({
   gameId: "otb-2024-ct-r5-b1",
   ply: 7,
   fen: MATE_FEN,
@@ -134,7 +105,7 @@ const checkmate = BoardOutcomeAdjudicated({
   termination: "checkmate",
 })
 
-const illegalMoveForfeited = IllegalMoveForfeited({
+const illegalMoveForfeited = d.IllegalMoveForfeited({
   gameId: "otb-2024-ct-r5-b1",
   offendingSide: "white",
   illegalMoveCount: 2,
@@ -142,7 +113,7 @@ const illegalMoveForfeited = IllegalMoveForfeited({
   termination: "illegal_move_forfeit",
 })
 
-const resultRecorded = ResultRecorded({
+const resultRecorded = d.ResultRecorded({
   gameId: "otb-2024-ct-r5-b1",
   round: 5,
   boardNumber: 1,
@@ -152,23 +123,23 @@ const resultRecorded = ResultRecorded({
   termination: "agreement",
 })
 
-export const Conclusion = m.chapter(5)
+m.chapter("Conclusion", 5)
 
 m.slice()
-  .command({ ClaimFlagFall })
-  .query({ ClockState }, "gameId")
-  .event({ TimeForfeited })
-  .chapter(Conclusion)
-  .actor(Player)
-  .service(ChessService)
+  .command(d.ClaimFlagFall)
+  .query(d.ClockState, "gameId")
+  .event(d.TimeForfeited)
+  .chapter(d.Conclusion)
+  .actor(d.Player)
+  .service(d.ChessService)
   .test("White claims Black's fallen flag", {
-    given: ClockPressed({
+    given: d.ClockPressed({
       gameId: "otb-2024-ct-r5-b1",
       whiteTimeMs: 61000,
       blackTimeMs: 0,
       runningSide: "black",
     }),
-    when: ClaimFlagFall({
+    when: d.ClaimFlagFall({
       gameId: "otb-2024-ct-r5-b1",
       flaggedSide: "black",
       result: "white_won",
@@ -177,13 +148,13 @@ m.slice()
     then: timeForfeited,
   })
   .test("A claim while time remains is rejected", {
-    given: ClockPressed({
+    given: d.ClockPressed({
       gameId: "otb-2024-ct-r5-b1",
       whiteTimeMs: 61000,
       blackTimeMs: 240000,
       runningSide: "black",
     }),
-    when: ClaimFlagFall({
+    when: d.ClaimFlagFall({
       gameId: "otb-2024-ct-r5-b1",
       flaggedSide: "black",
       result: "white_won",
@@ -193,18 +164,18 @@ m.slice()
   })
 
 m.slice("OutcomeAdjudicator")
-  .automation({ GameEnded })
-  .command({ AdjudicateOutcome }, (c) => ({ termination: c.GameEnded.ending }))
-  .query({ GameState }, "gameId")
-  .event({ BoardOutcomeAdjudicated }, (c) => ({
+  .automation(d.GameEnded)
+  .command(d.AdjudicateOutcome, (c) => ({ termination: c.GameEnded.ending }))
+  .query(d.GameState, "gameId")
+  .event(d.BoardOutcomeAdjudicated, (c) => ({
     ...c.AdjudicateOutcome,
     result: m.generate(c.AdjudicateOutcome.termination, c.GameState.sideToMove),
   }))
-  .chapter(Conclusion)
+  .chapter(d.Conclusion)
   .note("The move that ended the game says how. This turns that into a result.")
   .test("Checkmate on the board ends the game", {
     given: [gameStarted, mated],
-    when: AdjudicateOutcome({
+    when: d.AdjudicateOutcome({
       gameId: "otb-2024-ct-r5-b1",
       ply: 7,
       fen: MATE_FEN,
@@ -215,20 +186,20 @@ m.slice("OutcomeAdjudicator")
   .test("Stalemate on the board draws the game", {
     given: [
       gameStarted,
-      GameEnded({
+      d.GameEnded({
         gameId: "otb-2024-ct-r5-b1",
         ply: 103,
         fen: STALEMATE_FEN,
         ending: "stalemate",
       }),
     ],
-    when: AdjudicateOutcome({
+    when: d.AdjudicateOutcome({
       gameId: "otb-2024-ct-r5-b1",
       ply: 103,
       fen: STALEMATE_FEN,
       termination: "stalemate",
     }),
-    then: BoardOutcomeAdjudicated({
+    then: d.BoardOutcomeAdjudicated({
       gameId: "otb-2024-ct-r5-b1",
       ply: 103,
       fen: STALEMATE_FEN,
@@ -239,20 +210,20 @@ m.slice("OutcomeAdjudicator")
   .test("A capture leaving king against king is a dead position", {
     given: [
       gameStarted,
-      GameEnded({
+      d.GameEnded({
         gameId: "otb-2024-ct-r5-b1",
         ply: 88,
         fen: BARE_KINGS_FEN,
         ending: "dead_position",
       }),
     ],
-    when: AdjudicateOutcome({
+    when: d.AdjudicateOutcome({
       gameId: "otb-2024-ct-r5-b1",
       ply: 88,
       fen: BARE_KINGS_FEN,
       termination: "dead_position",
     }),
-    then: BoardOutcomeAdjudicated({
+    then: d.BoardOutcomeAdjudicated({
       gameId: "otb-2024-ct-r5-b1",
       ply: 88,
       fen: BARE_KINGS_FEN,
@@ -262,21 +233,21 @@ m.slice("OutcomeAdjudicator")
   })
 
 m.slice("IllegalMoveForfeiter")
-  .automation({ SecondIllegalMoveRuled })
-  .command({ ForfeitGame })
-  .query({ IllegalMoveTally }, (c) => ({
+  .automation(d.SecondIllegalMoveRuled)
+  .command(d.ForfeitGame)
+  .query(d.IllegalMoveTally, (c) => ({
     gameId: c.ForfeitGame.gameId,
     offendingSide: c.ForfeitGame.offendingSide,
   }))
-  .event({ IllegalMoveForfeited }, (c) => ({
+  .event(d.IllegalMoveForfeited, (c) => ({
     ...c.ForfeitGame,
     result: m.generate(c.ForfeitGame.offendingSide),
     termination: t.literal("illegal_move_forfeit"),
   }))
-  .chapter(Conclusion)
+  .chapter(d.Conclusion)
   .test("The second illegal move forfeits the game", {
     given: [illegalMoveRuled, secondIllegalMoveRuled, secondOffence],
-    when: ForfeitGame({
+    when: d.ForfeitGame({
       gameId: "otb-2024-ct-r5-b1",
       offendingSide: "white",
       illegalMoveCount: 2,
@@ -285,17 +256,17 @@ m.slice("IllegalMoveForfeiter")
   })
 
 m.slice()
-  .view({ GameResult })
-  .event({ GameResigned })
-  .event({ DrawAgreed })
-  .event({ BoardOutcomeAdjudicated })
-  .event({ TimeForfeited })
-  .event({ IllegalMoveForfeited })
-  .chapter(Conclusion)
+  .view(d.GameResult)
+  .event(d.GameResigned)
+  .event(d.DrawAgreed)
+  .event(d.BoardOutcomeAdjudicated)
+  .event(d.TimeForfeited)
+  .event(d.IllegalMoveForfeited)
+  .chapter(d.Conclusion)
   .note("Five ways a game ends. Each one carries the result and how it came about.")
   .test("Settled after a resignation", {
     given: gameResigned,
-    then: GameResult({
+    then: d.GameResult({
       gameId: "otb-2024-ct-r5-b1",
       result: "white_won",
       termination: "resignation",
@@ -303,7 +274,7 @@ m.slice()
   })
   .test("Settled after a draw agreement", {
     given: drawAgreed,
-    then: GameResult({
+    then: d.GameResult({
       gameId: "otb-2024-ct-r5-b1",
       result: "draw",
       termination: "agreement",
@@ -311,7 +282,7 @@ m.slice()
   })
   .test("Settled after checkmate on the board", {
     given: checkmate,
-    then: GameResult({
+    then: d.GameResult({
       gameId: "otb-2024-ct-r5-b1",
       result: "white_won",
       termination: "checkmate",
@@ -319,7 +290,7 @@ m.slice()
   })
   .test("Settled after a time forfeit", {
     given: timeForfeited,
-    then: GameResult({
+    then: d.GameResult({
       gameId: "otb-2024-ct-r5-b1",
       result: "white_won",
       termination: "time_forfeit",
@@ -327,7 +298,7 @@ m.slice()
   })
   .test("Settled after a second illegal move", {
     given: illegalMoveForfeited,
-    then: GameResult({
+    then: d.GameResult({
       gameId: "otb-2024-ct-r5-b1",
       result: "black_won",
       termination: "illegal_move_forfeit",
@@ -335,16 +306,16 @@ m.slice()
   })
 
 m.slice()
-  .command({ RecordResult })
-  .query({ GameResult }, "gameId")
-  .query({ GamePairing }, "gameId")
-  .event({ ResultRecorded }, (c) => c.RecordResult)
-  .chapter(Conclusion)
-  .actor(Arbiter)
-  .service(ChessService)
+  .command(d.RecordResult)
+  .query(d.GameResult, "gameId")
+  .query(d.GamePairing, "gameId")
+  .event(d.ResultRecorded, (c) => c.RecordResult)
+  .chapter(d.Conclusion)
+  .actor(d.Arbiter)
+  .service(d.ChessService)
   .test("The arbiter records the signed draw on the pairing sheet", {
     given: [gameStarted, drawAgreed],
-    when: RecordResult({
+    when: d.RecordResult({
       gameId: "otb-2024-ct-r5-b1",
       round: 5,
       boardNumber: 1,
@@ -357,17 +328,17 @@ m.slice()
   })
 
 m.slice()
-  .view({ GameRecord })
-  .event({ ResultRecorded })
+  .view(d.GameRecord)
+  .event(d.ResultRecorded)
   .context({ round: t.int() })
-  .chapter(Conclusion)
-  .actor(Spectator)
-  .service(ChessService, "GetCrosstable")
+  .chapter(d.Conclusion)
+  .actor(d.Spectator)
+  .service(d.ChessService, "GetCrosstable")
   .note("The finished games of a round.")
   .test("The recorded game enters the crosstable", {
     given: resultRecorded,
     when: { round: 5 },
-    then: GameRecord({
+    then: d.GameRecord({
       gameId: "otb-2024-ct-r5-b1",
       round: 5,
       boardNumber: 1,

@@ -1,9 +1,9 @@
 // An event storm: events in a stream and no slice yet. `view` draws it; `json` refuses it.
 
-import { m, t } from "#em"
+import { d, m, t } from "#em"
 
-export const Games = m.stream()
-export const GameStarted = m.event({ gameId: t.string() }).stream(Games)
-export const MoveMade = m.event({ gameId: t.string(), san: t.string() }).stream(Games)
-export const GameEnded = m.event({ gameId: t.string(), result: t.string() }).stream(Games)
+m.stream("Games")
+m.event("GameStarted", { gameId: t.string() }).stream(d.Games)
+m.event("MoveMade", { gameId: t.string(), san: t.string() }).stream(d.Games)
+m.event("GameEnded", { gameId: t.string(), result: t.string() }).stream(d.Games)
 export default m.model("Chess")

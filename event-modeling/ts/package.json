@@ -33,16 +33,18 @@
     "schema"
   ],
   "scripts": {
-    "typecheck": "tsc --noEmit && tsc --noEmit -p viewer",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p viewer && for c in examples/*/tsconfig.json test/fixtures/*/tsconfig.json; do tsc --noEmit -p $c || exit 1; done",
+    "types:check": "for f in examples/*/em-registry.d.ts test/*/em-registry.d.ts test/fixtures/*/em-registry.d.ts; do node --experimental-strip-types --disable-warning=ExperimentalWarning bin/em.ts types --check $(dirname $f) || exit 1; done",
     "lint": "biome check .",
     "lint:proto": "buf lint examples/proto",
+    "types": "node --experimental-strip-types --disable-warning=ExperimentalWarning bin/em.ts types",
     "json": "node --experimental-strip-types --disable-warning=ExperimentalWarning bin/em.ts json",
     "proto": "node --experimental-strip-types --disable-warning=ExperimentalWarning bin/em.ts proto",
     "view": "node --experimental-strip-types --disable-warning=ExperimentalWarning bin/em.ts view",
     "build": "vite build viewer && tsc -p tsconfig.build.json",
     "prepack": "npm run build",
     "viewer:dev": "vite viewer",
-    "test": "npm run typecheck && npm run lint && npm run build && node --test --experimental-strip-types 'test/*.test.ts' && npm run lint:proto"
+    "test": "npm run types:check && npm run typecheck && npm run lint && npm run build && node --test --experimental-strip-types 'test/*.test.ts' && npm run lint:proto"
   },
   "dependencies": {
     "ajv": "^8.20.0",

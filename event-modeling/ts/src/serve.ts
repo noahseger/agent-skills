@@ -3,6 +3,8 @@ import { existsSync, readFileSync, statSync, watch } from "node:fs"
 import { createServer, type ServerResponse } from "node:http"
 import { basename, extname, join, normalize } from "node:path"
 
+import { GENERATED } from "./registry.ts"
+
 /** The last assembly: the JSON it printed, or the error that stopped it. */
 export type Snapshot = { json: string; error?: undefined } | { error: string; json?: undefined }
 
@@ -76,6 +78,8 @@ export async function serve(options: ServeOptions): Promise<Server> {
     // A hidden file is an editor's temporary copy; the rename onto the model file follows it.
     if (!filename || filename.includes("node_modules") || pending) return
     if (basename(filename.toString()).startsWith(".")) return
+    // A load writes em-registry.d.ts, and type-checks again itself when it changed.
+    if (basename(filename.toString()).startsWith(GENERATED)) return
     pending = true
     setTimeout(() => {
       pending = false

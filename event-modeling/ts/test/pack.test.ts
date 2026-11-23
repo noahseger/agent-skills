@@ -38,7 +38,7 @@ test("the packed tarball installs into a project and em runs there", () => {
     // The model gets t from the package: nothing else was installed.
     writeFileSync(
       join(dir, "model", "events.ts"),
-      'import { m, t } from "@noahseger/event-modeling"\nexport const Started = m.event({ id: t.string() })\n',
+      'import { m, t } from "@noahseger/event-modeling"\nm.event("Started", { id: t.string() })\n',
     )
     const json = spawnSync(em, ["json", "--partial", "model"], { cwd: dir, encoding: "utf8" })
     assert.equal(json.status, 0, json.stderr)

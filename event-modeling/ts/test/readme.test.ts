@@ -1,4 +1,5 @@
-// The README's quickstart, run as a reader runs it: its blocks in order, then `em json` and `em proto`.
+// The README's quickstart, run as a reader runs it: its blocks in order, then `em types`, `tsc`,
+// `em json` and `em proto`.
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
@@ -34,6 +35,9 @@ test("the quickstart finishes, and prints the proto it generates", () => {
     mkdirSync(join(dir, "node_modules", "@noahseger"), { recursive: true })
     symlinkSync(here(".."), join(dir, "node_modules", "@noahseger", "event-modeling"))
     writeFileSync(join(dir, "index.ts"), blocks("ts").join("\n"))
+    // What em view writes on every save.
+    const types = em("types", dir)
+    assert.equal(types.status, 0, types.stderr)
 
     const tsc = run(here("../node_modules/typescript/bin/tsc"), "-p", dir)
     assert.equal(tsc.status, 0, tsc.stdout)

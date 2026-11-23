@@ -1,7 +1,7 @@
 // Turns a model directory into a named, checked model.
 import { readdirSync, statSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
-import { pathToFileURL } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
 import { isDeepStrictEqual } from "node:util"
 
 import { type Feed, toFeed } from "./spec.ts"
@@ -14,17 +14,22 @@ import {
   DRAFTS,
   type ExampleData,
   type Exported,
+  type ExternalData,
   type Flow,
   heard,
   META,
   type ModelData,
+  resolve as named,
   origin,
+  REGISTRY,
+  type Registered,
   recorded,
   type SliceData,
   type StreamData,
   type TestData,
   taken,
   type Warning,
+  WRITTEN,
 } from "./types.ts"
 
 export type { Assembled, Feed, Warning }
@@ -49,32 +54,47 @@ export function assembleModules(modules: readonly object[], options: Options = {
 
 /** A module runs once per process, so a second load of the same files finds no slices. */
 export async function load(path: string, options: Options = {}): Promise<Assembled> {
-  const dir = statSync(path).isDirectory() ? path : dirname(path)
-  const files = dir === path ? walk(path) : [path]
+  const { modules, dir } = await importModel(path)
+  return loadModules(modules, options, dir)
+}
+
+/**
+ * Runs the model's modules, which declare what `REGISTRY` holds and write the slices, and returns
+ * their exports. `dir` is the model's directory.
+ */
+export async function importModel(
+  path: string,
+): Promise<{ modules: object[]; files: string[]; dir: string }> {
+  const { dir, files } = modelFiles(path)
   DRAFTS.clear()
+  WRITTEN.clear()
+  REGISTRY.clear()
   // One at a time, so the modules run in one order every load: by path, each after what it
   // imports. That order is the order slices are written in.
   const modules: object[] = []
   for (const f of files) modules.push((await import(pathToFileURL(resolve(f)).href)) as object)
-  return loadModules(
-    modules,
-    options,
-    files.map((f) => relative(dir, f)),
-  )
+  return { modules, files, dir }
 }
 
 /**
- * Takes the slices written since the last assembly, so one model's never reach the next.
- * `files` names each module, for errors about two of them.
+ * Takes what was declared and written since the last assembly, so one model's never reach the
+ * next. `dir` is where a message says a declaration is from, relative to.
  */
 export function loadModules(
   modules: readonly object[],
   options: Options = {},
-  files: readonly string[] = [],
+  dir = process.cwd(),
 ): Assembled {
-  const written = [...DRAFTS]
-  DRAFTS.clear()
-  for (const s of written) s.tests = s.tests.map(run)
+  try {
+    return assembled(modules, options, dir)
+  } finally {
+    DRAFTS.clear()
+    WRITTEN.clear()
+    REGISTRY.clear()
+  }
+}
+
+function assembled(modules: readonly object[], options: Options, dir: string): Assembled {
   const warnings: Warning[] = []
   const unfinished = new Map<SliceData, string[]>()
   const fail: Fail = (warning, of) => {
@@ -87,11 +107,16 @@ export function loadModules(
     : (warning) => {
         throw new Error(warning.message)
       }
-  const { model, streams, chapters, externals, declared, fileOf } = nameExports(
+  const { model, streams, chapters, externals, declared } = nameDeclarations(
     modules,
-    files,
+    [...REGISTRY],
+    dir,
+    fail,
     conflict,
   )
+  make()
+  const written = [...DRAFTS]
+  for (const s of written) s.tests = s.tests.map(run)
   const drafts = runBy(firstSystem(declared), oneSlicePerView(written, fail))
   const unchaptered: SliceData[] = []
   for (const s of drafts) {
@@ -100,7 +125,7 @@ export function loadModules(
     if (chapter) chapter.slices.push(s)
     else unchaptered.push(s)
   }
-  check(chapters, unchaptered, declared, fileOf, fail, conflict)
+  check(chapters, unchaptered, fail, conflict)
   for (const s of unchaptered) {
     const name = s.name ?? "A slice"
     fail({ message: `${name} isn't in a chapter yet.`, element: "", slice: s.name ?? "" }, s)
@@ -123,6 +148,29 @@ export function loadModules(
   if (!options.partial && warnings.length > 0)
     throw new Error(warnings.map((w) => w.message).join("\n"))
   return { model, streams, chapters, externals, loose, unchaptered, warnings, unfinished }
+}
+
+/**
+ * Makes every slice written, in the order written, now that every module has run. A call that
+ * throws, such as one naming what nothing declares, is left out, and the slice keeps what it threw.
+ */
+function make(): void {
+  const slices = [...WRITTEN]
+  WRITTEN.clear()
+  for (const { start, calls } of slices) {
+    let step = start() as Record<string, (...args: unknown[]) => typeof step>
+    const failed: string[] = []
+    for (const [method, args] of calls) {
+      try {
+        const call = step[method]
+        if (!call) throw new Error(`a slice has no .${method}().`)
+        step = call(...args)
+      } catch (error) {
+        failed.push(error instanceof Error ? error.message : String(error))
+      }
+    }
+    if (failed.length > 0) (step as unknown as { [META]: SliceData })[META].failed = failed
+  }
 }
 
 /** A specification written as a function runs now; what it throws is left to do. */
@@ -152,7 +200,7 @@ function oneSlicePerView(drafts: SliceData[], fail: Fail): SliceData[] {
       ...s,
       events: all.flatMap((c) => c.events),
       tests: all.flatMap((c) => c.tests),
-      named: all.flatMap((c) => c.named),
+      failed: all.flatMap((c) => c.failed ?? []),
     }
     for (const later of all.slice(1)) for (const w of drawnElsewhere(s, later)) fail(w, merged)
     return [merged]
@@ -213,6 +261,12 @@ function runBy(system: ActorData | undefined, drafts: SliceData[]): SliceData[] 
   )
 }
 
+/** The model's directory, and its modules: those under it, or the one module `path` is. */
+export function modelFiles(path: string): { dir: string; files: string[] } {
+  const dir = statSync(path).isDirectory() ? path : dirname(path)
+  return { dir, files: dir === path ? walk(path) : [path] }
+}
+
 /** The model's own modules under `dir`. */
 function walk(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true })
@@ -229,24 +283,33 @@ function walk(dir: string): string[] {
 // Naming
 // ---------------------------------------------------------------------------
 
-function exported(value: unknown): Exported | undefined {
-  // A declaration is a function; calling it builds an example.
-  const holder = typeof value === "object" || typeof value === "function"
-  if (!holder || value === null || !(META in value)) return undefined
-  const data: unknown = (value as { [META]: unknown })[META]
-  return typeof data === "object" && data !== null && "kind" in data
-    ? (data as Exported)
-    : undefined
+/** The model a module exports by default. */
+function modelOf(module: object): ModelData | undefined {
+  const value = (module as { default?: unknown }).default
+  const data =
+    typeof value === "object" && value !== null && META in value
+      ? (value as { [META]: Exported })[META]
+      : undefined
+  return data?.kind === "model" ? data : undefined
+}
+
+/** `file:///…/notes.ts:12:3` as `notes.ts:12`, from `dir`. */
+function at(where: string, dir: string): string {
+  const [, file = "", line = ""] = /^(.*):(\d+):\d+$/.exec(where) ?? []
+  return `${relative(dir, file.startsWith("file:") ? fileURLToPath(file) : file)}:${line}`
 }
 
 /**
- * Streams, chapters and external systems merge by name, so two modules can add to one. Chapters
- * come in the order of their numbers, then those with none in the order declared. An event is in
- * one lane, so not in both.
+ * Everything the model declares, by name, with its lanes found. A stream, a system and a chapter are
+ * one by name, however often declared; anything else declared twice is reported. Chapters come in
+ * the order of their numbers, then those with none in the order declared. An event is in one lane,
+ * so not in both.
  */
-function nameExports(
+function nameDeclarations(
   modules: readonly object[],
-  files: readonly string[],
+  registered: [string, Registered][],
+  dir: string,
+  fail: Fail,
   conflict: Fail,
 ): {
   model: ModelData
@@ -254,69 +317,56 @@ function nameExports(
   chapters: Assembled["chapters"]
   externals: string[]
   declared: Declaration[]
-  fileOf: Map<object, string>
 } {
-  let model: ModelData | undefined
-  const lanes: [string, StreamData][] = []
+  const model = modules.map(modelOf).find((found) => found !== undefined)
+  if (!model)
+    throw new Error('No model found. Add `export default m.model("Name")` to one of your files.')
+  const lanes: StreamData[] = []
   const headings: ChapterData[] = []
   const externals: string[] = []
   const declared: Declaration[] = []
-  const fileOf = new Map<object, string>()
-  for (const [i, module] of modules.entries()) {
-    for (const [key, value] of Object.entries(module)) {
-      const data = exported(value)
-      if (!data) continue
-      const file = files[i]
-      if (file !== undefined && !fileOf.has(data)) fileOf.set(data, file)
-      if (data.kind === "model") {
-        model = data
-      } else if (data.kind === "stream") {
-        lanes.push([key, data])
-      } else if (data.kind === "external") {
-        data.name = key
-        if (!externals.includes(key)) externals.push(key)
-      } else if (data.name !== undefined && data.name !== key) {
-        conflict({
-          message: `${data.name} is exported twice, also as ${key}. Keep one.`,
-          element: data.name,
-        })
-      } else if (data.kind === "chapter") {
-        data.name = key
-        if (!headings.includes(data)) headings.push(data)
-      } else {
-        data.name = key
-        if (!declared.includes(data)) declared.push(data)
-      }
+  for (const [name, { data, where, also }] of registered) {
+    for (const again of also)
+      conflict({
+        message: `${name} is declared twice, at ${at(where, dir)} and ${at(again, dir)}. Keep one.`,
+        element: name,
+      })
+    if (data.kind === "stream") lanes.push(data)
+    else if (data.kind === "chapter") headings.push(data)
+    else if (data.kind === "external") externals.push(name)
+    else if (data.kind !== "model") declared.push(data)
+  }
+  const streams = new Map<string, DeclData[]>(
+    lanes.sort((a, b) => a.order - b.order).map((l) => [l.name ?? "", []]),
+  )
+  // An event's lane is named where it is declared, and found once every module has run.
+  const lane = <D>(ref: object, as: string): D | undefined => {
+    try {
+      return named(ref, as) as D
+    } catch (error) {
+      fail({ message: error instanceof Error ? error.message : String(error), element: "" })
+      return undefined
     }
   }
-  if (!model)
-    throw new Error('No model found. Add `export default m.model("Name")` to one of your files.')
-  // A module's exports come in alphabetical order, so the lanes are sorted back into the order written.
-  const streams = new Map<string, DeclData[]>()
-  for (const [key, data] of lanes.sort((a, b) => a[1].order - b[1].order))
-    streams.set(key, [...new Set([...(streams.get(key) ?? []), ...data.members])])
-  for (const [key, members] of streams)
-    for (const e of members)
-      if (e.external) {
-        conflict({
-          message: `${e.name} is in the ${key} stream and the ${e.external.name} system. Keep one: .stream() for ours, .external() for theirs.`,
-          element: e.name ?? "",
-        })
-        streams.set(
-          key,
-          members.filter((d) => d !== e),
-        )
-      }
+  for (const e of declared) {
+    if (e.kind !== "event") continue
+    const system = e.system && lane<ExternalData>(e.system, "m.external")
+    if (system) e.external = system
+    const stream = e.stream && lane<StreamData>(e.stream, "m.stream")
+    if (!stream) continue
+    if (system)
+      conflict({
+        message: `${e.name} is in the ${stream.name} stream and the ${system.name} system. Keep one: .stream() for ours, .external() for theirs.`,
+        element: e.name ?? "",
+      })
+    else streams.get(stream.name ?? "")?.push(e)
+  }
   const chapters: Assembled["chapters"] = []
   const numbered = new Map<number, string>()
   const place = ({ number }: ChapterData) => number ?? Number.POSITIVE_INFINITY
-  const sorted = headings.sort((a, b) => place(a) - place(b) || a.order - b.order)
-  for (const { name = "", note, number } of sorted) {
-    const merged = chapters.find((c) => c.name === name)
-    if (merged) {
-      if (merged.note === undefined && note !== undefined) merged.note = note
-      continue
-    }
+  for (const { name = "", note, number } of headings.sort(
+    (a, b) => place(a) - place(b) || a.order - b.order,
+  )) {
     if (number !== undefined) {
       const other = numbered.get(number)
       if (other !== undefined)
@@ -328,7 +378,7 @@ function nameExports(
     }
     chapters.push({ name, ...(note !== undefined && { note }), slices: [] })
   }
-  return { model, streams, chapters, externals, declared, fileOf }
+  return { model, streams, chapters, externals, declared }
 }
 
 /** The name of the chapter a slice joined, if it joined one; of several, the first. */
@@ -336,11 +386,15 @@ function chapterOf(slice: SliceData, conflict: Fail): string | undefined {
   const all = [...new Set(slice.chapters.map((c) => c.name))]
   const names = all.filter((n) => n !== undefined)
   const where = heading(slice) ?? "A slice"
-  const about = (message: string) =>
-    conflict({ message: `${where}: ${message}`, element: "", slice: where }, slice)
-  if (names.length < all.length)
-    about("this slice joins a chapter that isn't exported. Export it to give it a name.")
-  if (names.length > 1) about(`this slice joins ${names.join(" and ")}. Keep one .chapter().`)
+  if (names.length > 1)
+    conflict(
+      {
+        message: `${where}: this slice joins ${names.join(" and ")}. Keep one .chapter().`,
+        element: "",
+        slice: where,
+      },
+      slice,
+    )
   return names[0]
 }
 
@@ -379,8 +433,6 @@ interface Located {
 function check(
   chapters: Assembled["chapters"],
   unchaptered: SliceData[],
-  declared: Declaration[],
-  fileOf: Map<object, string>,
   fail: Fail,
   conflict: Fail,
 ): void {
@@ -388,12 +440,11 @@ function check(
     ...chapters.flatMap((chapter) => locate(chapter.name, chapter.slices)),
     ...locate(undefined, unchaptered),
   ]
-  checkDeclaredOnce(located, declared, fileOf, conflict)
   const built = builtOf(located)
   for (const at of located) {
     const own: Fail = (warning) => fail(warning, at.slice)
+    checkFailed(at, own)
     checkCore(at, own)
-    checkNamed(at, own)
     checkThrown(at, own)
     checkFilled(at, own)
     checkRecorded(at, own)
@@ -419,31 +470,23 @@ function checkCore({ slice, where }: Located, fail: Fail): void {
     said("empty. Start it with .command(), .view(), .automation() or .translation().")
   else if (from && !command)
     said(
-      `no command yet. Add .command() after .${from.external ? "translation" : "automation"}({ ${from.name} }).`,
+      `no command yet. Add .command() after .${from.external ? "translation" : "automation"}(d.${from.name}).`,
     )
   else if (events.length === 0)
     said(
-      `no event yet. Add .event() after ${command ? `.command({ ${command.decl.name} })` : `.view({ ${view?.name} })`}.`,
+      `no event yet. Add .event() after ${command ? `.command(d.${command.decl.name})` : `.view(d.${view?.name})`}.`,
     )
   // The compiler refuses it too; without a name, proto would write an rpc with none.
   if (view && slice.service && slice.service.method === undefined)
     said(
-      `a state view names its method: .service(${slice.service.service.name}, "List${view.name}").`,
+      `a state view names its method: .service(d.${slice.service.service.name}, "List${view.name}").`,
     )
 }
 
-/** Each call names its declaration by the key of `{ Name }`, which must be the name it is exported as. */
-function checkNamed({ slice, where }: Located, fail: Fail): void {
-  for (const [key, decl] of slice.named)
-    if (decl.name !== undefined && key !== decl.name)
-      fail({
-        message:
-          key === undefined
-            ? `${where}: pass ${decl.name} as { ${decl.name} }, so the compiler knows its name.`
-            : `${where}: { ${key}: ${decl.name} } renames ${decl.name}. Write { ${decl.name} }: a mapping reads it as c.${decl.name}.`,
-        element: decl.name,
-        slice: slice.name ?? "",
-      })
+/** A call that threw is drawn as no call, and what it threw is left to do. */
+function checkFailed({ slice, where }: Located, fail: Fail): void {
+  for (const message of slice.failed ?? [])
+    fail({ message: `${where}: ${message}`, element: "", slice: slice.name ?? "" })
 }
 
 /** A mapping that threw is drawn as no mapping, and what it threw is left to do. */
@@ -462,14 +505,6 @@ function locate(chapter: string | undefined, slices: SliceData[]): Located[] {
   const at = (slice: string) => (chapter === undefined ? slice : `${chapter} › ${slice}`)
   return slices.map((slice, i) => {
     const where = chapter === undefined ? "A slice in no chapter" : at(`slice ${i + 1}`)
-    // The slice is named after its declarations, so until they are checked
-    // `where` is its position.
-    for (const [kind, d] of used(slice)) {
-      if (d.name === undefined)
-        throw new Error(
-          `${where}: this slice uses ${KIND_LABEL[kind]} that isn't exported. Export it to give it a name.`,
-        )
-    }
     const named = heading(slice)
     if (named !== undefined) slice.name = named
     return { slice, where: slice.name === undefined ? where : at(slice.name) }
@@ -485,37 +520,6 @@ function heading(slice: SliceData): string | undefined {
     slice.polls?.name ??
     slice.trigger?.name
   )
-}
-
-/** Two modules can export one name, except for a lane, which they share. */
-function checkDeclaredOnce(
-  located: Located[],
-  declared: Declaration[],
-  fileOf: Map<object, string>,
-  conflict: Fail,
-): void {
-  const byName = new Map<string, object>()
-  const all = [
-    ...declared,
-    ...located.flatMap(({ slice }) =>
-      used(slice).flatMap(([kind, d]) => (kind === "external" ? [] : [d])),
-    ),
-  ]
-  for (const d of all) {
-    if (d.name === undefined) continue
-    const first = byName.get(d.name)
-    if (first === undefined) byName.set(d.name, d)
-    else if (first !== d) {
-      const [a, b] = [fileOf.get(first), fileOf.get(d)]
-      conflict({
-        message:
-          a && b && a !== b
-            ? `${d.name} is declared in both ${a} and ${b}. Keep one and import it in the other.`
-            : `${d.name} is declared twice. Keep one and use it in both places.`,
-        element: d.name,
-      })
-    }
-  }
 }
 
 /** Everything a slice refers to, with the word an error uses for it. */
@@ -1116,7 +1120,7 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
         fail(
           about(
             e,
-            `${by.map((a) => a.where).join(", ")}: nothing uses ${e.name} yet. Add .automation({ ${e.name} }), or .event({ ${e.name} }) to a state view, where something reacts to it.`,
+            `${by.map((a) => a.where).join(", ")}: nothing uses ${e.name} yet. Add .automation(d.${e.name}), or .event(d.${e.name}) to a state view, where something reacts to it.`,
           ),
         )
     }
@@ -1125,7 +1129,7 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
       fail(
         about(
           view,
-          `${where}: nothing reads ${view.name} yet. Add .actor() for who sees it, or .query({ ${view.name} }, …) or .automation({ ${view.name} }) where it's needed.`,
+          `${where}: nothing reads ${view.name} yet. Add .actor() for who sees it, or .query(d.${view.name}, …) or .automation(d.${view.name}) where it's needed.`,
         ),
       )
     for (const r of [...slice.reads.map((q) => q.decl), slice.polls]) {
@@ -1133,7 +1137,7 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
         fail(
           about(
             r,
-            `${where}: nothing fills ${r.name} yet. Add a state view, m.slice().view({ ${r.name} }).event({ Event }).`,
+            `${where}: nothing fills ${r.name} yet. Add a state view, m.slice().view(d.${r.name}).event(d.Event).`,
           ),
         )
     }
@@ -1146,8 +1150,8 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
     const here = at.map((a) => a.where).join(", ")
     fail({
       message: e.external
-        ? `${here}: nothing translates ${e.name} yet. Add .translation({ ${e.name} }) to make it an event of ours.`
-        : `${here}: nothing emits ${e.name} yet. Add .event({ ${e.name} }) to the slice that causes it.`,
+        ? `${here}: nothing translates ${e.name} yet. Add .translation(d.${e.name}) to make it an event of ours.`
+        : `${here}: nothing emits ${e.name} yet. Add .event(d.${e.name}) to the slice that causes it.`,
       element: e.name ?? "",
       slice: at[0]?.slice.name ?? "",
     })
@@ -1166,7 +1170,7 @@ function checkMethods(located: Located[], conflict: Fail): void {
     else
       conflict(
         {
-          message: `${where}: ${method} is already used by ${first}. Name this one with .service(Service, "Name").`,
+          message: `${where}: ${method} is already used by ${first}. Name this one with .service(d.${slice.service.service.name}, "Name").`,
           element: slice.service.service.name ?? "",
           slice: slice.name ?? "",
         },

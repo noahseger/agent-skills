@@ -1,20 +1,20 @@
-import { m } from "#em"
+import { d, m } from "#em"
 
 export default m.model("RootedProductivity")
 
-export const WeekPlanning = m.chapter(1)
+m.chapter("WeekPlanning", 1)
 
-export const WeekPlanned = m.event({})
+m.event("WeekPlanned", {})
 
-export const User = m.actor()
+m.actor("User")
 
-export const Service = m.service("Foo")
+m.service("Service", "Foo")
 
-export const PlanWeek = m.command({})
+m.command("PlanWeek", {})
 
 m.slice()
-  .command({ PlanWeek })
-  .event({ WeekPlanned })
-  .chapter(WeekPlanning)
-  .actor(User)
-  .service(Service)
+  .command(d.PlanWeek)
+  .event(d.WeekPlanned)
+  .chapter(d.WeekPlanning)
+  .actor(d.User)
+  .service(d.Service)

@@ -3,18 +3,62 @@ import type { z } from "zod"
 
 export const META = Symbol.for("event-modeling")
 
-// On globalThis, like META, so a model and a CLI holding two copies of the package share it.
+// On globalThis, like META, so a model and a CLI holding two copies of the package share them.
 const DRAFTS_KEY: unique symbol = Symbol.for("event-modeling.drafts")
-const shared = globalThis as { [DRAFTS_KEY]?: Set<SliceData> }
+const WRITTEN_KEY: unique symbol = Symbol.for("event-modeling.written")
+const REGISTRY_KEY: unique symbol = Symbol.for("event-modeling.registry")
+const shared = globalThis as {
+  [DRAFTS_KEY]?: Set<SliceData>
+  [WRITTEN_KEY]?: Set<Written>
+  [REGISTRY_KEY]?: Map<string, Registered>
+}
 shared[DRAFTS_KEY] ??= new Set()
+shared[WRITTEN_KEY] ??= new Set()
+shared[REGISTRY_KEY] ??= new Map()
 /** Every chain step nothing has extended yet: the slices, in or out of a chapter. */
 export const DRAFTS: Set<SliceData> = shared[DRAFTS_KEY]
+
+/** A slice as written: its first step and its calls, made at assembly once every module has run. */
+export interface Written {
+  start: () => object
+  calls: [method: string, args: unknown[]][]
+}
+/** Every slice written that nothing has extended yet, as `DRAFTS` holds them once made. */
+export const WRITTEN: Set<Written> = shared[WRITTEN_KEY]
+
+/** A name and what declares it. */
+export interface Registered {
+  data: Exported
+  /** The call that declared it, as `file:///…/model.ts:12:1`. */
+  where: string
+  /** Each call that declared the name again, which assembly reports. */
+  also: string[]
+}
+/** Everything declared since the last assembly, by name, in the order declared. */
+export const REGISTRY: Map<string, Registered> = shared[REGISTRY_KEY]
+
+/** The call that declares `name`, for a message: `as` is the m. function the step needs. */
+function declaredWith(name: string, as?: string): string {
+  if (as === undefined) return `m.event("${name}", { … }), m.command or m.view`
+  return ["m.event", "m.command", "m.view", "m.service"].includes(as)
+    ? `${as}("${name}", …)`
+    : `${as}("${name}")`
+}
+
+/** What `d.Name` names, or why it names nothing. `as` is the m. function that would declare it. */
+export function resolve(ref: unknown, as?: string): Exported {
+  const name = typeof ref === "function" ? ref.name : undefined
+  const found = name === undefined ? undefined : REGISTRY.get(name)
+  if (found) return found.data
+  if (name === undefined) throw new Error(`${String(ref)} is not a declaration: pass d.Name.`)
+  throw new Error(`d.${name} is not declared. Declare it with ${declaredWith(name, as)}.`)
+}
 
 export type Fields = Record<string, z.ZodType>
 
 export type DeclKind = "event" | "command" | "view"
 
-/** Anything named by its export binding. Assembly fills in `name`. */
+/** Anything named by the string it is declared with. */
 export interface Named {
   name?: string
 }
@@ -28,7 +72,11 @@ export interface DeclData extends Named {
   /** A list view: each event adds a row, and a lookup gives every row it matches. */
   list?: true
   note?: string
-  /** Set when the event is a system's we do not own. */
+  /** The stream it joins, as `.stream()` took it: `d.Name`, found when the model assembles. */
+  stream?: object
+  /** The system we do not own it comes from, as `.external()` took it. */
+  system?: object
+  /** That system, once assembly finds it. */
   external?: ExternalData
 }
 
@@ -56,8 +104,6 @@ export interface StreamData extends Named {
   kind: "stream"
   /** How many streams were declared before it. */
   order: number
-  /** The events that joined it, in the order they did. */
-  members: DeclData[]
 }
 
 export interface ExternalData extends Named {
@@ -89,7 +135,7 @@ export type Exported =
   | ChapterData
   | ModelData
 
-/** A named thing a module exports, other than the model, a stream or a chapter. */
+/** A declaration in a slice, rather than a lane or a heading. */
 export type Declaration = DeclData | ActorData | ServiceData | ScreenData | ExternalData
 
 /** The named, checked model. The spec JSON and the generators read this. */
@@ -100,7 +146,7 @@ export interface Assembled {
   chapters: { name: string; note?: string; slices: SliceData[] }[]
   /** The systems we do not own, by name. Each is a lane, with or without events. */
   externals: string[]
-  /** Exported but in no slice. Only a partial assembly keeps them; otherwise one is an error. */
+  /** Declared but in no slice. Only a partial assembly keeps them; otherwise one is an error. */
   loose: Declaration[]
   /** Slices in no chapter, likewise. */
   unchaptered: SliceData[]
@@ -212,8 +258,8 @@ export interface SliceData {
   tests: TestData[]
   /** The chapters it joined; assembly allows one. */
   chapters: ChapterData[]
-  /** Each declaration a call took, with the name its `{ Name }` gave; none for a bare declaration. */
-  named: [string | undefined, DeclData][]
+  /** What its calls threw when assembly made it, such as naming what nothing declares. */
+  failed?: string[]
 }
 
 /** The events a slice records. A state view records none. */

@@ -1,15 +1,17 @@
-import { m, t } from "#em"
+import { d, m, t } from "#em"
 
-export const Archive = m.stream()
-export const Filing = m.chapter(2)
-export const FileNote = m.command({ noteId: t.string() })
-export const NoteFiled = m.event({ noteId: t.string() }).stream(Archive)
+m.stream("Archive")
+m.chapter("Filing", 2)
+m.command("FileNote", { noteId: t.string() })
+m.event("NoteFiled", { noteId: t.string() }).stream(d.Archive)
+
+export const filed = d.NoteFiled({ noteId: "note-1" })
 
 m.slice()
-  .command({ FileNote })
-  .event({ NoteFiled })
-  .chapter(Filing)
+  .command(d.FileNote)
+  .event(d.NoteFiled)
+  .chapter(d.Filing)
   .test("A note is filed", {
-    when: FileNote({ noteId: "note-1" }),
-    then: NoteFiled({ noteId: "note-1" }),
+    when: d.FileNote({ noteId: "note-1" }),
+    then: filed,
   })

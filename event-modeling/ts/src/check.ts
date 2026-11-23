@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
 import { API, type Diagnostic, DiagnosticCategory, type Snapshot } from "typescript/unstable/async"
 
+import { GENERATED } from "./registry.ts"
 import type { Warning } from "./types.ts"
 
 export interface Checker {
@@ -50,16 +51,19 @@ export function checker(path: string): Checker {
   return {
     async check() {
       const files = single ? [resolve(path)] : modelFiles(root)
-      const now = new Map(files.map((f) => [f, statSync(f).mtimeMs]))
+      // em-registry.d.ts types d; it is no model module, but the program reads it.
+      const generated = join(root, GENERATED)
+      const read = existsSync(generated) ? [...files, generated] : files
+      const now = new Map(read.map((f) => [f, statSync(f).mtimeMs]))
       const previous = snapshot
       // A file the server holds open is never reread from disk, so the project is opened instead.
       snapshot = await api.updateSnapshot(
         previous
           ? {
               fileChanges: {
-                created: files.filter((f) => !seen.has(f)),
+                created: read.filter((f) => !seen.has(f)),
                 deleted: [...seen.keys()].filter((f) => !now.has(f)),
-                changed: files.filter((f) => seen.has(f) && seen.get(f) !== now.get(f)),
+                changed: read.filter((f) => seen.has(f) && seen.get(f) !== now.get(f)),
               },
             }
           : { openProjects: [config] },
@@ -128,8 +132,8 @@ function describe(d: Diagnostic, text: string, file: string): Warning {
   const said = (message: string): Warning => ({ message, element: "" })
   const at = (pos: number) => `${file}:${text.slice(0, pos).split("\n").length}  `
   const lines = messages(d)
-  // A call's `{ Name }` is named by its name.
-  const target = text.slice(d.pos, d.end).replace(/^\{\s*(\w+)\s*\}$/, "$1")
+  // A call's `d.Name` is named by its name.
+  const target = text.slice(d.pos, d.end).replace(/^d\.(\w+)$/, "$1")
   const element = target.match(/\w+$/)?.[0] ?? ""
   // One sentence per field the step lacks.
   const missing = [...d.text.matchAll(MISSING)]

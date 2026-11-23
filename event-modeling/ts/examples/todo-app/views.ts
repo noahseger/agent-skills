@@ -1,26 +1,13 @@
 // What the system knows about lists, and what it does on its own.
 
-import { m, t } from "#em"
-
-import {
-  AddItem,
-  ItemAdded,
-  ItemCompleted,
-  ItemDeleted,
-  ListCreated,
-  ListDeleted,
-  ListScreen,
-  Lists,
-  TodoService,
-  User,
-} from "./list-management.ts"
+import { d, m, t } from "#em"
 
 // When the last item is done, the list completes.
-export const CompleteList = m.command({ userId: t.string(), listId: t.string() })
-export const ListCompleted = m.event({ userId: t.string(), listId: t.string() }).stream(Lists)
+m.command("CompleteList", { userId: t.string(), listId: t.string() })
+m.event("ListCompleted", { userId: t.string(), listId: t.string() }).stream(d.Lists)
 
 // A user's lists, one row per list.
-export const TodoList = m.view({
+m.view("TodoList", {
   userId: t.string().key(),
   listId: t.string().key(),
   name: t.string(),
@@ -29,7 +16,7 @@ export const TodoList = m.view({
 })
 
 // The items of each list.
-export const ListItems = m.view({
+m.view("ListItems", {
   listId: t.string().key(),
   itemId: t.string().key(),
   title: t.string(),
@@ -38,7 +25,7 @@ export const ListItems = m.view({
 })
 
 // Every item in every list, searchable by title.
-export const ItemSearch = m.view({
+m.view("ItemSearch", {
   itemId: t.string().key(),
   listId: t.string(),
   title: t.string(),
@@ -46,27 +33,27 @@ export const ItemSearch = m.view({
   deleted: t.boolean(),
 })
 
-const groceries = ListCreated({ listId: "list-1", userId: "u-1", name: "Groceries" })
-const milk = ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-1", title: "Milk" })
-const milkDone = ItemCompleted({ userId: "u-1", listId: "list-1", itemId: "item-1" })
-const eggs = ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-2", title: "Eggs" })
+const groceries = d.ListCreated({ listId: "list-1", userId: "u-1", name: "Groceries" })
+const milk = d.ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-1", title: "Milk" })
+const milkDone = d.ItemCompleted({ userId: "u-1", listId: "list-1", itemId: "item-1" })
+const eggs = d.ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-2", title: "Eggs" })
 
-export const Views = m.chapter(2)
+m.chapter("Views", 2)
 
 m.slice()
-  .view({ TodoList })
-  .event({ ListCreated }, () => ({ itemCount: t.literal(0), status: t.literal("open") }))
-  .event({ ItemAdded }, (c) => ({ itemCount: m.generate(c.ItemAdded) }))
-  .event({ ListCompleted }, () => ({ status: t.literal("completed") }))
-  .event({ ListDeleted }, () => ({ status: t.literal("deleted") }))
+  .view(d.TodoList)
+  .event(d.ListCreated, () => ({ itemCount: t.literal(0), status: t.literal("open") }))
+  .event(d.ItemAdded, (c) => ({ itemCount: m.generate(c.ItemAdded) }))
+  .event(d.ListCompleted, () => ({ status: t.literal("completed") }))
+  .event(d.ListDeleted, () => ({ status: t.literal("deleted") }))
   .context({ userId: t.string() })
-  .chapter(Views)
-  .actor(User)
-  .service(TodoService, "ListTodoLists")
+  .chapter(d.Views)
+  .actor(d.User)
+  .service(d.TodoService, "ListTodoLists")
   .test("A new list shows with no items", {
     given: groceries,
     when: { userId: "u-1" },
-    then: TodoList({
+    then: d.TodoList({
       userId: "u-1",
       listId: "list-1",
       name: "Groceries",
@@ -77,7 +64,7 @@ m.slice()
   .test("Items are counted as they are added", {
     given: [groceries, milk, eggs],
     when: { userId: "u-1" },
-    then: TodoList({
+    then: d.TodoList({
       userId: "u-1",
       listId: "list-1",
       name: "Groceries",
@@ -86,9 +73,9 @@ m.slice()
     }),
   })
   .test("A completed list shows as completed", {
-    given: [groceries, ListCompleted({ userId: "u-1", listId: "list-1" })],
+    given: [groceries, d.ListCompleted({ userId: "u-1", listId: "list-1" })],
     when: { userId: "u-1" },
-    then: TodoList({
+    then: d.TodoList({
       userId: "u-1",
       listId: "list-1",
       name: "Groceries",
@@ -97,9 +84,9 @@ m.slice()
     }),
   })
   .test("A deleted list shows as deleted", {
-    given: [groceries, ListDeleted({ userId: "u-1", listId: "list-1" })],
+    given: [groceries, d.ListDeleted({ userId: "u-1", listId: "list-1" })],
     when: { userId: "u-1" },
-    then: TodoList({
+    then: d.TodoList({
       userId: "u-1",
       listId: "list-1",
       name: "Groceries",
@@ -108,9 +95,9 @@ m.slice()
     }),
   })
   .test("A user sees only their own lists", {
-    given: [groceries, ListCreated({ listId: "list-2", userId: "u-2", name: "Hardware" })],
+    given: [groceries, d.ListCreated({ listId: "list-2", userId: "u-2", name: "Hardware" })],
     when: { userId: "u-1" },
-    then: TodoList({
+    then: d.TodoList({
       userId: "u-1",
       listId: "list-1",
       name: "Groceries",
@@ -120,19 +107,19 @@ m.slice()
   })
 
 m.slice()
-  .view({ ListItems })
-  .event({ ItemAdded }, () => ({ done: t.literal(false), deleted: t.literal(false) }))
-  .event({ ItemCompleted }, () => ({ done: t.literal(true) }))
-  .event({ ItemDeleted }, () => ({ deleted: t.literal(true) }))
+  .view(d.ListItems)
+  .event(d.ItemAdded, () => ({ done: t.literal(false), deleted: t.literal(false) }))
+  .event(d.ItemCompleted, () => ({ done: t.literal(true) }))
+  .event(d.ItemDeleted, () => ({ deleted: t.literal(true) }))
   .context({ listId: t.string() })
-  .chapter(Views)
-  .actor(User)
-  .screen(ListScreen)
-  .service(TodoService, "GetList")
+  .chapter(d.Views)
+  .actor(d.User)
+  .screen(d.ListScreen)
+  .service(d.TodoService, "GetList")
   .test("A completed item shows as done", {
     given: [milk, milkDone],
     when: { listId: "list-1" },
-    then: ListItems({
+    then: d.ListItems({
       listId: "list-1",
       itemId: "item-1",
       title: "Milk",
@@ -141,9 +128,9 @@ m.slice()
     }),
   })
   .test("A deleted item shows as deleted", {
-    given: [milk, ItemDeleted({ listId: "list-1", itemId: "item-1" })],
+    given: [milk, d.ItemDeleted({ listId: "list-1", itemId: "item-1" })],
     when: { listId: "list-1" },
-    then: ListItems({
+    then: d.ListItems({
       listId: "list-1",
       itemId: "item-1",
       title: "Milk",
@@ -156,18 +143,18 @@ m.slice()
       groceries,
       milk,
       eggs,
-      ItemAdded({ userId: "u-1", listId: "list-2", itemId: "item-3", title: "Nails" }),
+      d.ItemAdded({ userId: "u-1", listId: "list-2", itemId: "item-3", title: "Nails" }),
     ],
     when: { listId: "list-1" },
     then: [
-      ListItems({
+      d.ListItems({
         listId: "list-1",
         itemId: "item-1",
         title: "Milk",
         done: false,
         deleted: false,
       }),
-      ListItems({
+      d.ListItems({
         listId: "list-1",
         itemId: "item-2",
         title: "Eggs",
@@ -178,18 +165,18 @@ m.slice()
   })
 
 m.slice()
-  .view({ ItemSearch })
-  .event({ ItemAdded }, () => ({ done: t.literal(false), deleted: t.literal(false) }))
-  .event({ ItemCompleted }, () => ({ done: t.literal(true) }))
-  .event({ ItemDeleted }, () => ({ deleted: t.literal(true) }))
+  .view(d.ItemSearch)
+  .event(d.ItemAdded, () => ({ done: t.literal(false), deleted: t.literal(false) }))
+  .event(d.ItemCompleted, () => ({ done: t.literal(true) }))
+  .event(d.ItemDeleted, () => ({ deleted: t.literal(true) }))
   .context({ text: t.string() })
-  .chapter(Views)
-  .actor(User)
-  .service(TodoService, "SearchItems")
+  .chapter(d.Views)
+  .actor(d.User)
+  .service(d.TodoService, "SearchItems")
   .test("An added item shows as not done", {
     given: milk,
     when: { text: "Milk" },
-    then: ItemSearch({
+    then: d.ItemSearch({
       itemId: "item-1",
       listId: "list-1",
       title: "Milk",
@@ -198,9 +185,9 @@ m.slice()
     }),
   })
   .test("A search finds a deleted item as deleted", {
-    given: [milk, ItemDeleted({ listId: "list-1", itemId: "item-1" })],
+    given: [milk, d.ItemDeleted({ listId: "list-1", itemId: "item-1" })],
     when: { text: "Milk" },
-    then: ItemSearch({
+    then: d.ItemSearch({
       itemId: "item-1",
       listId: "list-1",
       title: "Milk",
@@ -211,7 +198,7 @@ m.slice()
   .test("A search finds a done item by its title", {
     given: [milk, milkDone],
     when: { text: "Milk" },
-    then: ItemSearch({
+    then: d.ItemSearch({
       itemId: "item-1",
       listId: "list-1",
       title: "Milk",
@@ -220,44 +207,42 @@ m.slice()
     }),
   })
 
-export const Automations = m.chapter(3)
+m.chapter("Automations", 3)
 
 m.slice("ListCompleter")
-  .automation({ ItemCompleted })
-  .command({ CompleteList })
-  .query({ TodoList }, (c) => ({ userId: c.CompleteList.userId, listId: c.CompleteList.listId }))
-  .event({ ListCompleted })
-  .chapter(Automations)
+  .automation(d.ItemCompleted)
+  .command(d.CompleteList)
+  .query(d.TodoList, (c) => ({ userId: c.CompleteList.userId, listId: c.CompleteList.listId }))
+  .event(d.ListCompleted)
+  .chapter(d.Automations)
   .test("List completes when every item is done", {
     given: [groceries, milk, milkDone],
-    when: CompleteList({ userId: "u-1", listId: "list-1" }),
-    then: ListCompleted({ userId: "u-1", listId: "list-1" }),
+    when: d.CompleteList({ userId: "u-1", listId: "list-1" }),
+    then: d.ListCompleted({ userId: "u-1", listId: "list-1" }),
   })
 
 // The calendar pushes a scheduled task in, and we translate it into an item.
-export const Calendar = m.external()
+m.external("Calendar")
 
-export const TaskScheduled = m
-  .event({
-    userId: t.string(),
-    listId: t.string(),
-    itemId: t.string(),
-    text: t.string(),
-  })
-  .external(Calendar)
+m.event("TaskScheduled", {
+  userId: t.string(),
+  listId: t.string(),
+  itemId: t.string(),
+  text: t.string(),
+}).external(d.Calendar)
 
-export const Integrations = m.chapter(4)
+m.chapter("Integrations", 4)
 
 m.slice()
-  .translation({ TaskScheduled })
-  .command({ AddItem })
-  .event({ ItemAdded }, (c) => ({ title: c.AddItem.text }))
-  .chapter(Integrations)
+  .translation(d.TaskScheduled)
+  .command(d.AddItem)
+  .event(d.ItemAdded, (c) => ({ title: c.AddItem.text }))
+  .chapter(d.Integrations)
   .test("A scheduled task becomes an item", {
     given: [
       groceries,
-      TaskScheduled({ userId: "u-1", listId: "list-1", itemId: "item-4", text: "Flour" }),
+      d.TaskScheduled({ userId: "u-1", listId: "list-1", itemId: "item-4", text: "Flour" }),
     ],
-    when: AddItem({ userId: "u-1", listId: "list-1", itemId: "item-4", text: "Flour" }),
-    then: ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-4", title: "Flour" }),
+    when: d.AddItem({ userId: "u-1", listId: "list-1", itemId: "item-4", text: "Flour" }),
+    then: d.ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-4", title: "Flour" }),
   })

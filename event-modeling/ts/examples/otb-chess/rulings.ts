@@ -1,32 +1,23 @@
 // The arbiter rules on an illegal move and keeps count of them per player.
 
-import { m, t } from "#em"
-import {
-  IllegalMoveRuled,
-  illegalMoveRuled,
-  MoveList,
-  MovePlayed,
-  RuleIllegalMove,
-} from "./play.ts"
-import { Arbiter, ChessService, Game } from "./setup.ts"
+import { d, m, t } from "#em"
+import { illegalMoveRuled } from "./play.ts"
 
 // How many illegal moves each side has made. FIDE 7.5.5 escalates on the second.
-export const IllegalMoveTally = m.view({
+m.view("IllegalMoveTally", {
   gameId: t.string().key(),
   offendingSide: t.enum(["white", "black"]).key(),
   illegalMoveCount: t.int(),
 })
 
 // The ruling that makes it two says so, so the forfeiter hears only the offence that forfeits.
-export const SecondIllegalMoveRuled = m
-  .event({
-    gameId: t.string(),
-    offendingSide: t.enum(["white", "black"]),
-    illegalMoveCount: t.int(),
-  })
-  .stream(Game)
+m.event("SecondIllegalMoveRuled", {
+  gameId: t.string(),
+  offendingSide: t.enum(["white", "black"]),
+  illegalMoveCount: t.int(),
+}).stream(d.Game)
 
-export const secondIllegalMoveRuled = IllegalMoveRuled({
+export const secondIllegalMoveRuled = d.IllegalMoveRuled({
   gameId: "otb-2024-ct-r5-b1",
   ply: 44,
   offendingSide: "white",
@@ -38,7 +29,7 @@ export const secondIllegalMoveRuled = IllegalMoveRuled({
 })
 
 // White's king steps onto its own pawn: the move the arbiter strikes second.
-const kingIntoOwnPawn = MovePlayed({
+const kingIntoOwnPawn = d.MovePlayed({
   gameId: "otb-2024-ct-r5-b1",
   ply: 44,
   san: "Kf2",
@@ -51,32 +42,32 @@ const kingIntoOwnPawn = MovePlayed({
   isCapture: false,
 })
 
-export const secondOffence = SecondIllegalMoveRuled({
+export const secondOffence = d.SecondIllegalMoveRuled({
   gameId: "otb-2024-ct-r5-b1",
   offendingSide: "white",
   illegalMoveCount: 2,
 })
 
-export const ArbiterRulings = m.chapter(4)
+m.chapter("ArbiterRulings", 4)
 
 m.slice()
-  .command({ RuleIllegalMove })
-  .query({ MoveList }, (c) => ({ gameId: c.RuleIllegalMove.gameId, ply: c.RuleIllegalMove.ply }))
-  .query({ IllegalMoveTally }, (c) => ({
+  .command(d.RuleIllegalMove)
+  .query(d.MoveList, (c) => ({ gameId: c.RuleIllegalMove.gameId, ply: c.RuleIllegalMove.ply }))
+  .query(d.IllegalMoveTally, (c) => ({
     gameId: c.RuleIllegalMove.gameId,
     offendingSide: c.RuleIllegalMove.offendingSide,
   }))
-  .event({ IllegalMoveRuled }, (c) => c.RuleIllegalMove)
-  .event({ SecondIllegalMoveRuled }, (c) => c.RuleIllegalMove)
-  .chapter(ArbiterRulings)
-  .actor(Arbiter)
-  .service(ChessService)
+  .event(d.IllegalMoveRuled, (c) => c.RuleIllegalMove)
+  .event(d.SecondIllegalMoveRuled, (c) => c.RuleIllegalMove)
+  .chapter(d.ArbiterRulings)
+  .actor(d.Arbiter)
+  .service(d.ChessService)
   .note(
     "FIDE 7.5.1: the position before the illegal move is reinstated. 7.5.5: the first one adds two minutes to the opponent, the second one loses the game.",
   )
   .test("An illegal move is struck and two minutes are added to the opponent", {
     given: illegalMoveRuled,
-    when: RuleIllegalMove({
+    when: d.RuleIllegalMove({
       gameId: "otb-2024-ct-r5-b1",
       ply: 32,
       offendingSide: "white",
@@ -90,7 +81,7 @@ m.slice()
   })
   .test("A second illegal move by the same player carries the loss", {
     given: [illegalMoveRuled, kingIntoOwnPawn],
-    when: RuleIllegalMove({
+    when: d.RuleIllegalMove({
       gameId: "otb-2024-ct-r5-b1",
       ply: 44,
       offendingSide: "white",
@@ -104,12 +95,12 @@ m.slice()
   })
 
 m.slice()
-  .view({ IllegalMoveTally })
-  .event({ IllegalMoveRuled }, (c) => ({ illegalMoveCount: m.generate(c.IllegalMoveRuled) }))
-  .chapter(ArbiterRulings)
+  .view(d.IllegalMoveTally)
+  .event(d.IllegalMoveRuled, (c) => ({ illegalMoveCount: m.generate(c.IllegalMoveRuled) }))
+  .chapter(d.ArbiterRulings)
   .test("One ruling puts the offender on one illegal move", {
     given: illegalMoveRuled,
-    then: IllegalMoveTally({
+    then: d.IllegalMoveTally({
       gameId: "otb-2024-ct-r5-b1",
       offendingSide: "white",
       illegalMoveCount: 1,
@@ -117,7 +108,7 @@ m.slice()
   })
   .test("A second ruling puts the offender on two", {
     given: [illegalMoveRuled, secondIllegalMoveRuled],
-    then: IllegalMoveTally({
+    then: d.IllegalMoveTally({
       gameId: "otb-2024-ct-r5-b1",
       offendingSide: "white",
       illegalMoveCount: 2,

@@ -1,8 +1,8 @@
-import { m, t } from "#em"
+import { d, m, t } from "#em"
 
-export const Mail = m.external()
-export const Received = m.event({ id: t.string() }).external(Mail)
-export const Record = m.command({ id: t.string() })
-export const Recorded = m.event({ id: t.string() })
-export const Calendar = m.chapter(1)
-m.slice().translation({ Received }).command({ Record }).event({ Recorded }).chapter(Calendar)
+m.external("Mail")
+m.event("Received", { id: t.string() }).external(d.Mail)
+m.command("Record", { id: t.string() })
+m.event("Recorded", { id: t.string() })
+m.chapter("Calendar", 1)
+m.slice().translation(d.Received).command(d.Record).event(d.Recorded).chapter(d.Calendar)

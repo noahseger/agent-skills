@@ -64,9 +64,12 @@ test("init scaffolds a model that assembles, and refuses to overwrite it", () =>
     // name, so the model gets the dependency the way a user's would.
     mkdirSync(join(dir, "node_modules", "@noahseger"), { recursive: true })
     symlinkSync(here(".."), join(dir, "node_modules", "@noahseger", "event-modeling"))
-    for (const f of ["index.ts", "tsconfig.json", "package.json"])
+    for (const f of ["index.ts", "tsconfig.json", "package.json", "em-registry.d.ts"])
       assert.ok(existsSync(join(dir, f)), f)
     assert.deepEqual(JSON.parse(em("json", dir).stdout), { slices: [] })
+    // The model types d from the start: what init writes is what em types would.
+    const types = em("types", "--check", dir)
+    assert.equal(types.status, 0, types.stderr)
     const again = em("init", dir)
     assert.equal(again.status, 1)
     assert.match(again.stderr, /already exists, so init stopped\. Run it in an empty directory\./)
@@ -76,12 +79,91 @@ test("init scaffolds a model that assembles, and refuses to overwrite it", () =>
 })
 
 test("an assembly error is one line and exit 1", () => {
-  const run = em("json", here("./fixtures/unexported"))
+  const run = em("json", here("./fixtures/declared-twice"))
   assert.equal(run.status, 1)
   assert.equal(
     run.stderr.trim(),
-    "Ch › slice 1: this slice uses an event that isn't exported. Export it to give it a name.",
+    "Created is declared twice, at index.ts:5 and index.ts:6. Keep one.",
   )
+})
+
+/** Each name the declaration map maps, and the text at the position it maps to. */
+function mapped(dir: string): [string, string][] {
+  const map = JSON.parse(readFileSync(join(dir, "em-registry.d.ts.map"), "utf8")) as {
+    sources: string[]
+    mappings: string
+  }
+  const lines = readFileSync(join(dir, "em-registry.d.ts"), "utf8").split("\n")
+  const digits = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+  const at = [0, 0, 0]
+  return map.mappings.split(";").flatMap((segment, line) => {
+    if (segment === "") return []
+    const values: number[] = []
+    let value = 0
+    let shift = 0
+    for (const char of segment) {
+      const digit = digits.indexOf(char)
+      value += (digit & 31) << shift
+      shift += 5
+      if (digit & 32) continue
+      values.push(value & 1 ? -(value >> 1) : value >> 1)
+      value = 0
+      shift = 0
+    }
+    for (const i of [0, 1, 2]) at[i] = (at[i] ?? 0) + (values[i + 1] ?? 0)
+    const [file = 0, row = 0, col = 0] = at
+    const source = readFileSync(join(dir, map.sources[file] ?? ""), "utf8").split("\n")[row] ?? ""
+    const name = (lines[line] ?? "").trim().split(":")[0] ?? ""
+    return [[name, source.slice(col, col + name.length)]]
+  })
+}
+
+test("types writes what d is beside the model, with a map to each name's string; --check says when it is stale", () => {
+  const dir = mkdtempSync(here("../tmp-types-"))
+  try {
+    const model = (above = "") => `import { d, m, t } from "#em"
+${above}
+m.stream("Notes")
+m.command("CaptureNote", { text: t.string() })
+m.event(
+  "NoteCaptured",
+  { noteId: t.uuid(), text: t.string(), at: t.datetime().optional() },
+).stream(d.Notes)
+m.view("Inbox", { noteId: t.uuid().key(), text: t.string() })
+m.view("NoteActivity", t.array({ noteId: t.uuid().key(), what: t.enum(["captured", "filed"]) }))
+m.actor("Filer", { icon: "system" })
+`
+    writeFileSync(join(dir, "index.ts"), model())
+    const stale = em("types", "--check", dir)
+    assert.equal(stale.status, 1)
+    assert.match(stale.stderr, /em-registry\.d\.ts is out of date\. Run em types /)
+    const wrote = em("types", dir)
+    assert.equal(wrote.status, 0, wrote.stderr)
+    assert.match(wrote.stdout, /^Wrote .*em-registry\.d\.ts\n$/)
+    const text = readFileSync(join(dir, "em-registry.d.ts"), "utf8")
+    for (const member of [
+      'CaptureNote: CommandDecl<"CaptureNote", { text: Field<string> }>',
+      "Filer: SystemActor",
+      'Inbox: ViewDecl<"Inbox", { noteId: Field<string, "uuid", true>; text: Field<string> }, false>',
+      'NoteActivity: ViewDecl<"NoteActivity", { noteId: Field<string, "uuid", true>; what: Field<"captured" | "filed"> }, true>',
+      'NoteCaptured: EventDecl<"NoteCaptured", { noteId: Field<string, "uuid">; text: Field<string>; at: Field<string | undefined, "datetime"> }>',
+      "Notes: Stream",
+    ])
+      assert.ok(text.includes(`    ${member}\n`), member)
+    // Go-to-definition and rename on d.Name land inside the string that declares it.
+    const names = ["CaptureNote", "Filer", "Inbox", "NoteActivity", "NoteCaptured", "Notes"]
+    assert.deepEqual(
+      mapped(dir),
+      names.map((n) => [n, n]),
+    )
+    assert.equal(em("types", "--check", dir).status, 0)
+    assert.match(em("types", dir).stdout, /is up to date\.\n$/)
+    // A line above moves every string, so the map is stale though the types are not.
+    writeFileSync(join(dir, "index.ts"), model("// Notes, captured and filed.\n"))
+    assert.equal(em("types", "--check", dir).status, 1)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 test("a missing argument prints usage and exits 2", () => {
@@ -101,15 +183,15 @@ test("proto with no service says so and exits 1", () => {
   try {
     writeFileSync(
       join(dir, "index.ts"),
-      `import { m, t } from "#em"
+      `import { d, m, t } from "#em"
 
-export const Start = m.command({ id: t.string() })
-export const Started = m.event({ id: t.string() })
-export const Table = m.view({ id: t.string().key() })
-export const User = m.actor()
-export const Ch = m.chapter(1)
-m.slice().command({ Start }).event({ Started }).chapter(Ch).test("starts", { when: Start({ id: "1" }), then: [Started({ id: "1" })] })
-m.slice().view({ Table }).event({ Started }).chapter(Ch).actor(User).test("the row shows", { given: Started({ id: "1" }), then: Table({ id: "1" }) })
+m.command("Start", { id: t.string() })
+m.event("Started", { id: t.string() })
+m.view("Table", { id: t.string().key() })
+m.actor("User")
+m.chapter("Ch", 1)
+m.slice().command(d.Start).event(d.Started).chapter(d.Ch).test("starts", { when: d.Start({ id: "1" }), then: [d.Started({ id: "1" })] })
+m.slice().view(d.Table).event(d.Started).chapter(d.Ch).actor(d.User).test("the row shows", { given: d.Started({ id: "1" }), then: d.Table({ id: "1" }) })
 export default m.model("x")
 `,
     )
@@ -117,7 +199,7 @@ export default m.model("x")
     assert.equal(run.status, 1)
     assert.match(
       run.stderr,
-      /^No slice has a service, so no \.proto was written\. Add \.service\(Api\)/,
+      /^No slice has a service, so no \.proto was written\. Add \.service\(d\.Api\)/,
     )
     assert.ok(!existsSync(join(dir, "out")))
   } finally {
@@ -126,16 +208,16 @@ export default m.model("x")
 })
 
 /** A finished Api service; the view has no specification and Loose is in no slice. */
-const API_DONE = `import { m, t } from "#em"
+const API_DONE = `import { d, m, t } from "#em"
 
-export const Api = m.service("api.v1")
-export const Start = m.command({ id: t.string() })
-export const Started = m.event({ id: t.string() })
-export const Table = m.view({ id: t.string().key() })
-export const Loose = m.event({ id: t.string() })
-export const Ch = m.chapter(1)
-m.slice().command({ Start }).event({ Started }).service(Api).chapter(Ch).test("starts", { when: Start({ id: "1" }), then: [Started({ id: "1" })] })
-m.slice().view({ Table }).event({ Started }).chapter(Ch)
+m.service("Api", "api.v1")
+m.command("Start", { id: t.string() })
+m.event("Started", { id: t.string() })
+m.view("Table", { id: t.string().key() })
+m.event("Loose", { id: t.string() })
+m.chapter("Ch", 1)
+m.slice().command(d.Start).event(d.Started).service(d.Api).chapter(d.Ch).test("starts", { when: d.Start({ id: "1" }), then: [d.Started({ id: "1" })] })
+m.slice().view(d.Table).event(d.Started).chapter(d.Ch)
 export default m.model("x")
 `
 
@@ -161,9 +243,9 @@ test("proto writes a finished service whatever is left to do elsewhere", () => {
 
 test("proto skips a service with an unfinished slice, says why, and exits 1", () => {
   const { run, api, board } = protoOf(
-    `${API_DONE}export const Board = m.service("board.v1")
-export const Listing = m.view({ id: t.string().key() })
-m.slice().view({ Listing }).event({ Started }).service(Board, "List").chapter(Ch)
+    `${API_DONE}m.service("Board", "board.v1")
+m.view("Listing", { id: t.string().key() })
+m.slice().view(d.Listing).event(d.Started).service(d.Board, "List").chapter(d.Ch)
 `,
   )
   assert.equal(run.status, 1)
@@ -177,9 +259,9 @@ m.slice().view({ Listing }).event({ Started }).service(Board, "List").chapter(Ch
 
 test("proto never writes a nameless rpc: a state view's service with no method is left to do", () => {
   const { run, api, board } = protoOf(
-    `${API_DONE}export const Board = m.service("board.v1")
-export const Games = m.view({ id: t.string().key() })
-m.slice().view({ Games }).event({ Started }).service(Board).chapter(Ch).test("lists", { given: Started({ id: "1" }), then: Games({ id: "1" }) })
+    `${API_DONE}m.service("Board", "board.v1")
+m.view("Games", { id: t.string().key() })
+m.slice().view(d.Games).event(d.Started).service(d.Board).chapter(d.Ch).test("lists", { given: d.Started({ id: "1" }), then: d.Games({ id: "1" }) })
 `,
   )
   assert.equal(run.status, 1)
@@ -187,7 +269,7 @@ m.slice().view({ Games }).event({ Started }).service(Board).chapter(Ch).test("li
   assert.equal(board, undefined)
   assert.match(
     run.stderr,
-    /Skipped .*board\/v1\/board\.proto\. Its service has left to do:\nCh › Games: a state view names its method: \.service\(Board, "ListGames"\)\./,
+    /Skipped .*board\/v1\/board\.proto\. Its service has left to do:\nCh › Games: a state view names its method: \.service\(d\.Board, "ListGames"\)\./,
   )
 })
 
@@ -273,15 +355,15 @@ test("view takes a free port when 5311 is taken, and refuses a taken --port", as
 test("view lists a compiler error with what assembly found, until a save fixes it", async () => {
   const dir = mkdtempSync(here("../tmp-check-"))
   const file = join(dir, "index.ts")
-  const model = (emits: string) => `import { m, t } from "#em"
+  const model = (emits: string) => `import { d, m, t } from "#em"
 
-export const Games = m.stream()
-export const User = m.actor()
-export const Chess = m.service("chess.v1")
-export const StartGame = m.command({ gameId: t.string() })
-export const GameStarted = m.event({ gameId: t.string(), white: t.string(), black: t.string() }).stream(Games)
-export const Play = m.chapter(1)
-m.slice().command({ StartGame }).event({ ${emits}).actor(User).service(Chess).chapter(Play)
+m.stream("Games")
+m.actor("User")
+m.service("Chess", "chess.v1")
+m.command("StartGame", { gameId: t.string() })
+m.event("GameStarted", { gameId: t.string(), white: t.string(), black: t.string() }).stream(d.Games)
+m.chapter("Play", 1)
+m.slice().command(d.StartGame).event(${emits}).actor(d.User).service(d.Chess).chapter(d.Play)
 export default m.model("Chess")
 `
   const error =
@@ -290,7 +372,7 @@ export default m.model("Chess")
     (
       (await (await fetch(`${url}/model.json`)).json()) as { warnings?: { message: string }[] }
     ).warnings?.map((w) => w.message) ?? []
-  writeFileSync(file, model("GameStarted }"))
+  writeFileSync(file, model("d.GameStarted"))
   const server = await view(dir)
   try {
     assert.ok(server.log().includes(`\n  ${error}\n`), server.log())
@@ -300,7 +382,7 @@ export default m.model("Chess")
     await reloaded(server.url, () => {
       writeFileSync(
         join(dir, ".!1!index.ts"),
-        model('GameStarted }, () => ({ white: t.literal("me"), black: t.literal("you") })'),
+        model('d.GameStarted, () => ({ white: t.literal("me"), black: t.literal("you") })'),
       )
       renameSync(join(dir, ".!1!index.ts"), file)
     })
@@ -311,6 +393,21 @@ export default m.model("Chess")
     await reloaded(server.url, () => writeFileSync(join(dir, "extra.ts"), "export {}\n"))
     await reloaded(server.url, () => rmSync(join(dir, "extra.ts")))
     assert.match(server.log(), /\d Deleted extra\.ts \(/)
+
+    // A save that declares a name types it at once: the load writes em-registry.d.ts, and checks again.
+    await reloaded(server.url, () =>
+      writeFileSync(
+        join(dir, "ending.ts"),
+        `import { d, m, t } from "#em"
+m.slice("Ender").automation(d.GameStarted).command(d.EndGame).event(d.GameEnded).chapter(d.Play)
+m.command("EndGame", { gameId: t.string() })
+m.event("GameEnded", { gameId: t.string() }).stream(d.Games)
+`,
+      ),
+    )
+    assert.match(readFileSync(join(dir, "em-registry.d.ts"), "utf8"), /GameEnded: EventDecl/)
+    const ended = (await warnings(server.url)).filter((w) => w.startsWith("ending.ts"))
+    assert.deepEqual(ended, [])
   } finally {
     server.close()
     rmSync(dir, { recursive: true, force: true })
@@ -321,17 +418,17 @@ test("view pairs each compiler error with what assembly found about the same eve
   const dir = mkdtempSync(here("../tmp-pair-"))
   writeFileSync(
     join(dir, "index.ts"),
-    `import { m, t } from "#em"
+    `import { d, m, t } from "#em"
 
-export const User = m.actor()
-export const Chess = m.service("chess.v1")
-export const StartGame = m.command({ gameId: t.string() })
-export const GameStarted = m.event({ gameId: t.string(), white: t.string() })
-export const Begin = m.command({ gameId: t.string() })
-export const Started = m.event({ gameId: t.string(), white: t.string() })
-export const Play = m.chapter(1)
-m.slice().command({ StartGame }).event({ GameStarted }).actor(User).service(Chess).chapter(Play)
-m.slice().command({ Begin }).event({ Started }).actor(User).service(Chess).chapter(Play)
+m.actor("User")
+m.service("Chess", "chess.v1")
+m.command("StartGame", { gameId: t.string() })
+m.event("GameStarted", { gameId: t.string(), white: t.string() })
+m.command("Begin", { gameId: t.string() })
+m.event("Started", { gameId: t.string(), white: t.string() })
+m.chapter("Play", 1)
+m.slice().command(d.StartGame).event(d.GameStarted).actor(d.User).service(d.Chess).chapter(d.Play)
+m.slice().command(d.Begin).event(d.Started).actor(d.User).service(d.Chess).chapter(d.Play)
 export default m.model("Chess")
 `,
   )
@@ -367,27 +464,27 @@ test("view lists a field the mapping must set: one that does not fit, mapped or 
   const dir = mkdtempSync(here("../tmp-fit-"))
   writeFileSync(
     join(dir, "index.ts"),
-    `import { m, t } from "#em"
+    `import { d, m, t } from "#em"
 
-export const Notes = m.stream()
-export const Capture = m.chapter(1)
-export const NoteCaptured = m.event({ noteId: t.uuid(), text: t.string() }).stream(Notes)
-export const CaptureNote = m.command({ text: t.string() })
-m.slice().command({ CaptureNote }).event({ NoteCaptured }, (c) => ({ noteId: c.CaptureNote.text })).chapter(Capture)
-export const NoteTaken = m.event({ noteId: t.uuid(), text: t.string() }).stream(Notes)
-export const TakeNote = m.command({ noteId: t.string(), text: t.string() })
-m.slice().command({ TakeNote }).event({ NoteTaken }).chapter(Capture)
-export const Wiki = m.external()
-export const PageMade = m.event({ noteId: t.uuid() }).external(Wiki)
-export const LinkNote = m.command({ noteId: t.uuid() })
-export const NoteLinked = m.event({ noteId: t.uuid() }).stream(Notes)
-m.slice().command({ LinkNote }).event({ PageMade }).event({ NoteLinked }).chapter(Capture)
-export const NoteFiled = m.event({ noteId: t.uuid(), at: t.datetime() }).stream(Notes)
-m.slice().command({ LinkNote }).event({ PageMade }).event({ NoteFiled }, () => ({ at: m.generate() })).chapter(Capture)
-export const Drafts = m.view({ noteId: t.uuid().key(), text: t.string().optional() })
-export const Publish = m.command({ noteId: t.uuid() })
-export const Published = m.event({ noteId: t.uuid(), text: t.string() }).stream(Notes)
-m.slice().command({ Publish }).query({ Drafts }, "noteId").event({ Published }).chapter(Capture)
+m.stream("Notes")
+m.chapter("Capture", 1)
+m.event("NoteCaptured", { noteId: t.uuid(), text: t.string() }).stream(d.Notes)
+m.command("CaptureNote", { text: t.string() })
+m.slice().command(d.CaptureNote).event(d.NoteCaptured, (c) => ({ noteId: c.CaptureNote.text })).chapter(d.Capture)
+m.event("NoteTaken", { noteId: t.uuid(), text: t.string() }).stream(d.Notes)
+m.command("TakeNote", { noteId: t.string(), text: t.string() })
+m.slice().command(d.TakeNote).event(d.NoteTaken).chapter(d.Capture)
+m.external("Wiki")
+m.event("PageMade", { noteId: t.uuid() }).external(d.Wiki)
+m.command("LinkNote", { noteId: t.uuid() })
+m.event("NoteLinked", { noteId: t.uuid() }).stream(d.Notes)
+m.slice().command(d.LinkNote).event(d.PageMade).event(d.NoteLinked).chapter(d.Capture)
+m.event("NoteFiled", { noteId: t.uuid(), at: t.datetime() }).stream(d.Notes)
+m.slice().command(d.LinkNote).event(d.PageMade).event(d.NoteFiled, () => ({ at: m.generate() })).chapter(d.Capture)
+m.view("Drafts", { noteId: t.uuid().key(), text: t.string().optional() })
+m.command("Publish", { noteId: t.uuid() })
+m.event("Published", { noteId: t.uuid(), text: t.string() }).stream(d.Notes)
+m.slice().command(d.Publish).query(d.Drafts, "noteId").event(d.Published).chapter(d.Capture)
 export default m.model("Notes")
 `,
   )
@@ -416,16 +513,16 @@ test("view words a query with no filter, and a state view's service with no meth
   const dir = mkdtempSync(here("../tmp-fix-"))
   writeFileSync(
     join(dir, "index.ts"),
-    `import { m, t } from "#em"
+    `import { d, m, t } from "#em"
 
-export const Api = m.service("api.v1")
-export const Ch = m.chapter(1)
-export const Started = m.event({ id: t.string() })
-export const Finish = m.command({ id: t.string() })
-export const Finished = m.event({ id: t.string() })
-export const Table = m.view({ id: t.string().key() })
-m.slice().automation({ Started }).query({ Table }).command({ Finish }).event({ Finished }).chapter(Ch)
-m.slice().view({ Table }).event({ Started }).service(Api).chapter(Ch)
+m.service("Api", "api.v1")
+m.chapter("Ch", 1)
+m.event("Started", { id: t.string() })
+m.command("Finish", { id: t.string() })
+m.event("Finished", { id: t.string() })
+m.view("Table", { id: t.string().key() })
+m.slice().automation(d.Started).query(d.Table).command(d.Finish).event(d.Finished).chapter(d.Ch)
+m.slice().view(d.Table).event(d.Started).service(d.Api).chapter(d.Ch)
 export default m.model("Fix")
 `,
   )
@@ -438,7 +535,7 @@ export default m.model("Fix")
       warnings.filter((w) => w.message.startsWith("index.ts:")).map((w) => w.message),
       [
         "index.ts:9  say which rows: a column or a mapping, () => ({}) for every row",
-        'index.ts:10  a state view names its method: .service(Api, "ListX")',
+        'index.ts:10  a state view names its method: .service(d.Api, "ListX")',
       ],
     )
   } finally {
@@ -451,25 +548,16 @@ test("a model that doesn't load shows the compiler's errors, not the JavaScript 
   const dir = mkdtempSync(here("../tmp-load-"))
   writeFileSync(
     join(dir, "index.ts"),
-    `import { m, t } from "#em"
+    `import { d, m, t } from "#em"
 
-m.slice().command({ Retry }).event({ Retried }).chapter(Ch)
-m.slice().command({ Retry }).event({ Retried }).chapter(Later)
-export const Received = m.event({ id: t.string() }).stream("Inbox")
-export const Sync = m.command({ id: t.string() })
-export const Synced = m.event({ id: t.string() })
-export const Failed = m.event({ id: t.string() })
-export const Ch = m.chapter(1)
-m.slice().command({ Sync }).event({ Synced }).event({ Failed }).chapter(Ch)
-m.slice().command({ Sync }).chapter(Ch)
-export const Retry = m.command({ id: t.string() })
-export const Retried = m.event({ id: t.string() })
-export const Later = m.chapter(2)
-export const Pending = m.view(t.array({ id: t.string().key() }))
-m.slice().command({ Sync }).query({ Pending }, "id").event({ Synced }).chapter(Ch)
-m.slice().view({ Pending }).chapter(Ch)
-m.slice().automation({ Synced }).chapter(Ch)
-m.slice().automation({ Pending }).command({ Sync }).chapter(Ch)
+m.event("Received", { id: t.string() }).stream("Inbox")
+m.command("Sync", { id: t.string() })
+m.event("Synced", { id: t.string() })
+m.chapter("Ch", 1)
+m.view("Pending", t.array({ id: t.string().key() }))
+m.slice().command(d.Sync).query(d.Pending, "id").event(d.Synced).chapter(d.Ch)
+m.slice().command(d.Sync).event(d.Synced).test("syncs", { when: d.Sync({ id: "1" }), then: synced })
+const synced = d.Synced({ id: "1" })
 export default m.model("x")
 `,
   )
@@ -480,9 +568,9 @@ export default m.model("x")
     assert.equal(
       shown,
       [
-        "  index.ts: declare Retry, Retried, Ch, Later above where they are used.",
-        "  index.ts:5  Argument of type 'string' is not assignable to parameter of type 'Stream'.",
-        "  index.ts:16  the view is a list: many rows: only an automation reads them, before its .command()",
+        "  index.ts: declare synced above where it is used.",
+        "  index.ts:3  Argument of type 'string' is not assignable to parameter of type 'Stream'.",
+        "  index.ts:8  the view is a list: many rows: only an automation reads them, before its .command()",
         "",
       ].join("\n"),
     )

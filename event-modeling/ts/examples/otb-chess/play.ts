@@ -1,20 +1,11 @@
 // Players move on the board and press the clock. The board and the clock are separate lanes.
 
-import { m, t } from "#em"
+import { d, m, t } from "#em"
 
-import {
-  ChessService,
-  Clock,
-  ClockStarted,
-  Game,
-  GameStarted,
-  gameStarted,
-  Player,
-  Spectator,
-} from "./setup.ts"
+import { gameStarted } from "./setup.ts"
 
 // A player moves. FIDE 1.1: the two players move alternately.
-export const PlayMove = m.command({
+m.command("PlayMove", {
   gameId: t.string(),
   ply: t.int(),
   san: t.string(),
@@ -27,34 +18,30 @@ export const PlayMove = m.command({
   isCapture: t.boolean(),
   ending: t.enum(["checkmate", "stalemate", "dead_position"]).optional(),
 })
-export const MovePlayed = m
-  .event({
-    gameId: t.string(),
-    ply: t.int(),
-    san: t.string(),
-    fromSquare: t.string(),
-    toSquare: t.string(),
-    piece: t.enum(["pawn", "knight", "bishop", "rook", "queen", "king"]),
-    fen: t.string(),
-    sideToMove: t.enum(["white", "black"]),
-    isCheck: t.boolean(),
-    isCapture: t.boolean(),
-  })
-  .stream(Game)
+m.event("MovePlayed", {
+  gameId: t.string(),
+  ply: t.int(),
+  san: t.string(),
+  fromSquare: t.string(),
+  toSquare: t.string(),
+  piece: t.enum(["pawn", "knight", "bishop", "rook", "queen", "king"]),
+  fen: t.string(),
+  sideToMove: t.enum(["white", "black"]),
+  isCheck: t.boolean(),
+  isCapture: t.boolean(),
+}).stream(d.Game)
 
 // A move that mates, stalemates, or leaves a dead position ends the game as it is played.
 // FIDE 5.1.1, 5.2.1 and 5.2.2: the game is over at that moment, before anyone rules on it.
-export const GameEnded = m
-  .event({
-    gameId: t.string(),
-    ply: t.int(),
-    fen: t.string(),
-    ending: t.enum(["checkmate", "stalemate", "dead_position"]),
-  })
-  .stream(Game)
+m.event("GameEnded", {
+  gameId: t.string(),
+  ply: t.int(),
+  fen: t.string(),
+  ending: t.enum(["checkmate", "stalemate", "dead_position"]),
+}).stream(d.Game)
 
 // The position on the board right now.
-export const GameState = m.view({
+m.view("GameState", {
   gameId: t.string().key(),
   ply: t.int(),
   sideToMove: t.enum(["white", "black"]),
@@ -62,23 +49,21 @@ export const GameState = m.view({
 })
 
 // A player presses the clock. FIDE 6.2.1: the increment is added on the press.
-export const PressClock = m.command({
+m.command("PressClock", {
   gameId: t.string(),
   whiteTimeMs: t.int(),
   blackTimeMs: t.int(),
   runningSide: t.enum(["white", "black"]),
 })
-export const ClockPressed = m
-  .event({
-    gameId: t.string(),
-    whiteTimeMs: t.int(),
-    blackTimeMs: t.int(),
-    runningSide: t.enum(["white", "black"]),
-  })
-  .stream(Clock)
+m.event("ClockPressed", {
+  gameId: t.string(),
+  whiteTimeMs: t.int(),
+  blackTimeMs: t.int(),
+  runningSide: t.enum(["white", "black"]),
+}).stream(d.Clock)
 
 // Whose clock runs, and how much time each side has left.
-export const ClockState = m.view({
+m.view("ClockState", {
   gameId: t.string().key(),
   whiteTimeMs: t.int(),
   blackTimeMs: t.int(),
@@ -86,7 +71,7 @@ export const ClockState = m.view({
 })
 
 // The arbiter's ruling is declared here, in the chapter where the board first reads it.
-export const RuleIllegalMove = m.command({
+m.command("RuleIllegalMove", {
   gameId: t.string(),
   ply: t.int(),
   offendingSide: t.enum(["white", "black"]),
@@ -96,21 +81,19 @@ export const RuleIllegalMove = m.command({
   fen: t.string(),
   sideToMove: t.enum(["white", "black"]),
 })
-export const IllegalMoveRuled = m
-  .event({
-    gameId: t.string(),
-    ply: t.int(),
-    offendingSide: t.enum(["white", "black"]),
-    illegalMoveCount: t.int(),
-    addedTimeMs: t.int(),
-    penalty: t.enum(["opponent_time_added", "loss"]),
-    fen: t.string(),
-    sideToMove: t.enum(["white", "black"]),
-  })
-  .stream(Game)
+m.event("IllegalMoveRuled", {
+  gameId: t.string(),
+  ply: t.int(),
+  offendingSide: t.enum(["white", "black"]),
+  illegalMoveCount: t.int(),
+  addedTimeMs: t.int(),
+  penalty: t.enum(["opponent_time_added", "loss"]),
+  fen: t.string(),
+  sideToMove: t.enum(["white", "black"]),
+}).stream(d.Game)
 
 // The scoresheet: one row per ply. A struck move stays on the sheet, marked.
-export const MoveList = m.view({
+m.view("MoveList", {
   gameId: t.string().key(),
   ply: t.int().key(),
   san: t.string(),
@@ -125,7 +108,7 @@ export const MATE_FEN = "r1bqkb1r/pppp1Qpp/2n2n2/8/2B1P3/8/PPPP1PPP/RNB1K1NR b K
 const FORK_FEN = "r1bqk2r/pppp1Qpp/2n2n2/2b1p3/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 7"
 export const STRUCK_FEN = "r4rk1/pp3ppp/2p5/8/8/2P2N2/PP3PPP/R4RK1 w - - 4 17"
 
-const kf1 = MovePlayed({
+const kf1 = d.MovePlayed({
   gameId: "otb-2024-ct-r5-b1",
   ply: 32,
   san: "Kf1",
@@ -138,7 +121,7 @@ const kf1 = MovePlayed({
   isCapture: false,
 })
 
-export const illegalMoveRuled = IllegalMoveRuled({
+export const illegalMoveRuled = d.IllegalMoveRuled({
   gameId: "otb-2024-ct-r5-b1",
   ply: 32,
   offendingSide: "white",
@@ -149,14 +132,14 @@ export const illegalMoveRuled = IllegalMoveRuled({
   sideToMove: "white",
 })
 
-export const mated = GameEnded({
+export const mated = d.GameEnded({
   gameId: "otb-2024-ct-r5-b1",
   ply: 7,
   fen: MATE_FEN,
   ending: "checkmate",
 })
 
-export const e4 = MovePlayed({
+export const e4 = d.MovePlayed({
   gameId: "otb-2024-ct-r5-b1",
   ply: 1,
   san: "e4",
@@ -169,7 +152,7 @@ export const e4 = MovePlayed({
   isCapture: false,
 })
 
-const clockStarted = ClockStarted({
+const clockStarted = d.ClockStarted({
   gameId: "otb-2024-ct-r5-b1",
   baseMinutes: 90,
   incrementSeconds: 30,
@@ -178,26 +161,26 @@ const clockStarted = ClockStarted({
   runningSide: "white",
 })
 
-export const Play = m.chapter(2)
+m.chapter("Play", 2)
 
 // What a spectator follows: the board and the scoresheet, side by side.
-export const Broadcast = m.screen()
+m.screen("Broadcast")
 
 m.slice()
-  .command({ PlayMove })
-  .query({ GameState }, "gameId")
-  .event({ MovePlayed }, (c) => c.PlayMove)
-  .event({ GameEnded }, (c) => ({
+  .command(d.PlayMove)
+  .query(d.GameState, "gameId")
+  .event(d.MovePlayed, (c) => c.PlayMove)
+  .event(d.GameEnded, (c) => ({
     ply: c.PlayMove.ply,
     fen: c.PlayMove.fen,
     ending: m.generate(c.PlayMove.ending),
   }))
-  .chapter(Play)
-  .actor(Player)
-  .service(ChessService)
+  .chapter(d.Play)
+  .actor(d.Player)
+  .service(d.ChessService)
   .test("White opens with 1. e4", {
     given: gameStarted,
-    when: PlayMove({
+    when: d.PlayMove({
       gameId: "otb-2024-ct-r5-b1",
       ply: 1,
       san: "e4",
@@ -213,7 +196,7 @@ m.slice()
   })
   .test("A capture that gives check sets both flags", {
     given: gameStarted,
-    when: PlayMove({
+    when: d.PlayMove({
       gameId: "otb-2024-ct-r5-b1",
       ply: 15,
       san: "Qxf7+",
@@ -225,7 +208,7 @@ m.slice()
       isCheck: true,
       isCapture: true,
     }),
-    then: MovePlayed({
+    then: d.MovePlayed({
       gameId: "otb-2024-ct-r5-b1",
       ply: 15,
       san: "Qxf7+",
@@ -240,7 +223,7 @@ m.slice()
   })
   .test("Qxf7 mates, so the move ends the game", {
     given: gameStarted,
-    when: PlayMove({
+    when: d.PlayMove({
       gameId: "otb-2024-ct-r5-b1",
       ply: 7,
       san: "Qxf7#",
@@ -254,7 +237,7 @@ m.slice()
       ending: "checkmate",
     }),
     then: [
-      MovePlayed({
+      d.MovePlayed({
         gameId: "otb-2024-ct-r5-b1",
         ply: 7,
         san: "Qxf7#",
@@ -271,7 +254,7 @@ m.slice()
   })
   .test("Black cannot move while it is White's turn", {
     given: gameStarted,
-    when: PlayMove({
+    when: d.PlayMove({
       gameId: "otb-2024-ct-r5-b1",
       ply: 1,
       san: "e5",
@@ -287,20 +270,20 @@ m.slice()
   })
 
 m.slice()
-  .view({ GameState })
-  .event({ GameStarted })
-  .event({ MovePlayed })
-  .event({ IllegalMoveRuled })
+  .view(d.GameState)
+  .event(d.GameStarted)
+  .event(d.MovePlayed)
+  .event(d.IllegalMoveRuled)
   .context({ gameId: t.string() })
-  .chapter(Play)
-  .actor(Spectator)
-  .screen(Broadcast)
-  .service(ChessService, "WatchBoard")
+  .chapter(d.Play)
+  .actor(d.Spectator)
+  .screen(d.Broadcast)
+  .service(d.ChessService, "WatchBoard")
   .note("The live position, as the broadcast shows it.")
   .test("The board advances after the opening move", {
     given: [gameStarted, e4],
     when: { gameId: "otb-2024-ct-r5-b1" },
-    then: GameState({
+    then: d.GameState({
       gameId: "otb-2024-ct-r5-b1",
       ply: 1,
       sideToMove: "black",
@@ -310,7 +293,7 @@ m.slice()
   .test("The board reverts when an illegal move is struck", {
     given: [gameStarted, e4, illegalMoveRuled],
     when: { gameId: "otb-2024-ct-r5-b1" },
-    then: GameState({
+    then: d.GameState({
       gameId: "otb-2024-ct-r5-b1",
       ply: 32,
       sideToMove: "white",
@@ -319,22 +302,22 @@ m.slice()
   })
 
 m.slice()
-  .command({ PressClock })
-  .query({ ClockState }, "gameId")
-  .event({ ClockPressed }, (c) => c.PressClock)
-  .chapter(Play)
-  .actor(Player)
-  .service(ChessService)
+  .command(d.PressClock)
+  .query(d.ClockState, "gameId")
+  .event(d.ClockPressed, (c) => c.PressClock)
+  .chapter(d.Play)
+  .actor(d.Player)
+  .service(d.ChessService)
   .note("FIDE 6.2.1: pressing banks the increment and starts the opponent's clock.")
   .test("White presses the clock, the increment is banked, Black's clock runs", {
     given: clockStarted,
-    when: PressClock({
+    when: d.PressClock({
       gameId: "otb-2024-ct-r5-b1",
       whiteTimeMs: 5412000,
       blackTimeMs: 5400000,
       runningSide: "black",
     }),
-    then: ClockPressed({
+    then: d.ClockPressed({
       gameId: "otb-2024-ct-r5-b1",
       whiteTimeMs: 5412000,
       blackTimeMs: 5400000,
@@ -343,7 +326,7 @@ m.slice()
   })
   .test("Black cannot press the clock while White's clock runs", {
     given: clockStarted,
-    when: PressClock({
+    when: d.PressClock({
       gameId: "otb-2024-ct-r5-b1",
       whiteTimeMs: 5400000,
       blackTimeMs: 5412000,
@@ -353,13 +336,13 @@ m.slice()
   })
 
 m.slice()
-  .view({ ClockState })
-  .event({ ClockStarted })
-  .event({ ClockPressed })
-  .chapter(Play)
+  .view(d.ClockState)
+  .event(d.ClockStarted)
+  .event(d.ClockPressed)
+  .chapter(d.Play)
   .test("The clock starts with White's time running", {
     given: clockStarted,
-    then: ClockState({
+    then: d.ClockState({
       gameId: "otb-2024-ct-r5-b1",
       whiteTimeMs: 5400000,
       blackTimeMs: 5400000,
@@ -369,14 +352,14 @@ m.slice()
   .test("The running side follows the press", {
     given: [
       clockStarted,
-      ClockPressed({
+      d.ClockPressed({
         gameId: "otb-2024-ct-r5-b1",
         whiteTimeMs: 5412000,
         blackTimeMs: 5400000,
         runningSide: "black",
       }),
     ],
-    then: ClockState({
+    then: d.ClockState({
       gameId: "otb-2024-ct-r5-b1",
       whiteTimeMs: 5412000,
       blackTimeMs: 5400000,
@@ -385,19 +368,19 @@ m.slice()
   })
 
 m.slice()
-  .view({ MoveList })
-  .event({ MovePlayed }, () => ({ status: t.literal("recorded") }))
-  .event({ IllegalMoveRuled }, () => ({ status: t.literal("struck") }))
+  .view(d.MoveList)
+  .event(d.MovePlayed, () => ({ status: t.literal("recorded") }))
+  .event(d.IllegalMoveRuled, () => ({ status: t.literal("struck") }))
   .context({ gameId: t.string() })
-  .chapter(Play)
-  .actor(Spectator)
-  .screen(Broadcast)
-  .service(ChessService, "WatchMoves")
+  .chapter(d.Play)
+  .actor(d.Spectator)
+  .screen(d.Broadcast)
+  .service(d.ChessService, "WatchMoves")
   .note("The moves so far, as the broadcast shows them.")
   .test("A move is recorded on the scoresheet", {
     given: e4,
     when: { gameId: "otb-2024-ct-r5-b1" },
-    then: MoveList({
+    then: d.MoveList({
       gameId: "otb-2024-ct-r5-b1",
       ply: 1,
       san: "e4",
@@ -410,7 +393,7 @@ m.slice()
   .test("An illegal move at ply 32 is struck, and stays on the sheet marked", {
     given: [kf1, illegalMoveRuled],
     when: { gameId: "otb-2024-ct-r5-b1" },
-    then: MoveList({
+    then: d.MoveList({
       gameId: "otb-2024-ct-r5-b1",
       ply: 32,
       san: "Kf1",

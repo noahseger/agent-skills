@@ -2,6 +2,8 @@
 // em <command> <path> [options]
 //
 //   init   <dir>                  scaffold a model directory
+//   types  <path> [--check]       write em-registry.d.ts beside the model, so d is typed; --check
+//                                 exits 1 if it is out of date
 //   json   <path> [--partial]     print the model as event-modeling-spec JSON; --partial keeps
 //                                 going past dead ends and prints what the viewer reads
 //   proto  <path> -o dir          write one .proto per service whose own slices are finished
@@ -16,12 +18,21 @@ import { basename, dirname, extname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { parseArgs } from "node:util"
 
-import { assemble, type Feed, load, type Warning } from "../src/assemble.ts"
+import {
+  assemble,
+  type Feed,
+  importModel,
+  load,
+  loadModules,
+  modelFiles,
+  type Warning,
+} from "../src/assemble.ts"
 import { type Checker, COMPILER_OPTIONS, checker } from "../src/check.ts"
 import { exportHtml } from "../src/export.ts"
 import { generateProto } from "../src/proto.ts"
+import { current, GENERATED, registry, specifierOf, writeRegistry } from "../src/registry.ts"
 import { type Snapshot, serve } from "../src/serve.ts"
-import type { SpecModel } from "../src/spec.ts"
+import { type SpecModel, toFeed } from "../src/spec.ts"
 import { validate } from "../src/validate.ts"
 
 // Node 22 needs a flag to run TypeScript, so rerun with it. Node 23.6 does not.
@@ -37,6 +48,7 @@ if (!process.features.typescript && !process.execArgv.includes(STRIP)) {
 
 const USAGE = `usage:
   em init   <dir>
+  em types  <path> [--check]
   em json   <path> [--partial]
   em proto  <path> -o <dir>
   em view   <path> [--port <n>] [--no-open]
@@ -56,7 +68,8 @@ const INDEX_TS = `import { m } from "@noahseger/event-modeling"
 export default m.model("My System")
 `
 
-const TSCONFIG = `${JSON.stringify({ compilerOptions: COMPILER_OPTIONS }, null, 2)}\n`
+// One model per tsconfig: its modules and the em-registry.d.ts that types its d.
+const TSCONFIG = `${JSON.stringify({ compilerOptions: COMPILER_OPTIONS, include: ["**/*.ts"] }, null, 2)}\n`
 
 // Without its own "type": "module", node warns and reparses the model on every save.
 const PACKAGE_JSON = `${JSON.stringify({ type: "module" }, null, 2)}\n`
@@ -67,6 +80,9 @@ const { values, positionals } = parseArgs({
     port: { type: "string" },
     open: { type: "boolean", default: true },
     partial: { type: "boolean", default: false },
+    check: { type: "boolean", default: false },
+    // em view's: write em-registry.d.ts once the modules have run.
+    types: { type: "boolean", default: false },
     help: { type: "boolean", short: "h" },
   },
   allowPositionals: true,
@@ -75,7 +91,14 @@ const { values, positionals } = parseArgs({
 const [command, path] = positionals
 
 function init(dir: string): void {
-  const files = { "index.ts": INDEX_TS, "tsconfig.json": TSCONFIG, "package.json": PACKAGE_JSON }
+  const { text, map } = registry(dir, "@noahseger/event-modeling")
+  const files = {
+    "index.ts": INDEX_TS,
+    "tsconfig.json": TSCONFIG,
+    "package.json": PACKAGE_JSON,
+    [GENERATED]: text,
+    [`${GENERATED}.map`]: map,
+  }
   for (const name of Object.keys(files)) {
     if (existsSync(join(dir, name)))
       throw new Error(
@@ -89,8 +112,32 @@ function init(dir: string): void {
   }
 }
 
+/** The model's declarations, written beside it as the types of `d`; `--check` only compares. */
+async function types(path: string): Promise<void> {
+  const { files, dir } = await importModel(path)
+  const made = registry(dir, specifierOf(files))
+  const file = join(dir, GENERATED)
+  if (!values.check)
+    console.log(writeRegistry(dir, made) ? `Wrote ${file}` : `${file} is up to date.`)
+  else if (!current(dir, made)) {
+    console.error(`${file} is out of date. Run em types ${path}.`)
+    process.exitCode = 1
+  }
+}
+
 async function json(path: string): Promise<void> {
-  const feed = await assemble(path, { partial: values.partial })
+  let imported: Awaited<ReturnType<typeof importModel>> | undefined
+  try {
+    imported = await importModel(path)
+  } finally {
+    // Even when a module throws, so what it declared before it threw is typed.
+    if (values.types) {
+      const { dir, files } = modelFiles(path)
+      writeRegistry(dir, registry(dir, specifierOf(files)))
+    }
+  }
+  const { modules, dir } = imported
+  const feed = toFeed(loadModules(modules, { partial: values.partial }, dir))
   // Warnings go to stderr so stdout stays valid JSON.
   for (const w of feed.warnings ?? []) console.error(w.message)
   console.log(JSON.stringify(values.partial ? feed : feed.model, null, 2))
@@ -101,7 +148,7 @@ async function proto(path: string, out: string): Promise<void> {
   const files = generateProto(await load(path, { partial: true }))
   if (files.length === 0)
     throw new Error(
-      'No slice has a service, so no .proto was written. Add .service(Api) to the state changes and views the API serves, after `export const Api = m.service("my.v1")`.',
+      'No slice has a service, so no .proto was written. Add .service(d.Api) to the state changes and views the API serves, after `m.service("Api", "my.v1")`.',
     )
   for (const file of files) {
     const target = join(out, file.path)
@@ -121,7 +168,7 @@ function assembleFresh(path: string): Promise<{ ok: boolean; stdout: string; std
   return new Promise((done) => {
     execFile(
       process.execPath,
-      [...process.execArgv, process.argv[1] ?? "", "json", "--partial", path],
+      [...process.execArgv, process.argv[1] ?? "", "json", "--partial", "--types", path],
       { maxBuffer: 2 ** 28 },
       (error, stdout, stderr) => done({ ok: error === null, stdout, stderr }),
     )
@@ -131,14 +178,18 @@ function assembleFresh(path: string): Promise<{ ok: boolean; stdout: string; std
 /** Assembles and type-checks at once, and logs everything left to fix in one block. */
 async function reload(path: string, types: Checker, cause = "Started"): Promise<Snapshot> {
   const started = Date.now()
-  const [run, errors] = await Promise.all([
-    assembleFresh(path),
+  const check = () =>
     types
       .check()
       .catch((e: unknown): Warning[] => [
         { message: `The type check stopped: ${String(e)}`, element: "" },
-      ]),
-  ])
+      ])
+  const generated = join(statSync(path).isDirectory() ? path : dirname(path), GENERATED)
+  const read = () => (existsSync(generated) ? readFileSync(generated, "utf8") : undefined)
+  const before = read()
+  const [run, first] = await Promise.all([assembleFresh(path), check()])
+  // The run writes em-registry.d.ts when a declaration changed, after the check beside it read it.
+  const errors = read() === before ? first : await check()
   if (run.ok) {
     const feed = JSON.parse(run.stdout) as Feed
     return report(cause, started, { ...feed, warnings: mergeFindings(errors, feed.warnings ?? []) })
@@ -251,6 +302,7 @@ async function main(): Promise<void> {
   if (values.help) console.log(USAGE)
   else if (!command || !path) usage()
   else if (command === "init") init(path)
+  else if (command === "types") await types(path)
   else if (command === "json") await json(path)
   else if (command === "proto" && values.out) await proto(path, values.out)
   else if (command === "view") await view(path)

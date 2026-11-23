@@ -2,114 +2,110 @@
 // JSON goes past the spec, which the README's "The JSON" section lists.
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import { m, t } from "#em"
+import { t } from "#em"
 
 import { assembleModules } from "../src/assemble.ts"
 import type { SpecSlice } from "../src/spec.ts"
 import { validate } from "../src/validate.ts"
 import { read } from "../viewer/src/read.ts"
+import { type C, d, m } from "./loose.ts"
 
-const Clerk = m.actor()
-const Boss = m.actor({ icon: "admin" })
-const Shop = m.service("shop.v1")
-const Till = m.screen().note("By the door.")
-const Orders = m.stream()
-const Payments = m.stream()
-const Bank = m.external()
+m.actor("Clerk")
+m.actor("Boss", { icon: "admin" })
+m.service("Shop", "shop.v1")
+m.screen("Till").note("By the door.")
+m.stream("Orders")
+m.stream("Payments")
+m.external("Bank")
 
 const Lines = t.array(t.object({ sku: t.string(), gift: t.boolean().optional() }))
-const PlaceOrder = m.command({
+m.command("PlaceOrder", {
   orderId: t.string(),
   item: t.string(),
   lines: Lines,
   note: t.string().optional(),
 })
-const OrderPlaced = m
-  .event({
-    orderId: t.string(),
-    product: t.string(),
-    lines: Lines,
-    placedAt: t.string().describe("When the till took it"),
-  })
-  .stream(Orders)
+m.event("OrderPlaced", {
+  orderId: t.string(),
+  product: t.string(),
+  lines: Lines,
+  placedAt: t.string().describe("When the till took it"),
+})
+  .stream(d.Orders)
   .note("One per order.")
-const OrderRefused = m.event({ orderId: t.string() }).stream(Orders)
-const ChargeCard = m.command({ orderId: t.string() })
-const CardCharged = m.event({ orderId: t.string(), amount: t.int() }).external(Bank)
-const Refund = m.command({ orderId: t.string() })
-const RecordPayment = m.command({ orderId: t.string(), paid: t.int() })
-const PaymentRecorded = m.event({ orderId: t.string(), paid: t.int() }).stream(Payments)
-const Unpaid = m.view({
+m.event("OrderRefused", { orderId: t.string() }).stream(d.Orders)
+m.command("ChargeCard", { orderId: t.string() })
+m.event("CardCharged", { orderId: t.string(), amount: t.int() }).external(d.Bank)
+m.command("Refund", { orderId: t.string() })
+m.command("RecordPayment", { orderId: t.string(), paid: t.int() })
+m.event("PaymentRecorded", { orderId: t.string(), paid: t.int() }).stream(d.Payments)
+m.view("Unpaid", {
   orderId: t.string().key(),
   product: t.string(),
   lines: Lines,
   payments: t.int(),
   status: t.string(),
 })
-const Loose = m.event({ id: t.uuid() }).stream(Orders)
+m.event("Loose", { id: t.uuid() }).stream(d.Orders)
 
-const Sales = m.chapter(1).note("Where money comes in.")
+m.chapter("Sales", 1).note("Where money comes in.")
 const order = { orderId: "o-1", item: "Tea" }
 const slices = [
   m
     .slice()
-    .command({ PlaceOrder })
-    .event({ OrderPlaced }, (c) => ({ product: c.PlaceOrder.item, placedAt: m.generate() }))
-    .event({ OrderRefused })
-    .chapter(Sales)
-    .actor(Clerk, Boss)
-    .screen(Till)
-    .service(Shop, "Order")
+    .command(d.PlaceOrder)
+    .event(d.OrderPlaced, (c: C) => ({ product: c.PlaceOrder.item, placedAt: m.generate() }))
+    .event(d.OrderRefused)
+    .chapter(d.Sales)
+    .actor(d.Clerk, d.Boss)
+    .screen(d.Till)
+    .service(d.Shop, "Order")
     .note("The till takes the order.")
     .test("An order is placed", {
-      when: PlaceOrder(order),
-      then: OrderPlaced({ orderId: "o-1", product: "Tea", placedAt: "noon" }),
+      when: d.PlaceOrder(order),
+      then: d.OrderPlaced({ orderId: "o-1", product: "Tea", placedAt: "noon" }),
     })
-    .test("A banned item is refused", { when: PlaceOrder(order), reject: "banned item" }),
+    .test("A banned item is refused", { when: d.PlaceOrder(order), reject: "banned item" }),
   m
     .slice()
-    .view({ Unpaid })
-    .event({ OrderPlaced }, () => ({ payments: t.literal(0), status: t.literal("open") }))
-    .event({ PaymentRecorded }, (c) => ({
+    .view(d.Unpaid)
+    .event(d.OrderPlaced, () => ({ payments: t.literal(0), status: t.literal("open") }))
+    .event(d.PaymentRecorded, (c: C) => ({
       product: t.literal(""),
       payments: m.generate(c.PaymentRecorded),
       status: t.literal("paid"),
     }))
-    .event({ OrderRefused }, () => ({
+    .event(d.OrderRefused, () => ({
       product: t.literal(""),
       payments: t.literal(0),
       status: t.literal("refused"),
     }))
     .context({ orderId: t.string() })
-    .chapter(Sales)
-    .actor(Clerk)
-    .service(Shop, "ListUnpaid"),
+    .chapter(d.Sales)
+    .actor(d.Clerk)
+    .service(d.Shop, "ListUnpaid"),
   m
     .slice("Charger")
-    .automation({ Unpaid })
-    .command({ ChargeCard })
-    .event({ CardCharged })
-    .chapter(Sales),
+    .automation(d.Unpaid)
+    .command(d.ChargeCard)
+    .event(d.CardCharged)
+    .chapter(d.Sales),
   m
     .slice()
-    .translation({ CardCharged })
-    .command({ RecordPayment }, (c) => ({ paid: c.CardCharged.amount }))
-    .query({ Unpaid }, "orderId")
-    .event({ PaymentRecorded }),
+    .translation(d.CardCharged)
+    .command(d.RecordPayment, (c: C) => ({ paid: c.CardCharged.amount }))
+    .query(d.Unpaid, "orderId")
+    .event(d.PaymentRecorded),
   m
     .slice("Refunder")
-    .automation({ PaymentRecorded })
-    .command({ Refund })
-    .event({ OrderRefused })
-    .chapter(Sales),
+    .automation(d.PaymentRecorded)
+    .command(d.Refund)
+    .event(d.OrderRefused)
+    .chapter(d.Sales),
 ]
-const exports = {
-  ...{ Clerk, Boss, Shop, Till, Orders, Payments, Bank, Sales, Loose },
-  ...{ PlaceOrder, OrderPlaced, OrderRefused, ChargeCard, CardCharged },
-  ...{ Refund, RecordPayment, PaymentRecorded, Unpaid },
-  default: m.model("Shop", { description: "A small shop." }),
-}
-const feed = assembleModules([exports], { partial: true })
+const feed = assembleModules([{ default: m.model("Shop", { description: "A small shop." }) }], {
+  partial: true,
+})
 const json = JSON.parse(JSON.stringify(feed.model)) as { slices: SpecSlice[] }
 const [place, view, charge, refund, translate] = json.slices
 const titles = (els: { title: string }[] | undefined) => (els ?? []).map((e) => e.title)

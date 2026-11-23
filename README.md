@@ -13,7 +13,7 @@ Event modeling captures a system as a left-to-right timeline of commands, events
 
 #### [ts](./event-modeling/ts/)
 
-Write the model in TypeScript, or as [event-modeling-spec](https://github.com/dilgerma/event-modeling-spec) JSON for one extracted from an existing system. In TypeScript, names come from exports, fields are built with `t`, and a slice is a chain of calls that only compiles in a legal order. The worked example is `ts/examples/todo-app/`.
+Write the model in TypeScript, or as [event-modeling-spec](https://github.com/dilgerma/event-modeling-spec) JSON for one extracted from an existing system. In TypeScript, each name is a string, used as `d.Name`, fields are built with `t`, and a slice is a chain of calls that only compiles in a legal order. The worked example is `ts/examples/todo-app/`.
 
 ```bash
 npx em init   model/                 # scaffold a model directory
