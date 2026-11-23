@@ -124,7 +124,7 @@ const UNFIT = /^Type '.*' is not assignable to type '(?:[^']* & )?(?:Fit<|\{ rea
 const UNSET = /Property '(\w+)' is missing in type '.*' but required in type 'Pick</
 /** Any other sentence the package's types put where a step goes wrong. */
 const INSTRUCTION =
-  /"((?:add |the |key column |start with |pass |say |only a view |\w+ is an? |is a view|is ours|isn't stored|no one |an automation |a state view )(?:[^"\\]|\\.)*)"/
+  /"((?:add |the |key column |start with |pass |say |only a view |\w+ is |(?:\w+ )?comes from |is a view|is ours|isn't stored|no one |an automation |a state view )(?:[^"\\]|\\.)*)"/
 const LAST_OVERLOAD = "The last overload gave the following error."
 
 /** `file:line  message`. The package's own type errors become the instruction they carry. */

@@ -509,7 +509,7 @@ export default m.model("Notes")
   }
 })
 
-test("view words a query with no filter, and a state view's service with no method, as the fix", async () => {
+test("view words what the types refuse as the fix: a query with no filter or two sources, a state view's service with no method, an outside event an automation starts with, and what is not a declaration", async () => {
   const dir = mkdtempSync(here("../tmp-fix-"))
   writeFileSync(
     join(dir, "index.ts"),
@@ -523,6 +523,14 @@ m.event("Finished", { id: t.string() })
 m.view("Table", { id: t.string().key() })
 m.slice().automation(d.Started).query(d.Table).command(d.Finish).event(d.Finished).chapter(d.Ch)
 m.slice().view(d.Table).event(d.Started).service(d.Api).chapter(d.Ch)
+m.external("Calendar")
+m.event("Scheduled", { id: t.string() }).external(d.Calendar)
+m.slice().automation(d.Scheduled).command(d.Finish).event(d.Finished).chapter(d.Ch)
+m.command("Rename", { id: t.string(), name: t.string() })
+m.view("Names", { id: t.string().key(), name: t.string() })
+m.view("Titles", { name: t.string().key() })
+m.slice().command(d.Rename).query(d.Names, "id").query(d.Titles, "name").event(d.Finished).chapter(d.Ch)
+m.slice().command(d.Finish({ id: "1" })).event(d.Finished).chapter(d.Ch)
 export default m.model("Fix")
 `,
   )
@@ -536,6 +544,9 @@ export default m.model("Fix")
       [
         "index.ts:9  say which rows: a column or a mapping, () => ({}) for every row",
         'index.ts:10  a state view names its method: .service(d.Api, "ListX")',
+        "index.ts:13  comes from outside: start its slice with .translation()",
+        "index.ts:17  name comes from Rename and Names: map it",
+        "index.ts:18  it is not a declaration: pass a command",
       ],
     )
   } finally {
