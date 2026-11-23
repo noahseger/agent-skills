@@ -105,7 +105,7 @@ test("proto with no service says so and exits 1", () => {
 
 export const Start = m.command({ id: t.string() })
 export const Started = m.event({ id: t.string() })
-export const Table = m.view({ id: t.string() }).key("id")
+export const Table = m.view({ id: t.string().key() })
 export const User = m.actor()
 export const Ch = m.chapter(1)
 m.slice().command({ Start }).event({ Started }).chapter(Ch).test("starts", { when: Start({ id: "1" }), then: [Started({ id: "1" })] })
@@ -131,7 +131,7 @@ const API_DONE = `import { m, t } from "#em"
 export const Api = m.service("api.v1")
 export const Start = m.command({ id: t.string() })
 export const Started = m.event({ id: t.string() })
-export const Table = m.view({ id: t.string() }).key("id")
+export const Table = m.view({ id: t.string().key() })
 export const Loose = m.event({ id: t.string() })
 export const Ch = m.chapter(1)
 m.slice().command({ Start }).event({ Started }).service(Api).chapter(Ch).test("starts", { when: Start({ id: "1" }), then: [Started({ id: "1" })] })
@@ -162,7 +162,7 @@ test("proto writes a finished service whatever is left to do elsewhere", () => {
 test("proto skips a service with an unfinished slice, says why, and exits 1", () => {
   const { run, api, board } = protoOf(
     `${API_DONE}export const Board = m.service("board.v1")
-export const Listing = m.view({ id: t.string() }).key("id")
+export const Listing = m.view({ id: t.string().key() })
 m.slice().view({ Listing }).event({ Started }).service(Board, "List").chapter(Ch)
 `,
   )
@@ -178,7 +178,7 @@ m.slice().view({ Listing }).event({ Started }).service(Board, "List").chapter(Ch
 test("proto never writes a nameless rpc: a state view's service with no method is left to do", () => {
   const { run, api, board } = protoOf(
     `${API_DONE}export const Board = m.service("board.v1")
-export const Games = m.view({ id: t.string() }).key("id")
+export const Games = m.view({ id: t.string().key() })
 m.slice().view({ Games }).event({ Started }).service(Board).chapter(Ch).test("lists", { given: Started({ id: "1" }), then: Games({ id: "1" }) })
 `,
   )
@@ -384,7 +384,7 @@ export const NoteLinked = m.event({ noteId: t.uuid() }).stream(Notes)
 m.slice().command({ LinkNote }).event({ PageMade }).event({ NoteLinked }).chapter(Capture)
 export const NoteFiled = m.event({ noteId: t.uuid(), at: t.datetime() }).stream(Notes)
 m.slice().command({ LinkNote }).event({ PageMade }).event({ NoteFiled }, () => ({ at: m.generate() })).chapter(Capture)
-export const Drafts = m.view({ noteId: t.uuid(), text: t.string().optional() }).key("noteId")
+export const Drafts = m.view({ noteId: t.uuid().key(), text: t.string().optional() })
 export const Publish = m.command({ noteId: t.uuid() })
 export const Published = m.event({ noteId: t.uuid(), text: t.string() }).stream(Notes)
 m.slice().command({ Publish }).query({ Drafts }, "noteId").event({ Published }).chapter(Capture)
@@ -423,7 +423,7 @@ export const Ch = m.chapter(1)
 export const Started = m.event({ id: t.string() })
 export const Finish = m.command({ id: t.string() })
 export const Finished = m.event({ id: t.string() })
-export const Table = m.view({ id: t.string() }).key("id")
+export const Table = m.view({ id: t.string().key() })
 m.slice().automation({ Started }).query({ Table }).command({ Finish }).event({ Finished }).chapter(Ch)
 m.slice().view({ Table }).event({ Started }).service(Api).chapter(Ch)
 export default m.model("Fix")
@@ -465,7 +465,7 @@ m.slice().command({ Sync }).chapter(Ch)
 export const Retry = m.command({ id: t.string() })
 export const Retried = m.event({ id: t.string() })
 export const Later = m.chapter(2)
-export const Pending = m.view({ id: t.string() })
+export const Pending = m.view(t.array({ id: t.string().key() }))
 m.slice().command({ Sync }).query({ Pending }, "id").event({ Synced }).chapter(Ch)
 m.slice().view({ Pending }).chapter(Ch)
 m.slice().automation({ Synced }).chapter(Ch)
@@ -482,7 +482,7 @@ export default m.model("x")
       [
         "  index.ts: declare Retry, Retried, Ch, Later above where they are used.",
         "  index.ts:5  Argument of type 'string' is not assignable to parameter of type 'Stream'.",
-        "  index.ts:16  the view has no .key(): many rows: only an automation reads them, before its .command()",
+        "  index.ts:16  the view is a list: many rows: only an automation reads them, before its .command()",
         "",
       ].join("\n"),
     )

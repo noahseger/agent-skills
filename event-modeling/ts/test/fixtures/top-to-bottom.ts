@@ -11,13 +11,11 @@ export const Notes = m.stream()
 export const Capture = m.chapter(1)
 export const CreateNote = m.command({ noteId: t.string(), text: t.string() })
 export const NoteCreated = m.event({ noteId: t.string(), text: t.string() }).stream(Notes)
-export const Inbox = m
-  .view({
-    noteId: t.string(),
-    text: t.string(),
-    status: t.enum(["inbox", "filed"]),
-  })
-  .key("noteId")
+export const Inbox = m.view({
+  noteId: t.string().key(),
+  text: t.string(),
+  status: t.enum(["inbox", "filed"]),
+})
 
 m.slice()
   .command({ CreateNote })

@@ -53,7 +53,7 @@ function fixture() {
   const Svc = m.service("t.v1")
   const Create = m.command({ id: t.string(), name: t.string() })
   const Created = m.event({ id: t.string(), name: t.string() })
-  const Table = m.view({ id: t.string(), name: t.string() }).key("id")
+  const Table = m.view({ id: t.string().key(), name: t.string() })
   return { User, Svc, Create, Created, Table }
 }
 type Fixture = ReturnType<typeof fixture>
@@ -277,7 +277,7 @@ test("m.generate() in a specification is one value of its field's type wherever 
     site: t.url(),
   }
   const Moved = m.event(fields)
-  const Moves = m.view(fields).key("id")
+  const Moves = m.view({ ...fields, id: t.string().key() })
   const model = () => {
     const shown = m
       .slice()
@@ -322,7 +322,7 @@ test("m.generate() nested in a list is one value of its field's type, as at the 
   const f = fixture()
   const Item = t.object({ itemId: t.uuid(), price: t.number() })
   const Added = m.event({ id: t.string(), itemId: t.uuid(), price: t.number() })
-  const Cart = m.view({ id: t.string(), items: t.array(Item) }).key("id")
+  const Cart = m.view({ id: t.string().key(), items: t.array(Item) })
   const shown = m
     .slice()
     .view({ Cart })
@@ -351,7 +351,7 @@ test("m.generate() nested in a list is one value of its field's type, as at the 
 test("an example Zod refuses is a to-do naming the spec and where in it, and the model still draws", () => {
   const f = fixture()
   const Item = t.object({ itemId: t.uuid() })
-  const Cart = m.view({ id: t.string(), items: t.array(Item) }).key("id")
+  const Cart = m.view({ id: t.string().key(), items: t.array(Item) })
   const shown = m
     .slice()
     .view({ Cart })
@@ -524,7 +524,7 @@ test("a mapping recognises a source field, a t.literal() and m.generate(); a sch
 
 test("a column no event writes", () => {
   const f = fixture()
-  const Table = m.view({ id: t.string(), name: t.string(), count: t.number() }).key("id")
+  const Table = m.view({ id: t.string().key(), name: t.string(), count: t.number() })
   assert.throws(
     () => assembled({ ...f, Table }, [create(f), view({ ...f, Table })]),
     /Ch › Table: Table\.count has no value\. Add \.event\(\) with an event that carries count, or set it in a mapping\./,
@@ -553,7 +553,7 @@ test("an event that carries none of the view's key columns", () => {
 
 test("an event that carries only some of the view's key columns", () => {
   const f = fixture()
-  const Table = m.view({ id: t.string(), owner: t.string(), name: t.string() }).key("id", "owner")
+  const Table = m.view({ id: t.string().key(), owner: t.string().key(), name: t.string() })
   const Create = m.command({ id: t.string(), owner: t.string(), name: t.string() })
   const Created = m.event({ id: t.string(), owner: t.string(), name: t.string() })
   const Renamed = m.event({ id: t.string(), name: t.string() })
@@ -1438,7 +1438,7 @@ test("a polled command's when matches the row given builds", () => {
 
 test("a polled command's when whose row given builds none of, or several of, is a to-do", () => {
   const f = fixture()
-  const Table = m.view({ id: t.string(), owner: t.string(), name: t.string() }).key("id", "owner")
+  const Table = m.view({ id: t.string().key(), owner: t.string().key(), name: t.string() })
   const Created = m.event({ id: t.string(), owner: t.string(), name: t.string() })
   const Process = m.command({ id: t.string() })
   const Processed = m.event({ id: t.string() })
@@ -1559,7 +1559,7 @@ test("a screen no one sees, and one no slice names, are left to do", () => {
 
 test("every m.slice().view() of a view is one slice: its events in, its screen out, drawn where the first is", () => {
   const f = fixture()
-  const Table = m.view({ id: t.string(), name: t.string(), status: t.string() }).key("id")
+  const Table = m.view({ id: t.string().key(), name: t.string(), status: t.string() })
   const Archive = m.command({ id: t.string() })
   const Archived = m.event({ id: t.string() })
   const archive = m
@@ -1663,7 +1663,7 @@ test("a later .view() that says where or how to draw the slice is a to-do", () =
 
 test("a column no m.slice().view() of the view writes is reported once", () => {
   const f = fixture()
-  const Table = m.view({ id: t.string(), name: t.string(), status: t.string() }).key("id")
+  const Table = m.view({ id: t.string().key(), name: t.string(), status: t.string() })
   const Ch = [create(f), view({ ...f, Table }), view({ ...f, Table })]
   const json = assembleModules([{ ...f, Table, ...chapters({ Ch }), default: m.model("x") }], {
     partial: true,
@@ -2266,16 +2266,14 @@ test("an automation's when has what its trigger in given carries and its mapping
 })
 
 test("a view's rows have what given builds, matched by key", () => {
-  const Lists = m
-    .view({
-      userId: t.string(),
-      listId: t.string(),
-      name: t.string(),
-      title: t.string(),
-      items: t.int(),
-      status: t.string(),
-    })
-    .key("userId", "listId")
+  const Lists = m.view({
+    userId: t.string().key(),
+    listId: t.string().key(),
+    name: t.string(),
+    title: t.string(),
+    items: t.int(),
+    status: t.string(),
+  })
   const ListCreated = m.event({ userId: t.string(), listId: t.string(), name: t.string() })
   const ItemAdded = m.event({ userId: t.string(), listId: t.string() })
   const ListClosed = m.event({ userId: t.string(), listId: t.string() })
@@ -2322,6 +2320,54 @@ test("a view's rows have what given builds, matched by key", () => {
   ])
 })
 
+test("a list view: each event adds a row, told apart by every value, and drawn as a list", () => {
+  const Captured = m.event({ noteId: t.string() })
+  const Edited = m.event({ noteId: t.string() })
+  const Activity = m.view(t.array({ noteId: t.string().key(), what: t.string() }))
+  const exports = { Captured, Edited, Activity }
+  const given = [Captured({ noteId: "n-1" }), Edited({ noteId: "n-1" })]
+  const projection = () =>
+    m
+      .slice()
+      .view({ Activity })
+      .event({ Captured }, () => ({ what: t.literal("captured") }))
+      .event({ Edited }, () => ({ what: t.literal("edited") }))
+      .context({ noteId: t.string() })
+  const both = projection().test("both", {
+    given,
+    when: { noteId: "n-1" },
+    then: [
+      Activity({ noteId: "n-1", what: "captured" }),
+      Activity({ noteId: "n-1", what: "edited" }),
+    ],
+  })
+  assert.deepEqual(disagreements(exports, [both]), [])
+  const one = projection().test("one", {
+    given,
+    when: { noteId: "n-1" },
+    then: Activity({ noteId: "n-1", what: "captured" }),
+  })
+  assert.deepEqual(disagreements(exports, [one]), [
+    'Ch › Activity › "one": given builds Activity {"noteId":"n-1","what":"edited"}, but then leaves it out and when does not exclude it. Add it to then.',
+  ])
+  const feed = feedOf(
+    [{ ...exports, ...chapters({ Ch: [projection()] }), default: m.model("x") }],
+    {
+      partial: true,
+    },
+  )
+  const [table] = feed.model.slices[0]?.readmodels ?? []
+  assert.deepEqual([table?.fields.type, table?.key], ["array", ["noteId"]])
+  const board = drawn(feed)
+  assert.deepEqual(board.chapters[0]?.slices[0]?.read_models, ["Activity[](*noteId, what)"])
+  assert.deepEqual(
+    layout(board)
+      .boxes.filter((b) => b.name === "Activity")
+      .map((b) => b.list),
+    [true],
+  )
+})
+
 // --- A query: the rows a filter picks from what given builds. -----------------
 
 /** The eventsourcing book's cart: a price change archives the item in every cart that holds it. */
@@ -2342,12 +2388,14 @@ function cart() {
   })
   const ChangePrice = m.command({ productId: t.uuid(), oldPrice: t.number(), newPrice: t.number() })
   const PriceChanged = m.event({ productId: t.uuid(), oldPrice: t.number(), newPrice: t.number() })
-  const CartsWithProducts = m
-    .view({ aggregateId: t.uuid(), productId: t.uuid(), itemId: t.uuid() })
-    .key("aggregateId", "productId")
+  const CartsWithProducts = m.view({
+    aggregateId: t.uuid().key(),
+    productId: t.uuid().key(),
+    itemId: t.uuid(),
+  })
   const ArchiveItem = m.command({ aggregateId: t.uuid(), productId: t.uuid() })
   const ItemArchived = m.event({ aggregateId: t.uuid(), itemId: t.uuid() })
-  const ArchivedItems = m.view({ aggregateId: t.uuid(), itemId: t.uuid() }).key("itemId")
+  const ArchivedItems = m.view({ aggregateId: t.uuid(), itemId: t.uuid().key() })
   const User = m.actor()
   return {
     CreateCart,
@@ -2529,7 +2577,7 @@ test("a query that picks no row: an automation issues nothing, and a command is 
 test("a translation whose query picks no row is called a translation", () => {
   const Provider = m.external()
   const Authorized = m.event({ state: t.string() }).external(Provider)
-  const Pending = m.view({ state: t.string() }).key("state")
+  const Pending = m.view({ state: t.string().key() })
   const Requested = m.event({ state: t.string() })
   const Complete = m.command({ state: t.string() })
   const Completed = m.event({ state: t.string() })
@@ -2571,7 +2619,7 @@ test("t.literal([]) sets the empty list, a constant", () => {
   const User = m.actor()
   const Plan = m.command({ weekOf: t.string() })
   const Planned = m.event({ weekOf: t.string() })
-  const Groceries = m.view({ weekOf: t.string(), added: t.array(t.string()) }).key("weekOf")
+  const Groceries = m.view({ weekOf: t.string().key(), added: t.array(t.string()) })
   const week = { weekOf: "2026-11-23" }
   const story = chapters({
     Ch: [

@@ -267,7 +267,7 @@
     },
 
     "Fields": {
-      "$comment": "An object's JSON Schema, as Zod's z.toJSONSchema() writes it",
+      "$comment": "An object's JSON Schema, or a list view's: an array of them",
       "type": "object"
     }
   }

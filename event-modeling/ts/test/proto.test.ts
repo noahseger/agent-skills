@@ -167,7 +167,7 @@ test("a field protobuf has no form for stops its service, naming the declaration
     source(modelOf({ Create }, stateChange(Create))),
     /^Create\.tags can't become protobuf: a list of records\./,
   )
-  const Table = m.view({ id: t.string(), end: t.oneOf({ moves: t.array(t.string()) }) }).key("id")
+  const Table = m.view({ id: t.string().key(), end: t.oneOf({ moves: t.array(t.string()) }) })
   assert.match(
     source(
       modelOf(
@@ -180,7 +180,7 @@ test("a field protobuf has no form for stops its service, naming the declaration
 })
 
 test("a view with no .context() has an empty request", () => {
-  const Table = m.view({ id: t.string() }).key("id")
+  const Table = m.view({ id: t.string().key() })
   const proto = source(
     modelOf(
       { Table },
@@ -195,7 +195,7 @@ test("a view with no .context() has an empty request", () => {
 })
 
 test("a service with no procedures produces no file", () => {
-  const Table = m.view({ id: t.string() }).key("id")
+  const Table = m.view({ id: t.string().key() })
   assert.deepEqual(
     generateProto(modelOf({ Table }, m.slice().view({ Table }).event({ Created }))),
     [],
@@ -203,7 +203,7 @@ test("a service with no procedures produces no file", () => {
 })
 
 test("a slice without a service has no procedure", () => {
-  const Table = m.view({ id: t.string() }).key("id")
+  const Table = m.view({ id: t.string().key() })
   const Create = m.command({ id: t.string() })
   const slices = [
     m.slice().view({ Table }).event({ Created }).actor(User),
@@ -213,8 +213,8 @@ test("a slice without a service has no procedure", () => {
 })
 
 test("two state views on one screen are two methods, each returning its own view", () => {
-  const Lists = m.view({ id: t.string() }).key("id")
-  const Items = m.view({ id: t.string(), listId: t.string() }).key("id")
+  const Lists = m.view({ id: t.string().key() })
+  const Items = m.view({ id: t.string().key(), listId: t.string() })
   const Board = m.screen()
   const view = (shown: Viewing<typeof Lists.__fields>, method: string) =>
     shown
@@ -241,8 +241,8 @@ test("two state views on one screen are two methods, each returning its own view
 })
 
 test("a context that names every key column returns one row, not a list", () => {
-  const fields = { userId: t.string(), id: t.string(), name: t.string() }
-  const [Table, Rows] = [m.view(fields).key("userId", "id"), m.view(fields).key("userId", "id")]
+  const fields = { userId: t.string().key(), id: t.string().key(), name: t.string() }
+  const [Table, Rows] = [m.view(fields), m.view(fields)]
   const one = m
     .slice()
     .view({ Table })
@@ -260,4 +260,20 @@ test("a context that names every key column returns one row, not a list", () => 
   const proto = source(modelOf({ Table, Rows }, one, many))
   assert.match(proto, /message GetResponse \{\n {2}Table table = 1;\n\}/)
   assert.match(proto, /message ListResponse \{\n {2}repeated Rows rows = 1;\n\}/)
+})
+
+test("a list view's response is a list, whatever its context names; a view with no key column's, its one row", () => {
+  const Notes = m.view(t.array({ id: t.string().key(), what: t.string() }))
+  const Revenue = m.view({ total: t.int() })
+  const list = m
+    .slice()
+    .view({ Notes })
+    .event({ Created })
+    .context({ id: t.string() })
+    .actor(User)
+    .service(TestService, "ListNotes")
+  const one = m.slice().view({ Revenue }).event({ Created }).actor(User).service(TestService, "Get")
+  const proto = source(modelOf({ Notes, Revenue }, list, one))
+  assert.match(proto, /message ListNotesResponse \{\n {2}repeated Notes notes = 1;\n\}/)
+  assert.match(proto, /message GetResponse \{\n {2}Revenue revenue = 1;\n\}/)
 })

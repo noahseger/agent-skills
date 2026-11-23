@@ -14,12 +14,17 @@ import type { Board, BoardActor, BoardField, BoardSlice, BoardTest, Loose } from
 
 const SYSTEM: BoardActor = { id: "system", name: "System", type: "system" }
 
-const names = (el: SpecElement) => Object.keys(el.fields.properties ?? {})
+/** A list view's fields are an array's: its rows are the items. */
+const listed = (el: SpecElement) => el.fields.type === "array"
+const row = (el: SpecElement): JsonSchema => (listed(el) ? (el.fields.items ?? {}) : el.fields)
+const names = (el: SpecElement) => Object.keys(row(el).properties ?? {})
+/** `Name`, or `Name[]` for a list view. */
+const titled = (el: SpecElement) => (listed(el) ? `${el.title}[]` : el.title)
 
 /** `Name(field, *key)`. */
 function element(el: SpecElement): string {
   const fields = names(el).map((f) => (el.key?.includes(f) ? `*${f}` : f))
-  return fields.length > 0 ? `${el.title}(${fields.join(", ")})` : el.title
+  return fields.length > 0 ? `${titled(el)}(${fields.join(", ")})` : titled(el)
 }
 
 /** Each property, an object's own beneath it, and a oneOf's cases. */
@@ -197,7 +202,7 @@ export function read(written: Feed): Board {
   const fields: Record<string, BoardField[]> = {}
   const noted = (el: SpecElement) => {
     if (el.description !== undefined) notes[el.title] = el.description
-    if (names(el).length > 0) fields[el.title] = fieldsOf(el.fields)
+    if (names(el).length > 0) fields[el.title] = fieldsOf(row(el))
   }
 
   const boardSlice = (s: SpecSlice): BoardSlice => {

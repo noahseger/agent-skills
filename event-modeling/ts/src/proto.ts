@@ -155,9 +155,9 @@ function methodOf(slice: SliceData): Method {
     return { name, messages: [request, empty(`${name}Response`)] }
   }
   const shown = slice.view
-  // A context that names every key column of the view picks one row.
+  // A context that names every key column of a view that is no list picks one row.
   const context = new Set(Object.keys(slice.context ?? {}))
-  const one = shown && shown.keys.length > 0 && shown.keys.every((k) => context.has(k))
+  const one = shown && !shown.list && shown.keys.every((k) => context.has(k))
   const response: Message = {
     name: `${name}Response`,
     fields: shown

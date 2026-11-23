@@ -20,37 +20,31 @@ export const CompleteList = m.command({ userId: t.string(), listId: t.string() }
 export const ListCompleted = m.event({ userId: t.string(), listId: t.string() }).stream(Lists)
 
 // A user's lists, one row per list.
-export const TodoList = m
-  .view({
-    userId: t.string(),
-    listId: t.string(),
-    name: t.string(),
-    itemCount: t.int(),
-    status: t.enum(["open", "completed", "deleted"]),
-  })
-  .key("userId", "listId")
+export const TodoList = m.view({
+  userId: t.string().key(),
+  listId: t.string().key(),
+  name: t.string(),
+  itemCount: t.int(),
+  status: t.enum(["open", "completed", "deleted"]),
+})
 
 // The items of each list.
-export const ListItems = m
-  .view({
-    listId: t.string(),
-    itemId: t.string(),
-    title: t.string(),
-    done: t.boolean(),
-    deleted: t.boolean(),
-  })
-  .key("listId", "itemId")
+export const ListItems = m.view({
+  listId: t.string().key(),
+  itemId: t.string().key(),
+  title: t.string(),
+  done: t.boolean(),
+  deleted: t.boolean(),
+})
 
 // Every item in every list, searchable by title.
-export const ItemSearch = m
-  .view({
-    itemId: t.string(),
-    listId: t.string(),
-    title: t.string(),
-    done: t.boolean(),
-    deleted: t.boolean(),
-  })
-  .key("itemId")
+export const ItemSearch = m.view({
+  itemId: t.string().key(),
+  listId: t.string(),
+  title: t.string(),
+  done: t.boolean(),
+  deleted: t.boolean(),
+})
 
 const groceries = ListCreated({ listId: "list-1", userId: "u-1", name: "Groceries" })
 const milk = ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-1", title: "Milk" })

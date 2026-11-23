@@ -682,9 +682,9 @@ function checkFilledSomewhere(located: Located[], fail: Fail): void {
   }
 }
 
-/** An event finds its row by the key columns it carries, so it carries every one. */
+/** An event finds its row by the key columns it carries, so it carries every one. A list's adds a row. */
 function checkKeys({ slice, where }: Located, fail: Fail): void {
-  if (!slice.view || slice.view.keys.length === 0) return
+  if (!slice.view || slice.view.list || slice.view.keys.length === 0) return
   for (const flow of slice.events) {
     const carried = filled(flow)
     const missing = slice.view.keys.filter((k) => !carried.includes(k))
@@ -947,13 +947,13 @@ function valuesOf(row: { values: Record<string, Expected> }): Record<string, unk
   return Object.fromEntries(Object.entries(row.values).map(([k, e]) => [k, e.value]))
 }
 
-/** The rows with the key values `data` has. */
+/** The rows with the key values `data` has; a list's rows share theirs, so with every value it has. */
 function rowsLike<R extends { values: Record<string, Expected> }>(
   rows: R[],
   view: DeclData,
   data: Record<string, unknown>,
 ): R[] {
-  const keys = view.keys.filter((k) => data[k] !== undefined)
+  const keys = (view.list ? Object.keys(data) : view.keys).filter((k) => data[k] !== undefined)
   return rows.filter((r) => keys.every((k) => isDeepStrictEqual(r.values[k]?.value, data[k])))
 }
 
@@ -968,9 +968,9 @@ function polledKey(command: Flow, when: ExampleData, view: DeclData): Record<str
   return keyed
 }
 
-/** A row by its keys, or by every value when the view has none. */
+/** A row by its keys, or by every value when the view has none or is a list. */
 function rowName(view: DeclData, data: Record<string, unknown>): string {
-  const keys = view.keys.length > 0 ? view.keys : Object.keys(data)
+  const keys = view.keys.length > 0 && !view.list ? view.keys : Object.keys(data)
   return show(
     Object.fromEntries(keys.flatMap((k) => (data[k] === undefined ? [] : [[k, data[k]]]))),
   )
@@ -1004,7 +1004,10 @@ function source(
   return { value, says: `${has} ${renamed}${show(value)}` }
 }
 
-/** The rows `given` builds, in order, so the last event to set a column wins; each column says where it came from. */
+/**
+ * The rows `given` builds, in order, so the last event to set a column wins; each column says where
+ * it came from. Each event into a list adds a row.
+ */
 function project(
   view: DeclData,
   flows: Flow[],
@@ -1021,9 +1024,11 @@ function project(
       if (e) values[column] = e
     }
     const keys = view.keys.filter((k) => values[k]?.value !== undefined)
-    let matched = rows.filter((r) =>
-      keys.every((k) => isDeepStrictEqual(r.values[k]?.value, values[k]?.value)),
-    )
+    let matched = view.list
+      ? []
+      : rows.filter((r) =>
+          keys.every((k) => isDeepStrictEqual(r.values[k]?.value, values[k]?.value)),
+        )
     if (matched.length === 0) {
       matched = [{ values: {} }]
       rows.push(...matched)

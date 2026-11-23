@@ -50,7 +50,7 @@ export interface SpecElement {
   id: string
   title: string
   type: ElementType
-  /** One object's JSON Schema, as Zod writes it. */
+  /** One object's JSON Schema, or a list view's: an array of them. */
   fields: JsonSchema
   /** The fields that pick one row of a view. */
   key?: string[]
@@ -132,9 +132,10 @@ export interface Feed {
 
 // --- From the assembled model ----------------------------------------------------
 
-/** Zod's JSON Schema of the fields, less what only repeats a format or a type. */
-function fieldsOf(fields: Fields): JsonSchema {
-  const { $schema, ...schema } = z.toJSONSchema(z.object(fields), {
+/** The JSON Schema of the fields, or of a list of them, less what only repeats a format or a type. */
+function fieldsOf(fields: Fields, list?: true): JsonSchema {
+  const row = z.object(fields)
+  const { $schema, ...schema } = z.toJSONSchema(list ? z.array(row) : row, {
     io: "input",
     unrepresentable: "any",
     override: ({ jsonSchema: s }) => {
@@ -206,7 +207,7 @@ function looseElement(
     id,
     title: decl.name ?? "",
     type: TYPE[decl.kind],
-    fields: fieldsOf(decl.fields),
+    fields: fieldsOf(decl.fields, decl.list),
     ...(decl.keys.length > 0 && { key: decl.keys }),
     dependencies: [],
     ...(decl.note !== undefined && { description: decl.note }),

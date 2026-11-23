@@ -54,14 +54,12 @@ export const GameEnded = m
   .stream(Game)
 
 // The position on the board right now.
-export const GameState = m
-  .view({
-    gameId: t.string(),
-    ply: t.int(),
-    sideToMove: t.enum(["white", "black"]),
-    fen: t.string(),
-  })
-  .key("gameId")
+export const GameState = m.view({
+  gameId: t.string().key(),
+  ply: t.int(),
+  sideToMove: t.enum(["white", "black"]),
+  fen: t.string(),
+})
 
 // A player presses the clock. FIDE 6.2.1: the increment is added on the press.
 export const PressClock = m.command({
@@ -80,14 +78,12 @@ export const ClockPressed = m
   .stream(Clock)
 
 // Whose clock runs, and how much time each side has left.
-export const ClockState = m
-  .view({
-    gameId: t.string(),
-    whiteTimeMs: t.int(),
-    blackTimeMs: t.int(),
-    runningSide: t.enum(["white", "black"]),
-  })
-  .key("gameId")
+export const ClockState = m.view({
+  gameId: t.string().key(),
+  whiteTimeMs: t.int(),
+  blackTimeMs: t.int(),
+  runningSide: t.enum(["white", "black"]),
+})
 
 // The arbiter's ruling is declared here, in the chapter where the board first reads it.
 export const RuleIllegalMove = m.command({
@@ -114,17 +110,15 @@ export const IllegalMoveRuled = m
   .stream(Game)
 
 // The scoresheet: one row per ply. A struck move stays on the sheet, marked.
-export const MoveList = m
-  .view({
-    gameId: t.string(),
-    ply: t.int(),
-    san: t.string(),
-    sideToMove: t.enum(["white", "black"]),
-    isCheck: t.boolean(),
-    isCapture: t.boolean(),
-    status: t.enum(["recorded", "struck"]),
-  })
-  .key("gameId", "ply")
+export const MoveList = m.view({
+  gameId: t.string().key(),
+  ply: t.int().key(),
+  san: t.string(),
+  sideToMove: t.enum(["white", "black"]),
+  isCheck: t.boolean(),
+  isCapture: t.boolean(),
+  status: t.enum(["recorded", "struck"]),
+})
 
 const OPENING_FEN = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
 export const MATE_FEN = "r1bqkb1r/pppp1Qpp/2n2n2/8/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 0 4"

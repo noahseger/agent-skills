@@ -8,7 +8,7 @@ export const Notes = m.stream()
 export const Capture = m.chapter(1)
 export const CreateNote = m.command({ noteId: t.string() })
 export const NoteCreated = m.event({ noteId: t.string() }).stream(Notes)
-export const Inbox = m.view({ noteId: t.string(), filed: t.boolean() }).key("noteId")
+export const Inbox = m.view({ noteId: t.string().key(), filed: t.boolean() })
 
 m.slice()
   .command({ CreateNote })

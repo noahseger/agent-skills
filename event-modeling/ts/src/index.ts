@@ -3,7 +3,7 @@
 import { createHash } from "node:crypto"
 import { z } from "zod"
 
-import { type AnyField, type Fields, type Row, t, type Value } from "./t.ts"
+import { type AnyField, type Fields, isKey, type List, type Row, t, type Value } from "./t.ts"
 import {
   type ActorData,
   type ChapterData,
@@ -97,12 +97,13 @@ export interface EventDecl<F extends Fields = Fields> extends Decl<"event", F> {
 }
 export type CommandDecl<F extends Fields = Fields> = Decl<"command", F>
 
-/** A view, with the key columns the compiler knows, so `.query()` can count the rows it reads. */
-export interface ViewDecl<F extends Fields = Fields, K extends string = string>
+/**
+ * A view, with its key columns in its fields and whether it is a list, so `.query()` can count the
+ * rows it reads.
+ */
+export interface ViewDecl<F extends Fields = Fields, L extends boolean = boolean>
   extends Decl<"view", F> {
-  readonly __key: K
-  /** The columns that identify a row. */
-  key<const Ks extends (keyof F & string)[]>(...columns: Ks): ViewDecl<F, Ks[number]>
+  readonly __list: L
 }
 
 /** An event of a system we do not own, as `.external()` returns it. */
@@ -125,7 +126,7 @@ function decl<K extends DeclKind, F extends Fields>(kind: K, fields: F): Decl<K,
     [META]: data,
     __kind: kind,
     __fields: fields,
-    // Mutating is safe: .note() and .key() are called before anything else holds the declaration.
+    // Mutating is safe: .note() is called before anything else holds the declaration.
     note(text: string) {
       data.note = noted(data.note, text)
       return declared
@@ -134,8 +135,13 @@ function decl<K extends DeclKind, F extends Fields>(kind: K, fields: F): Decl<K,
   return declared
 }
 
-function event<F extends Fields>(fields: F): EventDecl<F> {
-  const declared = decl("event", fields)
+/** `F`, or, for a field marked `.key()`, the instruction. */
+type Unkeyed<F extends Fields> = {
+  [K in keyof F]: F[K] extends { readonly __key: true } ? "only a view has key columns" : F[K]
+}
+
+function event<F extends Fields>(fields: F & Unkeyed<F>): EventDecl<F> {
+  const declared = decl("event", fields as F)
   return Object.assign(declared, {
     stream(stream: Stream) {
       stream[META].members.push(declared[META])
@@ -148,18 +154,25 @@ function event<F extends Fields>(fields: F): EventDecl<F> {
   }) as EventDecl<F>
 }
 
-function command<F extends Fields>(fields: F): CommandDecl<F> {
-  return decl("command", fields)
+function command<F extends Fields>(fields: F & Unkeyed<F>): CommandDecl<F> {
+  return decl("command", fields as F)
 }
 
-function view<F extends Fields>(fields: F): ViewDecl<F, never> {
-  const declared = decl("view", fields)
-  return Object.assign(declared, {
-    key(...columns: string[]) {
-      declared[META].keys = columns
-      return declared
-    },
-  }) as unknown as ViewDecl<F, never>
+/**
+ * A table built from events, looked up by its fields marked `.key()`. With none it has one row.
+ * Given `t.array({ … })`, it is a list: each event adds a row, and a lookup gives every row it
+ * matches.
+ */
+function view<F extends Fields>(rows: List<F>): ViewDecl<F, true>
+function view<F extends Fields>(fields: F): ViewDecl<F, false>
+function view(fields: Fields | List<Fields>): ViewDecl {
+  const list = "_zod" in fields
+  const row = list ? (inner(fields as never) as z.ZodObject | undefined)?.shape : fields
+  const declared = decl("view", (row ?? {}) as Fields)
+  const data = declared[META]
+  data.keys = Object.keys(data.fields).filter((k) => isKey(data.fields[k] as object))
+  if (list) data.list = true
+  return declared as ViewDecl
 }
 
 export interface Actor {
@@ -375,7 +388,7 @@ type AnyCommand = CommandDecl<any>
 // biome-ignore lint/suspicious/noExplicitAny: any event's fields
 type AnyEvent = EventDecl<any>
 // biome-ignore lint/suspicious/noExplicitAny: any view's columns
-type AnyView = ViewDecl<any, string>
+type AnyView = ViewDecl<any, boolean>
 
 /**
  * Each declaration before a step, in order, by the name its call gave it: `[name, fields, eq]`.
@@ -490,34 +503,39 @@ type Filled<C extends Ctx, N, D, Step extends string, O = Record<never, never>> 
 /** The mapping a step takes: `c` holds each declaration before it, and `O` is what it sets. */
 type Mapping<C extends Ctx, A, O> = (c: Scope<C>) => O & Out<FieldsOf<A>>
 
-/** One row, when the filter names every key column; otherwise many. A view with no key is many. */
-type Rows<K extends string, Cols> = [K] extends [never]
+/** A view's key columns: the fields marked `.key()`. */
+type KeysOf<F> = { [K in keyof F]: F[K] extends { readonly __key: true } ? K : never }[keyof F] &
+  string
+
+/**
+ * One row when the view is no list and the filter names every key column, which a view with none
+ * always does; otherwise many.
+ */
+type Rows<R, L, Cols> = L extends true
   ? "many"
-  : [Exclude<K, Cols>] extends [never]
+  : [Exclude<KeysOf<R>, Cols>] extends [never]
     ? "one"
     : "many"
 
 type Many = "many rows: only an automation reads them, before its .command()"
 
-/** Why a filter picks many rows. A view written in the call is typed before its `.key()` is known. */
-type Unpicked<K extends string, Cols> = [K] extends [never]
-  ? `the view has no .key(): ${Many}`
-  : string extends K
-    ? `the view has no .key(): ${Many}`
-    : `key column ${Exclude<K, Cols>} is not in the filter: ${Many}`
+/** Why a filter picks many rows. */
+type Unpicked<R, L, Cols> = L extends true
+  ? `the view is a list: ${Many}`
+  : `key column ${Exclude<KeysOf<R>, Cols>} is not in the filter: ${Many}`
 
 /** The filter's columns, or the instruction. `Fan` says whether many rows are allowed here. */
 type Filter<C extends Ctx, V, F, Fan extends boolean> =
-  V extends ViewDecl<infer R, infer K>
+  V extends ViewDecl<infer R, infer L>
     ? F extends string
       ? F extends keyof R
         ? Sources<C, F> extends readonly [infer N extends string]
           ? Fits<FieldIn<C, N, F>, R[F]> extends true
-            ? Rows<K, F> extends "one"
+            ? Rows<R, L, F> extends "one"
               ? F
               : Fan extends true
                 ? F
-                : Unpicked<K, F>
+                : Unpicked<R, L, F>
             : `the ${F} before .query() does not fit the column: map it`
           : Sources<C, F> extends readonly []
             ? `add ${F} to a step before .query(), or map it: (c) => ({ ${F}: c.… })`
@@ -526,11 +544,11 @@ type Filter<C extends Ctx, V, F, Fan extends boolean> =
       : F extends (c: Marked<C>) => infer O
         ? [Exclude<keyof O, keyof R>] extends [never]
           ? [O] extends [{ [Col in keyof O]: Col extends keyof R ? Fit<R[Col]> : never }]
-            ? Rows<K, keyof O> extends "one"
+            ? Rows<R, L, keyof O> extends "one"
               ? F
               : Fan extends true
                 ? F
-                : (c: Marked<C>) => Unpicked<K, keyof O>
+                : (c: Marked<C>) => Unpicked<R, L, keyof O>
             : (c: Marked<C>) => { [Col in keyof O]: Col extends keyof R ? Fit<R[Col]> : never }
           : (c: Marked<C>) => `the view has no column ${Exclude<keyof O, keyof R> & string}`
         : never
@@ -574,8 +592,16 @@ type Translated<E> = E extends ExternalEventDecl
     ? "is a view: poll it with .automation()"
     : "is ours: start its slice with .automation()"
 
-/** What a `.query()` with no filter is told. */
+/** What a `.query()` with no filter is told, unless its view has one row. */
 type Unfiltered = "say which rows: a column or a mapping, () => ({}) for every row"
+
+/** `N` if it is a view of one row, with no key column, which needs no filter; or else the instruction. */
+type OneRow<N> =
+  DeclOf<N> extends ViewDecl<infer R, false>
+    ? [KeysOf<R>] extends [never]
+      ? Single<N, AnyView>
+      : Unfiltered
+    : Unfiltered
 
 /** A slice at any step: what assembly reads. */
 interface Step {
@@ -637,7 +663,10 @@ export interface Start extends Step {
 export interface Triggered<C extends Ctx, Fan extends boolean = true>
   extends Issuing<"automation">,
     Gate<"add .command() and .event() before .test()"> {
-  query(view: Unfiltered): this
+  /** Reads the one row of a view with no key column. */
+  query<N extends object>(
+    view: OneRow<N>,
+  ): OneRow<N> extends string ? this : Triggered<Queried<C, N, never>, Fan>
   /** Reads a view: the row joins the context. Many rows, one command each. */
   query<N extends object, const F extends FilterArg<C>>(
     view: Single<N, AnyView>,
@@ -663,7 +692,10 @@ type Kept<C extends Ctx, N> =
 export interface Commanded<C extends Ctx, Cmd extends Fields, P extends "change" | "automation">
   extends Issuing<P>,
     Gate<"add .event() before .test()"> {
-  query(view: Unfiltered): this
+  /** Reads the one row of a view with no key column. */
+  query<N extends object>(
+    view: OneRow<N>,
+  ): OneRow<N> extends string ? this : Commanded<Queried<C, N, never>, Cmd, P>
   /** What the handler reads: one row, so the filter names every key column. The row joins the context. */
   query<N extends object, const F extends FilterArg<C>>(
     view: Single<N, AnyView>,

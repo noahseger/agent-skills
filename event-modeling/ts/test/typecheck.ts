@@ -12,7 +12,7 @@ const CreateList = m.command({ listId: t.string(), name: t.string() })
 const ListCreated = m.event({ listId: t.string(), name: t.string() })
 const AddItem = m.command({ listId: t.string(), text: t.string() })
 const ItemAdded = m.event({ listId: t.string(), title: t.string() })
-const TodoList = m.view({ listId: t.string(), name: t.string(), itemCount: t.int() }).key("listId")
+const TodoList = m.view({ listId: t.string().key(), name: t.string(), itemCount: t.int() })
 const NameList = m.command({ listId: t.string(), name: t.string() })
 const Lock = m.screen()
 const Ch = m.chapter(1).note("A run of slices.")
@@ -250,7 +250,7 @@ m.slice().automation({ TodoList }).command({ AddItem }, (c) => ({ text: c.TodoLi
 // --- .query(): a view, and the filter that picks its rows ----------------------
 
 const PriceChanged = m.event({ productId: t.uuid(), oldPrice: t.number(), newPrice: t.number() })
-const CartsWithProducts = m.view({ aggregateId: t.uuid(), productId: t.uuid(), itemId: t.uuid() }).key("aggregateId", "productId")
+const CartsWithProducts = m.view({ aggregateId: t.uuid().key(), productId: t.uuid().key(), itemId: t.uuid() })
 const ArchiveItem = m.command({ aggregateId: t.uuid(), productId: t.uuid() })
 const ItemArchived = m.event({ aggregateId: t.uuid(), itemId: t.uuid() })
 const ItemRepriced = m.event({ aggregateId: t.uuid(), newPrice: t.number() })
@@ -289,15 +289,22 @@ m.slice().command({ ArchiveItem }).query({ CartsWithProducts }, (c) => ({ produc
 m.slice().automation({ PriceChanged }).query({ CartsWithProducts }, "productId").command({ ArchiveItem }).query({ CartsWithProducts }, "productId")
 
 const Restock = m.command({ shelfId: t.string() })
-const Shelves = m.view({ shelfId: t.string() })
+const Shelves = m.view(t.array({ shelfId: t.string().key(), sku: t.string() }))
+const Stock = m.view({ shelves: t.int() })
 
-// @ts-expect-error a view with no key is many rows
+// @ts-expect-error a list view gives every row its key columns match: many rows
 m.slice().command({ Restock }).query({ Shelves }, "shelfId")
 
-// @ts-expect-error the filter is always stated
+// A view with no key column has one row, read with no filter, or any.
+m.slice().command({ Restock }).query({ Stock }).event({ ListCreated }, () => ({ listId: m.generate(), name: m.generate() }))
+m.slice().command({ Restock }).query({ Stock }, () => ({})).event({ ListCreated }, () => ({ listId: m.generate(), name: m.generate() }))
+// Many rows of a list, before an automation's command: one command per row.
+m.slice().automation({ ListCreated }).query({ Shelves }, () => ({})).command({ Restock })
+
+// @ts-expect-error a view with key columns is read by them: the filter is stated
 m.slice().automation({ PriceChanged }).query({ CartsWithProducts })
 declare const priced: Triggered<readonly [readonly ["PriceChanged", typeof PriceChanged.__fields, never]]>
-const unfiltered: Bare<typeof priced.query> = "say which rows: a column or a mapping, () => ({}) for every row"
+const unfiltered: Parameters<typeof priced.query<{ CartsWithProducts: typeof CartsWithProducts }>>[0] = "say which rows: a column or a mapping, () => ({}) for every row"
 // A mapping that names no column reads every row.
 m.slice().automation({ PriceChanged }).query({ CartsWithProducts }, () => ({}))
 
@@ -484,7 +491,7 @@ m.reject
 m.slice().view({ TodoList }).event({ ListCreated }).test("x", { given: ListCreated({ listId: "l-1" }), when: CreateList({}), then: TodoList({}) })
 
 // A state view's when is its context's values; its then, rows of the view it shows.
-const Shelf = m.view({ shelfId: t.string() }).key("shelfId")
+const Shelf = m.view({ shelfId: t.string().key() })
 const inbox = m.slice().view({ TodoList }).event({ ListCreated }).context({ name: t.string() })
 
 // @ts-expect-error name is a string
@@ -554,11 +561,17 @@ CreateList({ listId: 42 })
 // @ts-expect-error a declaration is called for an example; there is no .with()
 CreateList.with({ listId: "l-1" })
 
-// @ts-expect-error a key is one of the view's columns
-m.view({ shelfId: t.string() }).key("nope")
+// @ts-expect-error a view has no .key(): its key columns are marked on their fields
+m.view({ shelfId: t.string() }).key("shelfId")
 
-// @ts-expect-error a key is named on the view with .key(), not marked on m
+// @ts-expect-error a key column is marked on its field with .key(), not on m
 m.key
+
+// @ts-expect-error only a view has key columns
+m.event({ shelfId: t.string().key() })
+
+// @ts-expect-error a command has none either
+m.command({ shelfId: t.string().key() })
 
 // @ts-expect-error a table built from events is declared with m.view
 m.readModel({ shelfId: t.string() })

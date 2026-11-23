@@ -3,21 +3,29 @@
 import { z } from "zod"
 
 /**
- * A field as the compiler knows it: the values it holds and its string format. Only the compiler
- * reads the `__` members.
+ * A field as the compiler knows it: the values it holds, its string format, and whether it is a key
+ * column. Only the compiler reads the `__` members.
  */
-export interface Field<V = unknown, F extends string = string> {
+export interface Field<V = unknown, F extends string = string, K extends boolean = false> {
   readonly __value: V
   readonly __format: F
+  readonly __key: K
   /** It may go without a value. */
-  optional(): Field<V | undefined, F>
+  optional(): Field<V | undefined, F, K>
   /** The comment above it in the proto, and its description in the JSON. */
-  describe(text: string): Field<V, F>
+  describe(text: string): Field<V, F, K>
+  /** A key column of a view: its rows are looked up by the key columns. Only a view has them. */
+  key(): Field<V, F, true>
 }
 
 /** Any field. */
-export type AnyField = Field<unknown, string>
+export type AnyField = Field<unknown, string, boolean>
 export type Fields = Record<string, AnyField>
+
+/** A list of objects with the fields `F`, as a list view's rows. */
+export interface List<F extends Fields> extends Field<Row<F>[]> {
+  readonly __row: F
+}
 
 export type Value<F> = F extends { readonly __value: infer V } ? V : never
 
@@ -40,17 +48,24 @@ const zod = (field: AnyField): z.ZodType => field as unknown as z.ZodType
 const zods = (fields: Fields): Record<string, z.ZodType> =>
   Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, zod(v)]))
 
-/** `schema` with the methods a field has, each returning a field. */
-function field(schema: z.ZodType): never {
-  const { optional, describe } = schema
+const KEYS = new WeakSet<object>()
+
+/** Whether a view's field is one of its key columns. */
+export const isKey = (field: object): boolean => KEYS.has(field)
+
+/** `schema` with the methods a field has, each returning a field. A key column stays one. */
+function field(schema: z.ZodType, key = false): never {
+  if (key) KEYS.add(schema)
+  const { optional, describe, clone } = schema
   return Object.assign(schema, {
-    optional: () => field(optional.call(schema)),
-    describe: (text: string) => field(describe.call(schema, text)),
+    optional: () => field(optional.call(schema), key),
+    describe: (text: string) => field(describe.call(schema, text), key),
+    key: () => field(clone.call(schema), true),
   }) as never
 }
 
 function array<E extends AnyField>(element: E): Field<Value<E>[]>
-function array<F extends Fields>(row: F): Field<Row<F>[]>
+function array<F extends Fields>(row: F): List<F>
 function array(of: AnyField | Fields): AnyField {
   return field(
     z.array("_zod" in of ? zod(of as unknown as AnyField) : z.object(zods(of as Fields))),

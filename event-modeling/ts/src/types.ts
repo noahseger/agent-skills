@@ -23,8 +23,10 @@ export interface DeclData extends Named {
   kind: DeclKind
   /** Insertion order is the field order on the card and in the proto. */
   fields: Fields
-  /** Views only: the columns that identify a row. */
+  /** Views only: the columns rows are looked up by. */
   keys: string[]
+  /** A list view: each event adds a row, and a lookup gives every row it matches. */
+  list?: true
   note?: string
   /** Set when the event is a system's we do not own. */
   external?: ExternalData

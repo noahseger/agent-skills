@@ -39,15 +39,13 @@ const CardCharged = m.event({ orderId: t.string(), amount: t.int() }).external(B
 const Refund = m.command({ orderId: t.string() })
 const RecordPayment = m.command({ orderId: t.string(), paid: t.int() })
 const PaymentRecorded = m.event({ orderId: t.string(), paid: t.int() }).stream(Payments)
-const Unpaid = m
-  .view({
-    orderId: t.string(),
-    product: t.string(),
-    lines: Lines,
-    payments: t.int(),
-    status: t.string(),
-  })
-  .key("orderId")
+const Unpaid = m.view({
+  orderId: t.string().key(),
+  product: t.string(),
+  lines: Lines,
+  payments: t.int(),
+  status: t.string(),
+})
 const Loose = m.event({ id: t.uuid() }).stream(Orders)
 
 const Sales = m.chapter(1).note("Where money comes in.")

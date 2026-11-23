@@ -199,18 +199,17 @@ m.slice()
   })
 ```
 
-A view is a table, and `.key()` names the columns that identify a row. A state view slice builds it
-from events, and the user reads their lists in it:
+A view is a table, and `.key()` marks a key column: rows are looked up by the key columns. A state
+view slice builds it from events, and the user reads their lists in it:
 
 ```ts
 export const TodoList = m
   .view({
-    userId: t.string(),
-    listId: t.string(),
+    userId: t.string().key(),
+    listId: t.string().key(),
     name: t.string(),
     itemCount: t.int(),
   })
-  .key("userId", "listId")
 
 m.slice()
   .view({ TodoList })
@@ -377,8 +376,7 @@ which happened. So an event of ours does not pass its fields to the next.
 
 `.query({ View }, filter)` reads rows of a view. The filter is always stated: a column, which takes
 the value of the field of the same name before the step, or a mapping from those fields to columns.
-A mapping that names no column, `() => ({})`, reads every row, such as the one row of a view that
-holds one.
+A mapping that names no column, `() => ({})`, reads every row.
 
 ```ts
 .command({ RecordChange }).query({ Pages }, "pageId").event({ ChangeRecorded })
@@ -397,9 +395,10 @@ A mapping that returns a whole declaration takes every field it carries; spread 
 .event({ ChangeRecorded }, (c) => ({ ...c.RecordChange, noteId: c.Pages.noteId }))
 ```
 
-A filter that names every key column picks one row. One that does not picks many, which only an
-automation reads, before its command: it issues the command once per row. A view with no `.key()`
-always gives many.
+A filter that names every key column of a view that is not a list picks one row. A view with no key
+column has only one, read with no filter: `.query({ TotalRevenue })`. Any other filter, and any
+filter of a list, picks many rows, which only an automation reads, before its command: it issues the
+command once per row.
 
 A command whose row is missing is refused, and an automation that finds no row issues nothing; a
 specification has to agree, as [Specifications](#specifications) says.
@@ -422,6 +421,24 @@ also named after the command; to use another method name, pass it:
 `.service(TodoService, "StartList")`.
 
 ### Views
+
+A view's key columns, the fields marked `.key()`, say how many rows it has:
+
+| A view | Declared as | An event | A lookup by every key column |
+|---|---|---|---|
+| keyed | `m.view({ listId: t.uuid().key(), name: t.string() })` | changes its row, or adds it | one row |
+| with no key column | `m.view({ total: t.number() })` | changes its one row | no filter: `.query({ TotalRevenue })` |
+| a list | `m.view(t.array({ … }))` | adds a row | every matching row |
+
+A list of what happened to each note:
+
+```ts
+export const NoteActivity = m.view(
+  t.array({ noteId: t.uuid().key(), at: t.datetime(), what: t.string() }),
+)
+```
+
+Its state view's response is a list, and the picture titles it "Note Activity[]".
 
 The same events can build a second table for a different question. A state view shows one view; to
 show two side by side, write two state views that name one screen. Without `.context()` its context
@@ -486,7 +503,8 @@ the specification as a function:
 A specification written as a function runs at assembly, so it may use examples declared below the slice.
 
 A state view's `given` builds the rows through its events. Each row in
-`then` must be one of them, matched by its key columns, with the values they have. A row built and
+`then` must be one of them, matched by its key columns, or in a list by every value it has, with the
+values they have. A row built and
 left out of `then` must be one the context excludes, unless a string in `then` says what the rows
 leave out. A context field with no column of its name, such as a search's `text`, excludes nothing,
 so its specification lists every row built or describes the rest.
@@ -622,10 +640,10 @@ The compiler catches:
 | a field that flows by name | It must fit its target as a mapped one does, and only one declaration before the step may carry it; a filter column and its namesake are one. The error names the field to set in the mapping, and where two carry it, both. |
 | a step's command or event | Every field no step before it carries must be set by its mapping, or marked `m.generate()`, unless it is optional. The error names the fields. |
 | an automation's command | The handler sees only the command: from `.command()` on, what starts the automation and the rows queried before it no longer flow. |
-| `.query()` | The filter names columns of the view, each from a field before the step that fits it. A filter that does not name every key column picks many rows, which only an automation reads, before its command. |
+| `.query()` | The filter names columns of the view, each from a field before the step that fits it. A filter that does not name every key column, and any filter of a list, picks many rows, which only an automation reads, before its command. A view with no key column has one row, and needs no filter; any other view does. |
 | a state view's event | An external event is refused, because it isn't stored. The error says to translate it first. |
 | what starts an automation or a translation | `.automation()` refuses an external event, and the error says to use `.translation()`; `.translation()` takes nothing else. |
-| `.key()` | It names columns of the view, so `.query()` can count the rows a filter picks. |
+| `.key()` | Only a view's field takes it, so `.query()` can count the rows a filter picks. An event's or a command's is refused: `only a view has key columns`. |
 | `.service()` on a state view | It names the method. |
 | `.test()` | `when` is the slice's command, or a state view's context values. `then` is its events, or the rows of the view a state view shows, and strings that describe an outcome; `reject` replaces `then`, and a state view has none. The values have their fields' types; a oneOf holds exactly one case. |
 
@@ -678,6 +696,7 @@ Naming is yours: the conventions above are not checked.
 | an actor | the slice's `actors`. An admin is tagged `admin`, a machine of ours `system`. An automation's, or a state view's no one sees, is the system actor that runs it |
 | fields | the element's `fields`: their JSON Schema, as [Fields](#fields) says, less `$schema`, a `pattern` beside a `format`, and an integer's safe-integer bounds |
 | `.key()` | the element's `key` |
+| a list view | its `fields` are an array's JSON Schema, with the row's fields as its `items` |
 | a mapping | the slice's `mappings`, by the element of the step it is on, then by field: the source field's name, `= ` and a JSON value, or `generate(<inputs>)`. A field from a queried row, by name too, is `View(filter columns).column`, as `CartsWithProducts(productId).aggregateId`; of a view queried twice, the row before the step. A state view's are on its events, and set the view's columns |
 | a note | an element's `description` |
 | a specification | a `Specification`: `given`, `when` and `then` steps, each an example in `examples`. A `reject` is a `SPEC_ERROR` step titled with the reason. A string in `then` is a `SPEC_DESCRIPTION` step titled with it. A state view's context values are a `SPEC_COMMAND` step titled with its screen, the one it is asked from, as a command is sent from one |
@@ -713,7 +732,7 @@ and `proto` exits 1.
 | Slice | Generates |
 |---|---|
 | state change | `rpc Command(CommandRequest) returns (CommandResponse)`. The request is the command's fields. The response is empty, because events are internal. |
-| state view | `rpc Method(MethodRequest) returns (MethodResponse)`. The request is the `.context()` fields. The response returns one row when they name every key column; otherwise, a list. |
+| state view | `rpc Method(MethodRequest) returns (MethodResponse)`. The request is the `.context()` fields. The response returns one row when the view is not a list and they name every key column, as an empty context does for a view with none; otherwise, a list. |
 | automation, or a slice without `.service()` | Nothing. They have no service method. |
 
 Every command and view becomes a `message`. Field numbers follow declaration order, so

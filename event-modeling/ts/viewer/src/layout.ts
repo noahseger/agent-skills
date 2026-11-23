@@ -24,6 +24,8 @@ export interface Box {
   name: string
   fields: string[]
   keys: string[]
+  /** A list view, titled with `[]`. */
+  list?: true
   /** A second line under the name: the service of a ui card. */
   detail?: string
   /** Name only: a reference to a view, or a later appearance of an element. */
@@ -169,13 +171,17 @@ export interface Element {
   name: string
   fields: string[]
   keys: string[]
+  /** A list view, written `Name[]`. */
+  list?: true
 }
 
-/** `Name(a, *b)` -> the name, the fields, and the key columns marked `*`. */
+/** `Name(a, *b)` -> the name, the fields, and the key columns marked `*`; `Name[]` is a list. */
 export function parse(element: string): Element {
   const open = element.indexOf("(")
-  if (open < 0) return { name: element.trim(), fields: [], keys: [] }
-  const name = element.slice(0, open).trim()
+  const written = (open < 0 ? element : element.slice(0, open)).trim()
+  const name = written.replace(/\[\]$/, "")
+  const list = name !== written ? { list: true as const } : {}
+  if (open < 0) return { name, fields: [], keys: [], ...list }
   const raw = element
     .slice(open + 1, element.lastIndexOf(")"))
     .split(",")
@@ -185,6 +191,7 @@ export function parse(element: string): Element {
     name,
     fields: raw.map((f) => f.replace(/^\*/, "")),
     keys: raw.filter((f) => f.startsWith("*")).map((f) => f.slice(1)),
+    ...list,
   }
 }
 
@@ -491,6 +498,7 @@ export function layout(model: Board): Layout {
       name: el.name,
       fields: el.fields,
       keys: el.keys,
+      ...(el.list && { list: true }),
       ...(extra.detail === undefined ? {} : { detail: extra.detail }),
       ...(extra.form === undefined ? {} : { form: extra.form }),
       ...(extra.button === undefined ? {} : { button: extra.button }),
