@@ -91,7 +91,6 @@ export function loadModules(
     modules,
     files,
     conflict,
-    fail,
   )
   const drafts = runBy(firstSystem(declared), oneSlicePerView(written, fail))
   const unchaptered: SliceData[] = []
@@ -249,7 +248,6 @@ function nameExports(
   modules: readonly object[],
   files: readonly string[],
   conflict: Fail,
-  fail: Fail,
 ): {
   model: ModelData
   streams: Map<string, DeclData[]>
@@ -313,19 +311,13 @@ function nameExports(
   const numbered = new Map<number, string>()
   const place = ({ number }: ChapterData) => number ?? Number.POSITIVE_INFINITY
   const sorted = headings.sort((a, b) => place(a) - place(b) || a.order - b.order)
-  let next = Math.max(0, ...headings.map((h) => h.number ?? 0)) + 1
   for (const { name = "", note, number } of sorted) {
     const merged = chapters.find((c) => c.name === name)
     if (merged) {
       if (merged.note === undefined && note !== undefined) merged.note = note
       continue
     }
-    if (number === undefined) {
-      fail({
-        message: `${name} has no number yet. Give it its place: m.chapter(${next++}).`,
-        element: "",
-      })
-    } else {
+    if (number !== undefined) {
       const other = numbered.get(number)
       if (other !== undefined)
         conflict({

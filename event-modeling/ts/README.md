@@ -579,7 +579,7 @@ drawn after the story under "Not in a chapter yet", and is left to do until it j
 modules may export a chapter under the same name; the CLI merges them into one.
 
 Chapters appear in the order of their numbers: `m.chapter(1)`, `m.chapter(2)`. One with no number
-yet comes after them, and is left to do. Lanes appear in the order of the first chapter that uses
+yet comes after them. Lanes appear in the order of the first chapter that uses
 them.
 
 ## Validation

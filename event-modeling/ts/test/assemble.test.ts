@@ -1837,18 +1837,12 @@ test("two chapters of one number are left to do, and drawn in the order declared
   ])
 })
 
-test("a chapter with no number yet comes after the numbered ones, and is left to do", () => {
+test("a chapter with no number comes after the numbered ones, in the order declared", () => {
   const f = fixture()
   const [Capture, Filing, Review] = [m.chapter(), m.chapter(2), m.chapter()]
   create(f).chapter(Capture)
   view(f).chapter(Filing)
   const modules = [{ ...f, Capture, Filing, Review, default: m.model("x") }]
-  assert.throws(
-    () => assembleModules(modules),
-    /^Error: Capture has no number yet\. Give it its place: m\.chapter\(3\)\.$/m,
-  )
-  create(f).chapter(Capture)
-  view(f).chapter(Filing)
   const json = assembleModules(modules, { partial: true })
   assert.deepEqual(
     json.chapters.map((c) => c.name),
@@ -1856,11 +1850,7 @@ test("a chapter with no number yet comes after the numbered ones, and is left to
   )
   assert.deepEqual(
     json.warnings?.map((w) => w.message),
-    [
-      "Capture has no number yet. Give it its place: m.chapter(3).",
-      "Review has no number yet. Give it its place: m.chapter(4).",
-      "Review has no slices yet.",
-    ],
+    ["Review has no slices yet."],
   )
 })
 
