@@ -8,6 +8,7 @@ import {
   HEADER_H,
   type Layout,
   NAME_H,
+  outside,
   path,
   polyline,
 } from "./layout.ts"
@@ -149,8 +150,14 @@ const lit = computed(() => {
   return { named: ids, cards, edges }
 })
 
+// Focusing a chapter, by its heading or a slice in it, dims the arrows from and to other chapters.
+const away = computed(() => {
+  const col = props.selectedColumn === null ? undefined : props.layout.columns[props.selectedColumn]
+  return col ? outside(props.layout, col.chapter) : new Set<number>()
+})
+
 function edgeClass(i: number) {
-  if (!lit.value) return {}
+  if (!lit.value) return { dim: away.value.has(i) }
   return { lit: lit.value.edges.has(i), dim: !lit.value.edges.has(i) }
 }
 function cardClass(b: Box) {

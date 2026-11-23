@@ -914,6 +914,13 @@ export function layout(model: Board): Layout {
   }
 }
 
+/** The edges that come from or go to another chapter, which focusing `chapter` dims. */
+export function outside(layout: Layout, chapter: number): Set<number> {
+  const chapterOf = new Map(layout.boxes.map((b) => [b.id, layout.columns[b.column]?.chapter]))
+  const inside = (id: string) => chapterOf.get(id) === chapter
+  return new Set(layout.edges.flatMap((e, i) => (inside(e.from) && inside(e.to) ? [] : [i])))
+}
+
 /** The strongest of the messages: an error, else a warning, else none. */
 export function markOf(messages: readonly Message[]): Mark | undefined {
   if (messages.some((m) => m.kind === "error")) return "error"

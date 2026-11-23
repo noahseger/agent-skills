@@ -16,6 +16,7 @@ import {
   layout,
   NAME_H,
   nextError,
+  outside,
   parse,
   parseClause,
   path,
@@ -385,6 +386,18 @@ test("a view's specification asks its screen in when, and shows rows in then", (
     ["then", ["readModel"]],
   ])
   assert.deepEqual(spec?.steps[1]?.cards[0]?.lines, ["userId = u-1"])
+})
+
+test("focusing a chapter dims the edges that come from or go to another chapter, and only those", () => {
+  const chapterOf = (id: string) => out.columns[byId.get(id)?.column ?? -1]?.chapter
+  const views = out.chapters.findIndex((c) => c.name === "Views")
+  const dimmed = outside(out, views)
+  const crossing = out.edges.filter((e) => chapterOf(e.from) !== chapterOf(e.to))
+  assert.ok(crossing.length > 0 && dimmed.size < out.edges.length)
+  out.edges.forEach((e, i) => {
+    const within = chapterOf(e.from) === views && chapterOf(e.to) === views
+    assert.equal(dimmed.has(i), !within, `${byId.get(e.from)?.name} → ${byId.get(e.to)?.name}`)
+  })
 })
 
 test("the picture shows names as words", () => {
