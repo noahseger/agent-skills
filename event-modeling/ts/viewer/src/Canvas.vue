@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue"
+import { words } from "../../src/types.ts"
 import Card from "./Card.vue"
 import {
   ARROW_H,
@@ -303,7 +304,7 @@ const transform = computed(
               @pointerleave="emit('hover', null)"
             >
               <rect class="shape" :width="card.w" :height="card.h" rx="6" />
-              <text class="title" :x="10" :y="16">{{ card.name }}</text>
+              <text class="title" :x="10" :y="16">{{ words(card.name) }}</text>
               <text
                 v-for="(line, li) in card.lines"
                 :key="li"

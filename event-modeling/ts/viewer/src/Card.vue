@@ -30,7 +30,7 @@ const centred = computed(
     :transform="`translate(${box.x} ${box.y})`"
     role="button"
     tabindex="0"
-    :aria-label="`${LABEL[box.kind]} ${box.name}${box.noted ? ', has a note' : ''}${box.warned ? ', unfinished' : ''}`"
+    :aria-label="`${LABEL[box.kind]} ${words(box.name)}${box.noted ? ', has a note' : ''}${box.warned ? ', unfinished' : ''}`"
     @keydown.enter.stop="$emit('pick')"
   >
     <title v-if="box.canonical">Full details are on its first card</title>

@@ -43,9 +43,9 @@
   --event-fill: #ffedd5;
   --event-stroke: #f97316;
   --event-ink: #7c2d12;
-  --readModel-fill: #dcfce7;
-  --readModel-stroke: #22c55e;
-  --readModel-ink: #14532d;
+  --view-fill: #dcfce7;
+  --view-stroke: #22c55e;
+  --view-ink: #14532d;
   --automation-fill: #f3e8ff;
   --automation-stroke: #a855f7;
   --automation-ink: #581c87;
@@ -186,7 +186,7 @@ body,
 .top .swatch.ui::before { background: var(--ui-fill); border-color: var(--ui-stroke); }
 .top .swatch.command::before { background: var(--command-fill); border-color: var(--command-stroke); }
 .top .swatch.event::before { background: var(--event-fill); border-color: var(--event-stroke); }
-.top .swatch.readModel::before { background: var(--readModel-fill); border-color: var(--readModel-stroke); }
+.top .swatch.readModel::before { background: var(--view-fill); border-color: var(--view-stroke); }
 .top .swatch.automation::before { background: var(--automation-fill); border-color: var(--automation-stroke); }
 .top .swatch.external::before { background: var(--external-fill); border-color: var(--external-stroke); border-style: dashed; }
 
@@ -533,7 +533,7 @@ svg .warn-dot {
 .card.command .field { fill: var(--command-ink); }
 .card.event .field { fill: var(--event-ink); }
 .card.external .field { fill: var(--external-ink); }
-.card.readModel .field { fill: var(--readModel-ink); }
+.card.readModel .field { fill: var(--view-ink); }
 
 /* a screen's wireframe */
 .card .input rect {
@@ -659,8 +659,8 @@ svg .warn-dot {
 .card.event .title { fill: var(--event-ink); }
 .card.external .shape { fill: var(--external-fill); stroke: var(--external-stroke); stroke-dasharray: 5 3; }
 .card.external .title { fill: var(--external-ink); }
-.card.readModel .shape { fill: var(--readModel-fill); stroke: var(--readModel-stroke); }
-.card.readModel .title { fill: var(--readModel-ink); }
+.card.readModel .shape { fill: var(--view-fill); stroke: var(--view-stroke); }
+.card.readModel .title { fill: var(--view-ink); }
 .card.automation .shape { fill: var(--automation-fill); stroke: var(--automation-stroke); }
 .card.automation .title { fill: var(--automation-ink); }
 
@@ -695,7 +695,7 @@ svg .warn-dot {
 .detail .kind.command { background: var(--command-fill); color: var(--command-ink); }
 .detail .kind.event { background: var(--event-fill); color: var(--event-ink); }
 .detail .kind.external { background: var(--external-fill); color: var(--external-ink); }
-.detail .kind.readModel { background: var(--readModel-fill); color: var(--readModel-ink); }
+.detail .kind.readModel { background: var(--view-fill); color: var(--view-ink); }
 .detail .kind.automation { background: var(--automation-fill); color: var(--automation-ink); }
 
 .detail h2 {
@@ -1077,6 +1077,16 @@ svg .warn-dot {
   font-size: var(--text-sm);
 }
 
+/* An element's name: words, bold, in its kind's ink. */
+.named { font-weight: 600; }
+.named.ui { color: var(--ui-ink); }
+.named.command { color: var(--command-ink); }
+.named.event { color: var(--event-ink); }
+.named.external { color: var(--external-ink); }
+.named.readModel { color: var(--view-ink); }
+.named.automation { color: var(--automation-ink); }
+.named.error { color: var(--danger-ink); }
+
 .hcard .hname {
   font-weight: 600;
   margin-bottom: 2px;
@@ -1102,7 +1112,7 @@ svg .warn-dot {
 .hcard.command { background: var(--command-fill); border-color: var(--command-stroke); color: var(--command-ink); }
 .hcard.event { background: var(--event-fill); border-color: var(--event-stroke); color: var(--event-ink); }
 .hcard.external { background: var(--external-fill); border-color: var(--external-stroke); color: var(--external-ink); }
-.hcard.readModel { background: var(--readModel-fill); border-color: var(--readModel-stroke); color: var(--readModel-ink); }
+.hcard.readModel { background: var(--view-fill); border-color: var(--view-stroke); color: var(--view-ink); }
 .hcard.automation { background: var(--automation-fill); border-color: var(--automation-stroke); color: var(--automation-ink); }
 .hcard.ui { background: var(--ui-fill); border-color: var(--ui-stroke); color: var(--ui-ink); }
 .hcard.error { background: var(--danger-fill); border-color: var(--danger-stroke); color: var(--danger-ink); }

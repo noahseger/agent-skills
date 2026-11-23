@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue"
+import { words } from "../../src/types.ts"
 import type { Board, BoardField } from "./board.ts"
 import { type Box, type Column, type Layout, parse, parseClause, source } from "./layout.ts"
+import Name from "./Name.vue"
 
 const props = defineProps<{
   box: Box | null
@@ -59,7 +61,7 @@ const sliceMessages = computed(() =>
 const actor = computed(() =>
   (slice.value.actors ?? [slice.value.actor])
     .map((id) => props.model.actors.find((a) => a.id === id)?.name)
-    .filter((name) => name !== undefined)
+    .flatMap((name) => (name === undefined ? [] : [words(name)]))
     .join(", "),
 )
 const mapping = computed(() =>
@@ -69,7 +71,7 @@ const mapping = computed(() =>
 )
 const triggers = computed(() => {
   const t = slice.value.trigger
-  return t ? (Array.isArray(t) ? t : [t]).map((x) => parse(x).name).join(", ") : ""
+  return t ? (Array.isArray(t) ? t : [t]).map((x) => parse(x).name) : []
 })
 
 // The element's specifications, or the slice's when nothing is selected.
@@ -101,8 +103,12 @@ const groups = computed<Group[]>(() => {
 })
 
 const isError = (clause: string) => clause.startsWith("Error:")
-/** The JSON says `Error:`; the model and the manual say rejected. */
-const show = (clause: string) => clause.replace(/^Error:/, "Rejected:")
+/** The JSON says `Error:`; the model and the manual say rejected. A name reads as words. */
+const show = (clause: string) => {
+  const { name } = parseClause(clause)
+  const named = clause.startsWith(name) ? words(name) + clause.slice(name.length) : clause
+  return named.replace(/^Error:/, "Rejected:")
+}
 const mentions = (clause: string) =>
   props.box !== null && parseClause(clause).name === props.box.name
 </script>
@@ -111,7 +117,7 @@ const mentions = (clause: string) =>
   <aside class="detail" aria-label="Details">
     <header>
       <span class="kind" :class="box?.kind ?? 'slice'">{{ box ? KIND[box.kind] : "slice" }}</span>
-      <h2>{{ box ? box.name : column.title }}</h2>
+      <h2><Name v-if="box" :name="box.name" /><template v-else>{{ column.title }}</template></h2>
       <button v-if="!open" class="open" type="button" title="Open the slice" @click="$emit('open')">Open</button>
       <button class="close" type="button" title="Close (Esc)" @click="$emit('close')">×</button>
     </header>
@@ -137,13 +143,13 @@ const mentions = (clause: string) =>
     <h3>Slice</h3>
     <dl>
       <dt>Name</dt>
-      <dd>{{ column.label }}</dd>
+      <dd><Name :name="column.label" /></dd>
       <template v-if="actor"><dt>Actor</dt><dd>{{ actor }}</dd></template>
       <template v-if="slice.ui"><dt>Service</dt><dd>{{ slice.ui }}</dd></template>
       <template v-if="slice.context?.length"><dt>Context</dt><dd>{{ slice.context.join(", ") }}</dd></template>
-      <template v-if="slice.polls"><dt>Polls</dt><dd>{{ slice.polls }}</dd></template>
-      <template v-if="slice.reads?.length"><dt>Reads</dt><dd>{{ slice.reads.join(", ") }}</dd></template>
-      <template v-if="triggers"><dt>On</dt><dd>{{ triggers }}</dd></template>
+      <template v-if="slice.polls"><dt>Polls</dt><dd><Name :name="slice.polls" kind="readModel" /></dd></template>
+      <template v-if="slice.reads?.length"><dt>Reads</dt><dd><Name v-for="r in slice.reads" :key="r" :name="r" kind="readModel" /></dd></template>
+      <template v-if="triggers.length"><dt>On</dt><dd><Name v-for="t in triggers" :key="t" :name="t" /></dd></template>
     </dl>
     <p v-if="slice.note" class="note" style="margin-top: 10px"><span class="badge" aria-hidden="true">i</span>{{ slice.note }}</p>
     <p v-for="m in sliceMessages" :key="m.message" class="note warning" style="margin-top: 10px"><span class="badge" aria-hidden="true">!</span>{{ m.ui ?? m.message }}</p>
@@ -156,11 +162,11 @@ const mentions = (clause: string) =>
           <div class="name">{{ t.name }}</div>
           <div v-if="t.given.length" class="step">
             <span class="word">given</span>
-            <span><code v-for="c in t.given" :key="c" :class="{ mark: mentions(c) }">{{ c }}</code></span>
+            <span><code v-for="c in t.given" :key="c" :class="{ mark: mentions(c) }">{{ show(c) }}</code></span>
           </div>
           <div v-if="t.when" class="step">
             <span class="word">when</span>
-            <span><code :class="{ mark: mentions(t.when) }">{{ t.when }}</code></span>
+            <span><code :class="{ mark: mentions(t.when) }">{{ show(t.when) }}</code></span>
           </div>
           <div class="step">
             <span class="word">then</span>

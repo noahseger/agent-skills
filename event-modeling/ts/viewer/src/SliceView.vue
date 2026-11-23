@@ -15,6 +15,7 @@ import {
   STACK_GAP,
   source,
 } from "./layout.ts"
+import Name from "./Name.vue"
 
 // One slice at full width, with room to read its specifications.
 const props = defineProps<{
@@ -187,18 +188,18 @@ function cardClass(b: Box) {
             <template v-if="slice.context?.length"><dt>Context</dt><dd>{{ slice.context.join(", ") }}</dd></template>
             <template v-if="slice.polls">
               <dt>Polls</dt>
-              <dd><button type="button" class="ref" @click="follow(slice.polls)">{{ slice.polls }}</button></dd>
+              <dd><button type="button" class="ref" @click="follow(slice.polls)"><Name :name="slice.polls" kind="readModel" /></button></dd>
             </template>
             <template v-if="slice.reads?.length">
               <dt>Reads</dt>
               <dd>
-                <button v-for="r in slice.reads" :key="r" type="button" class="ref" @click="follow(r)">{{ r }}</button>
+                <button v-for="r in slice.reads" :key="r" type="button" class="ref" @click="follow(r)"><Name :name="r" kind="readModel" /></button>
               </dd>
             </template>
             <template v-if="triggers.length">
               <dt>On</dt>
               <dd>
-                <button v-for="t in triggers" :key="t" type="button" class="ref" @click="follow(t)">{{ t }}</button>
+                <button v-for="t in triggers" :key="t" type="button" class="ref" @click="follow(t)"><Name :name="t" /></button>
               </dd>
             </template>
           </dl>
@@ -206,7 +207,7 @@ function cardClass(b: Box) {
             <h3>Mapping</h3>
             <dl v-for="(fields, event) in slice.mapping" :key="event">
               <template v-for="(src, field) in fields" :key="field">
-                <dt>{{ event }}.{{ field }}</dt>
+                <dt><Name :name="String(event)" />.{{ field }}</dt>
                 <dd>
                   {{ source(src) }}
                 </dd>
@@ -223,7 +224,7 @@ function cardClass(b: Box) {
               <span class="word">{{ step.word }}</span>
               <div class="hcards">
                 <div v-for="(card, i) in step.cards" :key="i" class="hcard" :class="card.kind" @pointerenter="emit('hover', card.name)" @pointerleave="emit('hover', null)">
-                  <div class="hname">{{ card.name }}</div>
+                  <div class="hname"><Name :name="card.name" /></div>
                   <div v-for="line in card.lines" :key="line" class="hline">
                     <span class="k">{{ field(line) }}</span>
                     <span class="v">{{ value(line) }}</span>
