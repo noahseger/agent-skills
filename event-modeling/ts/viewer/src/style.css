@@ -722,9 +722,9 @@ pre.error {
 .card.automation .shape { fill: var(--automation-fill); stroke: var(--automation-stroke); }
 .card.automation .title { fill: var(--automation-ink); }
 
+/* A key column is tagged KEY, as a kind is: small caps in the kind's ink. Only a view has keys. */
 .card .key-mark {
-  font-size: 9px;
-  fill: var(--muted);
+  fill: var(--view-ink);
 }
 
 /* detail panel */

@@ -93,7 +93,7 @@ const groups = computed(() => {
           <td class="name" :style="{ paddingLeft: `${depth * 14}px` }">{{ f.name }}{{ f.optional ? "?" : "" }}</td>
           <td class="type">{{ f.type }}</td>
           <td class="hint">
-            <template v-if="depth === 0 && fields.keys.includes(f.name)">key</template>
+            <span v-if="depth === 0 && fields.keys.includes(f.name)" class="kind" :class="box?.kind">KEY</span>
             <template v-else-if="depth === 0 && mapping?.[f.name]">{{ source(mapping[f.name]!) }}</template>
             <div v-if="f.description" class="said">{{ f.description }}</div>
           </td>

@@ -95,7 +95,7 @@ const centred = computed(
           :x="box.w - 12"
           :y="TITLE_H + (box.detail ? 14 : 0) + 6 + i * FIELD_H"
         >
-          key
+          KEY
         </text>
       </template>
     </template>
