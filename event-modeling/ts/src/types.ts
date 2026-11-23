@@ -87,6 +87,14 @@ export type Fields = Record<string, z.ZodType>
 
 export type DeclKind = "event" | "command" | "view"
 
+/** What a note flags: a critical one is drawn red, a question amber, info neutral. */
+export type NoteKind = "question" | "critical" | "info"
+
+export interface Note {
+  text: string
+  kind: NoteKind
+}
+
 /** Anything named by the string it is declared with. */
 export interface Named {
   name?: string
@@ -100,7 +108,7 @@ export interface DeclData extends Named {
   keys: string[]
   /** A list view: each event adds a row, and a lookup gives every row it matches. */
   list?: true
-  note?: string
+  notes?: Note[]
   /** The stream it joins, as `.stream()` took it: `d.Name`, found when the model assembles. */
   stream?: object
   /** The system we do not own it comes from, as `.external()` took it. */
@@ -114,19 +122,19 @@ export interface ActorData extends Named {
   icon: "user" | "admin" | "system"
   /** How many actors were declared before it. */
   order: number
-  note?: string
+  notes?: Note[]
 }
 
 export interface ServiceData extends Named {
   kind: "service"
   /** The protobuf package, e.g. todo.v1. */
   pkg: string
-  note?: string
+  notes?: Note[]
 }
 
 export interface ScreenData extends Named {
   kind: "screen"
-  note?: string
+  notes?: Note[]
 }
 
 export interface StreamData extends Named {
@@ -145,7 +153,7 @@ export interface ChapterData extends Named {
   number?: number
   /** How many chapters were declared before it, to order two of one number, or of none. */
   order: number
-  note?: string
+  notes?: Note[]
 }
 
 export interface ModelData {
@@ -172,7 +180,7 @@ export interface Assembled {
   model: ModelData
   streams: Map<string, DeclData[]>
   /** In the order of their numbers, each with its slices in the order written. */
-  chapters: { name: string; note?: string; slices: SliceData[] }[]
+  chapters: { name: string; notes?: Note[]; slices: SliceData[] }[]
   /** The systems we do not own, by name. Each is a lane, with or without events. */
   externals: string[]
   /** Declared and drawn by no slice: storming, each event, command and view a column of its own. */
@@ -273,7 +281,7 @@ export interface SliceData {
   name?: string
   /** What the JSON and a message about the slice name it by: no other slice has it. Set at assembly. */
   id?: string
-  note?: string
+  notes?: Note[]
   /** Who issues the command or sees the view; each has a screen. */
   actors: ActorData[]
   /** Where the actors see it. */

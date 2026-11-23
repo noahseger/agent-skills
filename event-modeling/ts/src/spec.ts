@@ -12,6 +12,8 @@ import {
   type Flow,
   inputNames,
   type Message,
+  type Note,
+  type NoteKind,
   origin,
   recorded,
   type SliceData,
@@ -47,6 +49,12 @@ export interface Dependency {
   elementType: ElementType
 }
 
+/** A note: `description` is its text. With no `kind`, as another tool writes it, it is info. */
+export interface Comment {
+  description: string
+  kind?: NoteKind
+}
+
 export interface SpecElement {
   id: string
   title: string
@@ -56,7 +64,9 @@ export interface SpecElement {
   /** The fields that pick one row of a view. */
   key?: string[]
   dependencies: Dependency[]
+  /** Another tool's text about the element, drawn as an info note. */
   description?: string
+  comments?: Comment[]
   aggregate?: string
   /** An event from a system we do not own is EXTERNAL; `service` names the system. */
   context?: "INTERNAL" | "EXTERNAL"
@@ -103,6 +113,7 @@ export interface SpecSlice {
   /** Per step, where each field its mapping sets gets its value; the README's "The JSON" section has the grammar. */
   mappings?: Record<string, Record<string, string>>
   storylines?: { id: string; title: string; elements: SpecElement[] }[]
+  comments?: Comment[]
   actors?: SpecActor[]
   aggregates?: string[]
 }
@@ -119,8 +130,8 @@ export interface Feed {
   name: string
   description?: string
   model: SpecModel
-  /** Every chapter in number order, with its note; a partial model's may have no slices. */
-  chapters?: { name: string; note?: string }[]
+  /** Every chapter in number order, with its notes; a partial model's may have no slices. */
+  chapters?: { name: string; comments?: Comment[] }[]
   /** Every stream in the order drawn, so a lane no event has joined yet is drawn. */
   streams?: string[]
   /** Actors in no slice, and every External System, so each has a lane. */
@@ -198,7 +209,11 @@ function placeOf(decl: DeclData, streamOf: (d: DeclData) => string | undefined) 
   return stream === undefined ? {} : { aggregate: stream }
 }
 
-/** A declaration as a spec element, with only the note and place it carries everywhere. */
+/** Notes as the spec's comments, each with its kind. */
+const commented = (notes: Note[] | undefined) =>
+  notes && { comments: notes.map(({ text, kind }): Comment => ({ description: text, kind })) }
+
+/** A declaration as a spec element, with only the notes and place it carries everywhere. */
 function looseElement(
   decl: DeclData,
   streamOf: (d: DeclData) => string | undefined,
@@ -211,7 +226,7 @@ function looseElement(
     fields: fieldsOf(decl.fields, decl.list),
     ...(decl.keys.length > 0 && { key: decl.keys }),
     dependencies: [],
-    ...(decl.note !== undefined && { description: decl.note }),
+    ...commented(decl.notes),
     ...(decl.kind === "event" && placeOf(decl, streamOf)),
   }
 }
@@ -248,7 +263,7 @@ export function toFeed({
           : sliceOf(c, index, chapterOf.get(c), streamOf),
       ),
     },
-    chapters: chapters.map(({ name, note }) => ({ name, ...(note !== undefined && { note }) })),
+    chapters: chapters.map(({ name, notes }) => ({ name, ...commented(notes) })),
     streams: [...streams.keys()].sort((a, b) => first(a) - first(b)),
     actors: [...looseActors, ...systems],
     ...kinds(messages),
@@ -360,7 +375,7 @@ function sliceOf(
           type: "SCREEN",
           fields: command ? fieldsOf(command.decl.fields) : fieldsOf(slice.context ?? {}),
           dependencies: [],
-          ...(slice.screen?.note !== undefined && { description: slice.screen.note }),
+          ...commented(slice.screen?.notes),
         }
       : undefined
 
@@ -396,9 +411,7 @@ function sliceOf(
     tables: [],
     specifications: slice.tests.map((t, i) => specification(t, `${id}:spec:${i}`, name, id, asked)),
     ...(steps.length > 0 && { mappings: Object.fromEntries(steps) }),
-    ...(slice.note !== undefined && {
-      storylines: [{ id: `${id}:note`, title: slice.note, elements: [] }],
-    }),
+    ...commented(slice.notes),
     ...(actors.length > 0 && { actors: actors.map(actorOf) }),
     ...(stored.length > 0 && { aggregates: stored }),
   }

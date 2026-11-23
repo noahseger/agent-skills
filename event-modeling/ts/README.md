@@ -43,7 +43,16 @@ and a stream after what we keep track of (`Connections`), never after the system
 event `ListCreated`, and everything else names it as `d.ListCreated`: a slice's steps, its examples,
 the lane an event joins. You export and import nothing, and a use may come before its declaration,
 in any file. [Names](#names) says how the editor knows them. Names are CamelCase, and the diagram
-shows them as words. Any declaration accepts `.note("...")`; a second adds to the first.
+shows them as words.
+
+**A note is a sticky everyone sees.** `.note(text, kind)` on a declaration sticks one on its card,
+and on a slice under its name: red for `"critical"`, amber for `"question"`, neutral for `"info"`,
+the default; a second stacks under the first.
+
+```ts
+m.command("DeleteItem", { listId: t.string(), itemId: t.string() })
+  .note("No userId: anyone can delete any item.", "critical")
+```
 
 **`t` builds fields.** Events, commands and views declare their fields the same way, from
 a closed set, so every field has a JSON Schema and a protobuf type; [Fields](#fields) lists them.
@@ -730,7 +739,8 @@ Naming is yours: nothing checks the conventions above.
 
 `em json` prints the model as JSON that validates against `schema/eventmodeling.schema.json`, the
 [event-modeling-spec](https://github.com/dilgerma/event-modeling-spec)'s schema with its own
-`fields`, `key` and `mappings`. `test/todo-app.json` is the todo example's.
+`fields`, `key` and `mappings`, and `comments`, each with a `kind`, on elements and slices.
+`test/todo-app.json` is the todo example's.
 
 | Ours | The JSON's |
 |---|---|
@@ -747,7 +757,7 @@ Naming is yours: nothing checks the conventions above.
 | `.key()` | the element's `key` |
 | a list view | its `fields` are an array's JSON Schema, with the row's fields as its `items` |
 | a mapping | the slice's `mappings`, by the element of the step it is on, then by field: the source field's name, `= ` and a JSON value, or `generate(<inputs>)`. A field from a queried row, by name too, is `View(filter columns).column`, as `CartsWithProducts(productId).aggregateId`; of a view queried twice, the row before the step. A state view's are on its events, and set the view's columns |
-| a note | an element's `description` |
+| a note | a `comments` entry on its element, or on its slice: `description` is the text, `kind` is `critical`, `question` or `info`. The viewer reads another tool's element `description`, and a comment with no `kind`, as info |
 | a specification | a `Specification`: `given`, `when` and `then` steps, each an example in `examples`. A `reject` is a `SPEC_ERROR` step titled with the reason. A string in `then` is a `SPEC_DESCRIPTION` step titled with it. A state view's context values are a `SPEC_COMMAND` step titled with its screen, the one a reader asks from, as an actor sends a command from one |
 
 The schema allows no property it does not name. The JSON says the rest with properties the
@@ -760,7 +770,6 @@ schema has, as follows; a model you write by hand can do the same, and the viewe
 | what an event of ours keeps from the external event a call gets back | the external event pointing at it |
 | outcomes that are alternatives | no field: a command's outbound events are what it can record, and each specification's `then` says which it did |
 | what a slice queries | the view pointing at the command; one pointing at the processor is the view the automation polls |
-| a slice's note | a `storylines` entry titled with it, with no elements |
 
 The top level holds only `slices`, so the rest travels beside the JSON, only to the viewer: the
 model's name and description; the chapters, with their notes, and the streams, in the order

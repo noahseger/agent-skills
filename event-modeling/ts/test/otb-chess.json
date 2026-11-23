@@ -294,11 +294,10 @@
           "ply": "= 0"
         }
       },
-      "storylines": [
+      "comments": [
         {
-          "id": "receive-pairing:note",
-          "title": "The pairing is translated, never stored. The starting position is ours to supply.",
-          "elements": []
+          "description": "The pairing is translated, never stored. The starting position is ours to supply.",
+          "kind": "info"
         }
       ],
       "aggregates": [
@@ -1886,11 +1885,10 @@
           "linkedId": "game-state"
         }
       ],
-      "storylines": [
+      "comments": [
         {
-          "id": "game-state:note",
-          "title": "The live position, as the broadcast shows it.",
-          "elements": []
+          "description": "The live position, as the broadcast shows it.",
+          "kind": "info"
         }
       ],
       "actors": [
@@ -2202,11 +2200,10 @@
           "runningSide": "runningSide"
         }
       },
-      "storylines": [
+      "comments": [
         {
-          "id": "press-clock:note",
-          "title": "FIDE 6.2.1: pressing banks the increment and starts the opponent's clock.",
-          "elements": []
+          "description": "FIDE 6.2.1: pressing banks the increment and starts the opponent's clock.",
+          "kind": "info"
         }
       ],
       "actors": [
@@ -2858,11 +2855,10 @@
           "status": "= \"struck\""
         }
       },
-      "storylines": [
+      "comments": [
         {
-          "id": "move-list:note",
-          "title": "The moves so far, as the broadcast shows them.",
-          "elements": []
+          "description": "The moves so far, as the broadcast shows them.",
+          "kind": "info"
         }
       ],
       "actors": [
@@ -3520,11 +3516,10 @@
           "status": "= \"accepted\""
         }
       },
-      "storylines": [
+      "comments": [
         {
-          "id": "pending-draw-offer:note",
-          "title": "A move by the opponent declines the offer. FIDE 9.1.2.3.",
-          "elements": []
+          "description": "A move by the opponent declines the offer. FIDE 9.1.2.3.",
+          "kind": "info"
         }
       ]
     },
@@ -4741,11 +4736,10 @@
           "illegalMoveCount": "illegalMoveCount"
         }
       },
-      "storylines": [
+      "comments": [
         {
-          "id": "rule-illegal-move:note",
-          "title": "FIDE 7.5.1: the position before the illegal move is reinstated. 7.5.5: the first one adds two minutes to the opponent, the second one loses the game.",
-          "elements": []
+          "description": "FIDE 7.5.1: the position before the illegal move is reinstated. 7.5.5: the first one adds two minutes to the opponent, the second one loses the game.",
+          "kind": "info"
         }
       ],
       "actors": [
@@ -5793,11 +5787,10 @@
           "termination": "termination"
         }
       },
-      "storylines": [
+      "comments": [
         {
-          "id": "outcome-adjudicator:note",
-          "title": "The move that ended the game says how. This turns that into a result.",
-          "elements": []
+          "description": "The move that ended the game says how. This turns that into a result.",
+          "kind": "info"
         }
       ],
       "aggregates": [
@@ -6676,11 +6669,10 @@
           "linkedId": "game-result"
         }
       ],
-      "storylines": [
+      "comments": [
         {
-          "id": "game-result:note",
-          "title": "Five ways a game ends. Each one carries the result and how it came about.",
-          "elements": []
+          "description": "Five ways a game ends. Each one carries the result and how it came about.",
+          "kind": "info"
         }
       ]
     },
@@ -7333,11 +7325,10 @@
           "linkedId": "game-record"
         }
       ],
-      "storylines": [
+      "comments": [
         {
-          "id": "game-record:note",
-          "title": "The finished games of a round.",
-          "elements": []
+          "description": "The finished games of a round.",
+          "kind": "info"
         }
       ],
       "actors": [

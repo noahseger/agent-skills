@@ -80,7 +80,12 @@
               "elementType": "COMMAND"
             }
           ],
-          "description": "Names are unique per user.",
+          "comments": [
+            {
+              "description": "Names are unique per user.",
+              "kind": "info"
+            }
+          ],
           "aggregate": "Lists"
         }
       ],
@@ -1030,7 +1035,12 @@
               "elementType": "READMODEL"
             }
           ],
-          "description": "Names are unique per user.",
+          "comments": [
+            {
+              "description": "Names are unique per user.",
+              "kind": "info"
+            }
+          ],
           "aggregate": "Lists"
         },
         {

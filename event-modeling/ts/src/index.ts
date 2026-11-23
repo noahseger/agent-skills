@@ -18,6 +18,8 @@ import {
   type MapFn,
   META,
   type ModelData,
+  type Note,
+  type NoteKind,
   REGISTRY,
   resolve,
   type Fields as Schemas,
@@ -156,9 +158,10 @@ export interface Chapter {
 // biome-ignore lint/suspicious/noEmptyInterface: em types writes the members
 export interface Registry {}
 
-/** What a declaration takes after it is declared. A second `.note()` adds to the first. */
+/** What a declaration takes after it is declared. A second `.note()` adds another. */
 export interface Noted {
-  note(text: string): this
+  /** A note drawn as a sticky on its card: `kind` is "question", "critical" or, by default, "info". */
+  note(text: string, kind?: NoteKind): this
 }
 
 export interface EventNoted extends Noted {
@@ -168,9 +171,9 @@ export interface EventNoted extends Noted {
   external(system: External): this
 }
 
-/** A second `.note()` adds to the first, on a line of its own. */
-function noted(note: string | undefined, text: string): string {
-  return note === undefined ? text : `${note}\n${text}`
+/** A second `.note()` adds another, after the first. */
+function noted(notes: Note[] | undefined, text: string, kind: NoteKind = "info"): Note[] {
+  return [...(notes ?? []), { text, kind }]
 }
 
 /** The first frame outside this file: the model's call. */
@@ -220,11 +223,11 @@ export const d = new Proxy({} as Registry, {
   get: (_, name) => (typeof name === "string" ? handle(name) : undefined),
 })
 
-/** What declaring `data` returns: `.note()` adds to its note. */
-function noting(data: { note?: string }): Noted {
+/** What declaring `data` returns: `.note()` adds to its notes. */
+function noting(data: { notes?: Note[] }): Noted {
   return {
-    note(text) {
-      data.note = noted(data.note, text)
+    note(text, kind) {
+      data.notes = noted(data.notes, text, kind)
       return this
     },
   }
@@ -650,7 +653,8 @@ type OneRow<N> =
 export interface Slice {
   /** The chapter it is drawn in; without one, it is drawn after the chapters, with no heading. */
   chapter(chapter: Chapter): this
-  note(text: string): this
+  /** A note drawn as a sticky under the slice's name: `kind` is "question", "critical" or, by default, "info". */
+  note(text: string, kind?: NoteKind): this
 }
 
 /** A slice that issues a command: an actor's, or an automation's. */
@@ -993,7 +997,7 @@ function chain(data: SliceData, context: Context, scope: InScope) {
           : testData(name, spec, view)
       return next({ tests: [...data.tests, test] })
     },
-    note: (text: string) => next({ note: noted(data.note, text) }),
+    note: (text: string, kind?: NoteKind) => next({ notes: noted(data.notes, text, kind) }),
     chapter: (chapter: unknown) =>
       next({ chapters: [...data.chapters, resolve(chapter, "m.chapter") as ChapterData] }),
   }

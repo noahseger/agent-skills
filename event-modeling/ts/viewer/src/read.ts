@@ -2,6 +2,7 @@
 // another tool, carries only what the spec has: then lanes, chapters and actors come from the
 // slices in order. Pure, so it is tested without a browser.
 import type {
+  Comment,
   Feed,
   JsonSchema,
   SpecActor,
@@ -9,7 +10,7 @@ import type {
   SpecSlice,
   SpecStep,
 } from "../../src/spec.ts"
-import { type Message, type Source, slug } from "../../src/types.ts"
+import { type Message, type Note, type Source, slug } from "../../src/types.ts"
 import type { Board, BoardActor, BoardField, BoardSlice, BoardTest, Loose } from "./board.ts"
 
 const SYSTEM: BoardActor = { id: "system", name: "System", type: "system" }
@@ -130,6 +131,13 @@ function parts(s: SpecSlice) {
 
 const isObject = (x: unknown): x is object => typeof x === "object" && x !== null
 
+/** Comments as notes; one with no kind, or a kind we don't know, is info. */
+const said = (comments: unknown): Note[] =>
+  list<Comment>(comments).map((c) => ({
+    text: String(c.description),
+    kind: c.kind === "question" || c.kind === "critical" ? c.kind : "info",
+  }))
+
 /** The objects in what should be a list of them; anything else in a file that breaks the schema is skipped. */
 function list<T>(written: unknown): T[] {
   return Array.isArray(written) ? written.filter((x): x is T => isObject(x)) : []
@@ -195,11 +203,14 @@ export function read(written: Feed): Board {
   const system = (name: string) => add({ id: slug(name), name, type: "external" })
   const person = (a: SpecActor) => add({ id: slug(a.name), name: a.name, type: actorType(a) })
 
-  const notes: Record<string, string> = {}
-  for (const c of feed.chapters ?? []) if (c.note !== undefined) notes[c.name] = c.note
+  const notes: Record<string, Note[]> = {}
+  for (const c of feed.chapters ?? []) if (c.comments) notes[c.name] = said(c.comments)
   const fields: Record<string, BoardField[]> = {}
   const noted = (el: SpecElement) => {
-    if (el.description !== undefined) notes[el.title] = el.description
+    const described: Note[] =
+      el.description === undefined ? [] : [{ text: el.description, kind: "info" }]
+    const own = [...described, ...said(el.comments)]
+    if (own.length > 0) notes[el.title] = own
     if (names(el).length > 0) fields[el.title] = fieldsOf(row(el))
   }
 
@@ -263,8 +274,8 @@ export function read(written: Feed): Board {
     if (shows.length > 0) out.read_models = shows.map(element)
     if (shows.length > 0 && screen && names(screen).length > 0) out.context = names(screen)
     if (polled) out.polls = polled.title
-    const note = s.storylines?.[0]?.title
-    if (note !== undefined) out.note = note
+    const own = said(s.comments)
+    if (own.length > 0) out.notes = own
 
     const mapping = Object.entries(isObject(s.mappings) ? s.mappings : {}).map(
       ([step, fields]): [string, Record<string, Source>] => [

@@ -127,7 +127,7 @@ The file is `{ "slices": [...] }`, and `ts/schema/eventmodeling.schema.json` val
 - **Key columns**: the element's `"key": ["sku"]`. A view with none has one row. A list view, where each event adds a row, has `fields` of `"type": "array"`, with the row's fields as its `items`.
 - **Mapping**: the slice's `mappings`, by element, then field: a renamed source's name; `= 0`, a constant; `generate()`, a value the handler assigns, such as an id or a clock.
 - **Specifications**: `given`, `when` and `then` steps, each with one example in `examples`. A refusal is a `SPEC_ERROR` step titled with the reason; an outcome `then` describes in words, a `SPEC_DESCRIPTION` step titled with it. A state view's `when` is a `SPEC_COMMAND` step titled with its screen, holding its context's values; its `then`, `SPEC_READMODEL` rows.
-- **Notes**: an element's `description`.
+- **Notes**: the element's or the slice's `comments`, each a `description` and a `kind`: `critical`, `question` or `info`. The viewer draws each as a sticky: red, amber or neutral.
 
 ```json
 {

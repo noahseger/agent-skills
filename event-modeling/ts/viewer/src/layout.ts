@@ -1,7 +1,14 @@
 // Lays out the eventmodeling.org canvas from the board `read.ts` makes. Pure, so it
 // is tested without a browser.
 
-import { inputNames, type Message, type Source, words } from "../../src/types.ts"
+import {
+  inputNames,
+  type Message,
+  type Note,
+  type NoteKind,
+  type Source,
+  words,
+} from "../../src/types.ts"
 import type { Board, BoardSlice } from "./board.ts"
 
 /** Where a mapped field got its value, as the detail panes show it. */
@@ -44,8 +51,8 @@ export interface Box {
   compact?: boolean
   /** The first appearance of this element, when this card is a later one. */
   canonical?: string
-  /** The element carries a note. */
-  noted?: boolean
+  /** The element's notes, at the foot of its first card, `y` from the card's top. */
+  notes?: Sticky[]
   /** The strongest message about the element in its slice. */
   mark?: Mark
   /** A screen's wireframe: the inputs it collects, the button it presses, the table it shows. */
@@ -91,6 +98,8 @@ export interface Column {
   /** `label` as words, for the picture. */
   title: string
   noted: boolean
+  /** The slice's notes, under its name. */
+  notes?: Sticky[]
   /** The slice's messages: its own, or, for a declaration in no slice, those about it. */
   messages: Message[]
   mark?: Mark
@@ -102,9 +111,19 @@ export interface Chapter {
   name: string
   /** `name` as words, for the picture. */
   title: string
+  /** Its notes' text, one per line. */
   note?: string
   x: number
   w: number
+}
+
+/** A note drawn on the canvas: its text cut to a few lines that fit. */
+export interface Sticky {
+  kind: NoteKind
+  text: string
+  lines: string[]
+  y: number
+  h: number
 }
 
 export interface SpecCard {
@@ -165,6 +184,11 @@ export const TABLE_H = 52
 export const TABLE_CHAR = 5.2
 export const TABLE_PAD = 12
 export const TABLE_MORE_W = 26
+export const STICKY_CHARS = 28
+export const STICKY_LINES = 3
+export const STICKY_LINE = 12
+export const STICKY_PAD = 6
+export const STICKY_GAP = 6
 
 const PAD_X = (COL_W - CARD_W) / 2
 
@@ -263,6 +287,27 @@ export function wrap(text: string, max: number, indent = 0): string[] {
   }
   flush()
   return lines
+}
+
+/** Notes stacked from `top`, each cut to `STICKY_LINES` lines; the detail shows the whole text. */
+export function stickies(notes: readonly Note[], top: number): Sticky[] {
+  let y = top
+  return notes.map(({ text, kind }) => {
+    const all = wrap(text, STICKY_CHARS)
+    const lines =
+      all.length > STICKY_LINES
+        ? [...all.slice(0, STICKY_LINES - 1), `${all[STICKY_LINES - 1]}…`]
+        : all
+    const sticky = { kind, text, lines, y, h: lines.length * STICKY_LINE + 2 * STICKY_PAD }
+    y += sticky.h + STICKY_GAP
+    return sticky
+  })
+}
+
+/** Where the last of the stickies ends, or `top` with none. */
+const below = (notes: Sticky[], top: number) => {
+  const last = notes.at(-1)
+  return last ? last.y + last.h : top
 }
 
 /** As many columns as fit the width, left to right, leaving room for a `+n`. */
@@ -396,7 +441,7 @@ export function layout(model: Board): Layout {
         slice,
         label: labelOf(slice),
         title: words(labelOf(slice)),
-        noted: slice.note !== undefined,
+        noted: slice.notes !== undefined,
         ...marked(messages.filter((m) => m.slice === slice.id)),
         x,
         w,
@@ -405,7 +450,7 @@ export function layout(model: Board): Layout {
     }
     if (chapter.slices.length === 0) x += COL_W
     // Assembly leaves the slices in no chapter in a nameless one, last, which has no heading.
-    const note = model.notes[chapter.name]
+    const note = model.notes[chapter.name]?.map((n) => n.text).join("\n")
     chapters.push({
       name: chapter.name,
       title: words(chapter.name),
@@ -467,6 +512,8 @@ export function layout(model: Board): Layout {
       button?: string
       table?: string[]
       tableRows?: 1
+      /** A screen's notes: its name may be its method's, which a command shares. */
+      notes?: Note[]
     } = {},
   ): Placed => {
     const key = `${kind === "external" ? "event" : kind}:${el.name}`
@@ -493,7 +540,6 @@ export function layout(model: Board): Layout {
           }),
       ...(extra.compact || earlier ? { compact: true } : {}),
       ...(earlier ? { canonical: earlier.id } : {}),
-      ...(model.notes[el.name] === undefined ? {} : { noted: true }),
       ...(mark && { mark }),
       column,
       dx: extra.reference ? colW - 10 - REF_W : (colW - CARD_W) / 2,
@@ -501,6 +547,17 @@ export function layout(model: Board): Layout {
       h: 0,
     }
     box.h = cardHeight(box)
+    // An element's notes go on its first card; a gear is the slice's, not an element.
+    const own =
+      box.compact || kind === "automation"
+        ? undefined
+        : kind === "ui"
+          ? extra.notes
+          : model.notes[el.name]
+    if (own) {
+      box.notes = stickies(own, box.h)
+      box.h = below(box.notes, box.h) + STICKY_PAD
+    }
     if (!extra.reference && kind !== "ui" && !first.has(key)) first.set(key, box)
     return box
   }
@@ -564,6 +621,7 @@ export function layout(model: Board): Layout {
             ...(s.command ? { button: parse(s.command).name } : {}),
             ...(view === undefined ? {} : { table: view.fields }),
             ...(one && { tableRows: 1 as const }),
+            ...(s.screen && model.notes[s.screen] && { notes: model.notes[s.screen] }),
           },
         )
         uis.push(ui)
@@ -697,6 +755,13 @@ export function layout(model: Board): Layout {
 
   let y = HEADER_H + NAME_H
   const nameY = HEADER_H
+  // A slice's notes hang under its name, above the lanes.
+  const top = y
+  for (const col of columns) {
+    if (!col.slice.notes) continue
+    col.notes = stickies(col.slice.notes, top + STICKY_GAP)
+    y = Math.max(y, below(col.notes, top) + STICKY_GAP)
+  }
   const actors = new Map(model.actors.map((a) => [a.id, a]))
   // Every actor gets a lane, used or not; an outside system's goes beneath our streams.
   const ids = [...model.actors.map((a) => a.id), ...actorIds.filter((id) => !actors.has(id))]

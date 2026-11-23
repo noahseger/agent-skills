@@ -1845,7 +1845,7 @@ test("chapters come in the order of their numbers, each with its slices in the o
       ["Second", ["Table", "Create"]],
     ],
   )
-  assert.equal(json.notes.First, "Where it starts.")
+  assert.deepEqual(json.notes.First, [{ text: "Where it starts.", kind: "info" }])
   assert.equal(layout(json).chapters[0]?.note, "Where it starts.")
 })
 
@@ -1908,20 +1908,32 @@ test("a chapter with no number comes after the numbered ones, in the order decla
   )
 })
 
-test("a second .note() adds to the first, on a slice and on a declaration", () => {
+test("a second .note() adds another, each with its kind, info by default, on a slice and on a declaration", () => {
   fixture("Created")
   m.event("Created", { id: t.string(), name: t.string() })
     .note("Recorded once.")
-    .note("Never edited.")
-  const noted = create().note("The first note.").note("The second note.")
+    .note("Never edited?", "question")
+  const noted = create().note("Slow.", "critical").note("Cached.")
   chapters({ Ch: [noted, view()] })
   const feed = feedOf([{ default: m.model("x") }])
-  assert.deepEqual(feed.model.slices[0]?.storylines, [
-    { id: "create:note", title: "The first note.\nThe second note.", elements: [] },
+  const [slice] = feed.model.slices
+  assert.deepEqual(slice?.comments, [
+    { description: "Slow.", kind: "critical" },
+    { description: "Cached.", kind: "info" },
+  ])
+  assert.deepEqual(slice?.events[0]?.comments, [
+    { description: "Recorded once.", kind: "info" },
+    { description: "Never edited?", kind: "question" },
   ])
   const json = drawn(feed)
-  assert.equal(json.chapters[0]?.slices[0]?.note, "The first note.\nThe second note.")
-  assert.equal(json.notes.Created, "Recorded once.\nNever edited.")
+  assert.deepEqual(json.chapters[0]?.slices[0]?.notes, [
+    { text: "Slow.", kind: "critical" },
+    { text: "Cached.", kind: "info" },
+  ])
+  assert.deepEqual(json.notes.Created, [
+    { text: "Recorded once.", kind: "info" },
+    { text: "Never edited?", kind: "question" },
+  ])
 })
 
 test("a chapter no slice joins is drawn empty, as a warning", () => {

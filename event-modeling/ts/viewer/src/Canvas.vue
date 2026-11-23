@@ -1,8 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue"
 import Card from "./Card.vue"
-import { ARROW_H, type Box, HEADER_H, type Layout, NAME_H, path, polyline } from "./layout.ts"
+import {
+  ARROW_H,
+  type Box,
+  CARD_W,
+  HEADER_H,
+  type Layout,
+  NAME_H,
+  path,
+  polyline,
+} from "./layout.ts"
 import Mark from "./Mark.vue"
+import Sticky from "./Sticky.vue"
 
 const props = defineProps<{
   layout: Layout
@@ -241,10 +251,13 @@ const transform = computed(
             <text text-anchor="middle" :x="col.x + col.w / 2" :y="layout.nameY + NAME_H / 2 + 4.5">
               {{ col.title }}
             </text>
-            <circle v-if="col.noted" class="note-dot" :cx="col.x + col.w - 16" :cy="layout.nameY + NAME_H / 2" r="3.5" />
             <Mark :mark="col.mark" :at="[col.x + 20, layout.nameY + NAME_H / 2]" />
           </g>
         </g>
+
+        <template v-for="col in layout.columns" :key="col.index">
+          <Sticky v-for="(note, i) in col.notes ?? []" :key="i" :sticky="note" :x="col.x + (col.w - CARD_W) / 2" :w="CARD_W" />
+        </template>
 
         <template v-for="(chapter, i) in layout.chapters" :key="chapter.name + chapter.x">
           <g v-if="chapter.title" class="chapter" @click.stop="firstSlice(i)">

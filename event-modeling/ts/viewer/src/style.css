@@ -30,6 +30,9 @@
   --danger-stroke: #ef4444;
   --danger-ink: #7f1d1d;
   --warn-mark: #64748b;
+  --question-fill: #fef3c7;
+  --question-stroke: #d97706;
+  --question-ink: #78350f;
 
   --ui-fill: #ffffff;
   --ui-stroke: #94a3b8;
@@ -350,10 +353,6 @@ body,
   background: var(--accent);
 }
 
-svg .note-dot {
-  fill: var(--accent);
-}
-
 /* Marks: an error is a red disc with "!", a warning a grey ring. Present hides them. */
 .mark-error,
 .mark-warning {
@@ -670,17 +669,41 @@ pre.error {
   stroke: var(--accent);
 }
 
-.card .note-badge circle {
-  fill: var(--accent);
-  stroke: #ffffff;
-  stroke-width: 1.5;
+/* A note is a sticky in its kind's colour: critical red, a question amber, info neutral. */
+.sticky {
+  filter: drop-shadow(0 1px 1px rgb(15 23 42 / 0.2));
 }
 
-.card .note-badge text {
-  font-size: 8px;
-  font-weight: 700;
-  fill: #ffffff;
+.sticky .paper { fill: var(--bg); stroke: var(--faint); }
+.sticky .fold { fill: var(--faint); }
+.sticky text { font-size: 9.5px; fill: var(--ink); }
+.sticky.critical .paper { fill: var(--danger-fill); stroke: var(--danger-stroke); }
+.sticky.critical .fold { fill: var(--danger-stroke); }
+.sticky.critical text { fill: var(--danger-ink); }
+.sticky.question .paper { fill: var(--question-fill); stroke: var(--question-stroke); }
+.sticky.question .fold { fill: var(--question-stroke); }
+.sticky.question text { fill: var(--question-ink); }
+
+.notes {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 14px;
+  padding: 0;
+  list-style: none;
 }
+
+.sticky-note {
+  padding: 8px 10px;
+  border: 1px solid var(--faint);
+  border-radius: 2px;
+  background: var(--bg);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.15);
+  line-height: 1.45;
+}
+
+.sticky-note .tag { margin-right: 6px; }
+.sticky-note.critical { background: var(--danger-fill); border-color: var(--danger-stroke); color: var(--danger-ink); }
+.sticky-note.question { background: var(--question-fill); border-color: var(--question-stroke); color: var(--question-ink); }
 
 .card.compact .title {
   font-weight: 500;
@@ -831,20 +854,6 @@ pre.error {
 
 .detail .message b {
   font-weight: 600;
-}
-
-.detail .note .badge {
-  display: inline-grid;
-  place-items: center;
-  width: 14px;
-  height: 14px;
-  margin-right: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #ffffff;
-  font-size: 9px;
-  font-weight: 700;
-  vertical-align: 1px;
 }
 
 .detail table {
@@ -1009,26 +1018,6 @@ pre.error {
 .facts h3 {
   margin: 20px 0 8px;
   color: var(--muted);
-}
-
-.facts .note {
-  margin: 0 0 14px;
-  white-space: pre-line;
-  line-height: 1.5;
-}
-
-.facts .note .badge {
-  display: inline-grid;
-  place-items: center;
-  width: 14px;
-  height: 14px;
-  margin-right: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #ffffff;
-  font-size: 9px;
-  font-weight: 700;
-  vertical-align: 1px;
 }
 
 .facts .ref {

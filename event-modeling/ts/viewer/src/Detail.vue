@@ -5,6 +5,7 @@ import type { Board, BoardField } from "./board.ts"
 import { type Box, type Column, KIND, type Layout, parse, type Spec, source } from "./layout.ts"
 import Messages from "./Messages.vue"
 import Name from "./Name.vue"
+import Notes from "./Notes.vue"
 import Specs from "./Specs.vue"
 
 const props = defineProps<{
@@ -19,14 +20,12 @@ defineEmits<{ close: []; open: []; goto: [column: number] }>()
 
 const slice = computed(() => props.column.slice)
 
-// A compact card is a reference; its fields are where the element is drawn in full.
-const fields = computed(() => {
+// A compact card is a reference; its fields and notes are where the element is drawn in full.
+const full = computed(() => {
   const box = props.box
-  if (!box) return { fields: [], keys: [] }
-  if (!box.compact) return { fields: box.fields, keys: box.keys }
-  const full = props.layout.boxes.find((b) => b.name === box.name && !b.compact)
-  return full ? { fields: full.fields, keys: full.keys } : { fields: [], keys: [] }
+  return box?.compact ? props.layout.boxes.find((b) => b.name === box.name && !b.compact) : box
 })
+const fields = computed(() => ({ fields: full.value?.fields ?? [], keys: full.value?.keys ?? [] }))
 
 // Each field with its type, then an object's own fields beneath it, indented.
 const rows = computed(() => {
@@ -41,7 +40,6 @@ const rows = computed(() => {
   })
 })
 
-const note = computed(() => (props.box ? props.model.notes[props.box.name] : undefined))
 const actor = computed(() =>
   (slice.value.actors ?? [slice.value.actor])
     .map((id) => props.model.actors.find((a) => a.id === id)?.name)
@@ -85,7 +83,7 @@ const groups = computed(() => {
       <button class="close" type="button" title="Close (Esc)" @click="$emit('close')">×</button>
     </header>
 
-    <p v-if="note" class="note"><span class="badge" aria-hidden="true">i</span>{{ note }}</p>
+    <Notes v-if="full?.notes" :notes="full.notes" />
     <Messages :messages="column.messages" :boxes="layout.boxes" />
 
     <template v-if="fields.fields.length">
@@ -114,7 +112,7 @@ const groups = computed(() => {
       <template v-if="slice.reads?.length"><dt>Reads</dt><dd><Name v-for="r in slice.reads" :key="r" :name="r" kind="readModel" /></dd></template>
       <template v-if="triggers.length"><dt>On</dt><dd><Name v-for="t in triggers" :key="t" :name="t" /></dd></template>
     </dl>
-    <p v-if="slice.note" class="note" style="margin-top: 10px"><span class="badge" aria-hidden="true">i</span>{{ slice.note }}</p>
+    <Notes v-if="slice.notes" :notes="slice.notes" />
 
     <template v-if="groups.length">
       <h3>Specifications</h3>

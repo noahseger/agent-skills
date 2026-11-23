@@ -145,7 +145,7 @@ test("a state change: a screen per slice, the endpoint on the command, events in
   ])
   const [screen] = place.screens
   assert.equal(screen?.title, "Till")
-  assert.equal(screen?.description, "By the door.")
+  assert.deepEqual(screen?.comments, [{ description: "By the door.", kind: "info" }])
   assert.deepEqual(Object.keys(screen?.fields.properties ?? {}), [
     "orderId",
     "item",
@@ -164,14 +164,14 @@ test("a state change: a screen per slice, the endpoint on the command, events in
     ],
   )
   assert.deepEqual(
-    place.events.map((e) => [e.title, e.aggregate, e.description]),
+    place.events.map((e) => [e.title, e.aggregate, e.comments]),
     [
-      ["OrderPlaced", "Orders", "One per order."],
+      ["OrderPlaced", "Orders", [{ description: "One per order.", kind: "info" }]],
       ["OrderRefused", "Orders", undefined],
     ],
   )
   assert.deepEqual(place.aggregates, ["Orders"])
-  assert.deepEqual(place.storylines?.[0]?.title, "The till takes the order.")
+  assert.deepEqual(place.comments, [{ description: "The till takes the order.", kind: "info" }])
 })
 
 test("an element's fields are Zod's JSON Schema, less what repeats a format, with its key", () => {
@@ -314,11 +314,13 @@ test("a specification has example values, and a rejection is a SPEC_ERROR", () =
 
 test("what the spec has no place for travels beside it, to the viewer", () => {
   assert.deepEqual([feed.name, feed.description], ["Shop", "A small shop."])
-  assert.deepEqual(feed.chapters, [{ name: "Sales", note: "Where money comes in." }])
+  assert.deepEqual(feed.chapters, [
+    { name: "Sales", comments: [{ description: "Where money comes in.", kind: "info" }] },
+  ])
   assert.deepEqual(feed.streams, ["Orders", "Payments"])
   assert.deepEqual(feed.actors, [{ name: "Bank", authRequired: false, tags: ["external"] }])
   const board = read(feed)
-  assert.equal(board.notes.Sales, "Where money comes in.")
+  assert.deepEqual(board.notes.Sales, [{ text: "Where money comes in.", kind: "info" }])
   assert.deepEqual(
     board.chapters.map((c) => [c.name, c.slices.map((s) => s.name)]),
     [
@@ -408,6 +410,10 @@ test("a model from elsewhere draws from the spec alone", () => {
               aggregate: "Cart",
               fields: { type: "object", properties: { id: { type: "string" } } },
               dependencies: [],
+              description: "Paid on delivery.",
+              comments: JSON.parse(
+                '[{"description":"Refunds?"},{"description":"Late.","kind":"urgent"}]',
+              ),
             },
           ],
           readmodels: [],
@@ -425,6 +431,15 @@ test("a model from elsewhere draws from the spec alone", () => {
     [slice?.actor, slice?.ui, slice?.screen, slice?.events],
     ["user", "Order", "Cart", ["Ordered(id)"]],
     "a screen nobody is said to see is a User's",
+  )
+  assert.deepEqual(
+    board.notes.Ordered,
+    [
+      { text: "Paid on delivery.", kind: "info" },
+      { text: "Refunds?", kind: "info" },
+      { text: "Late.", kind: "info" },
+    ],
+    "a description, and a comment of no kind or one we don't know, are info notes",
   )
 })
 

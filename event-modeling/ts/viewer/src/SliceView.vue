@@ -17,6 +17,7 @@ import {
 } from "./layout.ts"
 import Mark from "./Mark.vue"
 import Name from "./Name.vue"
+import Notes from "./Notes.vue"
 import Specs from "./Specs.vue"
 
 // One slice at full width, with room to read its specifications.
@@ -59,9 +60,9 @@ const local = computed(() => {
       (b) => b.name === name && b.kind === "readModel" && !b.compact,
     )
     if (!full || !consumer) continue
-    const { mark: _, ...unmarked } = full
+    const { mark: _, notes: __, ...bare } = full
     const ref: Box = {
-      ...unmarked,
+      ...bare,
       id: `read:${name}`,
       compact: true,
       canonical: full.id,
@@ -174,7 +175,7 @@ function cardClass(b: Box) {
 
       <div class="slice-right">
         <div class="facts">
-          <p v-if="slice.note" class="note"><span class="badge" aria-hidden="true">i</span>{{ slice.note }}</p>
+          <Notes v-if="slice.notes" :notes="slice.notes" />
           <dl>
             <template v-if="actor"><dt>Actor</dt><dd>{{ actor }}</dd></template>
             <template v-if="slice.ui"><dt>Service</dt><dd>{{ slice.ui }}</dd></template>

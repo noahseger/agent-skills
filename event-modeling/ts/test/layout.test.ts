@@ -14,11 +14,15 @@ import {
   grouped,
   LANE_PAD,
   layout,
+  NAME_H,
   nextError,
   parse,
   parseClause,
   path,
   polyline,
+  STICKY_GAP,
+  STICKY_LINES,
+  STICKY_PAD,
   source,
   wording,
   wrap,
@@ -310,10 +314,45 @@ test("a later appearance of an element is collapsed and points at the first", ()
   }
 })
 
-test("a note marks the card and the slice", () => {
-  const created = out.boxes.find((b) => b.name === "ListCreated")
-  assert.ok(created?.noted)
-  assert.ok(!out.boxes.find((b) => b.name === "ItemAdded")?.noted)
+test("an element's notes are stickies stacked at the foot of its first card, which grows to hold them", () => {
+  const copy: Board = JSON.parse(JSON.stringify(model))
+  copy.notes.ItemAdded = [
+    { text: "Titles are trimmed.", kind: "info" },
+    {
+      text: "What if two devices add the same item at once, both offline, and sync it later on?",
+      kind: "question",
+    },
+  ]
+  copy.notes.CreateList = [{ text: "Rate limited.", kind: "critical" }]
+  const drawn = layout(copy)
+  const [full, ...later] = drawn.boxes.filter((b) => b.name === "ItemAdded")
+  const plain = out.boxes.find((b) => b.id === full?.id)
+  const [info, question] = full?.notes ?? []
+  assert.ok(full && plain && info && question)
+  assert.deepEqual([info.kind, question.kind], ["info", "question"])
+  assert.equal(info.y, plain.h)
+  assert.equal(question.y, info.y + info.h + STICKY_GAP)
+  assert.equal(full.h, question.y + question.h + STICKY_PAD)
+  assert.equal(question.lines.length, STICKY_LINES)
+  assert.ok(question.lines.at(-1)?.endsWith("…"), "a long note is cut; the detail has it whole")
+  for (const b of later) assert.equal(b.notes, undefined)
+  const [ui, command] = drawn.boxes.filter((b) => b.name === "CreateList")
+  assert.deepEqual([ui?.kind, ui?.notes], ["ui", undefined], "a screen named by its method")
+  assert.equal(command?.notes?.[0]?.kind, "critical")
+})
+
+test("a slice's notes hang under its name, and the lanes move down to make room", () => {
+  const copy: Board = JSON.parse(JSON.stringify(model))
+  const slice = copy.chapters[0]?.slices[2]
+  assert.ok(slice)
+  slice.notes = [{ text: "Can a completed item be reopened?", kind: "question" }]
+  const drawn = layout(copy)
+  const [sticky] = drawn.columns[2]?.notes ?? []
+  assert.ok(sticky)
+  assert.equal(sticky.y, drawn.nameY + NAME_H + STICKY_GAP)
+  const strip = sticky.h + 2 * STICKY_GAP
+  assert.equal(drawn.rows[0]?.y, (out.rows[0]?.y ?? 0) + strip)
+  assert.equal(drawn.height, out.height + strip)
 })
 
 test("specifications are off the canvas, which ends at its last lane; each is its slice's, a card per clause with a line per field", () => {

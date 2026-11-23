@@ -1,5 +1,5 @@
 {
-  "$comment": "Diverged from https://github.com/dilgerma/event-modeling-spec/blob/724059e9bc9bec09d72c15991d1ca205c7b7966c/eventmodeling.schema.json: fields are one object's JSON Schema, not a Field list; an element names its key; a slice's mappings say where each field a step sets comes from.",
+  "$comment": "Diverged from https://github.com/dilgerma/event-modeling-spec/blob/724059e9bc9bec09d72c15991d1ca205c7b7966c/eventmodeling.schema.json: fields are one object's JSON Schema, not a Field list; an element names its key; a slice's mappings say where each field a step sets comes from; an element and a slice carry their notes as comments, each with its kind.",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
@@ -81,6 +81,10 @@
           "type": "array",
           "items": { "$ref": "#/$defs/Storyline" }
         },
+        "comments": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Comment" }
+        },
         "actors": {
           "type": "array",
           "items": { "$ref": "#/$defs/Actor" }
@@ -123,6 +127,10 @@
           "enum": ["COMMAND", "EVENT", "READMODEL", "SCREEN", "AUTOMATION"]
         },
         "description": { "type": "string" },
+        "comments": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Comment" }
+        },
         "aggregate": { "type": "string" },
         "aggregateDependencies": {
           "type": "array",
@@ -220,7 +228,10 @@
 
     "Comment": {
       "type": "object",
-      "properties": { "description": { "type": "string" } },
+      "properties": {
+        "description": { "type": "string" },
+        "kind": { "type": "string", "enum": ["question", "critical", "info"] }
+      },
       "required": ["description"],
       "additionalProperties": false
     },

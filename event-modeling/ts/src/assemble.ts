@@ -260,6 +260,7 @@ function drawnElsewhere(first: SliceData, later: SliceData): Message[] {
   const method = (s: SliceData) => s.service && `${s.service.service.name}/${s.service.method}`
   const context = (s: SliceData) => (s.context ? Object.keys(s.context).join(", ") : undefined)
   const quoted = (text: string | undefined) => (text === undefined ? undefined : show(text))
+  const notes = (s: SliceData) => s.notes?.map((n) => show(n.text)).join(" and ")
   const differs: [string | undefined, string | undefined, string, string][] = [
     [chapter(later), chapter(first), "chapter", "chapter"],
     [quoted(later.name), quoted(first.name ?? rm), "name", "the name"],
@@ -267,7 +268,7 @@ function drawnElsewhere(first: SliceData, later: SliceData): Message[] {
     [later.screen?.name, first.screen?.name, "screen", "screen"],
     [method(later), method(first), "method", "method"],
     [context(later), context(first), "context", "context"],
-    [quoted(later.note), quoted(first.note), "note", "the note"],
+    [notes(later), notes(first), "note", "the note"],
   ]
   return differs.flatMap(([said, kept, what, says]) =>
     said === undefined || said === kept
@@ -418,7 +419,7 @@ function nameDeclarations(
   const chapters: Assembled["chapters"] = []
   const numbered = new Map<number, string>()
   const place = ({ number }: ChapterData) => number ?? Number.POSITIVE_INFINITY
-  for (const { name = "", note, number } of headings.sort(
+  for (const { name = "", notes, number } of headings.sort(
     (a, b) => place(a) - place(b) || a.order - b.order,
   )) {
     if (number !== undefined) {
@@ -433,7 +434,7 @@ function nameDeclarations(
         )
       numbered.set(number, name)
     }
-    chapters.push({ name, ...(note !== undefined && { note }), slices: [] })
+    chapters.push({ name, ...(notes !== undefined && { notes }), slices: [] })
   }
   return { model, streams, chapters, externals, declared }
 }
