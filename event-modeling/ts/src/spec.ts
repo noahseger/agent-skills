@@ -19,6 +19,7 @@ import {
   slug,
   type TestData,
   taken,
+  unique,
 } from "./types.ts"
 
 // --- The spec's types, as much as is written or read ---------------------------
@@ -234,12 +235,17 @@ export function toFeed({
   const first = (lane: string) => (used.includes(lane) ? used.indexOf(lane) : used.length)
   const looseActors = loose.flatMap((d) => (d.kind === "actor" ? [actorOf(d)] : []))
   const systems = externals.map((name) => ({ name, authRequired: false, tags: ["external"] }))
+  // A column of its own takes an id no slice has.
+  const ids = new Set(story.flatMap((c) => ("kind" in c ? [] : [c.id ?? ""])))
+  const idOf = (d: DeclData) => unique(slug(d.name ?? ""), ids)
   return {
     name: model.name,
     ...(model.description !== "" && { description: model.description }),
     model: {
       slices: story.map((c, index) =>
-        "kind" in c ? alone(c, index, streamOf) : sliceOf(c, index, chapterOf.get(c), streamOf),
+        "kind" in c
+          ? alone(c, index, idOf(c), streamOf)
+          : sliceOf(c, index, chapterOf.get(c), streamOf),
       ),
     },
     chapters: chapters.map(({ name, note }) => ({ name, ...(note !== undefined && { note }) })),
@@ -253,11 +259,11 @@ export function toFeed({
 function alone(
   decl: DeclData,
   index: number,
+  id: string,
   streamOf: (d: DeclData) => string | undefined,
 ): SpecSlice {
   const name = decl.name ?? ""
-  const id = slug(name)
-  const el = looseElement(decl, streamOf, `${id}:${TYPE[decl.kind].toLowerCase()}:${id}`)
+  const el = looseElement(decl, streamOf, `${id}:${TYPE[decl.kind].toLowerCase()}:${slug(name)}`)
   return {
     id,
     index,
@@ -287,7 +293,7 @@ function sliceOf(
   streamOf: (d: DeclData) => string | undefined,
 ): SpecSlice {
   const name = slice.name ?? ""
-  const id = slug(name)
+  const id = slice.id ?? ""
   const idOf = (type: ElementType, title: string) => `${id}:${type.toLowerCase()}:${slug(title)}`
   const ref = (el: SpecElement, type: Dependency["type"]): Dependency => ({
     id: el.id,

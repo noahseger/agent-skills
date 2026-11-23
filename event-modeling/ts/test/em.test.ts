@@ -463,13 +463,13 @@ export default m.model("Chess")
           "index.ts:10  GameStarted.white: no source. Add white to a step before .event(), or set it in the mapping.",
           "Game Started: white has no source",
           "GameStarted",
-          "StartGame",
+          "start-game",
         ],
         [
           "index.ts:11  Started.white: no source. Add white to a step before .event(), or set it in the mapping.",
           "Started: white has no source",
           "Started",
-          "Begin",
+          "begin",
         ],
       ],
     )

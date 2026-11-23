@@ -198,6 +198,7 @@ export interface Message {
   /** The viewer's wording: the element's name as words, then the problem, with no code. */
   ui?: string
   element: string
+  /** The id of the slice it is about. */
   slice?: string
   /** The fields of `element` that have no value, when that is the problem. */
   fields?: string[]
@@ -270,6 +271,8 @@ export interface TestData {
 export interface SliceData {
   /** Given to `m.slice()`, or derived from the command or view at assembly. */
   name?: string
+  /** What the JSON and a message about the slice name it by: no other slice has it. Set at assembly. */
+  id?: string
   note?: string
   /** Who issues the command or sees the view; each has a screen. */
   actors: ActorData[]
@@ -371,6 +374,14 @@ export function slug(name: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
+}
+
+/** `base`, or else the first of `base-2`, `base-3`… not taken; which is then taken. */
+export function unique(base: string, taken: Set<string>): string {
+  let id = base
+  for (let n = 2; taken.has(id); n++) id = `${base}-${n}`
+  taken.add(id)
+  return id
 }
 
 /** The declaration a mapped field came from: the one its mapping read, or the one that carries it by name. */

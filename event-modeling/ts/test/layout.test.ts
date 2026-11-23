@@ -536,7 +536,7 @@ test("a loose declaration is a column after the story, with no heading, its card
         kind: "warning",
         message: "ListCreated (CreateList): unused.",
         element: "ListCreated",
-        slice: "CreateList",
+        slice: "create-list",
       },
     ],
   })
@@ -581,9 +581,9 @@ test("the strongest message marks its slice, and its card in that slice only; on
   const marked = layout({
     ...model,
     messages: [
-      said("error", "ItemCompleted", "CompleteItem"),
-      said("warning", "ListScreen", "CompleteItem"),
-      said("warning", "ListDeleted", "DeleteList"),
+      said("error", "ItemCompleted", "complete-item"),
+      said("warning", "ListScreen", "complete-item"),
+      said("warning", "ListDeleted", "delete-list"),
       said("warning", "Lists"),
     ],
   })
@@ -605,15 +605,15 @@ test("the strongest message marks its slice, and its card in that slice only; on
 })
 
 test("a slice's messages group under their element with its kind, errors first", () => {
-  const screen = said("warning", "ListScreen", "CompleteItem")
-  const unsourced = said("error", "ItemCompleted", "CompleteItem")
-  const unspecified = said("warning", "ItemCompleted", "CompleteItem")
+  const screen = said("warning", "ListScreen", "complete-item")
+  const unsourced = said("error", "ItemCompleted", "complete-item")
+  const unspecified = said("warning", "ItemCompleted", "complete-item")
   assert.deepEqual(grouped([screen, unspecified, unsourced], out.boxes), [
     { element: "ItemCompleted", kind: "event", messages: [unsourced, unspecified] },
     { element: "ListScreen", kind: "ui", messages: [screen] },
   ])
   // An automation is named after its slice; a command of that name is what is meant.
-  assert.equal(grouped([said("error", "AddItem", "AddItem")], out.boxes)[0]?.kind, "command")
+  assert.equal(grouped([said("error", "AddItem", "add-item")], out.boxes)[0]?.kind, "command")
   assert.deepEqual(grouped([said("warning", "Lists"), said("error", "")], out.boxes), [
     { element: "", messages: [said("error", "")] },
     { element: "Lists", messages: [said("warning", "Lists")] },
@@ -622,7 +622,7 @@ test("a slice's messages group under their element with its kind, errors first",
 
 test("a message reads without the name its group shows, its fields cut out", () => {
   const unsourced = {
-    ...said("error", "ItemCompleted", "CompleteItem", "Item Completed: userId has no source"),
+    ...said("error", "ItemCompleted", "complete-item", "Item Completed: userId has no source"),
     fields: ["userId"],
   }
   assert.deepEqual(wording(unsourced), [
@@ -630,7 +630,7 @@ test("a message reads without the name its group shows, its fields cut out", () 
     { text: " has no source" },
   ])
   assert.deepEqual(
-    wording(said("warning", "ListDeleted", "DeleteList", "List Deleted: missing specification")),
+    wording(said("warning", "ListDeleted", "delete-list", "List Deleted: missing specification")),
     [{ text: "missing specification" }],
   )
   assert.deepEqual(wording(said("error", "", undefined, "A slice is empty")), [
@@ -649,10 +649,10 @@ test("E visits the model's errors, then each slice with an error in order, and w
   const errors = layout({
     ...model,
     messages: [
-      said("error", "TodoList", "TodoList"),
-      said("error", "ItemCompleted", "CompleteItem"),
-      said("error", "ItemCompleted", "CompleteItem"),
-      said("warning", "ListDeleted", "DeleteList"),
+      said("error", "TodoList", "todo-list"),
+      said("error", "ItemCompleted", "complete-item"),
+      said("error", "ItemCompleted", "complete-item"),
+      said("warning", "ListDeleted", "delete-list"),
       said("error", ""),
     ],
   })

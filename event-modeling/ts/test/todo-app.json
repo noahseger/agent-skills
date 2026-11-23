@@ -2663,14 +2663,14 @@
       ]
     },
     {
-      "id": "add-item",
+      "id": "add-item-2",
       "index": 9,
       "title": "AddItem",
       "context": "Integrations",
       "sliceType": "TRANSLATION",
       "commands": [
         {
-          "id": "add-item:command:add-item",
+          "id": "add-item-2:command:add-item",
           "title": "AddItem",
           "type": "COMMAND",
           "fields": {
@@ -2698,13 +2698,13 @@
           },
           "dependencies": [
             {
-              "id": "add-item:automation:add-item",
+              "id": "add-item-2:automation:add-item",
               "type": "INBOUND",
               "title": "AddItem",
               "elementType": "AUTOMATION"
             },
             {
-              "id": "add-item:event:item-added",
+              "id": "add-item-2:event:item-added",
               "type": "OUTBOUND",
               "title": "ItemAdded",
               "elementType": "EVENT"
@@ -2714,7 +2714,7 @@
       ],
       "events": [
         {
-          "id": "add-item:event:task-scheduled",
+          "id": "add-item-2:event:task-scheduled",
           "title": "TaskScheduled",
           "type": "EVENT",
           "fields": {
@@ -2742,7 +2742,7 @@
           },
           "dependencies": [
             {
-              "id": "add-item:automation:add-item",
+              "id": "add-item-2:automation:add-item",
               "type": "OUTBOUND",
               "title": "AddItem",
               "elementType": "AUTOMATION"
@@ -2752,7 +2752,7 @@
           "service": "Calendar"
         },
         {
-          "id": "add-item:event:item-added",
+          "id": "add-item-2:event:item-added",
           "title": "ItemAdded",
           "type": "EVENT",
           "fields": {
@@ -2780,7 +2780,7 @@
           },
           "dependencies": [
             {
-              "id": "add-item:command:add-item",
+              "id": "add-item-2:command:add-item",
               "type": "INBOUND",
               "title": "AddItem",
               "elementType": "COMMAND"
@@ -2793,7 +2793,7 @@
       "screens": [],
       "processors": [
         {
-          "id": "add-item:automation:add-item",
+          "id": "add-item-2:automation:add-item",
           "title": "AddItem",
           "type": "AUTOMATION",
           "fields": {
@@ -2802,13 +2802,13 @@
           },
           "dependencies": [
             {
-              "id": "add-item:event:task-scheduled",
+              "id": "add-item-2:event:task-scheduled",
               "type": "INBOUND",
               "title": "TaskScheduled",
               "elementType": "EVENT"
             },
             {
-              "id": "add-item:command:add-item",
+              "id": "add-item-2:command:add-item",
               "type": "OUTBOUND",
               "title": "AddItem",
               "elementType": "COMMAND"
@@ -2819,12 +2819,12 @@
       "tables": [],
       "specifications": [
         {
-          "id": "add-item:spec:0",
+          "id": "add-item-2:spec:0",
           "title": "A scheduled task becomes an item",
           "sliceName": "AddItem",
           "given": [
             {
-              "id": "add-item:spec:0:given:0",
+              "id": "add-item-2:spec:0:given:0",
               "title": "ListCreated",
               "type": "SPEC_EVENT",
               "examples": [
@@ -2836,7 +2836,7 @@
               ]
             },
             {
-              "id": "add-item:spec:0:given:1",
+              "id": "add-item-2:spec:0:given:1",
               "title": "TaskScheduled",
               "type": "SPEC_EVENT",
               "examples": [
@@ -2851,7 +2851,7 @@
           ],
           "when": [
             {
-              "id": "add-item:spec:0:when:0",
+              "id": "add-item-2:spec:0:when:0",
               "title": "AddItem",
               "type": "SPEC_COMMAND",
               "examples": [
@@ -2866,7 +2866,7 @@
           ],
           "then": [
             {
-              "id": "add-item:spec:0:then:0",
+              "id": "add-item-2:spec:0:then:0",
               "title": "ItemAdded",
               "type": "SPEC_EVENT",
               "examples": [
@@ -2879,7 +2879,7 @@
               ]
             }
           ],
-          "linkedId": "add-item"
+          "linkedId": "add-item-2"
         }
       ],
       "mappings": {

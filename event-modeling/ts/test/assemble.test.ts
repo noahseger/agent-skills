@@ -126,7 +126,7 @@ test("a declaration used in a slice that nothing declares is drawn without that 
     message: message(`Ch › ${slice}`),
     ui: "Created: not declared",
     element: "Created",
-    slice,
+    slice: slice.toLowerCase(),
   })
   assert.deepEqual(
     partial.errors?.filter((m) => m.message.includes("d.Created")),
@@ -378,7 +378,7 @@ test("an example Zod refuses is an error naming the spec and where in it, and th
         message: `Cart.items[0].itemId in "lists" (Ch › Cart): Invalid input: expected string, received number`,
         ui: "Cart: items[0].itemId isn't valid",
         element: "Cart",
-        slice: "Cart",
+        slice: "cart",
       },
     ],
   )
@@ -404,7 +404,7 @@ test("a specification written as a function runs at assembly, so its examples ma
         message: `"A list is renamed" (Ch › Create): threw: renames is not defined`,
         ui: `"A list is renamed": didn't run`,
         element: "",
-        slice: "Create",
+        slice: "create",
       },
     ],
   )
@@ -514,7 +514,7 @@ test("a mapping recognises a source field, a t.literal() and m.generate(); a sch
     "Created.label (Ch › Create): computed in the mapping. Set it to a source field, a t.literal(), or m.generate() with what it is made from."
   const partial = feedOf(modules(), { partial: true })
   assert.deepEqual(
-    partial.errors?.filter((m) => m.slice === "Create").map((m) => [m.message, m.ui]),
+    partial.errors?.filter((m) => m.slice === "create").map((m) => [m.message, m.ui]),
     [[label, "Created: label is computed"]],
   )
   assert.deepEqual(drawn(partial).chapters[0]?.slices[0]?.mapping, {
@@ -604,7 +604,7 @@ test("an event nothing consumes is unused: a warning, which a strict assembly do
         "Created (Ch › Create): unused. Add .automation(d.Created), or .event(d.Created) to a state view.",
       ui: "Created: unused",
       element: "Created",
-      slice: "Create",
+      slice: "create",
     },
   ])
 })
@@ -648,7 +648,7 @@ test("an event no slice records is one line, at the slices that react to it", ()
           "Created (Ch › Processor, Ch › Table): nothing records it. Add .event(d.Created) to the slice that causes it.",
         ui: "Created: nothing records it",
         element: "Created",
-        slice: "Processor",
+        slice: "processor",
       },
     ],
   )
@@ -667,7 +667,7 @@ test("a view nothing reads is unused: a warning", () => {
       message: "Ch › Table: unused. Add .actor(), .query(d.Table, …) or .automation(d.Table).",
       ui: "Table: unused",
       element: "Table",
-      slice: "Table",
+      slice: "table",
     },
   ])
 })
@@ -777,7 +777,7 @@ test("the outside event a call gets back fills an event of ours after it, in the
   const feed = feedOf([{ default: m.model("x") }], { partial: true })
   assert.deepEqual(
     [...(feed.errors ?? []), ...(feed.warnings ?? [])]
-      .filter((m) => m.slice === "Ask")
+      .filter((m) => m.slice === "ask")
       .map((m) => m.message),
     ["Kept (Ch › Ask): unused. Add .automation(d.Kept), or .event(d.Kept) to a state view."],
   )
@@ -844,7 +844,7 @@ test("an external event only a given has is still left to translate: a warning",
       message: "Answered (Ch › Create): nothing translates it. Add .translation(d.Answered).",
       ui: "Answered: nothing translates it",
       element: "Answered",
-      slice: "Create",
+      slice: "create",
     },
   ])
 })
@@ -872,7 +872,7 @@ function outcomes(more = (created: Slice) => created) {
   return [{ default: m.model("x") }]
 }
 
-/** A missing specification: a warning, which a strict assembly lets through. */
+/** A missing specification in the slice with id `slice`: a warning, which a strict assembly lets through. */
 function missing(model: () => object[], element: string, slice: string, message: string) {
   const expected = [
     { kind: "warning", message, ui: `${element}: missing specification`, element, slice },
@@ -885,7 +885,7 @@ test("an outcome no specification shows is a missing specification", () => {
   missing(
     outcomes,
     "Refused",
-    "Create",
+    "create",
     "Refused (Ch › Create): missing specification. Add a .spec whose then has Refused(…).",
   )
 })
@@ -909,7 +909,7 @@ test("an event a view handles that no specification's given has is a missing spe
   missing(
     model,
     "Created",
-    "Table",
+    "table",
     "Created (Ch › Table): missing specification. Add a .spec whose given has Created(…).",
   )
 })
@@ -923,7 +923,7 @@ test("a view with no specification is a missing specification", () => {
   missing(
     model,
     "Table",
-    "Table",
+    "table",
     "Ch › Table: missing specification. Add a .spec whose then has Table(…).",
   )
 })
@@ -1117,7 +1117,7 @@ test("two slices claiming one service method", () => {
   const partial = feedOf([model()], { partial: true })
   assert.equal(drawn(partial).chapters[0]?.slices.length, 3)
   assert.deepEqual(
-    partial.errors?.filter((m) => m.slice === "Rename").map((m) => [m.message, m.ui]),
+    partial.errors?.filter((m) => m.slice === "rename").map((m) => [m.message, m.ui]),
     [
       [
         'Svc/Create (Ch › Rename): already used by Ch › Create. Name this one with .service(d.Svc, "Name").',
@@ -1178,7 +1178,7 @@ test("an automation's trigger no specification's given has is a missing specific
   missing(
     model,
     "Created",
-    "Processor",
+    "processor",
     "Created (Ch › Processor): missing specification. Add a .spec whose given has Created(…).",
   )
 })
@@ -1228,7 +1228,7 @@ test("a generated value in an automation's command has no source: an error", () 
       message,
       ui: "Process: label has no source",
       element: "Process",
-      slice: "Processor",
+      slice: "processor",
     },
   ])
   assert.throws(() => assembleModules([model()]), { message })
@@ -1508,7 +1508,7 @@ test("a screen no one sees is a warning, and one no slice names is storming, wit
       message: "Lock (Ch › Create): no one sees it. Add .actor() for who does.",
       ui: "Lock: no one sees it",
       element: "Lock",
-      slice: "Create",
+      slice: "create",
     },
   ])
 })
@@ -1712,6 +1712,41 @@ test("chapters group their slices, and what is in no chapter follows the column 
       ["", ["Y"]],
       ["Late", ["DoA"]],
       ["", ["X"]],
+    ],
+  )
+})
+
+test("a message names its slice by an id no other slice has, so of two slices with one name only its own is marked", () => {
+  fixture()
+  m.chapter("Lists", 1)
+  m.chapter("Imports", 2)
+  create().chapter(d.Lists)
+  view().chapter(d.Lists)
+  m.slice().command(d.Create).event(d.Created).chapter(d.Imports)
+  const feed = feedOf([{ default: m.model("x") }], { partial: true })
+  assert.deepEqual(
+    feed.model.slices.map((s) => [s.id, s.title, s.context]),
+    [
+      ["create", "Create", "Lists"],
+      ["table", "Table", "Lists"],
+      ["create-2", "Create", "Imports"],
+    ],
+  )
+  assert.deepEqual(
+    feed.warnings?.map((w) => [w.message, w.slice]),
+    [
+      [
+        "Created (Imports › Create): missing specification. Add a .spec whose then has Created(…).",
+        "create-2",
+      ],
+    ],
+  )
+  assert.deepEqual(
+    layout(drawn(feed)).columns.map((c) => [c.title, c.mark]),
+    [
+      ["Create", undefined],
+      ["Table", undefined],
+      ["Create", "warning"],
     ],
   )
 })
@@ -1951,7 +1986,7 @@ test("a chapter a slice joins that nothing declares", () => {
   const partial = feedOf(modules(), { partial: true })
   assert.deepEqual(
     [...(partial.errors ?? []), ...(partial.warnings ?? [])]
-      .filter((m) => m.slice === "Create")
+      .filter((m) => m.slice === "create")
       .map((m) => m.message),
     [
       message,
@@ -2005,7 +2040,7 @@ test("a state view's context written as it once was, as a query, is drawn withou
         message: "Ch › Table: [object Object] is not a declaration. Pass d.Name.",
         ui: "Table: a step names no element",
         element: "",
-        slice: "Table",
+        slice: "table",
       },
     ],
   )
@@ -2040,14 +2075,14 @@ test("a slice missing part of its core is drawn with the rest and warns of what 
         message: "Ch › Create: no event. Add .event() after .command(d.Create).",
         ui: "Create: no event",
         element: "",
-        slice: "Create",
+        slice: "create-2",
       },
       {
         kind: "warning",
         message: "Ch › Created: no command. Add .command() after .automation(d.Created).",
         ui: "Created: no command",
         element: "",
-        slice: "Created",
+        slice: "created",
       },
     ],
   )
@@ -2071,7 +2106,7 @@ test("a mapping that throws is an error, naming its slice, which is drawn whole"
     ],
   )
   assert.deepEqual(
-    json.messages?.filter((m) => m.slice === "Create").map((m) => [m.message, m.ui]),
+    json.messages?.filter((m) => m.slice === "create").map((m) => [m.message, m.ui]),
     [
       [
         "Created (Ch › Create): m.generate() takes fields of c, such as m.generate(c.AddNote.title), not id.",
@@ -2280,7 +2315,7 @@ test("a state change's then has what its command sends and its mapping sets", ()
   ])
   chapters({ Ch: [add(true)] })
   const json = assembleModules([{ default: m.model("x") }], { partial: true })
-  assert.ok(json.messages?.some((m) => m.element === "Added" && m.slice === "Add"))
+  assert.ok(json.messages?.some((m) => m.element === "Added" && m.slice === "add"))
   chapters({ Ch: [add(true)] })
   assert.throws(
     () => assembleModules([{ default: m.model("x") }]),

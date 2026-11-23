@@ -414,7 +414,7 @@ export function layout(model: Board): Layout {
         label: labelOf(slice),
         title: words(labelOf(slice)),
         noted: slice.note !== undefined,
-        ...marked(messages.filter((m) => m.slice === slice.name)),
+        ...marked(messages.filter((m) => m.slice === slice.id)),
         x,
         w,
       })

@@ -28,8 +28,10 @@ import {
   recorded,
   type SliceData,
   type StreamData,
+  slug,
   type TestData,
   taken,
+  unique,
   WRITTEN,
   words,
 } from "./types.ts"
@@ -124,6 +126,7 @@ function assembled(modules: readonly object[], options: Options, dir: string): A
   make()
   const written = [...DRAFTS]
   for (const s of written) s.tests = s.tests.map(run)
+  identify(written)
   const drafts = runBy(firstSystem(declared), oneSlicePerView(written, fail))
   const unchaptered: SliceData[] = []
   for (const s of drafts) {
@@ -212,6 +215,20 @@ function run(test: TestData): TestData {
 }
 
 /**
+ * Gives each slice its id: its heading as a slug, numbered from the second slice with that heading.
+ * A later `m.slice().view()` of a view is part of the first's slice, so it takes none.
+ */
+function identify(drafts: SliceData[]): void {
+  const taken = new Set<string>()
+  const views = new Set<DeclData>()
+  for (const s of drafts) {
+    if (s.view && views.has(s.view)) continue
+    if (s.view) views.add(s.view)
+    s.id = unique(slug(heading(s) ?? "slice"), taken)
+  }
+}
+
+/**
  * Every `m.slice().view()` of a view is one slice: the first, where it is drawn, which chapter it
  * joins and who sees it, built from the events of all of them and specified by all their
  * specifications.
@@ -260,7 +277,7 @@ function drawnElsewhere(first: SliceData, later: SliceData): Message[] {
             message: `${rm}: a later .view() says ${says} ${said}; the first says ${kept === undefined ? `no ${what}` : `${says} ${kept}`}. Remove it, or move the first.`,
             ui: `${words(rm)}: its slices disagree on its ${what}`,
             element: rm,
-            slice: first.name ?? rm,
+            slice: first.id ?? "",
           }),
         ],
   )
@@ -432,7 +449,7 @@ function chapterOf(slice: SliceData, conflict: Fail): string | undefined {
         message: `${where}: joins ${names.join(" and ")}. Keep one .chapter().`,
         ui: `${words(where)}: in two chapters`,
         element: "",
-        slice: where,
+        slice: slice.id ?? "",
       }),
       slice,
     )
@@ -557,7 +574,7 @@ function checkCore(at: Located, fail: Fail): void {
         message: `${where}: ${problem}. ${fix}`,
         ui: `${titled(at)}: ${problem}`,
         element: "",
-        slice: slice.name ?? "",
+        slice: slice.id ?? "",
       }),
     )
   if (!command && !from && !view)
@@ -579,7 +596,7 @@ function checkCore(at: Located, fail: Fail): void {
         message: `${lead(view.name, at)}: method has no name. Write .service(d.${slice.service.service.name}, "List${view.name}").`,
         ui: `${words(view.name ?? "")}: method has no name`,
         element: view.name ?? "",
-        slice: slice.name ?? "",
+        slice: slice.id ?? "",
       }),
     )
 }
@@ -593,7 +610,7 @@ function checkFailed(at: Located, fail: Fail): void {
         message: lead === "" ? `${where}: ${rest}` : `${lead} (${where}): ${rest}`,
         ui: `${element === "" ? titled(at) : words(element)}: ${problem}`,
         element,
-        slice: slice.name ?? "",
+        slice: slice.id ?? "",
       }),
     )
 }
@@ -611,7 +628,7 @@ function checkThrown(at: Located, fail: Fail): void {
         message: `${lead(decl.name, at)}: ${generated ? "" : "mapping threw: "}${threw}`,
         ui: `${words(decl.name ?? "")}: ${generated ? "generated from something that isn't a field" : "mapping failed"}`,
         element: decl.name ?? "",
-        slice: at.slice.name ?? "",
+        slice: at.slice.id ?? "",
       }),
     )
   }
@@ -677,7 +694,7 @@ function checkGenerated({ slice, where }: Located, fail: Fail): void {
             message: `${target}: computed in the mapping. Set it to a source field, a t.literal(), or m.generate() with what it is made from.`,
             ui: `${words(name)}: ${field} is computed`,
             element: name,
-            slice: slice.name ?? "",
+            slice: slice.id ?? "",
           }),
         )
       else if (from && decl === slice.command?.decl && "generate" in s)
@@ -686,7 +703,7 @@ function checkGenerated({ slice, where }: Located, fail: Fail): void {
             message: `${target}: an automation can't generate it. Add ${field} to ${from.name} or a view it queries, or generate it in an event ${name} records.`,
             ui: `${words(name)}: ${field} has no source`,
             element: name,
-            slice: slice.name ?? "",
+            slice: slice.id ?? "",
           }),
         )
     }
@@ -725,7 +742,7 @@ function checkFilled({ slice, where }: Located, fail: Fail): void {
             message: `${name}.${field} (${where}): no source. ${fix(field)}`,
             ui: `${words(name)}: ${field} has no source`,
             element: name,
-            slice: slice.name ?? "",
+            slice: slice.id ?? "",
             fields: [field],
           }),
         )
@@ -775,7 +792,7 @@ function checkRecorded({ slice, where }: Located, fail: Fail): void {
         message: `${name}.${field} (${where}): reaches no event. Record it in ${events.map((e) => e.decl.name).join(" or ")}, or remove it.`,
         ui: `${words(name)}: ${field} is never recorded`,
         element: name,
-        slice: slice.name ?? "",
+        slice: slice.id ?? "",
         fields: [field],
       }),
     )
@@ -827,7 +844,7 @@ function checkKeys(at: Located, fail: Fail): void {
             `Give it ${missing.join(" and ")}, or set ${missing.length > 1 ? "them" : "it"} in its mapping.`,
           ui: `${words(name)}: missing the ${words(view.name ?? "")} key`,
           element: name,
-          slice: at.slice.name ?? "",
+          slice: at.slice.id ?? "",
         }),
       )
   }
@@ -844,7 +861,7 @@ function checkStored(at: Located, fail: Fail): void {
           message: `${lead(decl.name, at)}: ${decl.external.name}'s, not stored, so it can't build ${view.name}. Translate it into an event of ours, then project that.`,
           ui: `${words(decl.name ?? "")}: not stored`,
           element: decl.name ?? "",
-          slice: at.slice.name ?? "",
+          slice: at.slice.id ?? "",
         }),
       )
 }
@@ -863,7 +880,7 @@ function checkCovered(at: Located, fail: Fail): void {
         message: `${lead(decl.name, at)}: missing specification. Add a .spec whose ${clause} has ${decl.name}(…).`,
         ui: `${words(decl.name ?? "")}: missing specification`,
         element: decl.name ?? "",
-        slice: slice.name ?? "",
+        slice: slice.id ?? "",
       }),
     )
   if (slice.view && slice.tests.length === 0) {
@@ -900,7 +917,7 @@ function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
           message: `"${t.name}" (${where}): threw: ${t.threw}`,
           ui: `"${t.name}": didn't run`,
           element: "",
-          slice: slice.name ?? "",
+          slice: slice.id ?? "",
         }),
       )
       continue
@@ -911,7 +928,7 @@ function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
           message: `${lead} in "${t.name}" (${where}): ${rest}`,
           ui: `${words(element)}: ${problem}`,
           element,
-          slice: slice.name ?? "",
+          slice: slice.id ?? "",
         }),
       )
     for (const { decl, path, message } of t.invalid ?? []) {
@@ -1207,14 +1224,14 @@ function show(value: unknown): string {
 
 /** A screen is drawn in its actors' lanes. */
 function checkSeen(at: Located, fail: Fail): void {
-  const { screen, actors, name } = at.slice
+  const { screen, actors, id } = at.slice
   if (screen && actors.length === 0)
     fail(
       warning({
         message: `${lead(screen.name, at)}: no one sees it. Add .actor() for who does.`,
         ui: `${words(screen.name ?? "")}: no one sees it`,
         element: screen.name ?? "",
-        slice: name ?? "",
+        slice: id ?? "",
       }),
     )
 }
@@ -1289,7 +1306,7 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
           message,
           ui: `${words(d.name ?? "")}: unused`,
           element: d.name ?? "",
-          slice: slice.name ?? "",
+          slice: slice.id ?? "",
         }),
       )
     // An external event we produce is published, and needs no reader of ours. One line per event,
@@ -1315,7 +1332,7 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
             message: `${lead(r.name, at)}: nothing builds it. Add a state view: m.slice().view(d.${r.name}).event(d.Event).`,
             ui: `${words(r.name ?? "")}: nothing builds it`,
             element: r.name ?? "",
-            slice: slice.name ?? "",
+            slice: slice.id ?? "",
           }),
         )
     }
@@ -1328,7 +1345,7 @@ function checkConnected(located: Located[], built: Built, fail: Fail): void {
     if (recording.has(e) || (e.external && reacting.has(e))) continue
     const at = [...(reacting.get(e) ?? assuming.get(e) ?? [])]
     const name = e.name ?? ""
-    const slice = at[0]?.slice.name ?? ""
+    const slice = at[0]?.slice.id ?? ""
     fail(
       e.external
         ? warning({
@@ -1363,7 +1380,7 @@ function checkMethods(located: Located[], conflict: Fail): void {
           message: `${method} (${where}): already used by ${first}. Name this one with .service(d.${service}, "Name").`,
           ui: `${words(service)}: ${words(name)} used twice`,
           element: service,
-          slice: slice.name ?? "",
+          slice: slice.id ?? "",
         }),
         slice,
       )

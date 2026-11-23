@@ -21,6 +21,8 @@ export interface BoardTest {
 }
 
 export interface BoardSlice {
+  /** The spec JSON's id, which a message names its slice by. */
+  id?: string
   name: string
   /** The first of `actors`, or who else starts the slice. */
   actor: string

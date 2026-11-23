@@ -736,7 +736,7 @@ Naming is yours: the conventions above are not checked.
 
 | Ours | The JSON's |
 |---|---|
-| a slice | a `Slice`, in story order, with `index`. A state change is `STATE_CHANGE`; an `.automation()` is `AUTOMATION`; a `.translation()` is `TRANSLATION`; a state view is `STATE_VIEW`, the spec's pattern of events in, view out, to the screen |
+| a slice | a `Slice`, in story order, with `index` and an `id` no other slice has: its heading, lowercase and hyphenated, numbered from the second slice with that heading. A state change is `STATE_CHANGE`; an `.automation()` is `AUTOMATION`; a `.translation()` is `TRANSLATION`; a state view is `STATE_VIEW`, the spec's pattern of events in, view out, to the screen |
 | a chapter | the slice's `context`. A slice in no chapter has none |
 | an element in no slice | a `Slice` of its own, titled with it, that holds only it: an event or a command in a `STATE_CHANGE`, a view in a `STATE_VIEW` |
 | a command, event, view | an `Element` of type `COMMAND`, `EVENT`, `READMODEL`, in each slice that uses it, with `fields` and `dependencies` along the slice's arrows |
@@ -767,8 +767,8 @@ follows; a model written by hand can do the same, and the viewer draws it.
 The top level holds only `slices`, so the rest travels beside the JSON, only to the viewer: the
 model's name and description; the chapters, with their notes, and the streams, in the order
 drawn; the actors no slice names and every External System; and the model's `errors` and
-`warnings`. That is what `em json --partial` prints. Notes
-on actors, services and External Systems have no place in either.
+`warnings`, each naming the slice it is about by its `id`. That is what `em json --partial`
+prints. Notes on actors, services and External Systems have no place in either.
 
 ## Protobuf
 

@@ -231,6 +231,7 @@ export function read(written: Feed): Board {
       : ((runner ? [runner] : seers).map(person)[0] ?? (runs ? add(SYSTEM) : ""))
     const laneOf = [...recorded, ...heard].find((e) => !external(e) && e.aggregate !== undefined)
     const out: BoardSlice = {
+      id: s.id,
       name: s.title,
       actor,
       aggregate: laneOf?.aggregate !== undefined ? slug(laneOf.aggregate) : fallback,
