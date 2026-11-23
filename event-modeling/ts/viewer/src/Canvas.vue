@@ -4,10 +4,10 @@ import Card from "./Card.vue"
 import {
   ARROW_H,
   type Box,
-  CARD_W,
   HEADER_H,
   type Layout,
   NAME_H,
+  NOTE_W,
   outside,
   path,
   polyline,
@@ -263,7 +263,7 @@ const transform = computed(
         </g>
 
         <template v-for="col in layout.columns" :key="col.index">
-          <Sticky v-for="(note, i) in col.notes ?? []" :key="i" :sticky="note" :x="col.x + (col.w - CARD_W) / 2" :w="CARD_W" />
+          <Sticky v-for="(note, i) in col.notes ?? []" :key="i" :sticky="note" :x="col.railX ?? col.x" :w="NOTE_W" />
         </template>
 
         <template v-for="(chapter, i) in layout.chapters" :key="chapter.name + chapter.x">

@@ -3,12 +3,11 @@ import { computed } from "vue"
 import { words } from "../../src/types.ts"
 import { type Box, BUTTON_H, FIELD_H, INPUT_H, KIND, TITLE_H } from "./layout.ts"
 import Mark from "./Mark.vue"
-import Sticky from "./Sticky.vue"
 
 const props = defineProps<{ box: Box }>()
 defineEmits<{ link: [canonical: string]; pick: [] }>()
 
-/** A card with nothing under its name centres the name above its notes. */
+/** A card with nothing under its name centres the name. */
 const centred = computed(
   () =>
     props.box.compact ||
@@ -28,7 +27,7 @@ const centred = computed(
   >
     <title v-if="box.canonical">Full details are on its first card</title>
     <rect class="shape" :width="box.w" :height="box.h" rx="8" />
-    <text class="title" :x="12" :y="centred ? (box.notes?.[0]?.y ?? box.h) / 2 + 4.5 : 20">{{ words(box.name) }}{{ box.list ? "[]" : "" }}</text>
+    <text class="title" :x="12" :y="centred ? box.h / 2 + 4.5 : 20">{{ words(box.name) }}{{ box.list ? "[]" : "" }}</text>
     <text v-if="box.detail" class="detail" :x="12" :y="TITLE_H + 4">{{ box.detail }}</text>
 
     <!-- A screen is a wireframe: inputs, a button, a table. -->
@@ -113,7 +112,6 @@ const centred = computed(
       <rect :x="box.w - 26" :y="box.h / 2 - 9" width="18" height="18" rx="4" />
       <text text-anchor="middle" :x="box.w - 17" :y="box.h / 2 + 4">↗</text>
     </g>
-    <Sticky v-for="(note, i) in box.notes ?? []" :key="i" :sticky="note" :x="8" :w="box.w - 16" />
     <Mark :mark="box.mark" :at="[1, 1]" />
   </g>
 </template>

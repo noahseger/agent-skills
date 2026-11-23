@@ -675,13 +675,10 @@ pre.error {
 }
 
 .sticky .paper { fill: var(--bg); stroke: var(--faint); }
-.sticky .fold { fill: var(--faint); }
 .sticky text { font-size: 9.5px; fill: var(--ink); }
 .sticky.critical .paper { fill: var(--danger-fill); stroke: var(--danger-stroke); }
-.sticky.critical .fold { fill: var(--danger-stroke); }
 .sticky.critical text { fill: var(--danger-ink); }
 .sticky.question .paper { fill: var(--question-fill); stroke: var(--question-stroke); }
-.sticky.question .fold { fill: var(--question-stroke); }
 .sticky.question text { fill: var(--question-ink); }
 
 .notes {

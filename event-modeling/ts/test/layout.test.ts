@@ -15,6 +15,8 @@ import {
   LANE_PAD,
   layout,
   NAME_H,
+  NOTE_GAP,
+  NOTE_W,
   nextError,
   outside,
   parse,
@@ -23,7 +25,6 @@ import {
   polyline,
   STICKY_GAP,
   STICKY_LINES,
-  STICKY_PAD,
   source,
   wording,
   wrap,
@@ -315,7 +316,7 @@ test("a later appearance of an element is collapsed and points at the first", ()
   }
 })
 
-test("an element's notes are stickies stacked at the foot of its first card, which grows to hold them", () => {
+test("an element's notes stand in a rail beside its slice, level with its first card, which keeps its height", () => {
   const copy: Board = JSON.parse(JSON.stringify(model))
   copy.notes.ItemAdded = [
     { text: "Titles are trimmed.", kind: "info" },
@@ -328,12 +329,17 @@ test("an element's notes are stickies stacked at the foot of its first card, whi
   const drawn = layout(copy)
   const [full, ...later] = drawn.boxes.filter((b) => b.name === "ItemAdded")
   const plain = out.boxes.find((b) => b.id === full?.id)
-  const [info, question] = full?.notes ?? []
-  assert.ok(full && plain && info && question)
+  assert.ok(full && plain)
+  assert.equal(full.h, plain.h, "notes take width, not height")
+  const col = drawn.columns[full.column]
+  const [info, question] = col?.notes ?? []
+  assert.ok(col && info && question)
   assert.deepEqual([info.kind, question.kind], ["info", "question"])
-  assert.equal(info.y, plain.h)
+  assert.equal(info.y, full.y)
   assert.equal(question.y, info.y + info.h + STICKY_GAP)
-  assert.equal(full.h, question.y + question.h + STICKY_PAD)
+  assert.equal(col.railX, col.x + (out.columns[full.column]?.w ?? 0))
+  assert.ok((col.railX ?? 0) >= full.x + full.w, "the rail is right of the card")
+  assert.equal(col.w, (out.columns[full.column]?.w ?? 0) + NOTE_W + NOTE_GAP)
   assert.equal(question.lines.length, STICKY_LINES)
   assert.ok(question.lines.at(-1)?.endsWith("…"), "a long note is cut; the detail has it whole")
   for (const b of later) assert.equal(b.notes, undefined)
@@ -342,7 +348,7 @@ test("an element's notes are stickies stacked at the foot of its first card, whi
   assert.equal(command?.notes?.[0]?.kind, "critical")
 })
 
-test("a slice's notes hang under its name, and the lanes move down to make room", () => {
+test("a slice's notes top its rail; the lanes stay where they were and later columns move right", () => {
   const copy: Board = JSON.parse(JSON.stringify(model))
   const slice = copy.chapters[0]?.slices[2]
   assert.ok(slice)
@@ -351,9 +357,9 @@ test("a slice's notes hang under its name, and the lanes move down to make room"
   const [sticky] = drawn.columns[2]?.notes ?? []
   assert.ok(sticky)
   assert.equal(sticky.y, drawn.nameY + NAME_H + STICKY_GAP)
-  const strip = sticky.h + 2 * STICKY_GAP
-  assert.equal(drawn.rows[0]?.y, (out.rows[0]?.y ?? 0) + strip)
-  assert.equal(drawn.height, out.height + strip)
+  assert.equal(drawn.rows[0]?.y, out.rows[0]?.y)
+  assert.equal(drawn.columns[3]?.x, (out.columns[3]?.x ?? 0) + NOTE_W + NOTE_GAP)
+  assert.equal(drawn.width, out.width + NOTE_W + NOTE_GAP)
 })
 
 test("specifications are off the canvas, which ends at its last lane; each is its slice's, a card per clause with a line per field", () => {
