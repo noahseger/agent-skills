@@ -343,8 +343,9 @@ test("view serves the app, the model, and a change feed", async () => {
 })
 
 test("view takes a free port when 5311 is taken, and refuses a taken --port", async () => {
-  // Another `em view` may hold 5311 already; either way it is taken.
-  const other = createServer()
+  // Another `em view` may hold 5311 already; either way it is taken. A browser tab left open on
+  // 5311 keeps reconnecting, so drop each connection, or closing the server waits for it forever.
+  const other = createServer((socket) => socket.destroy())
   await new Promise<void>((resolve) =>
     other.once("error", () => resolve()).listen(5311, "127.0.0.1", resolve),
   )
