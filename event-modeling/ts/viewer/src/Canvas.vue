@@ -14,13 +14,14 @@ import {
   SPEC_LINE_H,
   SPEC_TITLE_LINE,
 } from "./layout.ts"
+import Mark from "./Mark.vue"
 
 const props = defineProps<{
   layout: Layout
   selectedColumn: number | null
   selectedBox: string | null
   hovered: string | null
-  /** Bumping `seq` brings the column into view. */
+  /** Bumping `seq` brings the column into view, or with none the whole model. */
   focus: { column: number | null; seq: number }
 }>()
 const emit = defineEmits<{
@@ -39,7 +40,7 @@ const dragging = ref(false)
 const hoverColumn = ref<number | null>(null)
 const byId = computed(() => new Map(props.layout.boxes.map((b) => [b.id, b])))
 
-// Fit the whole model when it first arrives; a redraw keeps the user's view.
+// Fit the whole model when it first arrives and when Present starts; a redraw keeps the user's view.
 function fit() {
   const box = el.value?.getBoundingClientRect()
   if (!box) return
@@ -71,11 +72,14 @@ function focusColumn(index: number) {
     animate.value = false
   }, 350)
 }
+// After the DOM updates, so a canvas that just grew is measured at its new size.
 watch(
   () => props.focus.seq,
   () => {
     if (props.focus.column !== null) focusColumn(props.focus.column)
+    else fit()
   },
+  { flush: "post" },
 )
 
 let last: { x: number; y: number } | null = null
@@ -250,7 +254,7 @@ const transform = computed(
               {{ col.title }}
             </text>
             <circle v-if="col.noted" class="note-dot" :cx="col.x + col.w - 16" :cy="layout.nameY + NAME_H / 2" r="3.5" />
-            <circle v-if="col.warned" class="warn-dot" :cx="col.x + 16" :cy="layout.nameY + NAME_H / 2" r="3.5" />
+            <Mark :mark="col.mark" :at="[col.x + 20, layout.nameY + NAME_H / 2]" />
           </g>
         </g>
 

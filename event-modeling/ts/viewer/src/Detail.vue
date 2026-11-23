@@ -2,7 +2,8 @@
 import { computed } from "vue"
 import { words } from "../../src/types.ts"
 import type { Board, BoardField } from "./board.ts"
-import { type Box, type Column, type Layout, parse, parseClause, source } from "./layout.ts"
+import { type Box, type Column, KIND, type Layout, parse, parseClause, source } from "./layout.ts"
+import Messages from "./Messages.vue"
 import Name from "./Name.vue"
 
 const props = defineProps<{
@@ -14,15 +15,6 @@ const props = defineProps<{
   open: boolean
 }>()
 defineEmits<{ close: []; open: []; goto: [column: number] }>()
-
-const KIND: Record<Box["kind"], string> = {
-  ui: "screen",
-  external: "external event",
-  command: "command",
-  event: "event",
-  readModel: "view",
-  automation: "automation",
-}
 
 const slice = computed(() => props.column.slice)
 
@@ -49,15 +41,6 @@ const rows = computed(() => {
 })
 
 const note = computed(() => (props.box ? props.model.notes[props.box.name] : undefined))
-// What is wrong or unfinished about the element, then about the rest of the slice.
-const elementMessages = computed(() =>
-  (props.model.messages ?? []).filter((m) => props.box && m.element === props.box.name),
-)
-const sliceMessages = computed(() =>
-  (props.model.messages ?? []).filter(
-    (m) => m.slice === slice.value.name && !elementMessages.value.includes(m),
-  ),
-)
 const actor = computed(() =>
   (slice.value.actors ?? [slice.value.actor])
     .map((id) => props.model.actors.find((a) => a.id === id)?.name)
@@ -123,7 +106,7 @@ const mentions = (clause: string) =>
     </header>
 
     <p v-if="note" class="note"><span class="badge" aria-hidden="true">i</span>{{ note }}</p>
-    <p v-for="m in elementMessages" :key="m.message" class="note warning"><span class="badge" aria-hidden="true">!</span>{{ m.ui ?? m.message }}</p>
+    <Messages :messages="column.messages" :boxes="layout.boxes" />
 
     <template v-if="fields.fields.length">
       <h3>{{ box?.kind === "ui" ? "Query" : "Fields" }}</h3>
@@ -152,7 +135,6 @@ const mentions = (clause: string) =>
       <template v-if="triggers.length"><dt>On</dt><dd><Name v-for="t in triggers" :key="t" :name="t" /></dd></template>
     </dl>
     <p v-if="slice.note" class="note" style="margin-top: 10px"><span class="badge" aria-hidden="true">i</span>{{ slice.note }}</p>
-    <p v-for="m in sliceMessages" :key="m.message" class="note warning" style="margin-top: 10px"><span class="badge" aria-hidden="true">!</span>{{ m.ui ?? m.message }}</p>
 
     <template v-if="groups.length">
       <h3>Specifications</h3>

@@ -314,7 +314,11 @@ export function read(written: Feed): Board {
     return { kind, element: element(el), aggregate }
   })
   for (const a of feed.actors ?? []) person(a)
-  const messages = [...list<Message>(feed.errors), ...list<Message>(feed.warnings)]
+  // A feed from before errors were split from warnings has only warnings, with no kind.
+  const messages: Message[] = [
+    ...list<Message>(feed.errors).map((m) => ({ ...m, kind: "error" as const })),
+    ...list<Message>(feed.warnings).map((m) => ({ ...m, kind: "warning" as const })),
+  ]
 
   return {
     name: feed.name,

@@ -1,19 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { words } from "../../src/types.ts"
-import { type Box, BUTTON_H, FIELD_H, INPUT_H, TITLE_H } from "./layout.ts"
+import { type Box, BUTTON_H, FIELD_H, INPUT_H, KIND, TITLE_H } from "./layout.ts"
+import Mark from "./Mark.vue"
 
 const props = defineProps<{ box: Box }>()
 defineEmits<{ link: [canonical: string]; pick: [] }>()
-
-const LABEL: Record<Box["kind"], string> = {
-  ui: "screen",
-  external: "external event",
-  command: "command",
-  event: "event",
-  readModel: "view",
-  automation: "automation",
-}
 
 /** A card with nothing under its name centres the name. */
 const centred = computed(
@@ -30,7 +22,7 @@ const centred = computed(
     :transform="`translate(${box.x} ${box.y})`"
     role="button"
     tabindex="0"
-    :aria-label="`${LABEL[box.kind]} ${words(box.name)}${box.noted ? ', has a note' : ''}${box.warned ? ', unfinished' : ''}`"
+    :aria-label="`${KIND[box.kind]} ${words(box.name)}${box.noted ? ', has a note' : ''}${box.mark === 'error' ? ', has an error' : box.mark ? ', unfinished' : ''}`"
     @keydown.enter.stop="$emit('pick')"
   >
     <title v-if="box.canonical">Full details are on its first card</title>
@@ -125,10 +117,6 @@ const centred = computed(
       <circle :cx="box.w - 1" :cy="1" r="6.5" />
       <text text-anchor="middle" :x="box.w - 1" :y="4">i</text>
     </g>
-    <g v-if="box.warned" class="warn-badge">
-      <title>Unfinished. Click to see what's left.</title>
-      <circle :cx="1" :cy="1" r="6.5" />
-      <text text-anchor="middle" :x="1" :y="4">!</text>
-    </g>
+    <Mark :mark="box.mark" :at="[1, 1]" />
   </g>
 </template>

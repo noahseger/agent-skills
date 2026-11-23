@@ -1,7 +1,7 @@
 // Lays out the eventmodeling.org canvas from the board `read.ts` makes. Pure, so it
 // is tested without a browser.
 
-import { inputNames, type Source, words } from "../../src/types.ts"
+import { inputNames, type Message, type Source, words } from "../../src/types.ts"
 import type { Board, BoardSlice } from "./board.ts"
 
 /** Where a mapped field got its value, as the detail panes show it. */
@@ -16,6 +16,18 @@ export function source(s: Source): string {
 
 export type Kind = "ui" | "external" | "command" | "event" | "readModel" | "automation"
 export type Pt = [number, number]
+/** What a slice, a card or the model is marked with: its strongest message. */
+export type Mark = Message["kind"]
+
+/** Each kind as the reader calls it. */
+export const KIND: Record<Kind, string> = {
+  ui: "screen",
+  external: "external event",
+  command: "command",
+  event: "event",
+  readModel: "view",
+  automation: "automation",
+}
 
 export interface Box {
   id: string
@@ -34,8 +46,8 @@ export interface Box {
   canonical?: string
   /** The element carries a note. */
   noted?: boolean
-  /** A warning is about the element: the model is not finished here. */
-  warned?: boolean
+  /** The strongest message about the element in its slice. */
+  mark?: Mark
   /** A screen's wireframe: the inputs it collects, the button it presses, the table it shows. */
   form?: string[]
   button?: string
@@ -79,7 +91,9 @@ export interface Column {
   /** `label` as words, for the picture. */
   title: string
   noted: boolean
-  warned: boolean
+  /** The slice's messages: its own, or, for a declaration in no slice, those about it. */
+  messages: Message[]
+  mark?: Mark
   x: number
   w: number
 }
@@ -131,6 +145,8 @@ export interface Layout {
   boxes: Box[]
   edges: Edge[]
   specs: Spec[]
+  /** The messages no slice has. */
+  model: { messages: Message[]; mark?: Mark }
 }
 
 export const COL_W = 220
@@ -377,8 +393,11 @@ export function layout(model: Board): Layout {
     }
   }
 
-  const warnedElements = new Set((model.messages ?? []).map((m) => m.element))
-  const warnedSlices = new Set((model.messages ?? []).map((m) => m.slice))
+  const messages = model.messages ?? []
+  const marked = (own: Message[]) => {
+    const mark = markOf(own)
+    return { messages: own, ...(mark && { mark }) }
+  }
 
   const columns: Column[] = []
   const chapters: Chapter[] = []
@@ -395,7 +414,7 @@ export function layout(model: Board): Layout {
         label: labelOf(slice),
         title: words(labelOf(slice)),
         noted: slice.note !== undefined,
-        warned: warnedSlices.has(slice.name),
+        ...marked(messages.filter((m) => m.slice === slice.name)),
         x,
         w,
       })
@@ -440,7 +459,7 @@ export function layout(model: Board): Layout {
         label: el.name,
         title: words(el.name),
         noted: model.notes[el.name] !== undefined,
-        warned: warnedElements.has(el.name),
+        ...marked(messages.filter((m) => m.slice === undefined && m.element === el.name)),
         x,
         w: COL_W,
       })
@@ -470,6 +489,7 @@ export function layout(model: Board): Layout {
     const key = `${kind === "external" ? "event" : kind}:${el.name}`
     const colW = columns[column]?.w ?? COL_W
     const earlier = extra.reference ? undefined : first.get(key)
+    const mark = markOf(columns[column]?.messages.filter((m) => m.element === el.name) ?? [])
     const box: Placed = {
       id: `b${next++}`,
       kind,
@@ -491,7 +511,7 @@ export function layout(model: Board): Layout {
       ...(extra.compact || earlier ? { compact: true } : {}),
       ...(earlier ? { canonical: earlier.id } : {}),
       ...(model.notes[el.name] === undefined ? {} : { noted: true }),
-      ...(warnedElements.has(el.name) ? { warned: true } : {}),
+      ...(mark && { mark }),
       column,
       dx: extra.reference ? colW - 10 - REF_W : (colW - CARD_W) / 2,
       w: extra.reference ? REF_W : CARD_W,
@@ -864,5 +884,82 @@ export function layout(model: Board): Layout {
     y += h
   }
 
-  return { width, height: y + LANE_PAD, nameY, chapters, columns, rows, boxes, edges, specs }
+  const placed = new Set(columns.flatMap((c) => c.messages))
+  return {
+    width,
+    height: y + LANE_PAD,
+    nameY,
+    chapters,
+    columns,
+    rows,
+    boxes,
+    edges,
+    specs,
+    model: marked(messages.filter((m) => !placed.has(m))),
+  }
+}
+
+/** The strongest of the messages: an error, else a warning, else none. */
+export function markOf(messages: readonly Message[]): Mark | undefined {
+  if (messages.some((m) => m.kind === "error")) return "error"
+  return messages.length > 0 ? "warning" : undefined
+}
+
+/**
+ * The messages under the element each is about, with its kind as drawn: errors first, then the
+ * order given. A message about no element, or one not drawn, has no kind.
+ */
+export function grouped(
+  messages: readonly Message[],
+  boxes: readonly Box[],
+): { element: string; kind?: Kind; messages: Message[] }[] {
+  const rank = (m: Message) => (m.kind === "error" ? 0 : 1)
+  const groups = new Map<string, Message[]>()
+  for (const m of [...messages].sort((a, b) => rank(a) - rank(b)))
+    groups.set(m.element, [...(groups.get(m.element) ?? []), m])
+  return [...groups].map(([element, messages]) => {
+    // An automation is named after its slice, so a declaration of that name is what is meant.
+    const named = boxes.filter((b) => b.name === element)
+    const kind = (named.find((b) => b.kind !== "automation") ?? named[0])?.kind
+    return { element, ...(kind && { kind }), messages }
+  })
+}
+
+/**
+ * A message in the viewer's words, less the element's name its group shows, cut where its fields
+ * are named so they can be set apart.
+ */
+export function wording(m: Message): { text: string; field?: true }[] {
+  const said = m.ui ?? m.message
+  const named = `${words(m.element)}: `
+  const problem = m.element !== "" && said.startsWith(named) ? said.slice(named.length) : said
+  const fields = m.fields ?? []
+  if (fields.length === 0) return [{ text: problem }]
+  const at = new RegExp(`\\b(${fields.join("|")})\\b`)
+  return problem
+    .split(at)
+    .filter((text) => text !== "")
+    .map((text) => (fields.includes(text) ? { text, field: true } : { text }))
+}
+
+/**
+ * Where E goes from `at`: the next slice with an error, or with -1 the one before, wrapping. The
+ * model's own errors come first, as the navigation lists them.
+ */
+export function nextError(
+  layout: Layout,
+  at: number | "model" | null,
+  delta: 1 | -1,
+): number | "model" | undefined {
+  const MODEL = -1
+  const stops = [
+    ...(layout.model.mark === "error" ? [MODEL] : []),
+    ...layout.columns.filter((c) => c.mark === "error").map((c) => c.index),
+  ]
+  const here = at === "model" ? MODEL : (at ?? (delta > 0 ? -Infinity : Infinity))
+  const stop =
+    delta > 0
+      ? (stops.find((s) => s > here) ?? stops[0])
+      : (stops.findLast((s) => s < here) ?? stops.at(-1))
+  return stop === MODEL ? "model" : stop
 }

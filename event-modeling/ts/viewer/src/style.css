@@ -29,10 +29,7 @@
   --danger-fill: #fee2e2;
   --danger-stroke: #ef4444;
   --danger-ink: #7f1d1d;
-  --warn: #92400e;
-  --warn-fill: #fffbeb;
-  --warn-stroke: #fde68a;
-  --warn-mark: #f59e0b;
+  --warn-mark: #64748b;
 
   --ui-fill: #ffffff;
   --ui-stroke: #94a3b8;
@@ -131,7 +128,7 @@ body,
   -webkit-font-smoothing: antialiased;
 }
 
-/* Header, then any banners, then the body takes what is left. */
+/* Header, then a model that didn't load, then the body takes what is left. */
 .app {
   display: flex;
   flex-direction: column;
@@ -190,6 +187,24 @@ body,
 .top .swatch.automation::before { background: var(--automation-fill); border-color: var(--automation-stroke); }
 .top .swatch.external::before { background: var(--external-fill); border-color: var(--external-stroke); border-style: dashed; }
 
+.top .present {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.top .present[aria-pressed="true"] {
+  background: var(--accent-fill);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
 .top .status {
   margin-left: 20px;
   display: flex;
@@ -219,6 +234,10 @@ body,
   grid-template-columns: auto 1fr auto;
   flex: 1;
   min-height: 0;
+}
+
+.presenting .body {
+  grid-template-columns: 1fr;
 }
 
 /* navigation */
@@ -295,17 +314,58 @@ svg .note-dot {
   fill: var(--accent);
 }
 
-/* The model is not finished here. */
-.warn-dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
+/* Marks: an error is a red disc with "!", a warning a grey ring. Present hides them. */
+.mark-error,
+.mark-warning {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  background: var(--warn-mark);
 }
 
-svg .warn-dot {
-  fill: var(--warn-mark);
+.mark-error {
+  background: var(--danger);
+}
+
+.mark-error::after {
+  content: "!";
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.mark-warning {
+  width: 12px;
+  height: 12px;
+  margin: 1px;
+  border: 2px solid var(--warn-mark);
+  background: var(--panel);
+}
+
+svg .mark-error circle {
+  fill: var(--danger);
+  stroke: #ffffff;
+  stroke-width: 1.5;
+}
+
+svg .mark-warning circle {
+  fill: #ffffff;
+  stroke: var(--warn-mark);
+  stroke-width: 2;
+}
+
+svg .mark-error text {
+  fill: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.presenting .mark-error,
+.presenting .mark-warning {
+  display: none;
 }
 
 .canvas {
@@ -347,22 +407,6 @@ svg .warn-dot {
   font-family: var(--mono);
   font-size: 12px;
   white-space: pre-wrap;
-}
-
-/* What is wrong with a model, or unfinished. */
-.warnings {
-  margin: 0;
-  padding: 8px 20px;
-  border-bottom: 1px solid var(--warn-stroke);
-  background: var(--warn-fill);
-  color: var(--warn);
-  font-family: var(--mono);
-  font-size: 12px;
-  list-style: none;
-}
-
-.warnings li {
-  padding: 2px 0;
 }
 
 .empty {
@@ -601,18 +645,6 @@ svg .warn-dot {
   fill: #ffffff;
 }
 
-.card .warn-badge circle {
-  fill: var(--warn-mark);
-  stroke: #ffffff;
-  stroke-width: 1.5;
-}
-
-.card .warn-badge text {
-  font-size: 8px;
-  font-weight: 700;
-  fill: #ffffff;
-}
-
 .card.compact .title {
   font-weight: 500;
 }
@@ -769,9 +801,38 @@ svg .warn-dot {
   line-height: 1.5;
 }
 
-.detail .note.warning .badge,
-.facts .note.warning .badge {
-  background: var(--warn-mark);
+/* What is wrong or unfinished in the slice, under the element each is about. */
+.detail .about {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.detail .about:first-child {
+  padding-top: 0;
+}
+
+.detail .element {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.detail .message {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 4px 0 0;
+  line-height: 1.45;
+}
+
+.detail .message .mark-error,
+.detail .message .mark-warning {
+  margin-top: 2px;
+}
+
+.detail .message b {
+  font-weight: 600;
 }
 
 .detail .note .badge {

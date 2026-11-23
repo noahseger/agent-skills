@@ -5,18 +5,21 @@ import { readFileSync } from "node:fs"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
 
-import type { Source } from "../src/types.ts"
+import type { Message, Source } from "../src/types.ts"
 import { words } from "../src/types.ts"
 import type { Board } from "../viewer/src/board.ts"
 import {
   type Box,
   fitColumns,
+  grouped,
   layout,
+  nextError,
   parse,
   parseClause,
   path,
   polyline,
   source,
+  wording,
   wrap,
 } from "../viewer/src/layout.ts"
 import { read } from "../viewer/src/read.ts"
@@ -555,13 +558,131 @@ test("a loose declaration is a column after the story, with no heading, its card
   assert.ok(started && start)
   assert.ok(inRow(started, "stream:lists"))
   assert.ok(inRow(start, "middle"))
-  // A warning marks its element's card and its slice's column.
-  assert.equal(started.warned, true)
-  assert.equal(start.warned, undefined)
-  assert.equal(cols[0]?.warned, true)
-  assert.equal(cols[1]?.warned, false)
-  assert.equal(storm.columns[0]?.warned, true)
-  assert.ok(storm.boxes.filter((b) => b.name === "ListCreated").every((b) => b.warned))
+  // A warning marks its element's card and its slice's column; a loose one's is its own column.
+  assert.equal(started.mark, "warning")
+  assert.equal(start.mark, undefined)
+  assert.equal(cols[0]?.mark, "warning")
+  assert.equal(cols[1]?.mark, undefined)
+  assert.equal(storm.columns[0]?.mark, "warning")
+  assert.equal(storm.boxes.find((b) => b.name === "ListCreated")?.mark, "warning")
+  assert.equal(storm.model.mark, undefined)
+})
+
+// A message as the feed carries it, about an element in a slice.
+const said = (kind: Message["kind"], element: string, slice?: string, ui?: string): Message => ({
+  kind,
+  message: `${element}: ${kind}`,
+  element,
+  ...(slice !== undefined && { slice }),
+  ...(ui !== undefined && { ui }),
+})
+
+test("the strongest message marks its slice, and its card in that slice only; one in no slice is the model's", () => {
+  const marked = layout({
+    ...model,
+    messages: [
+      said("error", "ItemCompleted", "CompleteItem"),
+      said("warning", "ListScreen", "CompleteItem"),
+      said("warning", "ListDeleted", "DeleteList"),
+      said("warning", "Lists"),
+    ],
+  })
+  const column = (name: string) => marked.columns.find((c) => c.slice.name === name)
+  assert.equal(column("CompleteItem")?.mark, "error", "an error over a warning")
+  assert.equal(column("DeleteList")?.mark, "warning")
+  assert.equal(column("CreateList")?.mark, undefined)
+  const screens = marked.boxes.filter((b) => b.name === "ListScreen")
+  assert.ok(screens.length > 1)
+  assert.deepEqual(
+    screens.map((b) => b.mark),
+    screens.map((b) => (b.column === column("CompleteItem")?.index ? "warning" : undefined)),
+  )
+  assert.deepEqual(
+    marked.model.messages.map((m) => m.element),
+    ["Lists"],
+  )
+  assert.equal(marked.model.mark, "warning")
+})
+
+test("a slice's messages group under their element with its kind, errors first", () => {
+  const screen = said("warning", "ListScreen", "CompleteItem")
+  const unsourced = said("error", "ItemCompleted", "CompleteItem")
+  const unspecified = said("warning", "ItemCompleted", "CompleteItem")
+  assert.deepEqual(grouped([screen, unspecified, unsourced], out.boxes), [
+    { element: "ItemCompleted", kind: "event", messages: [unsourced, unspecified] },
+    { element: "ListScreen", kind: "ui", messages: [screen] },
+  ])
+  // An automation is named after its slice; a command of that name is what is meant.
+  assert.equal(grouped([said("error", "AddItem", "AddItem")], out.boxes)[0]?.kind, "command")
+  assert.deepEqual(grouped([said("warning", "Lists"), said("error", "")], out.boxes), [
+    { element: "", messages: [said("error", "")] },
+    { element: "Lists", messages: [said("warning", "Lists")] },
+  ])
+})
+
+test("a message reads without the name its group shows, its fields cut out", () => {
+  const unsourced = {
+    ...said("error", "ItemCompleted", "CompleteItem", "Item Completed: userId has no source"),
+    fields: ["userId"],
+  }
+  assert.deepEqual(wording(unsourced), [
+    { text: "userId", field: true },
+    { text: " has no source" },
+  ])
+  assert.deepEqual(
+    wording(said("warning", "ListDeleted", "DeleteList", "List Deleted: missing specification")),
+    [{ text: "missing specification" }],
+  )
+  assert.deepEqual(wording(said("error", "", undefined, "A slice is empty")), [
+    { text: "A slice is empty" },
+  ])
+  // A feed from before the viewer's wording has only the terminal's.
+  const old = {
+    message: "Started: nothing records it.",
+    element: "Started",
+    kind: "warning" as const,
+  }
+  assert.deepEqual(wording(old), [{ text: "nothing records it." }])
+})
+
+test("E visits the model's errors, then each slice with an error in order, and wraps; Shift-E goes back", () => {
+  const errors = layout({
+    ...model,
+    messages: [
+      said("error", "TodoList", "TodoList"),
+      said("error", "ItemCompleted", "CompleteItem"),
+      said("error", "ItemCompleted", "CompleteItem"),
+      said("warning", "ListDeleted", "DeleteList"),
+      said("error", ""),
+    ],
+  })
+  const walk = (delta: 1 | -1) => {
+    const seen: (number | "model" | undefined)[] = []
+    let at: number | "model" | null = null
+    for (let i = 0; i < 4; i++) {
+      const next = nextError(errors, at, delta)
+      seen.push(next)
+      at = next ?? null
+    }
+    return seen
+  }
+  assert.deepEqual(walk(1), ["model", 2, 5, "model"])
+  assert.deepEqual(walk(-1), [5, 2, "model", 5])
+  assert.equal(nextError(errors, 3, 1), 5, "from a slice with none, the next one with one")
+  assert.equal(nextError(out, null, 1), undefined, "nowhere to go")
+})
+
+test("a feed with only a warnings list, from before errors were split out, marks them as warnings", () => {
+  const old = read({
+    name: "x",
+    model: { slices: [] },
+    warnings: [{ message: "Started: nothing records it.", element: "Started" } as Message],
+  })
+  assert.deepEqual(
+    old.messages?.map((m) => m.kind),
+    ["warning"],
+  )
+  assert.equal(layout(old).model.mark, "warning")
 })
 
 test("the slices in no chapter are the nameless chapter, with no heading", () => {

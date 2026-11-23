@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue"
 import type { Feed } from "../../src/spec.ts"
-import { counted } from "../../src/types.ts"
 import type { Board } from "./board.ts"
 import Canvas from "./Canvas.vue"
 import Detail from "./Detail.vue"
-import { type Box, layout } from "./layout.ts"
+import { type Box, layout, nextError } from "./layout.ts"
+import Messages from "./Messages.vue"
 import Nav from "./Nav.vue"
 import { read } from "./read.ts"
 import SliceView from "./SliceView.vue"
@@ -21,18 +21,19 @@ interface Selection {
   name?: string
   view?: "slice"
 }
-const selection = ref<Selection | null>(null)
+/** A slice, or the model's own messages. */
+const selection = ref<Selection | "model" | null>(null)
+const picked = computed(() => (selection.value === "model" ? null : selection.value))
+const at = computed(() => (selection.value === "model" ? "model" : (picked.value?.column ?? null)))
 const hovered = ref<string | null>(null)
+/** Bumping `seq` brings the column into view, or with none the whole model. */
 const focus = ref<{ column: number | null; seq: number }>({ column: null, seq: 0 })
+/** The board alone, for showing the model to others: no navigation, detail or marks. */
+const present = ref(false)
 
 const drawn = computed(() => (model.value ? layout(model.value) : null))
-const summary = computed(() => {
-  const all = model.value?.messages ?? []
-  const errors = all.filter((m) => m.kind === "error").length
-  return counted(errors, all.length - errors)
-})
 const selectedBox = computed<Box | null>(() => {
-  const sel = selection.value
+  const sel = picked.value
   if (!sel?.name) return null
   return (
     drawn.value?.boxes.find(
@@ -41,10 +42,10 @@ const selectedBox = computed<Box | null>(() => {
   )
 })
 const selectedColumn = computed(() => {
-  const sel = selection.value
+  const sel = picked.value
   return sel && drawn.value?.columns[sel.column] ? drawn.value.columns[sel.column] : null
 })
-const sliceOpen = computed(() => selection.value?.view === "slice")
+const sliceOpen = computed(() => picked.value?.view === "slice")
 
 const LEGEND: [string, string][] = [
   ["ui", "screen"],
@@ -56,12 +57,14 @@ const LEGEND: [string, string][] = [
 ]
 
 // The selection lives in the URL hash, so Back works and every view is a link.
-function hashOf(sel: Selection | null): string {
+function hashOf(sel: Selection | "model" | null): string {
   if (!sel) return ""
+  if (sel === "model") return "#model"
   const card = sel.kind && sel.name ? `/${sel.kind}/${encodeURIComponent(sel.name)}` : ""
   return `#${sel.view === "slice" ? "s" : "c"}${sel.column}${card}`
 }
-function fromHash(): Selection | null {
+function fromHash(): Selection | "model" | null {
+  if (location.hash === "#model") return "model"
   const m = location.hash.match(/^#([cs])(\d+)(?:\/(\w+)\/(.*))?$/)
   if (!m) return null
   const sel: Selection = { column: Number(m[2]) }
@@ -72,22 +75,33 @@ function fromHash(): Selection | null {
   }
   return sel
 }
-function go(sel: Selection | null, options: { push?: boolean; zoom?: boolean } = {}) {
+function go(sel: Selection | "model" | null, options: { push?: boolean; zoom?: boolean } = {}) {
   selection.value = sel
   const hash = hashOf(sel)
   if (options.push !== false && hash !== location.hash) {
     history.pushState(null, "", hash || location.pathname)
   }
-  if (options.zoom && sel && sel.view !== "slice") {
+  if (options.zoom && sel && sel !== "model" && sel.view !== "slice") {
     focus.value = { column: sel.column, seq: focus.value.seq + 1 }
   }
 }
 function step(delta: number) {
   const count = drawn.value?.columns.length ?? 0
   if (count === 0) return
-  const current = selection.value?.column ?? (delta > 0 ? -1 : count)
+  const current = picked.value?.column ?? (delta > 0 ? -1 : count)
   const column = Math.min(count - 1, Math.max(0, current + delta))
   go({ column, ...(sliceOpen.value ? { view: "slice" } : {}) }, { zoom: true })
+}
+function stepError(delta: 1 | -1) {
+  if (!drawn.value) return
+  const next = nextError(drawn.value, at.value, delta)
+  if (next === "model") go("model")
+  else if (next !== undefined)
+    go({ column: next, ...(sliceOpen.value ? { view: "slice" } : {}) }, { zoom: true })
+}
+function togglePresent() {
+  present.value = !present.value
+  if (present.value) focus.value = { column: null, seq: focus.value.seq + 1 }
 }
 function pick(box: Box) {
   go({
@@ -143,13 +157,17 @@ let feed: EventSource | undefined
 const onPop = () => go(fromHash(), { push: false, zoom: true })
 function onKey(e: KeyboardEvent) {
   if (e.target instanceof HTMLInputElement) return
+  // A letter with a modifier is the browser's.
+  const letter = e.metaKey || e.ctrlKey || e.altKey ? "" : e.key.toLowerCase()
   // Left and right move between slices; up and down are left to the page.
   if (e.key === "ArrowRight") step(1)
   else if (e.key === "ArrowLeft") step(-1)
-  else if (e.key === "Enter" && selection.value && !sliceOpen.value) {
-    openSlice(selection.value.column)
+  else if (letter === "e") stepError(e.shiftKey ? -1 : 1)
+  else if (letter === "p") togglePresent()
+  else if (e.key === "Enter" && picked.value && !sliceOpen.value) {
+    openSlice(picked.value.column)
   } else if (e.key === "Escape") {
-    const sel = selection.value
+    const sel = picked.value
     go(sel?.view === "slice" ? { column: sel.column } : null, { zoom: true })
   } else return
   e.preventDefault()
@@ -179,31 +197,24 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="app">
+  <div class="app" :class="{ presenting: present }">
     <header class="top">
       <h1>{{ model?.name ?? "Event model" }}</h1>
       <span v-if="model?.description" class="description">{{ model.description }}</span>
       <span class="legend">
         <span v-for="[kind, label] in LEGEND" :key="kind" class="swatch" :class="kind">{{ label }}</span>
       </span>
+      <button type="button" class="present" :aria-pressed="present" title="The board alone (P)" @click="togglePresent">Present</button>
       <span class="status" role="status">
         <span class="dot" :class="{ off: !live && !snapshot, error: error !== null }" aria-hidden="true"></span>
         {{ error !== null ? "Model didn't load" : snapshot ? "Exported copy" : live ? "Live" : "Disconnected" }}
       </span>
     </header>
     <pre v-if="error !== null" class="error" role="alert">{{ error }}</pre>
-    <ul v-if="model?.messages?.length" class="warnings" role="status" :aria-label="summary">
-      <li v-for="m in model.messages" :key="m.message">{{ m.ui ?? m.message }}</li>
-    </ul>
     <main class="body">
-      <Nav
-        v-if="drawn"
-        :layout="drawn"
-        :selected-column="selection?.column ?? null"
-        @select="openSlice"
-      />
+      <Nav v-if="drawn && !present" :layout="drawn" :selected="at" @select="openSlice" @model="go('model')" />
       <SliceView
-        v-if="drawn && model && sliceOpen && selectedColumn"
+        v-if="drawn && model && sliceOpen && selectedColumn && !present"
         :layout="drawn"
         :model="model"
         :column="selectedColumn"
@@ -218,7 +229,7 @@ onUnmounted(() => {
       <Canvas
         v-else-if="drawn && model"
         :layout="drawn"
-        :selected-column="selection?.column ?? null"
+        :selected-column="picked?.column ?? null"
         :selected-box="selectedBox?.id ?? null"
         :hovered="hovered"
         :focus="focus"
@@ -231,7 +242,7 @@ onUnmounted(() => {
       />
       <div v-else class="empty">Waiting for the model…</div>
       <Detail
-        v-if="selectedColumn && drawn && model"
+        v-if="selectedColumn && drawn && model && !present"
         :box="selectedBox"
         :column="selectedColumn"
         :layout="drawn"
@@ -241,6 +252,14 @@ onUnmounted(() => {
         @open="openSlice(selectedColumn.index)"
         @goto="openSlice"
       />
+      <aside v-else-if="selection === 'model' && drawn && !present" class="detail" aria-label="Details">
+        <header>
+          <h2>Model</h2>
+          <button class="close" type="button" title="Close (Esc)" @click="go(null)">×</button>
+        </header>
+        <Messages :messages="drawn.model.messages" :boxes="drawn.boxes" />
+        <p v-if="!drawn.model.mark" class="note">Nothing left to do.</p>
+      </aside>
     </main>
   </div>
 </template>
