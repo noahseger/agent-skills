@@ -204,6 +204,16 @@ onUnmounted(() => {
       <span class="legend">
         <span v-for="[kind, label] in LEGEND" :key="kind" class="swatch" :class="kind">{{ label }}</span>
       </span>
+      <details class="keys">
+        <summary>Keys</summary>
+        <dl>
+          <dt>← →</dt><dd>move between slices</dd>
+          <dt>Enter</dt><dd>open a slice (or double-click)</dd>
+          <dt>Esc</dt><dd>go back</dd>
+          <dt>E</dt><dd>next error (Shift-E: previous)</dd>
+          <dt>P</dt><dd>present</dd>
+        </dl>
+      </details>
       <button type="button" class="present" :aria-pressed="present" title="The board alone (P)" @click="togglePresent">Present</button>
       <span class="status" role="status">
         <span class="dot" :class="{ off: !live && !snapshot, error: error !== null }" aria-hidden="true"></span>

@@ -41,6 +41,5 @@ defineEmits<{ select: [column: number]; model: [] }>()
         <Mark :mark="col.mark" />
       </button>
     </template>
-    <p class="hint">← → to move between slices · E or Shift-E to step through errors · Enter or double-click to open one · Esc to go back</p>
   </nav>
 </template>

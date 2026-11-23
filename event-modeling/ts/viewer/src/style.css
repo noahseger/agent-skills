@@ -301,10 +301,46 @@ body,
   font-weight: 600;
 }
 
-.nav .hint {
-  margin: 20px 8px 0;
+.top .keys {
+  position: relative;
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-sm);
+}
+
+.top .keys summary {
+  cursor: pointer;
+  list-style: none;
+  font-weight: 500;
+}
+
+.top .keys summary::-webkit-details-marker {
+  display: none;
+}
+
+.top .keys dl {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 10;
+  margin: 0;
+  padding: 10px 14px;
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 4px 12px;
+  white-space: nowrap;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgb(15 23 42 / 0.08);
+}
+
+.top .keys dt {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.top .keys dd {
+  margin: 0;
 }
 
 .note-dot {
