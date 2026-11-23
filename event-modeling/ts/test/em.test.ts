@@ -528,7 +528,7 @@ export default m.model("Notes")
   }
 })
 
-test("view words what the types refuse as the fix: a query with no filter or two sources, a state view's service with no method, an outside event an automation starts with, and what is not a declaration", async () => {
+test("view words what the types refuse as the fix: a query with no filter or two sources, a state view's service with no method, an external event an automation starts with, and what is not a declaration", async () => {
   const dir = mkdtempSync(here("../tmp-fix-"))
   writeFileSync(
     join(dir, "index.ts"),

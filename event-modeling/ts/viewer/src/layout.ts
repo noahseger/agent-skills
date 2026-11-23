@@ -588,7 +588,7 @@ export function layout(model: Board): Layout {
         useActor(actor)
       }
     }
-    // An outside event a call already ended in triggers from there, as an event does.
+    // An external event a call already ended in triggers from there, as an event does.
     const called = s.external_event && eventBoxes.has(parse(s.external_event).name)
     if (s.external_event && !called) {
       external = make(i, "external", parse(s.external_event))
@@ -803,7 +803,7 @@ export function layout(model: Board): Layout {
   })
 
   // A call's arrow goes down the side of the events of ours between the command and its outside
-  // event, which it would otherwise run behind, and enters the outside event from that side.
+  // event, which it would otherwise run behind, and enters the external event from that side.
   for (const e of calling) {
     const a = byId.get(e.from)
     const b = byId.get(e.to)

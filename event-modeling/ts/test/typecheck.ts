@@ -354,12 +354,12 @@ m.slice().translation(d.ListCreated)
 
 // @ts-expect-error nor does a view start one
 m.slice().translation(d.TodoList)
-const polled: Parameters<typeof start.translation<typeof d.TodoList>>[0] = "TodoList: not an outside event. Start its slice with .automation(d.TodoList)."
+const polled: Parameters<typeof start.translation<typeof d.TodoList>>[0] = "TodoList: not an external event. Start its slice with .automation(d.TodoList)."
 
-// @ts-expect-error ItemAdded is ours, so it still needs a title: the outside event the call gets back has none
+// @ts-expect-error ItemAdded is ours, so it still needs a title: the external event the call gets back has none
 m.slice().command(d.AddItem).event(d.CartUpdated).event(d.ItemAdded)
 
-// The fields of the outside event a call gets back join what is before the events after it: by name, or in a mapping's argument.
+// The fields of the external event a call gets back join what is before the events after it: by name, or in a mapping's argument.
 m.slice().command(d.AddItem).event(d.CartUpdated).event(d.CartKept, (c) => ({ listId: c.AddItem.listId })).actor(d.User)
 
 // @ts-expect-error AddItem and the CartUpdated it gets back both carry listId: the mapping says which
@@ -371,13 +371,13 @@ m.slice().command(d.AddItem).event(d.CartUpdated).event(d.ItemsMissing, (c) => (
 m.slice().automation(d.ListCreated).command(d.AddItem, () => ({ text: t.literal("") })).event(d.CartUpdated).event(d.CartKept, (c) => ({ listId: c.AddItem.listId }))
 m.slice().command(d.AddItem).event(d.CartUpdated).event(d.ItemAdded, (c) => ({ listId: c.AddItem.listId, title: m.generate(c.CartUpdated.unavailable) }))
 
-// @ts-expect-error the outside event comes before the event that keeps it
+// @ts-expect-error the external event comes before the event that keeps it
 m.slice().command(d.AddItem).event(d.CartKept).event(d.CartUpdated)
 
-// @ts-expect-error without the outside event, AddItem lacks unavailable
+// @ts-expect-error without the external event, AddItem lacks unavailable
 m.slice().command(d.AddItem).event(d.ItemAdded, (c) => ({ title: c.AddItem.text })).event(d.CartKept)
 
-// @ts-expect-error a mapping's argument is what is before the step: no outside event yet, so no unavailable
+// @ts-expect-error a mapping's argument is what is before the step: no external event yet, so no unavailable
 m.slice().command(d.AddItem).event(d.ItemsMissing, (c) => ({ items: c.CartUpdated.unavailable })).event(d.CartUpdated)
 
 // @ts-expect-error a mapping must still set what nothing before the step carries
@@ -386,7 +386,7 @@ m.slice().command(d.AddItem).event(d.CartUpdated).event(d.ItemsMissing, (c) => (
 // @ts-expect-error CartUpdated's unavailable is a list, and a title a string
 m.slice().command(d.AddItem).event(d.CartUpdated).event(d.ItemAdded, (c) => ({ listId: c.AddItem.listId, title: c.CartUpdated.unavailable }))
 
-// @ts-expect-error a declaration has no .fields: a mapping reads an outside event's field from its argument
+// @ts-expect-error a declaration has no .fields: a mapping reads an external event's field from its argument
 m.view("Unavailable", { unavailable: d.CartUpdated.fields.unavailable })
 
 // @ts-expect-error the eighteenth event is checked as the first: ItemAdded lacks title
@@ -398,7 +398,7 @@ m.slice().view(d.TodoList).event(d.CartUpdated)
 // @ts-expect-error nor beside an event of ours
 m.slice().view(d.TodoList).event(d.ListCreated).event(d.CartUpdated)
 
-// The outside event a call gets back fills an event of ours by name: pageId comes from PageCreated.
+// The external event a call gets back fills an event of ours by name: pageId comes from PageCreated.
 m.slice().command(d.SyncNote).event(d.PageCreated).event(d.NoteLinked).chapter(d.Ch)
 
 // --- everything is declared with m.command or m.event, so a spec can name it --

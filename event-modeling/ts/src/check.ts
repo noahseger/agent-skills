@@ -155,7 +155,7 @@ const INSTRUCTIONS: [RegExp, (m: RegExpMatchArray) => Worded][] = [
   [/^(\w+): no column (\w+)\.$/, (m) => about("error", m[1] ?? "", `no column ${m[2]}`)],
   [/^(\w+): say which rows: /, (m) => about("error", m[1] ?? "", "query doesn't say which rows")],
   [
-    /^(\w+): not an outside event\. /,
+    /^(\w+): not an external event\. /,
     (m) => about("error", m[1] ?? "", "not from an External System"),
   ],
   [/^(\w+): comes from outside\. /, (m) => about("error", m[1] ?? "", "needs a translation")],

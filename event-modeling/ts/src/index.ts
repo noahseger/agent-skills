@@ -632,7 +632,7 @@ interface Gate<Msg extends string> {
 /** A translation's start: an external event, or, for anything else, the instruction to fix it. */
 type Translated<E> = E extends ExternalEventDecl
   ? E
-  : `${NameOf<E>}: not an outside event. Start its slice with .automation(d.${NameOf<E>}).`
+  : `${NameOf<E>}: not an external event. Start its slice with .automation(d.${NameOf<E>}).`
 
 /** What a `.query()` of view `N` with no filter is told, unless the view has one row. */
 type Unfiltered<N> =

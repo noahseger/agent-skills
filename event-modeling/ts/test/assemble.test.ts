@@ -438,7 +438,7 @@ test("a command field no event records is an error; generating from it records i
   assert.ok(!fixed.errors?.some((m) => m.message.includes("reaches no event")))
 })
 
-test("a call sends out only the command fields its outside event carries", () => {
+test("a call sends out only the command fields its external event carries", () => {
   fixture()
   m.external("Remote")
   m.event("Answered", { id: t.string() }).external(d.Remote)
@@ -731,7 +731,7 @@ test("a call ends in the external event, whose fields come from outside", () => 
   assert.equal(asked?.events, undefined)
 })
 
-test("an event of ours that maps a field the command shares from the outside event is drawn from that event", () => {
+test("an event of ours that maps a field the command shares from the external event is drawn from that event", () => {
   fixture()
   m.external("Remote")
   m.event("Answered", { id: t.string() }).external(d.Remote)
@@ -753,7 +753,7 @@ test("an event of ours that maps a field the command shares from the outside eve
   )
 })
 
-test("the outside event a call gets back fills an event of ours after it, in the same slice", () => {
+test("the external event a call gets back fills an event of ours after it, in the same slice", () => {
   fixture()
   m.external("Remote")
   m.event("Answered", { id: t.string(), detail: t.string() }).external(d.Remote)

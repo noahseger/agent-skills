@@ -364,7 +364,7 @@ test("the picture shows names as words", () => {
   assert.equal(out.columns.find((c) => c.label === "ListItems")?.title, "List Items")
 })
 
-test("a translation gets an automation of ours between the outside event and the command", () => {
+test("a translation gets an automation of ours between the external event and the command", () => {
   const column = out.columns.find((c) => c.slice.external_event)
   assert.ok(column)
   const external = out.boxes.find((b) => b.column === column.index && b.kind === "external")

@@ -370,7 +370,7 @@ function sliceOf(
   link(screen, commandEl)
   for (const r of reads) link(r, commandEl)
   for (const e of events) link(commandEl, e)
-  // An event of ours that keeps a field of an outside event the call got back is drawn from it.
+  // An event of ours that keeps a field of an external event the call got back is drawn from it.
   slice.events.forEach((keeps, k) => {
     if (keeps.decl.external) return
     for (const [r, got] of slice.events.entries())

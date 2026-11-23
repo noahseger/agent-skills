@@ -1014,7 +1014,7 @@ function checkHandled(
   const { command, trigger, polls } = slice
   const when = t.when
   if (!command || !when) return
-  // What each declaration before a step holds here, and how a message says so. An outside event the
+  // What each declaration before a step holds here, and how a message says so. An external event the
   // call gets back may hold anything.
   const known = new Map<DeclData, { data: Record<string, unknown>; has: string }>()
   known.set(command.decl, { data: when.data, has: "when sends" })
