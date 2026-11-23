@@ -28,7 +28,7 @@ const at = computed(() => (selection.value === "model" ? "model" : (picked.value
 const hovered = ref<string | null>(null)
 /** Bumping `seq` brings the column into view, or with none the whole model. */
 const focus = ref<{ column: number | null; seq: number }>({ column: null, seq: 0 })
-/** The board alone, for showing the model to others: no navigation, detail or marks. */
+/** The board alone, for showing the model to others: no navigation, detail, marks or selection. */
 const present = ref(false)
 
 const drawn = computed(() => (model.value ? layout(model.value) : null))
@@ -229,8 +229,8 @@ onUnmounted(() => {
       <Canvas
         v-else-if="drawn && model"
         :layout="drawn"
-        :selected-column="picked?.column ?? null"
-        :selected-box="selectedBox?.id ?? null"
+        :selected-column="present ? null : (picked?.column ?? null)"
+        :selected-box="present ? null : (selectedBox?.id ?? null)"
         :hovered="hovered"
         :focus="focus"
         @select-card="pick"
