@@ -41,6 +41,8 @@ export interface Box {
   kind: Kind
   /** The declaration's name; a ui card is named by its service method. */
   name: string
+  /** The name as words, `[]` after a list's, in the lines that fit the card. */
+  title: string[]
   fields: string[]
   keys: string[]
   /** A list view, titled with `[]`. */
@@ -122,8 +124,11 @@ export interface Chapter {
 /** A note drawn on the canvas: what it is about, then its text cut to a few lines that fit. */
 export interface Sticky {
   kind: NoteKind
-  /** What the note is about, as words: the element or the slice. */
-  subject: string
+  /**
+   * What the note is about, as words, the element or the slice, after "Question · " or
+   * "Critical · ", in the lines that fit the note.
+   */
+  head: string[]
   text: string
   lines: string[]
   y: number
@@ -176,6 +181,9 @@ export const LANE_PAD = 16
 export const STACK_GAP = 12
 export const SLOT_GAP = 32
 export const TITLE_H = 30
+export const TITLE_LINE = 15
+/** A title's average glyph width, for the characters a line of a card holds. */
+export const TITLE_CHAR = 6.6
 export const FIELD_H = 15
 export const COMPACT_H = 34
 export const CHANNEL_PAD = 10
@@ -194,6 +202,8 @@ export const STICKY_LINE = 11
 export const STICKY_PAD = 6
 export const STICKY_GAP = 6
 export const STICKY_HEAD = 12
+export const STICKY_HEAD_CHARS = 26
+export const STICKY_HEAD_LINE = 10
 export const NOTE_W = 128
 export const NOTE_GAP = 12
 
@@ -228,7 +238,7 @@ export function parse(element: string): Element {
 }
 
 /**
- * `Name(a=1, b=[x, y], c={d=2})`, `Error: message` or `Described: outcome` -> a name and one line
+ * `Name(a=1, b=[x, y], c={d: 2})`, `Error: message` or `Described: outcome` -> a name and one line
  * per field.
  */
 export function parseClause(clause: string): {
@@ -246,23 +256,40 @@ export function parseClause(clause: string): {
   }
   const open = clause.indexOf("(")
   if (open < 0) return { name: clause.trim(), lines: [], error: false }
-  const lines: string[] = []
+  return {
+    name: clause.slice(0, open).trim(),
+    lines: items(clause.slice(open + 1, clause.lastIndexOf(")"))).map((l) => l.replace("=", " = ")),
+    error: false,
+  }
+}
+
+/** `a, [b, c], {d: e}` -> its items: split at the commas outside brackets. */
+function items(text: string): string[] {
+  const all: string[] = []
   let depth = 0
   let current = ""
-  for (const ch of clause.slice(open + 1, clause.lastIndexOf(")"))) {
+  for (const ch of text) {
     if (ch === "[" || ch === "{") depth++
     if (ch === "]" || ch === "}") depth--
     if (ch === "," && depth === 0) {
-      lines.push(current)
+      all.push(current)
       current = ""
     } else current += ch
   }
-  if (current.trim().length > 0) lines.push(current)
-  return {
-    name: clause.slice(0, open).trim(),
-    lines: lines.map((l) => l.trim().replace("=", " = ")),
-    error: false,
-  }
+  if (current.trim().length > 0) all.push(current)
+  return all.map((item) => item.trim())
+}
+
+/**
+ * A value as the lines a specification shows: a list of records or lists one item per line, so each
+ * reads whole; anything else one line.
+ */
+export function valueLines(value: string): string[] {
+  const listed = value.startsWith("[") && value.endsWith("]") ? items(value.slice(1, -1)) : []
+  if (listed.length < 2 || !listed.some((item) => /^[[{]/.test(item))) return [value]
+  return listed.map(
+    (item, i) => `${i === 0 ? "[" : " "}${item}${i < listed.length - 1 ? "," : "]"}`,
+  )
 }
 
 /** Wraps by character count, breaking only words longer than a line. */
@@ -296,17 +323,31 @@ export function wrap(text: string, max: number, indent = 0): string[] {
   return lines
 }
 
-/** Notes on `subject` stacked from `top`, each cut to `STICKY_LINES` lines; the detail shows the whole text. */
+const LABEL: Record<NoteKind, string> = {
+  question: "Question · ",
+  critical: "Critical · ",
+  info: "",
+}
+
+/**
+ * Notes on `subject` stacked from `top`, each cut to `STICKY_LINES` lines; the detail shows the whole
+ * text. A question or a critical note says so in words too, not only in colour.
+ */
 export function stickies(notes: readonly Note[], top: number, subject: string): Sticky[] {
   let y = top
   return notes.map(({ text, kind }) => {
+    const head = wrap(`${LABEL[kind]}${subject}`, STICKY_HEAD_CHARS)
     const all = wrap(text, STICKY_CHARS)
     const lines =
       all.length > STICKY_LINES
         ? [...all.slice(0, STICKY_LINES - 1), `${all[STICKY_LINES - 1]}…`]
         : all
-    const h = STICKY_HEAD + lines.length * STICKY_LINE + 2 * STICKY_PAD
-    const sticky = { kind, subject, text, lines, y, h }
+    const h =
+      STICKY_HEAD +
+      (head.length - 1) * STICKY_HEAD_LINE +
+      lines.length * STICKY_LINE +
+      2 * STICKY_PAD
+    const sticky = { kind, head, text, lines, y, h }
     y += sticky.h + STICKY_GAP
     return sticky
   })
@@ -330,18 +371,28 @@ export function fitColumns(
   return { columns, more: names.length - columns.length }
 }
 
+/** A card's title in the lines that fit `w`, less the room a link back to its first card takes. */
+export function titled(el: Pick<Element, "name" | "list">, w: number, linked: boolean): string[] {
+  const room = w - 24 - (linked ? 26 : 0)
+  return wrap(`${words(el.name)}${el.list ? "[]" : ""}`, Math.floor(room / TITLE_CHAR))
+}
+
+/** How far a card's title reaches below one line's. */
+export const titleDrop = (box: Pick<Box, "title">) => (box.title.length - 1) * TITLE_LINE
+
 export function cardHeight(
-  box: Pick<Box, "kind" | "fields" | "detail" | "compact" | "form" | "button" | "table">,
+  box: Pick<Box, "kind" | "title" | "fields" | "detail" | "compact" | "form" | "button" | "table">,
 ): number {
-  if (box.compact) return COMPACT_H
+  const top = TITLE_H + titleDrop(box)
+  if (box.compact) return COMPACT_H + titleDrop(box)
   const detail = box.detail === undefined ? 0 : 14
   if (box.kind === "ui") {
     const form = (box.form?.length ?? 0) * INPUT_H
     const button = box.button === undefined ? 0 : BUTTON_H
     const table = box.table === undefined ? 0 : TABLE_H
-    return TITLE_H + detail + form + button + table + 10
+    return top + detail + form + button + table + 10
   }
-  return TITLE_H + detail + box.fields.length * FIELD_H + (box.fields.length > 0 ? 10 : 6)
+  return top + detail + box.fields.length * FIELD_H + (box.fields.length > 0 ? 10 : 6)
 }
 
 /** An SVG path from the edge of one box to the edge of another, in one column. */
@@ -523,10 +574,12 @@ export function layout(model: Board): Layout {
     const colW = columns[column]?.w ?? COL_W
     const earlier = extra.reference ? undefined : first.get(key)
     const mark = markOf(columns[column]?.messages.filter((m) => m.element === el.name) ?? [])
+    const w = extra.reference ? REF_W : CARD_W
     const box: Placed = {
       id: `b${next++}`,
       kind,
       name: el.name,
+      title: titled(el, w, earlier !== undefined),
       fields: el.fields,
       keys: el.keys,
       ...(el.list && { list: true }),
@@ -545,8 +598,8 @@ export function layout(model: Board): Layout {
       ...(earlier ? { canonical: earlier.id } : {}),
       ...(mark && { mark }),
       column,
-      dx: extra.reference ? colW - 10 - REF_W : (colW - CARD_W) / 2,
-      w: extra.reference ? REF_W : CARD_W,
+      dx: extra.reference ? colW - 10 - w : (colW - w) / 2,
+      w,
       h: 0,
     }
     box.h = cardHeight(box)
@@ -887,8 +940,14 @@ export function layout(model: Board): Layout {
     ]
   }
 
-  const specs: Spec[] = columns.flatMap((col) =>
-    col.slice.tests.map((t) => {
+  const specs: Spec[] = columns.flatMap((col) => {
+    const view = col.slice.command ? undefined : col.slice.read_models?.[0]
+    // A state view's empty then says what its screen shows: no rows.
+    const none: SpecStep = {
+      word: "then",
+      cards: [{ kind: "description", name: view ? parse(view).name : "", lines: ["no rows"] }],
+    }
+    return col.slice.tests.map((t) => {
       const steps: [SpecStep["word"], string[]][] = [
         ["given", t.given],
         ["when", t.when ? [t.when] : []],
@@ -914,10 +973,11 @@ export function layout(model: Board): Layout {
                     : (kinds.get(name) ?? "command")
               return { kind, name, lines }
             }),
-          })),
+          }))
+          .concat(view && t.then.length === 0 ? [none] : []),
       }
-    }),
-  )
+    })
+  })
 
   // A rail lines each note up with the top of what it is about, the slice's with its first card,
   // and pushes a note down only to clear the one above.
@@ -961,6 +1021,28 @@ export function outside(layout: Layout, chapter: number): Set<number> {
   const inside = (id: string) => chapterOf.get(id) === chapter
   return new Set(layout.edges.flatMap((e, i) => (inside(e.from) && inside(e.to) ? [] : [i])))
 }
+
+/**
+ * Who acts in a slice, as words: who sees it, or the machine of ours that runs it. A translation is
+ * run by one of ours, from the External System its event comes from.
+ */
+export function actorOf(model: Board, s: BoardSlice): { actor: string; from?: string } {
+  const name = (id: string) =>
+    model.actors.find((a) => a.id === id)?.name ?? (id === "system" ? "System" : undefined)
+  const named = (ids: string[]) =>
+    ids
+      .flatMap((id) => {
+        const found = name(id)
+        return found === undefined ? [] : [words(found)]
+      })
+      .join(", ")
+  if (s.external_event) return { actor: named([s.runner ?? "system"]), from: named([s.actor]) }
+  return { actor: named(s.actors ?? [s.actor]) }
+}
+
+/** The service method a slice is served by, `Service/Method`; one with no `.service()` has none. */
+export const served = (s: BoardSlice): string | undefined =>
+  s.ui?.includes("/") ? s.ui : undefined
 
 /** The strongest of the messages: an error, else a warning, else none. */
 export function markOf(messages: readonly Message[]): Mark | undefined {

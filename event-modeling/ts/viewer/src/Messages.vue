@@ -11,7 +11,7 @@ const groups = computed(() => grouped(props.messages, props.boxes))
 </script>
 
 <template>
-  <section v-if="groups.length" aria-label="What is left to do">
+  <section v-if="groups.length" class="messages" aria-label="What is left to do">
     <div v-for="g in groups" :key="g.element" class="about">
       <div v-if="g.element" class="element">
         <span v-if="g.kind" class="kind" :class="g.kind">{{ KIND[g.kind] }}</span>

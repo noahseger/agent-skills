@@ -58,7 +58,7 @@ function fieldsOf(schema: JsonSchema): BoardField[] {
 function value(v: unknown): string {
   if (Array.isArray(v)) return `[${v.map(value).join(", ")}]`
   if (v?.constructor === Object) {
-    const pairs = Object.entries(v as object).map(([k, x]) => `${k}=${value(x)}`)
+    const pairs = Object.entries(v as object).map(([k, x]) => `${k}: ${value(x)}`)
     return `{${pairs.join(", ")}}`
   }
   return String(v)

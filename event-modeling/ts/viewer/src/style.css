@@ -100,7 +100,7 @@ svg .slice-head:focus-visible > rect {
 .lane-kind,
 .card .key-mark,
 .detail h3,
-.detail .kind,
+.kind,
 .nav .chapter,
 .facts h3,
 .specs-title,
@@ -738,18 +738,18 @@ pre.error {
   margin-bottom: 14px;
 }
 
-.detail .kind {
+.kind {
   padding: 3px 7px;
   border-radius: var(--radius-sm);
 }
 
-.detail .kind.ui,
-.detail .kind.slice { background: #f1f5f9; color: var(--ui-ink); }
-.detail .kind.command { background: var(--command-fill); color: var(--command-ink); }
-.detail .kind.event { background: var(--event-fill); color: var(--event-ink); }
-.detail .kind.external { background: var(--external-fill); color: var(--external-ink); }
-.detail .kind.readModel { background: var(--view-fill); color: var(--view-ink); }
-.detail .kind.automation { background: var(--automation-fill); color: var(--automation-ink); }
+.kind.ui,
+.kind.slice { background: #f1f5f9; color: var(--ui-ink); }
+.kind.command { background: var(--command-fill); color: var(--command-ink); }
+.kind.event { background: var(--event-fill); color: var(--event-ink); }
+.kind.external { background: var(--external-fill); color: var(--external-ink); }
+.kind.readModel { background: var(--view-fill); color: var(--view-ink); }
+.kind.automation { background: var(--automation-fill); color: var(--automation-ink); }
 
 .detail h2 {
   margin: 0;
@@ -818,23 +818,23 @@ pre.error {
 }
 
 /* What is wrong or unfinished in the slice, under the element each is about. */
-.detail .about {
+.messages .about {
   padding: 8px 0;
   border-bottom: 1px solid var(--line);
 }
 
-.detail .about:first-child {
+.messages .about:first-child {
   padding-top: 0;
 }
 
-.detail .element {
+.messages .element {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 4px;
 }
 
-.detail .message {
+.messages .message {
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -842,12 +842,12 @@ pre.error {
   line-height: 1.45;
 }
 
-.detail .message .mark-error,
-.detail .message .mark-warning {
+.messages .message .mark-error,
+.messages .message .mark-warning {
   margin-top: 2px;
 }
 
-.detail .message b {
+.messages .message b {
   font-weight: 600;
 }
 
@@ -1010,6 +1010,10 @@ pre.error {
   font-size: 12px;
 }
 
+.facts .messages {
+  margin-bottom: 14px;
+}
+
 .facts h3 {
   margin: 20px 0 8px;
   color: var(--muted);
@@ -1038,7 +1042,7 @@ pre.error {
 
 .specs-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 16px;
 }
 
@@ -1110,6 +1114,11 @@ pre.error {
 .hcard .hline .v {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.hcard .hline .v span {
+  display: block;
+  white-space: pre-wrap;
 }
 
 .hcard.command { background: var(--command-fill); border-color: var(--command-stroke); color: var(--command-ink); }

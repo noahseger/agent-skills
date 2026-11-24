@@ -3,19 +3,23 @@ import { computed } from "vue"
 import type { Board } from "./board.ts"
 import Card from "./Card.vue"
 import {
+  actorOf,
   type Box,
   CARD_W,
-  COMPACT_H,
   type Column,
+  cardHeight,
   type Edge,
   LANE_PAD,
   type Layout,
   parse,
   path,
   STACK_GAP,
+  served,
   source,
+  titled,
 } from "./layout.ts"
 import Mark from "./Mark.vue"
+import Messages from "./Messages.vue"
 import Name from "./Name.vue"
 import Notes from "./Notes.vue"
 import Specs from "./Specs.vue"
@@ -55,23 +59,27 @@ const local = computed(() => {
     mine.find((b) => b.kind === "automation") ?? mine.find((b) => b.kind === "command")
   const refs: Box[] = []
   const extra: Edge[] = []
+  let below = 0
   for (const name of [...(s.reads ?? []), ...(s.polls ? [s.polls] : [])]) {
     const full = props.layout.boxes.find(
       (b) => b.name === name && b.kind === "readModel" && !b.compact,
     )
     if (!full || !consumer) continue
     const { mark: _, notes: __, ...bare } = full
+    const title = titled(full, CARD_W, true)
     const ref: Box = {
       ...bare,
       id: `read:${name}`,
+      title,
       compact: true,
       canonical: full.id,
       column: index,
       x: props.column.x + (props.column.w - CARD_W) / 2,
-      y: refs.length * (COMPACT_H + STACK_GAP),
+      y: below,
       w: CARD_W,
-      h: COMPACT_H,
+      h: cardHeight({ ...bare, title, compact: true }),
     }
+    below += ref.h + STACK_GAP
     refs.push(ref)
     extra.push({ from: ref.id, to: consumer.id, dashed: true })
   }
@@ -98,15 +106,11 @@ const edges = computed(() => [
   ...local.value.extra,
 ])
 const specs = computed(() => props.layout.specs.filter((s) => s.column === props.column.index))
+const selectedName = computed(() => local.value.boxes.find((b) => b.id === props.selectedBox)?.name)
 const viewBox = computed(() => `${props.column.x} 0 ${props.column.w} ${local.value.height}`)
 
 const slice = computed(() => props.column.slice)
-const actor = computed(() =>
-  (slice.value.actors ?? [slice.value.actor])
-    .map((id) => props.model.actors.find((a) => a.id === id)?.name)
-    .filter((name) => name !== undefined)
-    .join(", "),
-)
+const who = computed(() => actorOf(props.model, slice.value))
 const triggers = computed(() => {
   const t = slice.value.trigger
   return t ? (Array.isArray(t) ? t : [t]).map((x) => parse(x).name) : []
@@ -176,9 +180,11 @@ function cardClass(b: Box) {
       <div class="slice-right">
         <div class="facts">
           <Notes v-if="slice.notes" :notes="slice.notes" />
+          <Messages :messages="column.messages" :boxes="layout.boxes" />
           <dl>
-            <template v-if="actor"><dt>Actor</dt><dd>{{ actor }}</dd></template>
-            <template v-if="slice.ui"><dt>Service</dt><dd>{{ slice.ui }}</dd></template>
+            <template v-if="who.actor"><dt>Actor</dt><dd>{{ who.actor }}</dd></template>
+            <template v-if="who.from"><dt>From</dt><dd>{{ who.from }}</dd></template>
+            <template v-if="served(slice)"><dt>Service</dt><dd>{{ slice.ui }}</dd></template>
             <template v-if="slice.context?.length"><dt>Context</dt><dd>{{ slice.context.join(", ") }}</dd></template>
             <template v-if="slice.polls">
               <dt>Polls</dt>
@@ -211,7 +217,7 @@ function cardClass(b: Box) {
         </div>
 
         <h3 v-if="specs.length" class="specs-title">Specifications</h3>
-        <Specs :specs="specs" @hover="emit('hover', $event)" />
+        <Specs :specs="specs" :mark="selectedName" @hover="emit('hover', $event)" />
       </div>
     </div>
   </section>

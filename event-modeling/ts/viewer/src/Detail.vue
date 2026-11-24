@@ -1,8 +1,17 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { words } from "../../src/types.ts"
 import type { Board, BoardField } from "./board.ts"
-import { type Box, type Column, KIND, type Layout, parse, type Spec, source } from "./layout.ts"
+import {
+  actorOf,
+  type Box,
+  type Column,
+  KIND,
+  type Layout,
+  parse,
+  type Spec,
+  served,
+  source,
+} from "./layout.ts"
 import Messages from "./Messages.vue"
 import Name from "./Name.vue"
 import Notes from "./Notes.vue"
@@ -40,12 +49,7 @@ const rows = computed(() => {
   })
 })
 
-const actor = computed(() =>
-  (slice.value.actors ?? [slice.value.actor])
-    .map((id) => props.model.actors.find((a) => a.id === id)?.name)
-    .flatMap((name) => (name === undefined ? [] : [words(name)]))
-    .join(", "),
-)
+const who = computed(() => actorOf(props.model, slice.value))
 const mapping = computed(() =>
   props.box?.kind === "event" || props.box?.kind === "command"
     ? slice.value.mapping?.[props.box.name]
@@ -56,14 +60,18 @@ const triggers = computed(() => {
   return t ? (Array.isArray(t) ? t : [t]).map((x) => parse(x).name) : []
 })
 
-// The element's specifications, or the slice's when nothing is selected.
+// The element's specifications, its slice's first, or the slice's when nothing is selected. An
+// opened slice shows its own beside this.
 const groups = computed(() => {
   const name = props.box?.name
+  const here = props.column.index
   const mine = (s: Spec) =>
-    name
-      ? s.steps.some((st) => st.cards.some((c) => c.name === name))
-      : s.column === props.column.index
-  return props.layout.columns.flatMap((col) => {
+    name ? s.steps.some((st) => st.cards.some((c) => c.name === name)) : s.column === here
+  const columns = [
+    ...props.layout.columns.filter((col) => col.index === here && !props.open),
+    ...props.layout.columns.filter((col) => col.index !== here),
+  ]
+  return columns.flatMap((col) => {
     const specs = props.layout.specs.filter((s) => s.column === col.index && mine(s))
     if (specs.length === 0) return []
     const chapter = props.layout.chapters[col.chapter]?.title ?? ""
@@ -84,7 +92,7 @@ const groups = computed(() => {
     </header>
 
     <Notes v-if="full?.notes" :notes="full.notes" />
-    <Messages :messages="column.messages" :boxes="layout.boxes" />
+    <Messages v-if="!open" :messages="column.messages" :boxes="layout.boxes" />
 
     <template v-if="fields.fields.length">
       <h3>{{ box?.kind === "ui" ? "Query" : "Fields" }}</h3>
@@ -101,18 +109,27 @@ const groups = computed(() => {
       </table>
     </template>
 
-    <h3>Slice</h3>
-    <dl>
-      <dt>Name</dt>
-      <dd><Name :name="column.label" /></dd>
-      <template v-if="actor"><dt>Actor</dt><dd>{{ actor }}</dd></template>
-      <template v-if="slice.ui"><dt>Service</dt><dd>{{ slice.ui }}</dd></template>
-      <template v-if="slice.context?.length"><dt>Context</dt><dd>{{ slice.context.join(", ") }}</dd></template>
-      <template v-if="slice.polls"><dt>Polls</dt><dd><Name :name="slice.polls" kind="readModel" /></dd></template>
-      <template v-if="slice.reads?.length"><dt>Reads</dt><dd><Name v-for="r in slice.reads" :key="r" :name="r" kind="readModel" /></dd></template>
-      <template v-if="triggers.length"><dt>On</dt><dd><Name v-for="t in triggers" :key="t" :name="t" /></dd></template>
-    </dl>
-    <Notes v-if="slice.notes" :notes="slice.notes" />
+    <template v-if="!open">
+      <h3>Slice</h3>
+      <dl>
+        <dt>Name</dt>
+        <dd><Name :name="column.label" /></dd>
+        <template v-if="who.actor"><dt>Actor</dt><dd>{{ who.actor }}</dd></template>
+        <template v-if="who.from"><dt>From</dt><dd>{{ who.from }}</dd></template>
+        <template v-if="served(slice)"><dt>Service</dt><dd>{{ slice.ui }}</dd></template>
+        <template v-if="slice.context?.length"><dt>Context</dt><dd>{{ slice.context.join(", ") }}</dd></template>
+        <template v-if="slice.polls"><dt>Polls</dt><dd><Name :name="slice.polls" kind="readModel" /></dd></template>
+        <template v-if="slice.reads?.length">
+          <dt>Reads</dt>
+          <dd><template v-for="(r, i) in slice.reads" :key="r">{{ i > 0 ? ", " : "" }}<Name :name="r" kind="readModel" /></template></dd>
+        </template>
+        <template v-if="triggers.length">
+          <dt>On</dt>
+          <dd><template v-for="(t, i) in triggers" :key="t">{{ i > 0 ? ", " : "" }}<Name :name="t" /></template></dd>
+        </template>
+      </dl>
+      <Notes v-if="slice.notes" :notes="slice.notes" />
+    </template>
 
     <template v-if="groups.length">
       <h3>Specifications</h3>

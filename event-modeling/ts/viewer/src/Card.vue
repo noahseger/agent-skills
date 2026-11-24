@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { words } from "../../src/types.ts"
-import { type Box, BUTTON_H, FIELD_H, INPUT_H, KIND, TITLE_H } from "./layout.ts"
+import {
+  type Box,
+  BUTTON_H,
+  FIELD_H,
+  INPUT_H,
+  KIND,
+  TITLE_H,
+  TITLE_LINE,
+  titleDrop,
+} from "./layout.ts"
 import Mark from "./Mark.vue"
 
 const props = defineProps<{ box: Box }>()
@@ -13,6 +22,8 @@ const centred = computed(
     props.box.compact ||
     (props.box.kind !== "ui" && props.box.fields.length === 0 && props.box.detail === undefined),
 )
+/** Where what is under the title starts. */
+const top = computed(() => TITLE_H + titleDrop(props.box))
 </script>
 
 <template>
@@ -27,8 +38,10 @@ const centred = computed(
   >
     <title v-if="box.canonical">Full details are on its first card</title>
     <rect class="shape" :width="box.w" :height="box.h" rx="8" />
-    <text class="title" :x="12" :y="centred ? box.h / 2 + 4.5 : 20">{{ words(box.name) }}{{ box.list ? "[]" : "" }}</text>
-    <text v-if="box.detail" class="detail" :x="12" :y="TITLE_H + 4">{{ box.detail }}</text>
+    <text class="title" :y="centred ? (box.h - titleDrop(box)) / 2 + 4.5 : 20">
+      <tspan v-for="(line, i) in box.title" :key="i" :x="12" :dy="i === 0 ? 0 : TITLE_LINE">{{ line }}</tspan>
+    </text>
+    <text v-if="box.detail" class="detail" :x="12" :y="top + 4">{{ box.detail }}</text>
 
     <!-- A screen is a wireframe: inputs, a button, a table. -->
     <template v-if="box.kind === 'ui' && !box.compact">
@@ -36,7 +49,7 @@ const centred = computed(
         v-for="(field, i) in box.form ?? []"
         :key="field"
         class="input"
-        :transform="`translate(12 ${TITLE_H + (box.detail ? 14 : 0) + 2 + i * INPUT_H})`"
+        :transform="`translate(12 ${top + (box.detail ? 14 : 0) + 2 + i * INPUT_H})`"
       >
         <rect :width="box.w - 24" :height="INPUT_H - 5" rx="4" />
         <text :x="7" :y="12">{{ field }}</text>
@@ -44,7 +57,7 @@ const centred = computed(
       <g
         v-if="box.button"
         class="button"
-        :transform="`translate(12 ${TITLE_H + (box.detail ? 14 : 0) + 4 + (box.form?.length ?? 0) * INPUT_H})`"
+        :transform="`translate(12 ${top + (box.detail ? 14 : 0) + 4 + (box.form?.length ?? 0) * INPUT_H})`"
       >
         <rect :width="box.w - 24" :height="BUTTON_H - 8" rx="4" />
         <text text-anchor="middle" :x="(box.w - 24) / 2" :y="14">{{ box.button }}</text>
@@ -52,7 +65,7 @@ const centred = computed(
       <g
         v-if="box.table"
         class="table"
-        :transform="`translate(12 ${TITLE_H + (box.detail ? 14 : 0) + 4 + (box.form?.length ?? 0) * INPUT_H})`"
+        :transform="`translate(12 ${top + (box.detail ? 14 : 0) + 4 + (box.form?.length ?? 0) * INPUT_H})`"
       >
         <rect class="head" :width="box.w - 24" :height="16" rx="3" />
         <text v-for="col in box.tableColumns ?? []" :key="col.name" class="col" :x="col.x + 6" :y="11">
@@ -83,7 +96,7 @@ const centred = computed(
           class="field"
           :class="{ key: box.keys.includes(field) }"
           :x="12"
-          :y="TITLE_H + (box.detail ? 14 : 0) + 6 + i * FIELD_H"
+          :y="top + (box.detail ? 14 : 0) + 6 + i * FIELD_H"
         >
           {{ field }}
         </text>
@@ -92,7 +105,7 @@ const centred = computed(
           class="key-mark"
           text-anchor="end"
           :x="box.w - 12"
-          :y="TITLE_H + (box.detail ? 14 : 0) + 6 + i * FIELD_H"
+          :y="top + (box.detail ? 14 : 0) + 6 + i * FIELD_H"
         >
           KEY
         </text>

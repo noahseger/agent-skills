@@ -9,7 +9,9 @@ import type { Message, Source } from "../src/types.ts"
 import { words } from "../src/types.ts"
 import type { Board } from "../viewer/src/board.ts"
 import {
+  actorOf,
   type Box,
+  CARD_W,
   fitColumns,
   grouped,
   LANE_PAD,
@@ -23,8 +25,15 @@ import {
   path,
   polyline,
   STICKY_GAP,
+  STICKY_HEAD_LINE,
   STICKY_LINES,
+  served,
   source,
+  stickies,
+  TITLE_CHAR,
+  TITLE_LINE,
+  titled,
+  valueLines,
   wording,
   wrap,
 } from "../viewer/src/layout.ts"
@@ -57,10 +66,16 @@ test("parseClause gives one line per field, and a rejection its message", () => 
     lines: ["listId = list-1", "tags = [a, b]"],
     error: false,
   })
-  assert.deepEqual(parseClause("Ordered(items=[{name=a, qty=2}], to={city=b, zip=c})").lines, [
-    "items = [{name=a, qty=2}]",
-    "to = {city=b, zip=c}",
+  assert.deepEqual(parseClause("Ordered(items=[{name: a, qty: 2}], to={city: b, zip: c})").lines, [
+    "items = [{name: a, qty: 2}]",
+    "to = {city: b, zip: c}",
   ])
+  assert.deepEqual(valueLines("[{name: a, qty: 2}, {name: b, qty: 1}]"), [
+    "[{name: a, qty: 2},",
+    " {name: b, qty: 1}]",
+  ])
+  assert.deepEqual(valueLines("[a, b]"), ["[a, b]"])
+  assert.deepEqual(valueLines("{city: b, zip: c}"), ["{city: b, zip: c}"])
   assert.deepEqual(parseClause("Error: maximum 3 items per list"), {
     name: "Rejected",
     lines: ["maximum 3 items per list"],
@@ -284,6 +299,7 @@ test("a path starts at one box's edge and ends at the other's", () => {
     id: "a",
     kind: "command",
     name: "",
+    title: [""],
     fields: [],
     keys: [],
     column: 0,
@@ -334,7 +350,7 @@ test("an element's notes stand in a rail beside its slice, level with its first 
   const [info, question] = col?.notes ?? []
   assert.ok(col && info && question)
   assert.deepEqual([info.kind, question.kind], ["info", "question"])
-  assert.equal(info.subject, "Item Added")
+  assert.deepEqual(info.head, ["Item Added"])
   assert.equal(info.y, full.y)
   assert.equal(question.y, info.y + info.h + STICKY_GAP)
   assert.equal(col.railX, col.x + (out.columns[full.column]?.w ?? 0))
@@ -348,6 +364,28 @@ test("an element's notes stand in a rail beside its slice, level with its first 
   assert.equal(command?.notes?.[0]?.kind, "critical")
 })
 
+test("a long name wraps inside its card, which grows to hold it, and so does a note's header", () => {
+  assert.deepEqual(titled({ name: "CompleteVendorConnection" }, CARD_W, false), [
+    "Complete Vendor",
+    "Connection",
+  ])
+  const copy: Board = JSON.parse(JSON.stringify(model))
+  const slice = copy.chapters[0]?.slices[0]
+  assert.ok(slice?.command)
+  slice.command = slice.command.replace("CreateList(", "CreateListFromEveryHousehold(")
+  const long = layout(copy).boxes.find((b) => b.name === "CreateListFromEveryHousehold")
+  const short = out.boxes.find((b) => b.name === "CreateList" && b.kind === "command")
+  assert.ok(long && short)
+  assert.deepEqual(long.title, ["Create List From", "Every Household"])
+  for (const line of long.title) assert.ok(line.length * TITLE_CHAR <= long.w - 24, line)
+  assert.equal(long.h, short.h + TITLE_LINE)
+  const note = { text: "Rate limited.", kind: "critical" } as const
+  const [wide] = stickies([note], 0, "Complete Vendor Connection")
+  const [narrow] = stickies([note], 0, "Create List")
+  assert.deepEqual(wide?.head, ["Critical · Complete Vendor", "Connection"])
+  assert.equal(wide?.h, (narrow?.h ?? 0) + STICKY_HEAD_LINE)
+})
+
 test("a slice's note lines up with its first card and names the slice; the lanes stay and later columns move right", () => {
   const copy: Board = JSON.parse(JSON.stringify(model))
   const slice = copy.chapters[0]?.slices[2]
@@ -358,7 +396,7 @@ test("a slice's note lines up with its first card and names the slice; the lanes
   assert.ok(sticky)
   const top = Math.min(...drawn.boxes.filter((b) => b.column === 2).map((b) => b.y))
   assert.equal(sticky.y, top)
-  assert.equal(sticky.subject, drawn.columns[2]?.title)
+  assert.deepEqual(sticky.head, [`Question · ${drawn.columns[2]?.title}`])
   assert.equal(drawn.rows[0]?.y, out.rows[0]?.y)
   assert.equal(drawn.columns[3]?.x, (out.columns[3]?.x ?? 0) + NOTE_W + NOTE_GAP)
   assert.equal(drawn.width, out.width + NOTE_W + NOTE_GAP)
@@ -396,6 +434,21 @@ test("a view's specification asks its screen in when, and shows rows in then", (
   assert.deepEqual(spec?.steps[1]?.cards[0]?.lines, ["userId = u-1"])
 })
 
+test("a view's specification whose then is empty shows no rows", () => {
+  const copy: Board = JSON.parse(JSON.stringify(model))
+  const slice = copy.chapters.flatMap((c) => c.slices).find((s) => s.name === "TodoList")
+  const test = slice?.tests.at(-1)
+  assert.ok(test)
+  test.then = []
+  const drawn = layout(copy)
+  const column = drawn.columns.find((c) => c.label === "TodoList")
+  const spec = drawn.specs.filter((s) => s.column === column?.index).at(-1)
+  assert.deepEqual(spec?.steps.at(-1), {
+    word: "then",
+    cards: [{ kind: "description", name: "TodoList", lines: ["no rows"] }],
+  })
+})
+
 test("focusing a chapter dims the edges that come from or go to another chapter, and only those", () => {
   const chapterOf = (id: string) => out.columns[byId.get(id)?.column ?? -1]?.chapter
   const views = out.chapters.findIndex((c) => c.name === "Views")
@@ -429,6 +482,23 @@ test("a translation gets an automation of ours between the external event and th
   assert.ok(out.edges.some((e) => e.from === external.id && e.to === gear.id))
   assert.ok(out.edges.some((e) => e.from === gear.id && e.to === command.id))
   assert.ok(!out.edges.some((e) => e.from === external.id && e.to === command.id))
+})
+
+test("a translation is run by a machine of ours, from its External System; a slice names a service only once it has one", () => {
+  const column = out.columns.find((c) => c.slice.external_event)
+  assert.ok(column)
+  assert.deepEqual(actorOf(model, column.slice), { actor: "System", from: "Calendar" })
+  const worker = { id: "list-worker", name: "ListWorker", type: "system" as const }
+  const run = { ...column.slice, runner: worker.id }
+  assert.deepEqual(actorOf({ ...model, actors: [...model.actors, worker] }, run), {
+    actor: "List Worker",
+    from: "Calendar",
+  })
+  const create = out.columns.find((c) => c.label === "CreateList")?.slice
+  assert.ok(create)
+  assert.deepEqual(actorOf(model, create), { actor: "User" })
+  assert.equal(served(create), "TodoService/CreateList")
+  assert.equal(served({ ...create, ui: "CreateList" }), undefined)
 })
 
 test("a call's external event is drawn in the system's lane, and a later trigger links to it", () => {

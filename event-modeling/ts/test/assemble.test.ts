@@ -2242,7 +2242,7 @@ test("an example's nested values are printed", () => {
   const spec = json.chapters[0]?.slices[0]?.tests[0]
   assert.deepEqual(
     [spec?.when, spec?.then],
-    ["Order(id=1, items=[{name=a}, {name=b}])", ["Ordered(id=1, items=[{name=a}])"]],
+    ["Order(id=1, items=[{name: a}, {name: b}])", ["Ordered(id=1, items=[{name: a}])"]],
   )
 })
 
