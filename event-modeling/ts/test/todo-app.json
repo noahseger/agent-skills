@@ -64,12 +64,18 @@
               },
               "name": {
                 "type": "string"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "listId",
               "userId",
-              "name"
+              "name",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -285,13 +291,19 @@
               },
               "title": {
                 "type": "string"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "userId",
               "listId",
               "itemId",
-              "title"
+              "title",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -546,12 +558,18 @@
               },
               "itemId": {
                 "type": "string"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "userId",
               "listId",
-              "itemId"
+              "itemId",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -720,11 +738,17 @@
               },
               "itemId": {
                 "type": "string"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "listId",
-              "itemId"
+              "itemId",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -887,11 +911,17 @@
               },
               "listId": {
                 "type": "string"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "userId",
-              "listId"
+              "listId",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -1019,12 +1049,18 @@
               },
               "name": {
                 "type": "string"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "listId",
               "userId",
-              "name"
+              "name",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -1061,13 +1097,19 @@
               },
               "title": {
                 "type": "string"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "userId",
               "listId",
               "itemId",
-              "title"
+              "title",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -1092,11 +1134,17 @@
               },
               "listId": {
                 "type": "string"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "userId",
-              "listId"
+              "listId",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -1121,11 +1169,17 @@
               },
               "listId": {
                 "type": "string"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "userId",
-              "listId"
+              "listId",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -1594,13 +1648,19 @@
               },
               "title": {
                 "type": "string"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "userId",
               "listId",
               "itemId",
-              "title"
+              "title",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -1628,12 +1688,18 @@
               },
               "itemId": {
                 "type": "string"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "userId",
               "listId",
-              "itemId"
+              "itemId",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -1658,11 +1724,17 @@
               },
               "itemId": {
                 "type": "string"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "listId",
-              "itemId"
+              "itemId",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -2039,13 +2111,19 @@
               },
               "title": {
                 "type": "string"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "userId",
               "listId",
               "itemId",
-              "title"
+              "title",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -2073,12 +2151,18 @@
               },
               "itemId": {
                 "type": "string"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "userId",
               "listId",
-              "itemId"
+              "itemId",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -2103,11 +2187,17 @@
               },
               "itemId": {
                 "type": "string"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "listId",
-              "itemId"
+              "itemId",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -2469,12 +2559,18 @@
               },
               "itemId": {
                 "type": "string"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "userId",
               "listId",
-              "itemId"
+              "itemId",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -2499,11 +2595,17 @@
               },
               "listId": {
                 "type": "string"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "userId",
-              "listId"
+              "listId",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -2741,13 +2843,19 @@
               },
               "text": {
                 "type": "string"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "userId",
               "listId",
               "itemId",
-              "text"
+              "text",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -2779,13 +2887,19 @@
               },
               "title": {
                 "type": "string"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "userId",
               "listId",
               "itemId",
-              "title"
+              "title",
+              "timestamp"
             ]
           },
           "dependencies": [

@@ -752,12 +752,13 @@ function checkFilled({ slice, where }: Located, fail: Fail): void {
       [...filled(command), ...optional(command.decl)],
       (f) => `Add ${f} to a step before .command(), or set it in the mapping.`,
     )
-  // An external event's fields come from outside, and an event of ours can keep them.
+  // An external event's fields come from outside, and an event of ours can keep them. Recording
+  // sets its timestamp.
   if (command)
     for (const flow of slice.events.filter((f) => !f.decl.external))
       check(
         flow.decl,
-        [...filled(flow), ...optional(flow.decl)],
+        [...filled(flow), ...optional(flow.decl), "timestamp"],
         (f) => `Add ${f} to a step before .event(), or set it in the mapping.`,
       )
   if (view)

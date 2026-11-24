@@ -174,7 +174,7 @@ test("a state change: a screen per slice, the endpoint on the command, events in
   assert.deepEqual(place.comments, [{ description: "The till takes the order.", kind: "info" }])
 })
 
-test("an element's fields are Zod's JSON Schema, less what repeats a format, with its key", () => {
+test("an element's fields are Zod's JSON Schema, less what repeats a format, with its key, and an event's implicit timestamp", () => {
   const lines = {
     type: "array",
     items: {
@@ -190,8 +190,9 @@ test("an element's fields are Zod's JSON Schema, less what repeats a format, wit
       product: { type: "string" },
       lines,
       placedAt: { type: "string", description: "When the till took it" },
+      timestamp: { type: "string", format: "date-time", implicit: true },
     },
-    required: ["orderId", "product", "lines", "placedAt"],
+    required: ["orderId", "product", "lines", "placedAt", "timestamp"],
   })
   assert.deepEqual(charge?.events[0]?.fields.properties?.amount, { type: "integer" })
   assert.deepEqual(loose?.events[0]?.fields.properties?.id, { type: "string", format: "uuid" })

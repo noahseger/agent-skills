@@ -376,6 +376,12 @@ system actor it declares runs them all, and an automation's `.actor(d.Syncer)` n
 Dates, times and durations are ISO strings: `2026-01-31`, `2026-01-31T09:00:00Z`, `PT30S`. A field
 has no other method: what a field computes, refines or defaults to is the handler's, not the model's.
 
+Every event carries `timestamp`, a `t.datetime()`: the UTC moment it was recorded. Recording sets
+it, so you don't declare one, and declaring a field named `timestamp` on an event is a compiler
+error. An example may set it when the time matters. A business time, when a fact became true, such
+as a payment's `paidAt` from the bank, is an ordinary declared field. The JSON lists `timestamp` on
+every event; the diagram shows it only on an event whose `timestamp` a mapping reads.
+
 ### Mappings
 
 A field declared `.optional()` may go unfilled in a slice, as long as another slice fills it:
@@ -398,6 +404,9 @@ A value the handler makes has no field to copy. Say what the handler makes it fr
 ```
 
 What comes before an automation's command fills it, so generating a value there is an error.
+
+A mapping reads an event's `timestamp` like any of its fields, so a view records when something
+happened without the event declaring it: `.view(d.Inbox).event(d.NoteCaptured, (c) => ({ capturedAt: c.NoteCaptured.timestamp }))`.
 
 A mapping only copies, sets constants and says what the handler makes a value from; it computes nothing. A
 string built from a field, such as `` `${c.AddNote.title}!` ``, or arithmetic, such as
@@ -749,7 +758,7 @@ Naming is yours: nothing checks the conventions above.
 | `.service()` | `service` and `apiEndpoint` on the command, or on the view a state view shows |
 | a stream | each event's `aggregate`, and the slice's `aggregates`: the streams it records into. A slice that records nothing names none |
 | an actor | the slice's `actors`. An admin carries the tag `admin`, a machine of ours `system`. An automation's, or a state view's no one sees, is the system actor that runs it |
-| fields | the element's `fields`: their JSON Schema, as [Fields](#fields) says, less `$schema`, a `pattern` beside a `format`, and an integer's safe-integer bounds |
+| fields | the element's `fields`: their JSON Schema, as [Fields](#fields) says, less `$schema`, a `pattern` beside a `format`, and an integer's safe-integer bounds. An event's also have `timestamp`, which it doesn't declare, marked `"implicit": true`; the viewer draws an implicit field only where a mapping reads it |
 | `.key()` | the element's `key` |
 | a list view | its `fields` are an array's JSON Schema, with the row's fields as its `items` |
 | a mapping | the slice's `mappings`, by the element of the step it is on, then by field: the source field's name, `= ` and a JSON value, or `generate(<inputs>)`. A field from a queried row, by name too, is `View(filter columns).column`, as `CartsWithProducts(productId).aggregateId`; of a view queried twice, the row before the step. A state view's are on its events, and set the view's columns |

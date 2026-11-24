@@ -118,8 +118,11 @@ function contexts(): Map<string, Fields> {
 function typeOf(name: string, data: Exported, context: Fields | undefined): string {
   const named = JSON.stringify(name)
   switch (data.kind) {
-    case "event":
-      return `${data.system ? "ExternalEventDecl" : "EventDecl"}<${named}, ${fieldsOf(data.fields)}>`
+    case "event": {
+      // EventDecl adds the timestamp every event has.
+      const { timestamp: _, ...declared } = data.fields
+      return `${data.system ? "ExternalEventDecl" : "EventDecl"}<${named}, ${fieldsOf(declared)}>`
+    }
     case "command":
       return `CommandDecl<${named}, ${fieldsOf(data.fields)}>`
     case "view":

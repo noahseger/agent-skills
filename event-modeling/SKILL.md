@@ -58,7 +58,7 @@ Two directions, both required:
 
 1. **View ← Event (projection):** Every field displayed in a view must trace back to a field in an event. If a view shows "total price," there must be an event carrying that data.
 
-2. **Event ← Inputs (provenance):** Every field in an event must trace back to a data source within the slice. Those sources are:
+2. **Event ← Inputs (provenance):** Every field in an event must trace back to a data source within the slice, except `timestamp`: every event carries it, the UTC moment it was recorded, so you don't declare one, and a view or command may read it like any field. Those sources are:
    - **Command parameters** — fields the actor provides (e.g. `PlaceOrder(customerId, items)`)
    - **Trigger event** — for automation slices, the event that triggered the automation
    - **External event** — for a translation, the event that arrives from outside the system
@@ -125,6 +125,7 @@ The file is `{ "slices": [...] }`, and `ts/schema/eventmodeling.schema.json` val
 - **External events**: `"context": "EXTERNAL"`, with `service` naming the system they come from. They have no `aggregate`; we never store them. A command's outbound event that is external is a call to that system and the external event the call gets back: an event of ours after it in the same slice keeps that event's fields, by name or as `c.CartUpdated.unavailable` in its mapping, and the external event points at it. A `TRANSLATION` is for an external event that arrives on its own, not for one a call gets back.
 - **What a slice queries**: a view with an `OUTBOUND` dependency on the command; the mapping writes a field from its row as `View(filter columns).column`: `InventoryLevel(sku).warehouseId`. One pointing at the processor is the view the automation polls for its work.
 - **Key columns**: the element's `"key": ["sku"]`. A view with none has one row. A list view, where each event adds a row, has `fields` of `"type": "array"`, with the row's fields as its `items`.
+- **Timestamp**: every event carries `timestamp`, the UTC moment it was recorded, so you don't declare one. In `fields` it is `{ "type": "string", "format": "date-time", "implicit": true }`. A business time, when a fact became true, is an ordinary declared field.
 - **Mapping**: the slice's `mappings`, by element, then field: a renamed source's name; `= 0`, a constant; `generate()`, a value the handler assigns, such as an id or a clock.
 - **Specifications**: `given`, `when` and `then` steps, each with one example in `examples`. A refusal is a `SPEC_ERROR` step titled with the reason; an outcome `then` describes in words, a `SPEC_DESCRIPTION` step titled with it. A state view's `when` is a `SPEC_COMMAND` step titled with its screen, holding its context's values; its `then`, `SPEC_READMODEL` rows.
 - **Notes**: the element's or the slice's `comments`, each a `description` and a `kind`: `critical`, `question` or `info`. The viewer draws each as a sticky: red, amber or neutral.

@@ -3,7 +3,16 @@
 import { createHash } from "node:crypto"
 import { z } from "zod"
 
-import { type AnyField, type Fields, isKey, type List, type Row, t, type Value } from "./t.ts"
+import {
+  type AnyField,
+  type Field,
+  type Fields,
+  isKey,
+  type List,
+  type Row,
+  t,
+  type Value,
+} from "./t.ts"
 import {
   type ActorData,
   type ChapterData,
@@ -96,7 +105,12 @@ export interface Decl<N extends string, K extends DeclKind, F extends Fields> {
   readonly __fields: F
 }
 
-export type EventDecl<N extends string = string, F extends Fields = Fields> = Decl<N, "event", F>
+/** An event: its fields, and when it was recorded, which every event has, so none declares it. */
+export type EventDecl<N extends string = string, F extends Fields = Fields> = Decl<
+  N,
+  "event",
+  F & { timestamp: Field<string, "datetime"> }
+>
 export type CommandDecl<N extends string = string, F extends Fields = Fields> = Decl<
   N,
   "command",
@@ -248,9 +262,19 @@ type Unkeyed<F extends Fields> = {
     : F[K]
 }
 
-/** Something that happened, in the past tense, with its fields. */
-function event<F extends Fields>(name: string, fields: F & Unkeyed<F>): EventNoted {
-  const [builder, data] = decl(name, "event", fields)
+/** `F`, or, for a field named `timestamp`, the instruction. */
+type Unstamped<F extends Fields> = {
+  [K in keyof F]: K extends "timestamp"
+    ? "timestamp: every event has one already; remove it."
+    : F[K]
+}
+
+/** When an event was recorded, in UTC. Every event has it, so none declares it. */
+const timestamp = z.iso.datetime().meta({ implicit: true })
+
+/** Something that happened, in the past tense, with its fields, and when it was recorded. */
+function event<F extends Fields>(name: string, fields: F & Unkeyed<F> & Unstamped<F>): EventNoted {
+  const [builder, data] = decl(name, "event", { ...fields, timestamp } as Fields)
   return Object.assign(builder, {
     stream(stream: Stream) {
       data.stream = stream
@@ -552,9 +576,12 @@ type Filled<
   ? Single<N, D>
   : unknown extends O
     ? Single<N, D>
-    : [Problems<C, NameOf<N>, FieldsOf<N>, Step, keyof O>] extends [never]
+    : [Problems<C, NameOf<N>, FieldsOf<N>, Step, keyof O | Recording<D>>] extends [never]
       ? Single<N, D>
-      : Problems<C, NameOf<N>, FieldsOf<N>, Step, keyof O>
+      : Problems<C, NameOf<N>, FieldsOf<N>, Step, keyof O | Recording<D>>
+
+/** What recording sets, so no step fills it: an event's timestamp. */
+type Recording<D> = D extends AnyEvent ? "timestamp" : never
 
 /** The mapping a step takes: `c` holds each declaration before it, and `O` is what it sets. */
 type Mapping<C extends Ctx, A, O> = (c: Scope<C>) => O & Out<FieldsOf<A>>

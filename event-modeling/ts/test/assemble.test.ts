@@ -222,6 +222,47 @@ test("a mapping function fills what the command does not carry", () => {
   assert.equal(json.chapters[0]?.slices[0]?.command, "Create(id, name)")
 })
 
+test("every event has a timestamp recording sets, drawn only where a mapping reads it", () => {
+  const at = "2026-01-31T09:00:00Z"
+  const stamped = (read: boolean) => {
+    fixture("Table")
+    m.view("Table", { id: t.string().key(), name: t.string(), ...(read && { at: t.datetime() }) })
+    const built = read
+      ? m
+          .slice()
+          .view(d.Table)
+          .event(d.Created, (c: C) => ({ at: c.Created.timestamp }))
+      : m.slice().view(d.Table).event(d.Created)
+    const shown = built
+      .actor(d.User)
+      .service(d.Svc, "Get")
+      .spec("A new list is a row", { given: d.Created({ ...list, timestamp: at }), then: [] })
+    chapters({ Ch: [create(), shown] })
+    return feedOf([{ default: m.model("x") }])
+  }
+  const unread = stamped(false)
+  assert.deepEqual(unread.model.slices[0]?.events[0]?.fields.properties?.timestamp, {
+    type: "string",
+    format: "date-time",
+    implicit: true,
+  })
+  const hidden = drawn(unread).chapters[0]?.slices[1]
+  assert.deepEqual(
+    [hidden?.trigger, hidden?.tests[0]?.given],
+    [["Created(id, name)"], ["Created(id=list-1, name=Groceries)"]],
+  )
+  const shown = drawn(stamped(true)).chapters[0]?.slices
+  assert.deepEqual(shown?.[1]?.mapping, { Created: { at: { from: "timestamp" } } })
+  assert.deepEqual(
+    [shown?.[0]?.events, shown?.[1]?.trigger, shown?.[1]?.tests[0]?.given],
+    [
+      ["Created(id, name, timestamp)"],
+      ["Created(id, name, timestamp)"],
+      [`Created(id=list-1, name=Groceries, timestamp=${at})`],
+    ],
+  )
+})
+
 test("a mapping spreads a whole declaration and sets the rest from another", () => {
   fixture("Created")
   m.event("Created", { id: t.string(), name: t.string(), extra: t.string() })

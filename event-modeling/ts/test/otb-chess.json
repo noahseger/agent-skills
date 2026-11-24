@@ -97,6 +97,11 @@
               },
               "incrementSeconds": {
                 "type": "integer"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
@@ -107,7 +112,8 @@
               "blackPlayerId",
               "timeControl",
               "baseMinutes",
-              "incrementSeconds"
+              "incrementSeconds",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -164,6 +170,11 @@
               },
               "ply": {
                 "type": "integer"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
@@ -177,7 +188,8 @@
               "incrementSeconds",
               "fen",
               "sideToMove",
-              "ply"
+              "ply",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -355,6 +367,11 @@
               },
               "ply": {
                 "type": "integer"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
@@ -368,7 +385,8 @@
               "incrementSeconds",
               "fen",
               "sideToMove",
-              "ply"
+              "ply",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -568,6 +586,11 @@
               },
               "ply": {
                 "type": "integer"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
@@ -581,7 +604,8 @@
               "incrementSeconds",
               "fen",
               "sideToMove",
-              "ply"
+              "ply",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -622,6 +646,11 @@
                   "white",
                   "black"
                 ]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
@@ -630,7 +659,8 @@
               "incrementSeconds",
               "whiteTimeMs",
               "blackTimeMs",
-              "runningSide"
+              "runningSide",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -901,6 +931,11 @@
               },
               "isCapture": {
                 "type": "boolean"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
@@ -913,7 +948,8 @@
               "fen",
               "sideToMove",
               "isCheck",
-              "isCapture"
+              "isCapture",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -949,13 +985,19 @@
                   "stalemate",
                   "dead_position"
                 ]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "gameId",
               "ply",
               "fen",
-              "ending"
+              "ending",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -1460,6 +1502,11 @@
               },
               "ply": {
                 "type": "integer"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
@@ -1473,7 +1520,8 @@
               "incrementSeconds",
               "fen",
               "sideToMove",
-              "ply"
+              "ply",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -1534,6 +1582,11 @@
               },
               "isCapture": {
                 "type": "boolean"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
@@ -1546,7 +1599,8 @@
               "fen",
               "sideToMove",
               "isCheck",
-              "isCapture"
+              "isCapture",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -1601,6 +1655,11 @@
                   "white",
                   "black"
                 ]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
@@ -1611,7 +1670,8 @@
               "addedTimeMs",
               "penalty",
               "fen",
-              "sideToMove"
+              "sideToMove",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -1983,13 +2043,19 @@
                   "white",
                   "black"
                 ]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "gameId",
               "whiteTimeMs",
               "blackTimeMs",
-              "runningSide"
+              "runningSide",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -2252,6 +2318,11 @@
                   "white",
                   "black"
                 ]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
@@ -2260,7 +2331,8 @@
               "incrementSeconds",
               "whiteTimeMs",
               "blackTimeMs",
-              "runningSide"
+              "runningSide",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -2295,13 +2367,19 @@
                   "white",
                   "black"
                 ]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "gameId",
               "whiteTimeMs",
               "blackTimeMs",
-              "runningSide"
+              "runningSide",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -2519,6 +2597,11 @@
               },
               "isCapture": {
                 "type": "boolean"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
@@ -2531,7 +2614,8 @@
               "fen",
               "sideToMove",
               "isCheck",
-              "isCapture"
+              "isCapture",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -2586,6 +2670,11 @@
                   "white",
                   "black"
                 ]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
@@ -2596,7 +2685,8 @@
               "addedTimeMs",
               "penalty",
               "fen",
-              "sideToMove"
+              "sideToMove",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -2946,12 +3036,18 @@
               },
               "ply": {
                 "type": "integer"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "gameId",
               "offeringSide",
-              "ply"
+              "ply",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -3151,12 +3247,18 @@
               },
               "ply": {
                 "type": "integer"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "gameId",
               "offeringSide",
-              "ply"
+              "ply",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -3217,6 +3319,11 @@
               },
               "isCapture": {
                 "type": "boolean"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
@@ -3229,7 +3336,8 @@
               "fen",
               "sideToMove",
               "isCheck",
-              "isCapture"
+              "isCapture",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -3278,13 +3386,19 @@
                   "time_forfeit",
                   "illegal_move_forfeit"
                 ]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "gameId",
               "offeringSide",
               "result",
-              "termination"
+              "termination",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -3636,13 +3750,19 @@
                   "time_forfeit",
                   "illegal_move_forfeit"
                 ]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "gameId",
               "offeringSide",
               "result",
-              "termination"
+              "termination",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -3996,13 +4116,19 @@
                   "time_forfeit",
                   "illegal_move_forfeit"
                 ]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "gameId",
               "resigningSide",
               "result",
-              "termination"
+              "termination",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -4329,6 +4455,11 @@
                   "white",
                   "black"
                 ]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
@@ -4339,7 +4470,8 @@
               "addedTimeMs",
               "penalty",
               "fen",
-              "sideToMove"
+              "sideToMove",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -4371,12 +4503,18 @@
               },
               "illegalMoveCount": {
                 "type": "integer"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "gameId",
               "offendingSide",
-              "illegalMoveCount"
+              "illegalMoveCount",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -4805,6 +4943,11 @@
                   "white",
                   "black"
                 ]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
@@ -4815,7 +4958,8 @@
               "addedTimeMs",
               "penalty",
               "fen",
-              "sideToMove"
+              "sideToMove",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -5092,13 +5236,19 @@
                   "time_forfeit",
                   "illegal_move_forfeit"
                 ]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "gameId",
               "flaggedSide",
               "result",
-              "termination"
+              "termination",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -5410,13 +5560,19 @@
                   "stalemate",
                   "dead_position"
                 ]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "gameId",
               "ply",
               "fen",
-              "ending"
+              "ending",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -5464,6 +5620,11 @@
                   "time_forfeit",
                   "illegal_move_forfeit"
                 ]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
@@ -5471,7 +5632,8 @@
               "ply",
               "fen",
               "result",
-              "termination"
+              "termination",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -5873,12 +6035,18 @@
               },
               "illegalMoveCount": {
                 "type": "integer"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "gameId",
               "offendingSide",
-              "illegalMoveCount"
+              "illegalMoveCount",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -5930,6 +6098,11 @@
                   "time_forfeit",
                   "illegal_move_forfeit"
                 ]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
@@ -5937,7 +6110,8 @@
               "offendingSide",
               "illegalMoveCount",
               "result",
-              "termination"
+              "termination",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -6163,13 +6337,19 @@
                   "time_forfeit",
                   "illegal_move_forfeit"
                 ]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "gameId",
               "resigningSide",
               "result",
-              "termination"
+              "termination",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -6218,13 +6398,19 @@
                   "time_forfeit",
                   "illegal_move_forfeit"
                 ]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "gameId",
               "offeringSide",
               "result",
-              "termination"
+              "termination",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -6272,6 +6458,11 @@
                   "time_forfeit",
                   "illegal_move_forfeit"
                 ]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
@@ -6279,7 +6470,8 @@
               "ply",
               "fen",
               "result",
-              "termination"
+              "termination",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -6328,13 +6520,19 @@
                   "time_forfeit",
                   "illegal_move_forfeit"
                 ]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
               "gameId",
               "flaggedSide",
               "result",
-              "termination"
+              "termination",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -6386,6 +6584,11 @@
                   "time_forfeit",
                   "illegal_move_forfeit"
                 ]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
@@ -6393,7 +6596,8 @@
               "offendingSide",
               "illegalMoveCount",
               "result",
-              "termination"
+              "termination",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -6808,6 +7012,11 @@
                   "time_forfeit",
                   "illegal_move_forfeit"
                 ]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
@@ -6817,7 +7026,8 @@
               "whitePlayerId",
               "blackPlayerId",
               "result",
-              "termination"
+              "termination",
+              "timestamp"
             ]
           },
           "dependencies": [
@@ -7143,6 +7353,11 @@
                   "time_forfeit",
                   "illegal_move_forfeit"
                 ]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "implicit": true
               }
             },
             "required": [
@@ -7152,7 +7367,8 @@
               "whitePlayerId",
               "blackPlayerId",
               "result",
-              "termination"
+              "termination",
+              "timestamp"
             ]
           },
           "dependencies": [

@@ -169,6 +169,65 @@ function usable(s: SpecSlice): SpecSlice {
   }
 }
 
+/**
+ * The slices less each event's implicit fields no mapping reads, from its cards and examples. A
+ * state view's step reads its event; any other step what starts its slice or what a call brings back.
+ */
+function presented(slices: SpecSlice[]): SpecSlice[] {
+  const read = new Set<string>()
+  for (const s of slices) {
+    const { trigger, heard, recorded } = parts(s)
+    const readable = [...(trigger ? [trigger] : []), ...recorded.filter(external)]
+    for (const [step, fields] of Object.entries(isObject(s.mappings) ? s.mappings : {})) {
+      const from = heard.filter((e) => e.title === step)
+      for (const text of Object.values(isObject(fields) ? fields : {})) {
+        const got = source(String(text))
+        const names = "from" in got ? [got.from] : "generate" in got ? got.generate : []
+        for (const e of from.length > 0 ? from : readable)
+          for (const n of names) read.add(`${e.title}.${n}`)
+      }
+    }
+  }
+  const implicit = new Set(
+    slices.flatMap((s) =>
+      (s.events ?? []).flatMap((e) =>
+        Object.entries(e.fields.properties ?? {}).flatMap(([n, p]) =>
+          p.implicit ? [`${e.title}.${n}`] : [],
+        ),
+      ),
+    ),
+  )
+  const shows = (title: string) => (name: string) =>
+    !implicit.has(`${title}.${name}`) || read.has(`${title}.${name}`)
+  const only = <T>(o: Record<string, T>, show: (name: string) => boolean) =>
+    Object.fromEntries(Object.entries(o).filter(([n]) => show(n)))
+  const unread = (el: SpecElement): SpecElement => {
+    const { properties, required } = el.fields
+    const show = shows(el.title)
+    return {
+      ...el,
+      fields: {
+        ...el.fields,
+        ...(properties && { properties: only(properties, show) }),
+        ...(required && { required: required.filter(show) }),
+      },
+    }
+  }
+  const shown = (step: SpecStep): SpecStep =>
+    step.type === "SPEC_EVENT" && step.examples
+      ? { ...step, examples: step.examples.map((x) => only(x, shows(step.title))) }
+      : step
+  return slices.map((s) => ({
+    ...s,
+    events: (s.events ?? []).map(unread),
+    specifications: (s.specifications ?? []).map((spec) => ({
+      ...spec,
+      given: spec.given.map(shown),
+      then: spec.then.map(shown),
+    })),
+  }))
+}
+
 export function read(written: Feed): Board {
   // A file that breaks the schema is drawn as far as its lists go.
   const feed: Feed = {
@@ -179,9 +238,11 @@ export function read(written: Feed): Board {
     }),
     ...(written.actors !== undefined && { actors: list(written.actors) }),
   }
-  const slices = list<SpecSlice>(written.model?.slices)
-    .map(usable)
-    .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+  const slices = presented(
+    list<SpecSlice>(written.model?.slices)
+      .map(usable)
+      .sort((a, b) => (a.index ?? 0) - (b.index ?? 0)),
+  )
 
   // Lanes in the order declared, then as the slices first name them. Without any, one: Events.
   const lanes = [...(feed.streams ?? [])]

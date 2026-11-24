@@ -561,6 +561,16 @@ m.event("Shelved", { shelfId: t.string().key() })
 // @ts-expect-error a command has none either
 m.command("Shelve", { shelfId: t.string().key() })
 
+// @ts-expect-error every event has a timestamp already
+m.event("Shelved", { shelfId: t.string(), timestamp: t.datetime() })
+
+// Every event has one: a mapping reads it, and an example may set it.
+m.slice().view(d.Basket).event(d.TextCaptured, (c) => ({ listId: c.TextCaptured.noteId, name: c.TextCaptured.timestamp }))
+d.TextCaptured({ noteId: "n-1", timestamp: "2026-01-31T09:00:00Z" })
+
+// @ts-expect-error a timestamp is a datetime, not a uuid
+m.slice().view(d.Basket).event(d.TextCaptured, (c) => ({ listId: c.TextCaptured.timestamp, name: c.TextCaptured.text }))
+
 // @ts-expect-error a table built from events is declared with m.view
 m.readModel({ shelfId: t.string() })
 

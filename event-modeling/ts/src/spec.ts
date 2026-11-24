@@ -40,6 +40,8 @@ export interface JsonSchema {
   required?: string[]
   /** A `t.oneOf()`'s cases, each an object of one property. */
   oneOf?: JsonSchema[]
+  /** Every event has it, so none declares it: an event's `timestamp`. */
+  implicit?: true
 }
 
 export interface Dependency {
