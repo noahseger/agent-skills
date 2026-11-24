@@ -1,7 +1,7 @@
 // `em view`: serves the viewer and the model, and tells the browser when to reload.
-import { existsSync, readFileSync, statSync, watch } from "node:fs"
+import { existsSync, type FSWatcher, readdirSync, readFileSync, statSync, watch } from "node:fs"
 import { createServer, type ServerResponse } from "node:http"
-import { basename, extname, join, normalize } from "node:path"
+import { basename, extname, join, normalize, relative } from "node:path"
 
 import { GENERATED } from "./registry.ts"
 
@@ -75,10 +75,28 @@ export async function serve(options: ServeOptions): Promise<Server> {
   let changed: string[] = []
   // One load at a time, so a slow load never overwrites a later save's.
   let loading = Promise.resolve()
-  const watcher = watch(options.root, { recursive: true }, (_event, filename) => {
+  // A watcher per directory: node 22's recursive watch on Linux stops seeing a file once a save
+  // renames a temporary copy over it.
+  const watchers = new Map<string, FSWatcher>()
+  const watchAll = () => {
+    const dirs = directories(options.root)
+    for (const [dir, watcher] of watchers) {
+      if (dirs.includes(dir)) continue
+      watcher.close()
+      watchers.delete(dir)
+    }
+    for (const dir of dirs)
+      if (!watchers.has(dir))
+        watchers.set(
+          dir,
+          watch(dir, (_event, name) => name && saw(relative(options.root, join(dir, name)))).on(
+            "error",
+            () => {},
+          ),
+        )
+  }
+  const saw = (file: string) => {
     // A hidden file is an editor's temporary copy; the rename onto the model file follows it.
-    if (!filename || filename.includes("node_modules")) return
-    const file = filename.toString()
     if (basename(file).startsWith(".")) return
     // A load writes em-registry.d.ts, and type-checks again itself when it changed.
     if (basename(file).startsWith(GENERATED)) return
@@ -93,8 +111,10 @@ export async function serve(options: ServeOptions): Promise<Server> {
         snapshot = await options.load(cause)
         for (const client of clients) client.write("data: changed\n\n")
       })
+      watchAll()
     }, 50)
-  })
+  }
+  watchAll()
 
   const listen = (port: number) =>
     new Promise<void>((resolve, reject) =>
@@ -110,9 +130,21 @@ export async function serve(options: ServeOptions): Promise<Server> {
   return {
     url: `http://localhost:${port}`,
     close() {
-      watcher.close()
+      for (const watcher of watchers.values()) watcher.close()
       for (const client of clients) client.end()
       server.close()
     },
   }
+}
+
+/** `root` and the directories under it that hold the model: not node_modules, not hidden. */
+function directories(root: string): string[] {
+  return [
+    root,
+    ...readdirSync(root, { withFileTypes: true }).flatMap((entry) =>
+      entry.isDirectory() && entry.name !== "node_modules" && !entry.name.startsWith(".")
+        ? directories(join(root, entry.name))
+        : [],
+    ),
+  ]
 }
