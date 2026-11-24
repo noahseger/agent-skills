@@ -199,7 +199,7 @@ onUnmounted(() => {
         <summary>Keys</summary>
         <dl>
           <dt>← →</dt><dd>move between slices</dd>
-          <dt>Enter</dt><dd>open a slice (or double-click)</dd>
+          <dt>Enter</dt><dd>open a slice</dd>
           <dt>Esc</dt><dd>go back</dd>
           <dt>E</dt><dd>next error (Shift-E: previous)</dd>
           <dt>P</dt><dd>present</dd>

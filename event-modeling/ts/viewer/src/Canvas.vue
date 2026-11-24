@@ -94,14 +94,21 @@ function down(e: PointerEvent) {
   moved = false
   dragging.value = true
 }
-function columnAt(clientX: number): number | null {
+/** A point on the screen as a point on the board. */
+function at(e: MouseEvent) {
   const box = el.value?.getBoundingClientRect()
-  if (!box) return null
-  const x = (clientX - box.left - view.value.x) / view.value.k
-  return props.layout.columns.find((c) => x >= c.x && x < c.x + c.w)?.index ?? null
+  return {
+    x: (e.clientX - (box?.left ?? 0) - view.value.x) / view.value.k,
+    y: (e.clientY - (box?.top ?? 0) - view.value.y) / view.value.k,
+  }
+}
+const within = (x: number, c: { x: number; w: number }) => x >= c.x && x < c.x + c.w
+function columnAt(e: MouseEvent): number | null {
+  const { x } = at(e)
+  return props.layout.columns.find((c) => within(x, c))?.index ?? null
 }
 function move(e: PointerEvent) {
-  hoverColumn.value = columnAt(e.clientX)
+  hoverColumn.value = columnAt(e)
   if (!last) return
   const dx = e.clientX - last.x
   const dy = e.clientY - last.y
@@ -117,8 +124,16 @@ function leave() {
   up()
   hoverColumn.value = null
 }
-function background() {
-  if (!moved) emit("clear")
+// A click selects what is under it: above the slice names a chapter, below them a slice, anywhere
+// in its column; a card selects itself. Nothing there clears the selection.
+function click(e: MouseEvent) {
+  if (moved) return
+  const { x, y } = at(e)
+  const chapter = props.layout.chapters.findIndex((c) => c.title && within(x, c))
+  const column = columnAt(e)
+  if (y < props.layout.nameY && chapter >= 0) emit("selectChapter", chapter)
+  else if (y >= props.layout.nameY && column !== null) emit("selectSlice", column)
+  else emit("clear")
 }
 function wheel(e: WheelEvent) {
   e.preventDefault()
@@ -190,12 +205,6 @@ function hoverCard(b: Box | null) {
   emit("hover", b?.name ?? null)
 }
 
-// A double click anywhere in a column opens that slice.
-function open(e: MouseEvent) {
-  const col = columnAt(e.clientX)
-  if (col !== null) emit("openSlice", col)
-}
-
 // A chapter is an arrow along the time line; the first has a flat start.
 function arrow(x: number, w: number, first: boolean) {
   const y = props.layout.nameY - ARROW_H - 12
@@ -231,7 +240,7 @@ const transform = computed(
     @pointerleave="leave"
     @wheel="wheel"
   >
-    <svg role="img" :aria-label="`Event model canvas, ${layout.columns.length} slices`" @click.self="background" @dblclick="open">
+    <svg role="img" :aria-label="`Event model canvas, ${layout.columns.length} slices`" @click="click">
       <defs>
         <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
@@ -249,9 +258,9 @@ const transform = computed(
         </mask>
       </defs>
       <g class="world" :class="{ animate }" :style="{ transform }">
-        <rect class="page" :x="0" :y="0" :width="layout.width" :height="layout.height" @click="background" />
+        <rect class="page" :x="0" :y="0" :width="layout.width" :height="layout.height" />
         <g v-for="row in layout.rows" :key="row.id">
-          <rect class="lane" :class="[row.kind, { idle: used && !used.has(row.id) }]" :x="0" :y="row.y" :width="layout.width" :height="row.h" @click="background" />
+          <rect class="lane" :class="[row.kind, { idle: used && !used.has(row.id) }]" :x="0" :y="row.y" :width="layout.width" :height="row.h" />
           <line class="lane-line" :x1="0" :x2="layout.width" :y1="row.y" :y2="row.y" />
         </g>
         <line class="lane-line" :x1="0" :x2="layout.width" :y1="layout.height" :y2="layout.height" />
@@ -272,7 +281,6 @@ const transform = computed(
             role="button"
             tabindex="0"
             :aria-label="`Slice ${col.title}`"
-            @click.stop="emit('selectSlice', col.index)"
             @keydown.enter.stop="emit('openSlice', col.index)"
           >
             <rect :x="col.x + 4" :y="layout.nameY" :width="col.w - 8" :height="NAME_H" rx="10" />
@@ -291,7 +299,7 @@ const transform = computed(
         <Sticky v-for="(note, i) in notes" :key="i" :sticky="note" />
 
         <template v-for="(chapter, i) in layout.chapters" :key="chapter.name + chapter.x">
-          <g v-if="chapter.title" class="chapter" @click.stop="emit('selectChapter', i)">
+          <g v-if="chapter.title" class="chapter">
             <path :d="arrow(chapter.x, chapter.w, i === 0)" />
             <Fit
               :text="chapter.title"
