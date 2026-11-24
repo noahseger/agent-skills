@@ -127,13 +127,13 @@ If `npm install` answers `401` or `404`, the token is missing or lacks `read:pac
 writes `model/index.ts`; a `tsconfig.json` that lets node run the model with no build step and
 type-checks the directory, `em-registry.d.ts` included; that file, which types `d`; and a
 `package.json` that marks the directory as ES modules. Leave `view` running in its own terminal: on
-every save it rewrites `em-registry.d.ts`, redraws, and lists above the picture its errors, then
-its warnings.
+every save it rewrites `em-registry.d.ts`, redraws, and logs its errors, then its warnings. The
+picture marks a slice with an error with a red "!" and an unfinished one with a grey ring.
 
 ### 3. Write the model
 
 Replace `model/index.ts` with the blocks below, in order. The model is a todo list app. Save after
-each block and watch the diagram grow; until the last block, it lists what is left to do.
+each block and watch the diagram grow; until the last block, it marks what is left to do.
 
 ```ts
 import { d, m, t } from "@noahseger/event-modeling"
@@ -257,7 +257,7 @@ its method after, so `.service()` names it.
 
 ### 4. Generate the API
 
-The diagram now lists nothing left to do. Write the protobuf:
+The diagram now marks nothing left to do. Write the protobuf:
 
 ```bash
 npx em proto model -o proto
@@ -484,7 +484,7 @@ is empty.
 A view has one state view slice, so a later chapter can extend a table next to the event that
 changes it. Every `m.slice().view()` of it adds its events, mappings and specifications to that
 slice, which the diagram draws where the first one is: in its chapter, seen by its actors on its screen,
-served by its method. A later call that names another of those is an error.
+served by its method, read with its context. A later call that names another of those is an error.
 
 ```ts
 m.slice()
@@ -507,10 +507,10 @@ A specification is a Given, When, Then example; `.spec()` attaches one to a slic
 `d.Name` with data builds an example of it, and its fields check the values: one they refuse is an
 error, with where in the example. `given` and `then` accept one example or a list. A state change's
 specification has `then`, the events the command records, or `reject`, why the handler refuses it;
-never both. A state view's has `given`, the events that build the rows;
-`when`, the values of its context, only once it has a `.context()`; and `then`, the rows the screen
-shows. It has no `reject`, because a view cannot reject an event. Any `then` may also hold strings,
-alone or beside its examples, each describing an outcome the examples cannot show:
+never both. A state view's has `given`, the events that build the rows; `when`, the values of its
+context, only once it, or the first state view of its view, has a `.context()`; and `then`, the rows
+the screen shows. It has no `reject`, because a view cannot reject an event. Any `then` may also
+hold strings, alone or beside its examples, each describing an outcome the examples cannot show:
 `then: ["The queue has no row for this record"]`.
 
 Every event a slice handles or produces is in one of its specifications: each event a command records
@@ -705,13 +705,14 @@ Assembly catches the rest. Each finding is an error when data is wrong or has no
 warning when the model is unfinished but nothing is wrong, such as a missing specification or a
 slice with no event yet. Each names its element first, then its slice, and the
 fix: `ItemAdded.title (ListManagement › AddItem): no source. Add title to a step before .event(),
-or set it in the mapping.` The diagram says the same without the code: `Item Added: title has no
-source`.
+or set it in the mapping.` A command field that reaches no event names instead, as the compiler
+does, the `file:line` its slice starts at. The diagram says the same without the code: `Item Added:
+title has no source`.
 
 | What | Why the compiler cannot |
 |---|---|
 | A `d.Name` nothing declares: the diagram draws the call without it | `em-registry.d.ts` can be older than the model, and `em json` runs the model without `tsc`. |
-| A name declared twice, such as `ListCreated`, other than a stream, an External System or a chapter | `em-registry.d.ts` holds one declaration per name. |
+| A name declared twice, such as `ListCreated`, other than a stream, an External System or a chapter | `em-registry.d.ts` types the name as each of its declarations at once, so every use compiles. |
 | A column no event of the view's `m.slice().view()` calls writes | The calls can be in several modules. |
 | An optional field no slice fills | Same. |
 | A slice with no command, or no event | An incomplete slice compiles, so the diagram can draw it while you write it. |
@@ -826,8 +827,15 @@ assemble that way.
 `view` rewrites `em-registry.d.ts` and type-checks the model on every save, with the
 `tsconfig.json` that `init` wrote. It logs each compiler error as `file:line`, with what assembly
 finds, in the terminal under a count such as `2 errors, 3 warnings:`, errors first, or `Nothing
-left to do.`; above the picture it lists the same in plain words. An example used above its
-declaration is one line per file, listing what to move up.
+left to do.` An example used above its declaration is one line per file, listing what to move up.
+When a module throws, the model doesn't load and `em-registry.d.ts` lacks what the modules declare
+after it, so the log leaves out the names it lacks.
+
+The picture marks the same: a red disc with "!" for an error, a grey ring for a warning, on the
+slice in the navigation, its column heading and the card it is about. A selected or opened slice
+lists its own in plain words, under the element each is about, with the specification and the
+values a disagreement names; the navigation's Model row lists those about no slice. `E` steps to the
+next slice with an error, `Shift-E` back.
 
 `view` and `export` also draw a model written as spec JSON, by hand or extracted from a running
 system. They draw it as far as it goes, and list each place it breaks the schema as an error, as

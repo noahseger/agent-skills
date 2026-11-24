@@ -102,7 +102,7 @@ Write TypeScript for a system you are about to build. The compiler and the assem
 
 Keep `npx em view model/` running while you write the model: after every save its terminal lists everything left to do, compiler errors included.
 
-Write spec JSON directly when extracting a model from a system that already exists, especially one written in another language. The TypeScript names interfaces as RPC methods it will generate. Inventing those for a service written in Go or Kotlin is the hallucinated-interface antipattern below. An extracted model names the real entry points: `POST /v1/orders`, `OrderService.PlaceOrder`, a Kafka topic. Check it with `npx em view model.json`: it draws the file, lists each place it breaks the schema above the picture, and redraws on save.
+Write spec JSON directly when extracting a model from a system that already exists, especially one written in another language. The TypeScript names interfaces as RPC methods it will generate. Inventing those for a service written in Go or Kotlin is the hallucinated-interface antipattern below. An extracted model names the real entry points: `POST /v1/orders`, `OrderService.PlaceOrder`, a Kafka topic. Check it with `npx em view model.json`: it draws the file, lists each place it breaks the schema as an error, and redraws on save.
 
 ### Naming
 
