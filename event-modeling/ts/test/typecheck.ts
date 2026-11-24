@@ -462,6 +462,12 @@ create.spec("x", { when: d.CreateList({ listId: "l-1" }), then: d.ListCreated({ 
 // @ts-expect-error a specification has then or reject, not neither
 create.spec("x", { when: d.CreateList({ listId: "l-1" }) })
 
+// @ts-expect-error a state change's specification has when: only an automation's or a translation's says nothing happens
+create.spec("x", { given: d.ListCreated({ listId: "l-1" }), then: [] })
+
+// @ts-expect-error an automation's specification with no when says nothing happens, so then is []
+m.slice().automation(d.ListCreated).command(d.NameList).event(d.ListCreated).spec("x", { given: d.ListCreated({ listId: "l-1" }), then: d.ListCreated({ listId: "l-1" }) })
+
 // @ts-expect-error a rejection is written in the specification, not declared on m
 m.reject
 
@@ -568,6 +574,9 @@ m.slice().command(d.CreateList).view(d.TodoList)
 create.spec("x", { given: d.ListCreated({ listId: "l-1" }), when: d.CreateList({ listId: "l-2" }), then: [d.ListCreated({ listId: "l-2" })] })
 create.spec("x", { given: [d.ListCreated({ listId: "l-1" })], when: d.CreateList({ listId: "l-1" }), reject: "nope" })
 m.slice().automation(d.ListCreated).command(d.NameList).event(d.ListCreated).spec("x", { given: d.ListCreated({ listId: "l-1" }), when: d.NameList({ listId: "l-1" }), then: d.ListCreated({ listId: "l-1" }) })
+// An automation's or a translation's specification with no when and then: [] says nothing happens.
+m.slice().automation(d.TodoList).command(d.NameList).event(d.ListCreated).spec("x", { given: d.ListCreated({ listId: "l-1" }), then: [] })
+m.slice().translation(d.CartUpdated).command(d.NameList, () => ({ name: t.literal("") })).event(d.ListCreated).spec("x", { then: [] })
 m.slice().view(d.TodoList).event(d.ListCreated, () => ({ itemCount: t.literal(0) })).event(d.ItemAdded, (c) => ({ itemCount: m.generate(c.ItemAdded), name: c.ItemAdded.title }))
 inbox.spec("x", { given: [d.ListCreated({ listId: "l-1", name: "a" }), d.ItemAdded({ listId: "l-1" })], when: { name: "a" }, then: [d.TodoList({ listId: "l-1" })] })
 // then may describe an outcome its examples cannot show.

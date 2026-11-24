@@ -449,6 +449,26 @@ test("a view's specification whose then is empty shows no rows", () => {
   })
 })
 
+test("an automation's specification with no when and an empty then shows that nothing happens", () => {
+  const copy: Board = JSON.parse(JSON.stringify(model))
+  const test = copy.chapters.flatMap((c) => c.slices).find((s) => s.name === "ListCompleter")
+    ?.tests[0]
+  assert.ok(test)
+  const then = () => {
+    const drawn = layout(copy)
+    const column = drawn.columns.find((c) => c.label === "ListCompleter")
+    const spec = drawn.specs.find((s) => s.column === column?.index)
+    return spec?.steps.find((st) => st.word === "then")
+  }
+  test.then = []
+  assert.equal(then(), undefined, "with a when, the command is issued and records nothing")
+  test.when = ""
+  assert.deepEqual(then(), {
+    word: "then",
+    cards: [{ kind: "description", name: "ListCompleter", lines: ["nothing happens"] }],
+  })
+})
+
 test("focusing a chapter dims the edges that come from or go to another chapter, and only those", () => {
   const chapterOf = (id: string) => out.columns[byId.get(id)?.column ?? -1]?.chapter
   const views = out.chapters.findIndex((c) => c.name === "Views")

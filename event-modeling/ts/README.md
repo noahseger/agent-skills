@@ -507,7 +507,8 @@ A specification is a Given, When, Then example; `.spec()` attaches one to a slic
 `d.Name` with data builds an example of it, and its fields check the values: one they refuse is an
 error, with where in the example. `given` and `then` accept one example or a list. A state change's
 specification has `then`, the events the command records, or `reject`, why the handler refuses it;
-never both. A state view's has `given`, the events that build the rows; `when`, the values of its
+never both. An automation's or a translation's may leave out `when` and say `then: []`: nothing
+happens. A state view's has `given`, the events that build the rows; `when`, the values of its
 context, only once it, or the first state view of its view, has a `.context()`; and `then`, the rows
 the screen shows. It has no `reject`, because a view cannot reject an event. Any `then` may also
 hold strings, alone or beside its examples, each describing an outcome the examples cannot show:
@@ -525,8 +526,10 @@ constant the mapping sets, the constant. A generated field, and any field of an 
 kept from one, may be anything. The polled row is the one `given` builds whose key columns hold
 what the command copied from them. A queried row is one `given` builds that the filter picks; of
 several, the one `when` agrees with. When `given` builds none, an automation issues nothing, so its
-specification is wrong, and the handler refuses a command, so its specification has `reject`. A
-disagreement names the specification, the field and both values.
+specification says nothing happens, and the handler refuses a command, so its specification has
+`reject`. One that says nothing happens is wrong when `given` builds a row of the view the
+automation polls, or holds its trigger event, and each query before the command picks a row; the
+error names that row or event. A disagreement names the specification, the field and both values.
 
 A value the specification does not care about, such as an id, is `m.generate()`, at any depth, such
 as a field of an item in a list. Each one is a value of its field's type that no other generated
@@ -579,6 +582,8 @@ its command, so it is the one slice that usually takes a name. Name it for what 
 The second form polls a view of the work to do. From a hotel model:
 
 ```ts
+m.slice().view(d.PaymentsToProcess).event(d.PaymentApproved)
+
 m.slice("PaymentProcessor")
   .automation(d.PaymentsToProcess)
   .command(d.ProcessPayment)
@@ -586,8 +591,9 @@ m.slice("PaymentProcessor")
 ```
 
 A view as the trigger runs on the processor's own schedule, and the command's fields come from the
-row. No event and no service method starts it. The state view that builds `PaymentsToProcess` marks
-the row done when it sees `PaymentSucceeded`.
+row. No event and no service method starts it. The view holds only the work: the processor issues
+its command for every row, so build the view only from the event that makes the work, here
+`PaymentApproved`.
 
 ### External events
 
@@ -699,7 +705,7 @@ The compiler catches:
 | what starts an automation or a translation | `.automation()` refuses an external event, and the error says to use `.translation()`; `.translation()` takes nothing else. |
 | `.key()` | Only a view's field takes it, so `.query()` can count the rows a filter picks. On an event's or a command's field it is an error: `id: only a view has key columns. Remove .key().` |
 | `.service()` on a state view | It names the method. |
-| `.spec()` | `when` is the slice's command, or a state view's context values. `then` is its events, or the rows of the view a state view shows, and strings that describe an outcome; `reject` replaces `then`, and a state view has none. The values have their fields' types; a oneOf holds exactly one case. |
+| `.spec()` | `when` is the slice's command, or a state view's context values; an automation's or a translation's may leave it out only with `then: []`. `then` is its events, or the rows of the view a state view shows, and strings that describe an outcome; `reject` replaces `then`, and a state view has none. The values have their fields' types; a oneOf holds exactly one case. |
 
 Assembly catches the rest. Each finding is an error when data is wrong or has no source, and a
 warning when the model is unfinished but nothing is wrong, such as a missing specification or a
@@ -730,6 +736,7 @@ title has no source`.
 | A slice's event, or a state view, that no specification covers, as [Specifications](#specifications) says | The compiler checks each `.spec()` on its own, not against the slice's other specifications. |
 | A specification value that is not what flows in: from `when`, the trigger in `given`, or the events that build the row or a queried row | Example values are data, not types. |
 | A queried row `given` does not build, in a specification that does not `reject`; in an automation, before its command, any specification | Same. |
+| A specification that says nothing happens, while `given` starts the automation | Same. |
 | A state view's row that `given` does not build, or a built row `then` leaves out, describes nothing about, and the context does not exclude | Same. |
 | A mapping's result that is a field but no source field, such as `c.AddNote.title.describe("loud")` | A field's method returns a field of the same type. |
 | A mapping that throws, such as `m.generate()` given something other than a field: the diagram draws its slice without the mapping | The mapping runs when the model does. |
@@ -760,7 +767,7 @@ Naming is yours: nothing checks the conventions above.
 | a list view | its `fields` are an array's JSON Schema, with the row's fields as its `items` |
 | a mapping | the slice's `mappings`, by the element of the step it is on, then by field: the source field's name, `= ` and a JSON value, or `generate(<inputs>)`. A field from a queried row, by name too, is `View(filter columns).column`, as `CartsWithProducts(productId).aggregateId`; of a view queried twice, the row before the step. A state view's are on its events, and set the view's columns |
 | a note | a `comments` entry on its element, or on its slice: `description` is the text, `kind` is `critical`, `question` or `info`. The viewer reads another tool's element `description`, and a comment with no `kind`, as info |
-| a specification | a `Specification`: `given`, `when` and `then` steps, each an example in `examples`. A `reject` is a `SPEC_ERROR` step titled with the reason. A string in `then` is a `SPEC_DESCRIPTION` step titled with it. A state view's context values are a `SPEC_COMMAND` step titled with its screen, the one a reader asks from, as an actor sends a command from one |
+| a specification | a `Specification`: `given`, `when` and `then` steps, each an example in `examples`. A `reject` is a `SPEC_ERROR` step titled with the reason. A string in `then` is a `SPEC_DESCRIPTION` step titled with it. A state view's context values are a `SPEC_COMMAND` step titled with its screen, the one a reader asks from, as an actor sends a command from one. One that says nothing happens has no `when` and no `then` steps |
 
 The schema allows no property it does not name. The JSON says the rest with properties the
 schema has, as follows; a model you write by hand can do the same, and the viewer draws it.

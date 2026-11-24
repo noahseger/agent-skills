@@ -942,10 +942,13 @@ export function layout(model: Board): Layout {
 
   const specs: Spec[] = columns.flatMap((col) => {
     const view = col.slice.command ? undefined : col.slice.read_models?.[0]
-    // A state view's empty then says what its screen shows: no rows.
+    // An empty then says what happens: a state view's screen shows no rows; with no when, nothing.
+    const [about, nothing] = view
+      ? [parse(view).name, "no rows"]
+      : [col.slice.name, "nothing happens"]
     const none: SpecStep = {
       word: "then",
-      cards: [{ kind: "description", name: view ? parse(view).name : "", lines: ["no rows"] }],
+      cards: [{ kind: "description", name: about, lines: [nothing] }],
     }
     return col.slice.tests.map((t) => {
       const steps: [SpecStep["word"], string[]][] = [
@@ -974,7 +977,7 @@ export function layout(model: Board): Layout {
               return { kind, name, lines }
             }),
           }))
-          .concat(view && t.then.length === 0 ? [none] : []),
+          .concat(t.then.length === 0 && (view || !t.when) ? [none] : []),
       }
     })
   })

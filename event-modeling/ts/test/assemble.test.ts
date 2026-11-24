@@ -2749,6 +2749,56 @@ test("a translation whose query picks no row never issues its command", () => {
   ])
 })
 
+test("a polled automation's specification with no when says nothing happens, so given builds no row it polls", () => {
+  m.view("ToPublish", { draftId: t.string().key() })
+  m.event("DraftSuggested", { draftId: t.string() })
+  m.event("DraftApproved", { draftId: t.string() })
+  m.command("Publish", { draftId: t.string() })
+  m.event("Published", { draftId: t.string() })
+  const draft = { draftId: "d-1" }
+  const publisher = m
+    .slice("Publisher")
+    .automation(d.ToPublish)
+    .command(d.Publish)
+    .event(d.Published)
+    .spec("A suggestion is left alone", { given: d.DraftSuggested(draft), then: [] })
+    .spec("An approved draft is left alone", {
+      given: [d.DraftSuggested(draft), d.DraftApproved(draft)],
+      then: [],
+    })
+  const work = m.slice().view(d.ToPublish).event(d.DraftApproved)
+  assert.deepEqual(disagreements([publisher, work]), [
+    `ToPublish in "An approved draft is left alone" (Ch › Publisher): given builds a row with {"draftId":"d-1"}, so the automation issues Publish.`,
+  ])
+})
+
+test("an automation an event starts, or a translation, does nothing when given holds no trigger or a query before its command picks no row", () => {
+  cart()
+  const added = d.ItemAdded({ aggregateId: cartId, itemId, productId, price: 10 })
+  const repriced = d.PriceChanged({ productId, newPrice: 12 })
+  const scheduler = archiveItem()
+    .spec("No price changes", { given: added, then: [] })
+    .spec("No cart holds the product", { given: repriced, then: [] })
+    .spec("A cart holds the product", { given: [added, repriced], then: [] })
+  assert.deepEqual(disagreements([scheduler, cartsView()]), [
+    `CartsWithProducts in "A cart holds the product" (Ch › ArchiveItemScheduler): given builds a row with {"aggregateId":"${cartId}","productId":"${productId}"}, so the automation issues ArchiveItem.`,
+  ])
+  m.external("Provider")
+  m.event("Authorized", { state: t.string() }).external(d.Provider)
+  m.command("Complete", { state: t.string() })
+  m.event("Completed", { state: t.string() })
+  const translation = m
+    .slice()
+    .translation(d.Authorized)
+    .command(d.Complete)
+    .event(d.Completed)
+    .spec("Nothing arrives", { then: [] })
+    .spec("An authorization arrives", { given: d.Authorized({ state: "s-1" }), then: [] })
+  assert.deepEqual(disagreements([translation]), [
+    `Authorized in "An authorization arrives" (Ch › Complete): given has it, so the translation issues Complete.`,
+  ])
+})
+
 test("an event nothing uses is one line, naming every slice that records it", () => {
   fixture()
   m.command("Recreate", { id: t.string(), name: t.string() })

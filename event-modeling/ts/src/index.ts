@@ -764,14 +764,21 @@ export interface Commanded<C extends Ctx, Cmd extends Fields, P extends "change"
   ): Handled<Kept<C, N>, Cmd, FieldsOf<N>, P>
 }
 
-/** Exactly one of `then`, the events recorded, or `reject`, why the command is refused. */
-export type Spec<C extends Fields, Em extends Fields> = {
-  given?: OneOrMany<Example<"event">>
-  when: Example<"command", C>
-} & (
-  | { then: OneOrMany<Example<"event", Em> | string>; reject?: never }
-  | { reject: string; then?: never }
-)
+/**
+ * Exactly one of `then`, the events recorded, or `reject`, why the command is refused. An
+ * automation's or a translation's may leave out `when` and say `then: []`: nothing happens.
+ */
+export type Spec<C extends Fields, Em extends Fields, P extends "change" | "automation"> =
+  | ({
+      given?: OneOrMany<Example<"event">>
+      when: Example<"command", C>
+    } & (
+      | { then: OneOrMany<Example<"event", Em> | string>; reject?: never }
+      | { reject: string; then?: never }
+    ))
+  | (P extends "automation"
+      ? { given?: OneOrMany<Example<"event">>; when?: never; then: readonly []; reject?: never }
+      : never)
 
 /** A complete slice that handles a command: the command and at least one event. */
 export interface Handled<
@@ -788,7 +795,7 @@ export interface Handled<
     event: Filled<C, N, AnyEvent, ".event()", O>,
     map: Mapping<C, N, O>,
   ): Handled<Kept<C, N>, Cmd, Em | FieldsOf<N>, P>
-  spec(name: string, spec: Spec<Cmd, Em> | (() => Spec<Cmd, Em>)): this
+  spec(name: string, spec: Spec<Cmd, Em, P> | (() => Spec<Cmd, Em, P>)): this
 }
 
 /** The view's event as `d.Name`, or the instruction. */
