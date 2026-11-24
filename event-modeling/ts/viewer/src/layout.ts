@@ -909,6 +909,38 @@ export function layout(model: Board, measure: Measure): Layout {
   }
 
   const nameY = HEADER_H + above
+
+  // A rail lines each note up with the top of what it is about, the slice's with its first card,
+  // and pushes a note down only to clear the one above. Returns where the lowest note placed ends.
+  const railEnd = new Map<Column, number>()
+  for (const col of rails) col.notes = []
+  const stack = (col: Column, list: readonly Sticky[], at: number) => {
+    const from = Math.max(at, railEnd.get(col) ?? at)
+    for (const n of list) {
+      col.notes?.push({ ...n, x: railX.get(col) ?? col.x, y: from + n.y })
+      railEnd.set(col, from + n.y + n.h + STICKY_GAP)
+    }
+  }
+  const rail = (cards: readonly Box[]) => {
+    let end = 0
+    for (const b of [...cards].sort((a, b) => a.y - b.y)) {
+      const col = columns[b.column]
+      if (!col || !railX.has(col)) continue
+      if (!railEnd.has(col)) {
+        railEnd.set(col, b.y)
+        if (col.slice.notes) stack(col, stickies(col.slice.notes, 0, col.title, measure), b.y)
+      }
+      if (b.notes) stack(col, b.notes, b.y)
+      end = Math.max(end, (railEnd.get(col) ?? 0) - STICKY_GAP)
+    }
+    return end
+  }
+  // A lane is as tall as its cards, or the notes beside them: nothing overflows its lane.
+  const lane = (y: number, h: number, place: () => void) => {
+    const from = boxes.length
+    place()
+    return Math.max(h, rail(boxes.slice(from)) + LANE_PAD - y)
+  }
   let y = nameY + NAME_H
   const actors = new Map(model.actors.map((a) => [a.id, a]))
   // Every actor gets a lane, used or not; an outside system's goes beneath our streams.
@@ -917,7 +949,7 @@ export function layout(model: Board, measure: Measure): Layout {
   const lanes = (ids: string[]) => {
     for (const id of ids) {
       const slot = `actor:${id}`
-      const h = slotHeight(slot) + 2 * LANE_PAD
+      const h = lane(y, slotHeight(slot) + 2 * LANE_PAD, () => place(slot, y + LANE_PAD))
       const actor = actors.get(id)
       const label = id === "system" ? "Automations" : words(actor?.name ?? id)
       const sub =
@@ -929,8 +961,6 @@ export function layout(model: Board, measure: Measure): Layout {
               ? "External"
               : "Actor"
       rows.push({ id: slot, label, sub, kind: "actor", y, h })
-      const top = y + LANE_PAD
-      place(slot, top)
       y += h
     }
   }
@@ -938,12 +968,12 @@ export function layout(model: Board, measure: Measure): Layout {
 
   const topH = slotHeight("middle:top")
   const bottomH = slotHeight("middle:bottom")
-  const middleH = LANE_PAD + topH + (topH > 0 && bottomH > 0 ? SLOT_GAP : 0) + bottomH + LANE_PAD
+  const gap = topH > 0 && bottomH > 0 ? SLOT_GAP : 0
+  const middleH = lane(y, LANE_PAD + topH + gap + bottomH + LANE_PAD, () => {
+    place("middle:top", y + LANE_PAD)
+    place("middle:bottom", y + LANE_PAD + topH + gap)
+  })
   rows.push({ id: "middle", label: "", kind: "middle", y, h: middleH })
-  const topEnd = y + LANE_PAD + topH
-  place("middle:top", y + LANE_PAD)
-  const bottomTop = topEnd + (topH > 0 && bottomH > 0 ? SLOT_GAP : 0)
-  place("middle:bottom", bottomTop)
   y += middleH
 
   const channelTop = y
@@ -951,10 +981,10 @@ export function layout(model: Board, measure: Measure): Layout {
 
   for (const agg of model.aggregates) {
     const slot = `stream:${agg.id}`
-    const h = Math.max(slotHeight(slot), COMPACT_H) + 2 * LANE_PAD
+    const h = lane(y, Math.max(slotHeight(slot), COMPACT_H) + 2 * LANE_PAD, () =>
+      place(slot, y + LANE_PAD),
+    )
     rows.push({ id: slot, label: words(agg.name), sub: "Stream", kind: "stream", y, h })
-    const top = y + LANE_PAD
-    place(slot, top)
     y += h
   }
   lanes(ids.filter(outside))
@@ -1057,31 +1087,10 @@ export function layout(model: Board, measure: Measure): Layout {
     })
   })
 
-  // A rail lines each note up with the top of what it is about, the slice's with its first card,
-  // and pushes a note down only to clear the one above.
-  let bottom = y
-  for (const col of rails) {
-    const notes: Sticky[] = []
-    const cards = boxes.filter((b) => b.column === col.index).sort((a, b) => a.y - b.y)
-    let next = 0
-    const stack = (list: readonly Sticky[], at: number) => {
-      const from = Math.max(at, next)
-      for (const n of list) {
-        notes.push({ ...n, x: railX.get(col) ?? col.x, y: from + n.y })
-        next = from + n.y + n.h + STICKY_GAP
-      }
-    }
-    const first = cards[0]?.y ?? nameY + NAME_H + STICKY_GAP
-    if (col.slice.notes) stack(stickies(col.slice.notes, 0, col.title, measure), first)
-    for (const b of cards) if (b.notes) stack(b.notes, b.y)
-    col.notes = notes
-    bottom = Math.max(bottom, next)
-  }
-
   const placed = new Set(columns.flatMap((c) => c.messages))
   return {
     width,
-    height: Math.max(y, bottom) + LANE_PAD,
+    height: y + LANE_PAD,
     nameY,
     chapters,
     columns,

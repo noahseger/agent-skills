@@ -1028,3 +1028,23 @@ test("a slice or a chapter uses the lanes it has a card in", () => {
   const chapter = out.chapters.findIndex((c) => c.name === "ListManagement")
   assert.deepEqual(lanes({ chapter }), ["User", "", "Lists", "Items"])
 })
+
+test("a lane grows to hold the notes beside its cards, so none overflows its lane", () => {
+  const said = (kind: "info" | "question" | "critical") => ({
+    text: "A note long enough to take more than one line.",
+    kind,
+  })
+  const noted = layout({
+    ...model,
+    notes: { ...model.notes, ItemAdded: [said("info"), said("question"), said("critical")] },
+  })
+  const items = noted.rows.find((r) => r.label === "Items")
+  const plain = out.rows.find((r) => r.label === "Items")
+  assert.ok(items && plain && items.h > plain.h, "the Items lane grew")
+  for (const col of noted.columns)
+    for (const n of col.notes ?? [])
+      assert.ok(
+        noted.rows.some((r) => r.y <= n.y && n.y + n.h <= r.y + r.h - LANE_PAD),
+        `a note in ${col.label} stays inside a lane`,
+      )
+})
