@@ -6,7 +6,7 @@ import {
   ARROW_H,
   type Box,
   fitLines,
-  fitSlice,
+  fitTo,
   LABEL_W,
   type Layout,
   NAME_H,
@@ -14,6 +14,7 @@ import {
   path,
   polyline,
   type Row,
+  type Scope,
   usedLanes,
 } from "./layout.ts"
 import Mark from "./Mark.vue"
@@ -22,15 +23,17 @@ import Sticky from "./Sticky.vue"
 
 const props = defineProps<{
   layout: Layout
-  selectedColumn: number | null
+  /** The selected slice or chapter. */
+  selected: Scope | null
   selectedBox: string | null
   hovered: string | null
-  /** Bumping `seq` fits the column's slice top to bottom, or with none the whole model. */
-  focus: { column: number | null; seq: number }
+  /** Bumping `seq` fits the slice or chapter top to bottom, or with none the whole model. */
+  focus: { scope: Scope | null; seq: number }
 }>()
 const emit = defineEmits<{
   selectCard: [box: Box]
   selectSlice: [column: number]
+  selectChapter: [chapter: number]
   openSlice: [column: number]
   link: [canonical: string]
   hover: [name: string | null]
@@ -43,6 +46,9 @@ const animate = ref(false)
 const dragging = ref(false)
 const hoverColumn = ref<number | null>(null)
 const byId = computed(() => new Map(props.layout.boxes.map((b) => [b.id, b])))
+const selectedColumn = computed(() =>
+  props.selected && "column" in props.selected ? props.selected.column : null,
+)
 
 // Fit the whole model when it first arrives and when Present starts; a redraw keeps the user's view.
 function fit() {
@@ -57,12 +63,12 @@ function fit() {
 }
 onMounted(() => {
   fit()
-  if (props.focus.column !== null) focusColumn(props.focus.column)
+  if (props.focus.scope !== null) focusOn(props.focus.scope)
 })
 
-function focusColumn(index: number) {
+function focusOn(scope: Scope) {
   const box = el.value?.getBoundingClientRect()
-  const fitted = box && fitSlice(props.layout, index, { w: box.width, h: box.height })
+  const fitted = box && fitTo(props.layout, scope, { w: box.width, h: box.height })
   if (!fitted) return
   animate.value = true
   view.value = fitted
@@ -74,7 +80,7 @@ function focusColumn(index: number) {
 watch(
   () => props.focus.seq,
   () => {
-    if (props.focus.column !== null) focusColumn(props.focus.column)
+    if (props.focus.scope !== null) focusOn(props.focus.scope)
     else fit()
   },
   { flush: "post" },
@@ -149,16 +155,16 @@ const lit = computed(() => {
   return { named: ids, cards, edges }
 })
 
-// Focusing a chapter, by its heading or a slice in it, dims the arrows from and to other chapters.
+// Selecting a chapter, or a slice in it, dims the arrows from and to other chapters.
 const away = computed(() => {
-  const col = props.selectedColumn === null ? undefined : props.layout.columns[props.selectedColumn]
-  return col ? outside(props.layout, col.chapter) : new Set<number>()
+  const sel = props.selected
+  const chapter =
+    sel && ("chapter" in sel ? sel.chapter : props.layout.columns[sel.column]?.chapter)
+  return typeof chapter === "number" ? outside(props.layout, chapter) : new Set<number>()
 })
 
-// A selected slice dims the lanes it has no card in.
-const used = computed(() =>
-  props.selectedColumn === null ? null : usedLanes(props.layout, props.selectedColumn),
-)
+// A selection dims the lanes it has no card in.
+const used = computed(() => (props.selected ? usedLanes(props.layout, props.selected) : null))
 
 function edgeClass(i: number) {
   if (!lit.value) return { dim: away.value.has(i) }
@@ -188,11 +194,6 @@ function hoverCard(b: Box | null) {
 function open(e: MouseEvent) {
   const col = columnAt(e.clientX)
   if (col !== null) emit("openSlice", col)
-}
-
-function firstSlice(chapter: number) {
-  const col = props.layout.columns.find((c) => c.chapter === chapter)
-  if (col) emit("selectSlice", col.index)
 }
 
 // A chapter is an arrow along the time line; the first has a flat start.
@@ -290,7 +291,7 @@ const transform = computed(
         <Sticky v-for="(note, i) in notes" :key="i" :sticky="note" />
 
         <template v-for="(chapter, i) in layout.chapters" :key="chapter.name + chapter.x">
-          <g v-if="chapter.title" class="chapter" @click.stop="firstSlice(i)">
+          <g v-if="chapter.title" class="chapter" @click.stop="emit('selectChapter', i)">
             <path :d="arrow(chapter.x, chapter.w, i === 0)" />
             <Fit
               :text="chapter.title"

@@ -11,11 +11,12 @@ import type { Board } from "../viewer/src/board.ts"
 import {
   actorOf,
   type Box,
+  bounds,
   CARD_W,
   crumbs,
   fitColumns,
   fitLines,
-  fitSlice,
+  fitTo,
   grouped,
   LANE_PAD,
   MAX_ZOOM,
@@ -32,7 +33,6 @@ import {
   STICKY_LINES,
   served,
   shortIds,
-  sliceBounds,
   source,
   stickies,
   TITLE_LINE,
@@ -957,7 +957,7 @@ test("a slice's bounds run from its top-most card or rail note to its bottom-mos
   const col = out.columns.find((c) => c.notes?.length)
   assert.ok(col, "a slice with a rail")
   const items = [...out.boxes.filter((b) => b.column === col.index), ...(col.notes ?? [])]
-  const b = sliceBounds(out, col.index)
+  const b = bounds(out, { column: col.index })
   assert.deepEqual(b, {
     x: col.x,
     y: Math.min(...items.map((i) => i.y)),
@@ -968,25 +968,44 @@ test("a slice's bounds run from its top-most card or rail note to its bottom-mos
   assert.ok(note && b && note.y + note.h <= b.y + b.h, "the rail's last note is inside")
 })
 
+test("a chapter's bounds take in all its slices and the notes above its band", () => {
+  const noted = layout({
+    ...model,
+    notes: { ...model.notes, ListManagement: [{ text: "Owned.", kind: "info" }] },
+  })
+  const ci = noted.chapters.findIndex((c) => c.name === "ListManagement")
+  const chapter = noted.chapters[ci]
+  const slices = noted.columns.filter((c) => c.chapter === ci)
+  const b = bounds(noted, { chapter: ci })
+  assert.ok(chapter?.notes?.[0] && b && slices.length > 1)
+  assert.equal(b.x, slices[0]?.x)
+  assert.equal(b.x + b.w, (slices.at(-1)?.x ?? 0) + (slices.at(-1)?.w ?? 0))
+  assert.equal(b.y, chapter.notes[0].y, "from the chapter's notes")
+  for (const s of slices) {
+    const slice = bounds(noted, { column: s.index })
+    assert.ok(slice && slice.y + slice.h <= b.y + b.h, `${s.label} is inside`)
+  }
+})
+
 test("a fitted slice fills the viewport top to bottom, centred, no closer than MAX_ZOOM", () => {
-  const index = out.columns.findIndex((c) => c.label === "AddItem")
-  const b = sliceBounds(out, index)
-  const v = fitSlice(out, index, { w: 1200, h: 800 })
+  const scope = { column: out.columns.findIndex((c) => c.label === "AddItem") }
+  const b = bounds(out, scope)
+  const v = fitTo(out, scope, { w: 1200, h: 800 })
   assert.ok(b && v)
   assert.ok(Math.abs(v.y + v.k * b.y - 24) < 1e-9, "top card at the margin")
   assert.ok(Math.abs(v.y + v.k * (b.y + b.h) - 776) < 1e-9, "bottom card at the margin")
   assert.ok(Math.abs(v.x + v.k * (b.x + b.w / 2) - 600) < 1e-9, "column centred")
-  assert.equal(fitSlice(out, index, { w: 1e5, h: 1e5 })?.k, MAX_ZOOM)
+  assert.equal(fitTo(out, scope, { w: 1e5, h: 1e5 })?.k, MAX_ZOOM)
 })
 
-test("a slice uses the lanes it has a card in", () => {
-  const lanes = (label: string) => {
-    const used = usedLanes(
-      out,
-      out.columns.findIndex((c) => c.label === label),
-    )
+test("a slice or a chapter uses the lanes it has a card in", () => {
+  const lanes = (scope: Parameters<typeof usedLanes>[1]) => {
+    const used = usedLanes(out, scope)
     return out.rows.filter((r) => used.has(r.id)).map((r) => r.label)
   }
-  assert.deepEqual(lanes("AddItem"), ["User", "", "Items"])
-  assert.deepEqual(lanes("ListCompleter"), ["Automations", "", "Lists"])
+  const column = (label: string) => ({ column: out.columns.findIndex((c) => c.label === label) })
+  assert.deepEqual(lanes(column("AddItem")), ["User", "", "Items"])
+  assert.deepEqual(lanes(column("ListCompleter")), ["Automations", "", "Lists"])
+  const chapter = out.chapters.findIndex((c) => c.name === "ListManagement")
+  assert.deepEqual(lanes({ chapter }), ["User", "", "Lists", "Items"])
 })

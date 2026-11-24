@@ -4,7 +4,7 @@ import type { Feed } from "../../src/spec.ts"
 import type { Board } from "./board.ts"
 import Canvas from "./Canvas.vue"
 import Detail from "./Detail.vue"
-import { type Box, type Crumb, crumbs, ICON, layout, nextError } from "./layout.ts"
+import { type Box, type Crumb, crumbs, ICON, layout, nextError, type Scope } from "./layout.ts"
 import Messages from "./Messages.vue"
 import { measure } from "./measure.ts"
 import Nav from "./Nav.vue"
@@ -22,13 +22,21 @@ interface Selection {
   name?: string
   view?: "slice"
 }
-/** A slice, or the model's own messages. */
-const selection = ref<Selection | "model" | null>(null)
-const picked = computed(() => (selection.value === "model" ? null : selection.value))
+/** A slice, a chapter, or the model's own messages. */
+const selection = ref<Selection | { chapter: number } | "model" | null>(null)
+const picked = computed(() =>
+  typeof selection.value === "object" && selection.value && "column" in selection.value
+    ? selection.value
+    : null,
+)
+/** The selected slice or chapter, which the canvas fits. */
+const scope = computed<Scope | null>(() =>
+  typeof selection.value === "object" ? selection.value : null,
+)
 const at = computed(() => (selection.value === "model" ? "model" : (picked.value?.column ?? null)))
 const hovered = ref<string | null>(null)
-/** Bumping `seq` brings the column into view, or with none the whole model. */
-const focus = ref<{ column: number | null; seq: number }>({ column: null, seq: 0 })
+/** Bumping `seq` fits the slice or chapter, or with none the whole model. */
+const focus = ref<{ scope: Scope | null; seq: number }>({ scope: null, seq: 0 })
 /** The board alone, for showing the model to others: no navigation, detail, marks or selection. */
 const present = ref(false)
 
@@ -68,9 +76,10 @@ const LEGEND: [string, string][] = [
 ]
 
 // The selection lives in the URL hash, so Back works and every view is a link.
-function hashOf(sel: Selection | "model" | null): string {
+function hashOf(sel: Selection | { chapter: number } | "model" | null): string {
   if (!sel) return ""
   if (sel === "model") return "#model"
+  if ("chapter" in sel) return location.hash
   const card = sel.kind && sel.name ? `/${sel.kind}/${encodeURIComponent(sel.name)}` : ""
   return `#${sel.view === "slice" ? "s" : "c"}${sel.column}${card}`
 }
@@ -86,21 +95,32 @@ function fromHash(): Selection | "model" | null {
   }
   return sel
 }
-function go(sel: Selection | "model" | null, options: { push?: boolean; zoom?: boolean } = {}) {
+function go(
+  sel: Selection | { chapter: number } | "model" | null,
+  options: { push?: boolean; zoom?: boolean } = {},
+) {
   selection.value = sel
   const hash = hashOf(sel)
   if (options.push !== false && hash !== location.hash) {
     history.pushState(null, "", hash || location.pathname)
   }
-  if (options.zoom && sel && sel !== "model" && sel.view !== "slice") {
-    focus.value = { column: sel.column, seq: focus.value.seq + 1 }
+  if (options.zoom && sel && sel !== "model" && !("view" in sel && sel.view === "slice")) {
+    focus.value = { scope: sel, seq: focus.value.seq + 1 }
   }
 }
+function selectChapter(chapter: number) {
+  go({ chapter }, { push: false, zoom: true })
+}
 function step(delta: number) {
-  const count = drawn.value?.columns.length ?? 0
-  if (count === 0) return
-  const current = picked.value?.column ?? (delta > 0 ? -1 : count)
-  const column = Math.min(count - 1, Math.max(0, current + delta))
+  const columns = drawn.value?.columns ?? []
+  if (columns.length === 0) return
+  // From a chapter, or from nothing the whole board, → steps to its first slice and ← to its last.
+  const sel = scope.value
+  const inside =
+    sel && "chapter" in sel ? columns.filter((c) => c.chapter === sel.chapter) : columns
+  const edge = (delta > 0 ? inside[0] : inside.at(-1))?.index ?? 0
+  const current = picked.value?.column ?? edge - delta
+  const column = Math.min(columns.length - 1, Math.max(0, current + delta))
   go({ column, ...(sliceOpen.value ? { view: "slice" } : {}) }, { zoom: true })
 }
 function stepError(delta: 1 | -1) {
@@ -112,7 +132,7 @@ function stepError(delta: 1 | -1) {
 }
 function togglePresent() {
   present.value = !present.value
-  if (present.value) focus.value = { column: null, seq: focus.value.seq + 1 }
+  if (present.value) focus.value = { scope: null, seq: focus.value.seq + 1 }
 }
 function pick(box: Box) {
   go({
@@ -142,7 +162,7 @@ function openSlice(column: number) {
 function climb(crumb: Crumb) {
   const column = crumb.column
   if (column === undefined) go(null)
-  else if (crumb.level === "chapter") openSlice(column)
+  else if (crumb.level === "chapter") selectChapter(drawn.value?.columns[column]?.chapter ?? 0)
   else go({ column, ...(sliceOpen.value ? { view: "slice" } : {}) }, { zoom: true })
 }
 
@@ -246,7 +266,7 @@ onUnmounted(() => {
     </header>
     <pre v-if="error !== null" class="error" role="alert">{{ error }}</pre>
     <main class="body">
-      <Nav v-if="drawn && !present" :layout="drawn" :selected="at" @select="openSlice" @model="go('model')" />
+      <Nav v-if="drawn && !present" :layout="drawn" :selected="at" @select="openSlice" @chapter="selectChapter" @model="go('model')" />
       <SliceView
         v-if="drawn && model && sliceOpen && selectedColumn && !present"
         :layout="drawn"
@@ -263,12 +283,13 @@ onUnmounted(() => {
       <Canvas
         v-else-if="drawn && model"
         :layout="drawn"
-        :selected-column="present ? null : (picked?.column ?? null)"
+        :selected="present ? null : scope"
         :selected-box="present ? null : (selectedBox?.id ?? null)"
         :hovered="hovered"
         :focus="focus"
         @select-card="pick"
         @select-slice="go({ column: $event }, { zoom: true })"
+        @select-chapter="selectChapter"
         @open-slice="openSlice"
         @link="follow"
         @hover="hovered = $event"

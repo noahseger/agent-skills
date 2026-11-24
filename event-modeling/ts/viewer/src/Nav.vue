@@ -3,7 +3,7 @@ import type { Layout } from "./layout.ts"
 import Mark from "./Mark.vue"
 
 defineProps<{ layout: Layout; selected: number | "model" | null }>()
-defineEmits<{ select: [column: number]; model: [] }>()
+defineEmits<{ select: [column: number]; chapter: [chapter: number]; model: [] }>()
 </script>
 
 <template>
@@ -23,7 +23,7 @@ defineEmits<{ select: [column: number]; model: [] }>()
         v-if="chapter.title"
         type="button"
         class="chapter"
-        @click="$emit('select', layout.columns.find((c) => c.chapter === ci)?.index ?? 0)"
+        @click="$emit('chapter', ci)"
       >
         {{ chapter.title }}
       </button>

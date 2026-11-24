@@ -1129,25 +1129,53 @@ export function outside(layout: Layout, chapter: number): Set<number> {
   return new Set(layout.edges.flatMap((e, i) => (inside(e.from) && inside(e.to) ? [] : [i])))
 }
 
-/** How far a fitted slice zooms at most: its card text at 1.25 times its size. */
+/** How far a fitted selection zooms at most: its card text at 1.25 times its size. */
 export const MAX_ZOOM = 1.25
-/** Room left between a fitted slice and the viewport's edges. */
+/** Room left between a fitted selection and the viewport's edges. */
 export const FIT_MARGIN = 24
 
-/** A slice's extent: its column, from its top-most card or rail note to its bottom-most. */
-export function sliceBounds(layout: Layout, column: number) {
-  const col = layout.columns[column]
-  if (!col) return undefined
-  const items = [...layout.boxes.filter((b) => b.column === column), ...(col.notes ?? [])]
-  if (items.length === 0) return undefined
-  const y = Math.min(...items.map((b) => b.y))
-  const bottom = Math.max(...items.map((b) => b.y + b.h))
-  return { x: col.x, y, w: col.w, h: bottom - y }
+/** What the canvas fits and fades the other lanes for: a slice, or a chapter, all its slices and its notes. */
+export type Scope = { column: number } | { chapter: number }
+
+/** A scope's slices, and what else it draws: a chapter's band and the notes above it. */
+function scoped(layout: Layout, scope: Scope) {
+  if ("column" in scope) {
+    const col = layout.columns[scope.column]
+    return { columns: col ? [col] : [], extra: [] }
+  }
+  const band = { y: layout.nameY - ARROW_H - 12, h: ARROW_H }
+  return {
+    columns: layout.columns.filter((c) => c.chapter === scope.chapter),
+    extra: [band, ...(layout.chapters[scope.chapter]?.notes ?? [])],
+  }
 }
 
-/** The view that fits a slice top to bottom in a viewport, its column centred, never past `MAX_ZOOM`. */
-export function fitSlice(layout: Layout, column: number, viewport: { w: number; h: number }) {
-  const b = sliceBounds(layout, column)
+/**
+ * A scope's extent: its slices side by side, from their top-most card or rail note, or the
+ * chapter's notes and band above them, to their bottom-most.
+ */
+export function bounds(layout: Layout, scope: Scope) {
+  const { columns, extra } = scoped(layout, scope)
+  if (columns.length === 0) return undefined
+  const inside = new Set(columns.map((c) => c.index))
+  const items = [
+    ...layout.boxes.filter((b) => inside.has(b.column)),
+    ...columns.flatMap((c) => c.notes ?? []),
+    ...extra,
+  ]
+  const x = Math.min(...columns.map((c) => c.x))
+  const y = Math.min(...items.map((b) => b.y))
+  return {
+    x,
+    y,
+    w: Math.max(...columns.map((c) => c.x + c.w)) - x,
+    h: Math.max(...items.map((b) => b.y + b.h)) - y,
+  }
+}
+
+/** The view that fits a scope top to bottom in a viewport, centred, never past `MAX_ZOOM`. */
+export function fitTo(layout: Layout, scope: Scope, viewport: { w: number; h: number }) {
+  const b = bounds(layout, scope)
   if (!b) return undefined
   const k = Math.min(
     MAX_ZOOM,
@@ -1161,9 +1189,10 @@ export function fitSlice(layout: Layout, column: number, viewport: { w: number; 
   }
 }
 
-/** The lanes a slice has a card in. */
-export function usedLanes(layout: Layout, column: number): Set<string> {
-  const cards = layout.boxes.filter((b) => b.column === column)
+/** The lanes a scope's slices have a card in. */
+export function usedLanes(layout: Layout, scope: Scope): Set<string> {
+  const inside = new Set(scoped(layout, scope).columns.map((c) => c.index))
+  const cards = layout.boxes.filter((b) => inside.has(b.column))
   return new Set(
     layout.rows.filter((r) => cards.some((b) => b.y >= r.y && b.y < r.y + r.h)).map((r) => r.id),
   )
