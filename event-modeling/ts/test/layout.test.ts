@@ -972,16 +972,16 @@ test("a value shows each UUID in it by its first group, and anything else as it 
   assert.equal(shortIds("6f1c2d4e-0b9a-4c3d-8e7f"), "6f1c2d4e-0b9a-4c3d-8e7f")
 })
 
-test("a slice's bounds run from its top-most card or rail note to its bottom-most", () => {
+test("a slice's bounds run from its name down to its bottom-most card or rail note", () => {
   const col = out.columns.find((c) => c.notes?.length)
   assert.ok(col, "a slice with a rail")
   const items = [...out.boxes.filter((b) => b.column === col.index), ...(col.notes ?? [])]
   const b = bounds(out, { column: col.index })
   assert.deepEqual(b, {
     x: col.x,
-    y: Math.min(...items.map((i) => i.y)),
+    y: out.nameY,
     w: col.w,
-    h: Math.max(...items.map((i) => i.y + i.h)) - Math.min(...items.map((i) => i.y)),
+    h: Math.max(...items.map((i) => i.y + i.h)) - out.nameY,
   })
   const note = col.notes?.at(-1)
   assert.ok(note && b && note.y + note.h <= b.y + b.h, "the rail's last note is inside")
@@ -1011,7 +1011,7 @@ test("a fitted slice fills the viewport top to bottom, centred, no closer than M
   const b = bounds(out, scope)
   const v = fitTo(out, scope, { w: 1200, h: 800 })
   assert.ok(b && v)
-  assert.ok(Math.abs(v.y + v.k * b.y - 24) < 1e-9, "top card at the margin")
+  assert.ok(Math.abs(v.y + v.k * b.y - 24) < 1e-9, "slice name at the margin")
   assert.ok(Math.abs(v.y + v.k * (b.y + b.h) - 776) < 1e-9, "bottom card at the margin")
   assert.ok(Math.abs(v.x + v.k * (b.x + b.w / 2) - 600) < 1e-9, "column centred")
   assert.equal(fitTo(out, scope, { w: 1e5, h: 1e5 })?.k, MAX_ZOOM)

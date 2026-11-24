@@ -1187,14 +1187,15 @@ function scoped(layout: Layout, scope: Scope) {
 }
 
 /**
- * A scope's extent: its slices side by side, from their top-most card or rail note, or the
- * chapter's notes and band above them, to their bottom-most.
+ * A scope's extent, as its outline draws it: its slices side by side, from their names, or the
+ * chapter's notes and band above them, down to their bottom-most card or rail note.
  */
 export function bounds(layout: Layout, scope: Scope) {
   const { columns, extra } = scoped(layout, scope)
   if (columns.length === 0) return undefined
   const inside = new Set(columns.map((c) => c.index))
   const items = [
+    { y: layout.nameY, h: NAME_H },
     ...layout.boxes.filter((b) => inside.has(b.column)),
     ...columns.flatMap((c) => c.notes ?? []),
     ...extra,

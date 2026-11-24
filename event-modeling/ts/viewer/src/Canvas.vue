@@ -270,9 +270,9 @@ const transform = computed(
             class="slice-outline"
             :class="{ hover: hoverColumn === col.index, selected: selectedColumn === col.index }"
             :x="col.x + 4"
-            :y="layout.nameY + NAME_H + 4"
+            :y="layout.nameY"
             :width="col.w - 8"
-            :height="layout.height - layout.nameY - NAME_H - 8"
+            :height="layout.height - layout.nameY - 4"
             rx="10"
           />
           <g
