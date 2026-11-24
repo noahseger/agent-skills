@@ -394,7 +394,6 @@ body,
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgb(15 23 42 / 0.08);
 }
 
 .top .keys dt {
@@ -664,7 +663,6 @@ pre.error {
 
 .card .shape {
   stroke-width: 1.25;
-  filter: drop-shadow(0 1px 1px rgb(15 23 42 / 0.06));
 }
 
 .card.selected .shape {
@@ -751,7 +749,7 @@ pre.error {
 }
 
 /* A note is square paper in its kind's colour, lighter than the card it is about: thinner line,
-   smaller type, no shadow. Critical red, a question amber, info neutral. */
+   smaller type. Critical red, a question amber, info neutral. */
 .sticky .paper { fill: var(--panel); stroke: var(--line); stroke-width: 1; }
 .sticky text { font: var(--font-note); fill: var(--muted); }
 .sticky.critical .paper { fill: var(--danger-fill); stroke: color-mix(in oklab, var(--danger-stroke) 45%, transparent); }
@@ -772,7 +770,6 @@ pre.error {
   border: 1px solid var(--faint);
   border-radius: 2px;
   background: var(--bg);
-  box-shadow: 0 1px 2px rgb(15 23 42 / 0.15);
   line-height: 1.45;
 }
 
