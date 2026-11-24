@@ -15,17 +15,17 @@ declare module "#em" {
     ItemAdded: EventDecl<"ItemAdded", { userId: Field<string>; listId: Field<string>; itemId: Field<string>; title: Field<string> }>
     ItemCompleted: EventDecl<"ItemCompleted", { userId: Field<string>; listId: Field<string>; itemId: Field<string> }>
     ItemDeleted: EventDecl<"ItemDeleted", { listId: Field<string>; itemId: Field<string> }>
-    ItemSearch: ViewDecl<"ItemSearch", { itemId: Field<string, string, true>; listId: Field<string>; title: Field<string>; done: Field<boolean>; deleted: Field<boolean> }, false>
+    ItemSearch: ViewDecl<"ItemSearch", { itemId: Field<string, string, true>; listId: Field<string>; title: Field<string>; done: Field<boolean>; deleted: Field<boolean> }, false, { text: Field<string> }>
     Items: Stream
     ListCompleted: EventDecl<"ListCompleted", { userId: Field<string>; listId: Field<string> }>
     ListCreated: EventDecl<"ListCreated", { listId: Field<string>; userId: Field<string>; name: Field<string> }>
     ListDeleted: EventDecl<"ListDeleted", { userId: Field<string>; listId: Field<string> }>
-    ListItems: ViewDecl<"ListItems", { listId: Field<string, string, true>; itemId: Field<string, string, true>; title: Field<string>; done: Field<boolean>; deleted: Field<boolean> }, false>
+    ListItems: ViewDecl<"ListItems", { listId: Field<string, string, true>; itemId: Field<string, string, true>; title: Field<string>; done: Field<boolean>; deleted: Field<boolean> }, false, { listId: Field<string> }>
     ListManagement: Chapter
     ListScreen: Screen
     Lists: Stream
     TaskScheduled: ExternalEventDecl<"TaskScheduled", { userId: Field<string>; listId: Field<string>; itemId: Field<string>; text: Field<string> }>
-    TodoList: ViewDecl<"TodoList", { userId: Field<string, string, true>; listId: Field<string, string, true>; name: Field<string>; itemCount: Field<number>; status: Field<"open" | "completed" | "deleted"> }, false>
+    TodoList: ViewDecl<"TodoList", { userId: Field<string, string, true>; listId: Field<string, string, true>; name: Field<string>; itemCount: Field<number>; status: Field<"open" | "completed" | "deleted"> }, false, { userId: Field<string> }>
     TodoService: Service
     User: Actor
     Views: Chapter

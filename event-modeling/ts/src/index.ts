@@ -111,8 +111,11 @@ export interface ViewDecl<
   N extends string = string,
   F extends Fields = Fields,
   L extends boolean = boolean,
+  Q extends Fields = Record<never, never>,
 > extends Decl<N, "view", F> {
   readonly __list: L
+  /** What it is read with: the context its first state view gives, so a later one need not repeat it. */
+  readonly __context: Q
 }
 
 /** An event of a system we do not own. */
@@ -192,7 +195,7 @@ function declare<D extends Exported>(name: string, data: D): D {
   const had = REGISTRY.get(name)
   if (had && had.data.kind === data.kind && SHARED.has(data.kind)) return had.data as D
   data.name = name
-  if (had) had.also.push(where)
+  if (had) had.also.push({ data, where })
   else REGISTRY.set(name, { data, where, also: [] })
   return data
 }
@@ -426,13 +429,16 @@ function probe(decl: DeclData, context: Context, scope: InScope, map?: MapFn): F
 
 type Flat<T> = { [K in keyof T]: T[K] } & {}
 type FieldsOf<A> = A extends { readonly __fields: infer F extends Fields } ? F : never
+type ContextOf<V> = V extends { readonly __context: infer Q extends Fields }
+  ? Q
+  : Record<never, never>
 
 // biome-ignore lint/suspicious/noExplicitAny: any command's fields
 type AnyCommand = CommandDecl<string, any>
 // biome-ignore lint/suspicious/noExplicitAny: any event's fields
 type AnyEvent = EventDecl<string, any>
 // biome-ignore lint/suspicious/noExplicitAny: any view's columns
-type AnyView = ViewDecl<string, any, boolean>
+type AnyView = ViewDecl<string, any, boolean, any>
 
 /**
  * Each declaration before a step, in order, by its name: `[name, fields, eq]`.
@@ -618,14 +624,18 @@ type Without<C extends Ctx, N> = C extends readonly [infer E extends Entry, ...i
     : readonly [E, ...Without<R, N>]
   : readonly []
 
+/** `d.Name` of a name nothing declares, which is `any`: it fits a shape no declaration has. */
+type Undeclared<N> = [N] extends [{ readonly __undeclared: true }] ? true : false
+
 /**
  * The context after a query: the view joins it, by name, with its filter's equal columns. A view
- * queried again replaces its earlier row, since `c` holds one row per name.
+ * queried again replaces its earlier row, since `c` holds one row per name. A view nothing declares
+ * is its own error, so the context stays as it was and the steps after it say nothing more.
  */
-type Queried<C extends Ctx, N, F> = readonly [
-  ...Without<C, NameOf<N>>,
-  readonly [NameOf<N>, FieldsOf<N>, Equal<F>],
-]
+type Queried<C extends Ctx, N, F> =
+  Undeclared<N> extends true
+    ? C
+    : readonly [...Without<C, NameOf<N>>, readonly [NameOf<N>, FieldsOf<N>, Equal<F>]]
 
 /** What a slice with no event yet offers in place of `.spec()`: the instruction. */
 interface Gate<Msg extends string> {
@@ -687,7 +697,7 @@ export interface Start {
     command: Single<N, AnyCommand>,
   ): Commanded<Own<N>, FieldsOf<N>, "change">
   /** State view: the view its events build. */
-  view<N extends object>(view: Single<N, AnyView>): Viewing<FieldsOf<N>>
+  view<N extends object>(view: Single<N, AnyView>): Viewing<FieldsOf<N>, ContextOf<N>>
   /** Automation: an event of ours as it happens, or each row of a view it polls. */
   automation<N extends object>(
     trigger: N extends ExternalEventDecl
@@ -794,15 +804,12 @@ type ViewMapping<R extends Fields, N> = (
 ) => Out<R, Misfit<FieldsOf<N>, R>>
 
 /** The view is known; no event builds it yet. */
-export interface Viewing<R extends Fields>
+export interface Viewing<R extends Fields, Q extends Fields = Record<never, never>>
   extends Showing,
     Gate<"no event. Add .event() before .spec()."> {
   /** An event that builds it. Each projects on its own, so a mapping reads only its event. */
-  event<N extends object>(event: Projected<R, N>): Viewed<R, Record<never, never>>
-  event<N extends object>(
-    event: Single<N, AnyEvent>,
-    map: ViewMapping<R, N>,
-  ): Viewed<R, Record<never, never>>
+  event<N extends object>(event: Projected<R, N>): Viewed<R, Q>
+  event<N extends object>(event: Single<N, AnyEvent>, map: ViewMapping<R, N>): Viewed<R, Q>
 }
 
 /**
@@ -990,7 +997,10 @@ function chain(data: SliceData, context: Context, scope: InScope) {
     },
     // A function runs at assembly, after every module, so its examples may be declared below it.
     spec: (name: string, spec: AnySpec | (() => AnySpec)) => {
-      const view = data.view ? data : undefined
+      // A later .view() of a view is the first's slice, read with the first's context.
+      const context =
+        data.view && (data.context ?? [...DRAFTS].find((s) => s.view === data.view)?.context)
+      const view = data.view ? { ...data, ...(context && { context }) } : undefined
       const test: TestData =
         typeof spec === "function"
           ? { name, given: [], then: [], later: () => testData(name, spec(), view) }
@@ -1026,7 +1036,14 @@ function written(slice: Written): unknown {
 
 /** A column of the diagram, written in story order. Pass a name only when the one it would take misleads. */
 function slice(name?: string): Start {
-  const empty: SliceData = { actors: [], reads: [], events: [], tests: [], chapters: [] }
+  const empty: SliceData = {
+    actors: [],
+    reads: [],
+    events: [],
+    tests: [],
+    chapters: [],
+    site: caller(),
+  }
   if (name !== undefined) empty.name = name
   return written({ start: () => chain(empty, {}, []), calls: [] }) as Start
 }

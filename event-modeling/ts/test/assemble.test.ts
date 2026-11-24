@@ -376,7 +376,7 @@ test("an example Zod refuses is an error naming the spec and where in it, and th
       {
         kind: "error",
         message: `Cart.items[0].itemId in "lists" (Ch › Cart): Invalid input: expected string, received number`,
-        ui: "Cart: items[0].itemId isn't valid",
+        ui: `Cart: items[0].itemId isn't valid in "lists"`,
         element: "Cart",
         slice: "cart",
       },
@@ -410,7 +410,7 @@ test("a specification written as a function runs at assembly, so its examples ma
   )
 })
 
-test("a command field no event records is an error; generating from it records it", () => {
+test("a command field no event records is an error where its slice is written, which offers a keystore; generating from it records it", () => {
   const model = (recorded: boolean) => {
     fixture("Created")
     m.event("Created", { id: t.string(), slug: t.string() })
@@ -427,27 +427,30 @@ test("a command field no event records is an error; generating from it records i
     chapters({ Ch: [slice] })
     return { default: m.model("x") }
   }
-  const message = "Create.name (Ch › Create): reaches no event. Record it in Created, or remove it."
+  const message =
+    /^test\/assemble\.test\.ts:\d+ {2}Create\.name: reaches no event\. Record it in Created, send it in an external event of a system that keeps it, such as a keystore, or remove it\.$/m
   const json = feedOf([model(false)], { partial: true })
-  assert.ok(json.errors?.some((m) => m.message === message))
+  assert.ok(json.errors?.some((m) => message.test(m.message)))
   assert.throws(
     () => feedOf([model(false)]),
-    (e: Error) => e.message.includes(message),
+    (e: Error) => message.test(e.message),
   )
   const fixed = feedOf([model(true)], { partial: true })
   assert.ok(!fixed.errors?.some((m) => m.message.includes("reaches no event")))
 })
 
-test("a call sends out only the command fields its external event carries", () => {
+test("a call sends out only the command fields its external event carries, which is the whole exchange", () => {
   fixture()
   m.external("Remote")
   m.event("Answered", { id: t.string() }).external(d.Remote)
   m.command("Ask", { id: t.string(), note: t.string() })
   chapters({ Ch: [m.slice().command(d.Ask).event(d.Answered).actor(d.User).service(d.Svc)] })
   const json = feedOf([{ default: m.model("x") }], { partial: true })
-  assert.deepEqual(
-    json.errors?.filter((m) => m.message.includes("reaches no event")).map((m) => m.message),
-    ["Ask.note (Ch › Ask): reaches no event. Record it in Answered, or remove it."],
+  const [said, ...more] = (json.errors ?? []).filter((m) => m.message.includes("reaches no event"))
+  assert.deepEqual(more, [])
+  assert.match(
+    said?.message ?? "",
+    /^test\/assemble\.test\.ts:\d+ {2}Ask\.note: reaches no event\. An external event is what its call sends and gets back: add it to Answered\. Or remove it\.$/,
   )
 })
 
@@ -476,10 +479,10 @@ test("a mapping that returns a whole command records only the fields its event h
   chapters({ Ch: [rename] })
   const json = feedOf([{ default: m.model("x") }], { partial: true })
   assert.ok(
-    json.errors?.some(
-      (m) =>
-        m.message ===
-        "Create.name (Ch › Create): reaches no event. Record it in Renamed, or remove it.",
+    json.errors?.some((m) =>
+      m.message.endsWith(
+        "  Create.name: reaches no event. Record it in Renamed, send it in an external event of a system that keeps it, such as a keystore, or remove it.",
+      ),
     ),
   )
 })
@@ -985,7 +988,7 @@ test("a row given does not build is an error when strict", () => {
     'Table in "A new list is a row" (Ch › Table): then has {"id":"missing"}, but given builds no such row.'
   assert.deepEqual(
     feedOf([model()], { partial: true }).errors?.map((m) => [m.message, m.ui]),
-    [[message, "Table: shows a row nothing builds"]],
+    [[message, `Table: shows a row nothing builds in "A new list is a row": id "missing"`]],
   )
   assert.throws(() => feedOf([model()]), { message })
 })
@@ -1031,7 +1034,7 @@ test("a then that describes its outcome may leave out rows given builds, and sti
     [
       [
         'Table.name in "Only Groceries shows" (Ch › Table): then has "Hardware", but Created in given has "Groceries".',
-        "Table: name doesn't match",
+        `Table: name doesn't match in "Only Groceries shows": then has "Hardware", but Created in given has "Groceries"`,
       ],
     ],
   )
@@ -1043,6 +1046,28 @@ test("a then that describes its outcome may leave out rows given builds, and sti
   })
   const card = layout(read(feed)).specs[1]?.steps.at(-1)?.cards[0]
   assert.deepEqual([card?.kind, card?.lines], ["description", ["Hardware is archived"]])
+})
+
+test("the viewer's wording of a specification error names the specification and the values, and names as words", () => {
+  fixture()
+  m.view("ListNames", { id: t.string().key(), name: t.string() })
+  m.event("ListCreated", { id: t.string(), name: t.string() })
+  const names = m
+    .slice()
+    .view(d.ListNames)
+    .event(d.ListCreated)
+    .spec("A list shows its name", {
+      given: d.ListCreated(list),
+      then: d.ListNames({ ...list, name: "Hardware" }),
+    })
+  chapters({ Ch: [names] })
+  const feed = feedOf([{ default: m.model("x") }], { partial: true })
+  assert.deepEqual(
+    feed.errors?.filter((m) => m.element === "ListNames").map((m) => m.ui),
+    [
+      `List Names: name doesn't match in "A list shows its name": then has "Hardware", but List Created in given has "Groceries"`,
+    ],
+  )
 })
 
 test("a described outcome shows no event", () => {
@@ -1415,11 +1440,11 @@ test("a polled command's when whose row given builds none of, or several of, is 
     [
       [
         'Table in "none" (Ch › Processor): when is for row {"id":"list-2"}, but given builds none. Add the event that does.',
-        "Table: no row for Process",
+        'Table: no row for Process in "none": id "list-2"',
       ],
       [
         'Table in "several" (Ch › Processor): when is for row {"id":"list-1"}, but given builds 2. Copy every key column into Process.',
-        "Table: several rows for Process",
+        'Table: several rows for Process in "several": id "list-1"',
       ],
     ],
   )
@@ -1576,6 +1601,32 @@ test("every m.slice().view() of a view is one slice: its events in, its screen o
         ["A new list is open", "An archived list is archived"],
       ],
     ],
+  )
+})
+
+test("a later .view() is read with the context its first gives, so it says it once", () => {
+  fixture("Table")
+  m.view("Table", { id: t.string().key(), name: t.string(), status: t.string() })
+  m.event("Archived", { id: t.string() })
+  const open = m
+    .slice()
+    .view(d.Table)
+    .event(d.Created, () => ({ status: t.literal("open") }))
+    .context({ status: t.literal("open") })
+  const archived = m
+    .slice()
+    .view(d.Table)
+    .event(d.Archived, () => ({ status: t.literal("archived") }))
+    .spec("An archived list leaves the open lists", {
+      given: [d.Created(list), d.Archived({ id: "list-1" })],
+      when: { status: "open" },
+      then: [],
+    })
+  chapters({ Ch: [create(), open, archived] })
+  const feed = feedOf([{ default: m.model("x") }], { partial: true })
+  assert.deepEqual(
+    feed.errors?.filter((m) => m.element === "Table"),
+    [],
   )
 })
 
@@ -2170,6 +2221,22 @@ test("a name declared twice", () => {
   )
   const json = assembleModules(modules(), { partial: true })
   assert.ok(json.messages?.some((m) => twice.test(m.message) && m.ui === "Created: declared twice"))
+})
+
+test("a stream and a view of one name are declared twice, and that is all: the events in it are not also without a stream", () => {
+  fixture("Created")
+  m.stream("Items")
+  m.event("Created", { id: t.string(), name: t.string() }).stream(d.Items)
+  m.view("Lists", { id: t.string().key() })
+  m.stream("Lists")
+  m.event("Named", { id: t.string() }).stream(d.Lists)
+  const json = assembleModules([{ default: m.model("x") }], { partial: true })
+  assert.deepEqual(
+    json.messages
+      ?.filter((m) => m.element === "Lists" || m.element === "Named")
+      .map((m) => m.message.replace(/, at \S+ and \S+\./, ".")),
+    ["Lists: declared twice. Keep one."],
+  )
 })
 
 test("an external system declared in two modules is one lane", async () => {

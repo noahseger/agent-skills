@@ -18,6 +18,7 @@ declare module "#em" {
     CartsWithProducts: ViewDecl<"CartsWithProducts", { aggregateId: Field<string, "uuid", true>; productId: Field<string, "uuid", true>; itemId: Field<string, "uuid"> }, false>
     Ch: Chapter
     CreateList: CommandDecl<"CreateList", { listId: Field<string>; name: Field<string> }>
+    Drafts: ViewDecl<"Drafts", { listId: Field<string, string, true>; text: Field<string> }, false, { listId: Field<string> }>
     GameEnded: EventDecl<"GameEnded", { id: Field<string, "uuid">; email: Field<string, "email">; site: Field<string, "url">; day: Field<string, "date">; at: Field<string, "datetime">; takes: Field<string, "duration">; n: Field<number>; i: Field<number>; on: Field<boolean>; side: Field<"white" | "black">; x: Field<"x">; sans: Field<string[]>; rows: Field<({ ply: number })[]>; by: Field<{ id: string }>; clocks: Field<Record<string, number>>; result: Field<{ win: "white" | "black"; draw?: never } | { draw: {}; win?: never }>; note: Field<string | undefined> }>
     ItemAdded: EventDecl<"ItemAdded", { listId: Field<string>; title: Field<string> }>
     ItemArchived: EventDecl<"ItemArchived", { aggregateId: Field<string, "uuid">; itemId: Field<string, "uuid"> }>

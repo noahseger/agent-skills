@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url"
 import type { z } from "zod"
 
 import { isKey } from "./t.ts"
-import { type DeclData, type Exported, REGISTRY, type Registered } from "./types.ts"
+import { type Exported, type Fields, REGISTRY, type Registered, WRITTEN } from "./types.ts"
 
 export const GENERATED = "em-registry.d.ts"
 
@@ -94,21 +94,36 @@ function fieldOf(schema: z.ZodType): string {
   return `Field<${values(schema)}${rest}>`
 }
 
-function fieldsOf(decl: DeclData): string {
-  const fields = Object.entries(decl.fields).map(([name, f]) => `${key(name)}: ${fieldOf(f)}`)
-  return fields.length > 0 ? `{ ${fields.join("; ")} }` : "{}"
+function fieldsOf(fields: Fields): string {
+  const all = Object.entries(fields).map(([name, f]) => `${key(name)}: ${fieldOf(f)}`)
+  return all.length > 0 ? `{ ${all.join("; ")} }` : "{}"
 }
 
-/** The type `d.Name` has. */
-function typeOf(name: string, data: Exported): string {
+/**
+ * Each view's context, which the first state view of it gives with `.context()`, so a later one's
+ * specifications are typed by it too.
+ */
+function contexts(): Map<string, Fields> {
+  const first = new Map<string, Fields | undefined>()
+  for (const { calls } of WRITTEN) {
+    const [start, ...rest] = calls
+    const view = start?.[0] === "view" ? (start[1][0] as { name?: string } | undefined)?.name : ""
+    if (!view || first.has(view)) continue
+    first.set(view, rest.find(([method]) => method === "context")?.[1][0] as Fields | undefined)
+  }
+  return new Map([...first].flatMap(([view, fields]) => (fields ? [[view, fields]] : [])))
+}
+
+/** The type `d.Name` has, a view's with the context it is read with. */
+function typeOf(name: string, data: Exported, context: Fields | undefined): string {
   const named = JSON.stringify(name)
   switch (data.kind) {
     case "event":
-      return `${data.system ? "ExternalEventDecl" : "EventDecl"}<${named}, ${fieldsOf(data)}>`
+      return `${data.system ? "ExternalEventDecl" : "EventDecl"}<${named}, ${fieldsOf(data.fields)}>`
     case "command":
-      return `CommandDecl<${named}, ${fieldsOf(data)}>`
+      return `CommandDecl<${named}, ${fieldsOf(data.fields)}>`
     case "view":
-      return `ViewDecl<${named}, ${fieldsOf(data)}, ${data.list === true}>`
+      return `ViewDecl<${named}, ${fieldsOf(data.fields)}, ${data.list === true}${context ? `, ${fieldsOf(context)}` : ""}>`
     case "actor":
       return data.icon === "system" ? "SystemActor" : "Actor"
     case "model":
@@ -118,11 +133,20 @@ function typeOf(name: string, data: Exported): string {
   }
 }
 
-/** The members of `Registry`, in name order, each with where it is declared. */
+/**
+ * The members of `Registry`, in name order, each with where it is declared. A name declared twice is
+ * each of its declarations, so every use compiles and assembly's "declared twice" is the one error
+ * about it.
+ */
 function members(): [name: string, type: string, at: Registered][] {
+  const read = contexts()
   return [...REGISTRY]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([name, at]) => [name, typeOf(name, at.data), at])
+    .map(([name, at]) => [
+      name,
+      [at, ...at.also].map(({ data }) => typeOf(name, data, read.get(name))).join(" & "),
+      at,
+    ])
 }
 
 const MEMBER = "    "
@@ -130,9 +154,9 @@ const MEMBER = "    "
 /** The generated file: `Registry`'s members, for the package as the model imports it. */
 function declarations(specifier: string): string {
   const all = members()
-  // Each type's own name, and Field for the fields in it.
+  // Each type's own names, and Field for the fields in them.
   const types = all.flatMap(([, type]) => [
-    ...(/^[A-Z]\w*/.exec(type) ?? []),
+    ...[...type.matchAll(/(?:^|& )([A-Z]\w*)/g)].map((m) => m[1] ?? ""),
     ...(type.includes("Field<") ? ["Field"] : []),
   ])
   const names = [...new Set(types)].sort()

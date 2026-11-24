@@ -73,3 +73,9 @@ m.event("GameEnded", {
   result: t.oneOf({ win: t.enum(["white", "black"]), draw: t.object({}) }),
   note: t.string().optional().describe("Why"),
 })
+m.view("Drafts", { listId: t.string().key(), text: t.string() })
+// Its first state view gives the context test/typecheck.ts's later one is read with.
+m.slice()
+  .view(d.Drafts)
+  .event(d.ItemAdded, (c) => ({ text: c.ItemAdded.title }))
+  .context({ listId: t.string() })

@@ -31,8 +31,8 @@ export interface Registered {
   data: Exported
   /** The call that declared it, as `file:///…/model.ts:12:1`. */
   where: string
-  /** Each call that declared the name again, which assembly reports. */
-  also: string[]
+  /** Each declaration of the name again, which assembly reports. */
+  also: { data: Exported; where: string }[]
 }
 /** Everything declared since the last assembly, by name, in the order declared. */
 export const REGISTRY: Map<string, Registered> = shared[REGISTRY_KEY]
@@ -279,6 +279,8 @@ export interface TestData {
 export interface SliceData {
   /** Given to `m.slice()`, or derived from the command or view at assembly. */
   name?: string
+  /** Where `m.slice()` is called, as `file:line:column`. */
+  site?: string
   /** What the JSON and a message about the slice name it by: no other slice has it. Set at assembly. */
   id?: string
   notes?: Note[]

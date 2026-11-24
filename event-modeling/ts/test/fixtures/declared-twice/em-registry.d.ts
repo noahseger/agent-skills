@@ -4,7 +4,7 @@ import type { Chapter, EventDecl, Field, ViewDecl } from "#em"
 declare module "#em" {
   interface Registry {
     Ch: Chapter
-    Created: EventDecl<"Created", { id: Field<string> }>
+    Created: EventDecl<"Created", { id: Field<string> }> & EventDecl<"Created", { id: Field<string>; at: Field<string, "datetime"> }>
     Table: ViewDecl<"Table", { id: Field<string, string, true> }, false>
   }
 }

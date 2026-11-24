@@ -7,7 +7,7 @@ declare module "#em" {
     CreateNote: CommandDecl<"CreateNote", { noteId: Field<string>; text: Field<string> }>
     FileNote: CommandDecl<"FileNote", { noteId: Field<string> }>
     Filing: Chapter
-    Inbox: ViewDecl<"Inbox", { noteId: Field<string, string, true>; text: Field<string>; status: Field<"inbox" | "filed"> }, false>
+    Inbox: ViewDecl<"Inbox", { noteId: Field<string, string, true>; text: Field<string>; status: Field<"inbox" | "filed"> }, false, { status: Field<string> }>
     NoteCreated: EventDecl<"NoteCreated", { noteId: Field<string>; text: Field<string> }>
     NoteFiled: EventDecl<"NoteFiled", { noteId: Field<string> }>
     NoteService: Service

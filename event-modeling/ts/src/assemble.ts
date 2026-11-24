@@ -116,7 +116,7 @@ function assembled(modules: readonly object[], options: Options, dir: string): A
     : (message) => {
         throw new Error(message.message)
       }
-  const { model, streams, chapters, externals, declared } = nameDeclarations(
+  const { model, streams, chapters, externals, declared, clashed } = nameDeclarations(
     modules,
     [...REGISTRY],
     dir,
@@ -135,7 +135,7 @@ function assembled(modules: readonly object[], options: Options, dir: string): A
     if (chapter) chapter.slices.push(s)
     else unchaptered.push(s)
   }
-  check(chapters, unchaptered, fail, conflict)
+  check(chapters, unchaptered, dir, fail, conflict)
   for (const { name } of chapters.filter((c) => c.slices.length === 0))
     fail(
       warning({
@@ -158,7 +158,7 @@ function assembled(modules: readonly object[], options: Options, dir: string): A
   // Otherwise it is drawn in the first stream's lane, which says something nobody wrote.
   const members = new Set([...streams.values()].flat())
   for (const d of streams.size > 0 ? declared : [])
-    if (d.kind === "event" && !d.external && !members.has(d))
+    if (d.kind === "event" && !d.external && !members.has(d) && !clashed.has(d))
       fail(
         warning({
           message: `${d.name}: no stream. Add .stream() where it's declared, with the stream it belongs to.`,
@@ -358,6 +358,8 @@ function nameDeclarations(
   chapters: Assembled["chapters"]
   externals: string[]
   declared: Declaration[]
+  /** The events whose stream's name another declaration took: declared twice says so. */
+  clashed: Set<DeclData>
 } {
   const model = modules.map(modelOf).find((found) => found !== undefined)
   if (!model) throw new Error('No model: add `export default m.model("Name")` to one file.')
@@ -366,7 +368,7 @@ function nameDeclarations(
   const externals: string[] = []
   const declared: Declaration[] = []
   for (const [name, { data, where, also }] of registered) {
-    for (const again of also)
+    for (const { where: again } of also)
       conflict(
         error({
           message: `${name}: declared twice, at ${at(where, dir)} and ${at(again, dir)}. Keep one.`,
@@ -400,13 +402,15 @@ function nameDeclarations(
       return undefined
     }
   }
+  const clashed = new Set<DeclData>()
   for (const e of declared) {
     if (e.kind !== "event") continue
     const system = e.system && lane<ExternalData>(e, e.system, "m.external")
     if (system) e.external = system
     const stream = e.stream && lane<StreamData>(e, e.stream, "m.stream")
     if (!stream) continue
-    if (system)
+    if (stream.kind !== "stream") clashed.add(e)
+    else if (system)
       conflict(
         error({
           message: `${e.name}: in stream ${stream.name} and system ${system.name}. Keep one: .stream() for ours, .external() for theirs.`,
@@ -423,7 +427,7 @@ function nameDeclarations(
     (a, b) => place(a) - place(b) || a.order - b.order,
   ))
     chapters.push({ name, ...(notes !== undefined && { notes }), slices: [] })
-  return { model, streams, chapters, externals, declared }
+  return { model, streams, chapters, externals, declared, clashed }
 }
 
 /** The name of the chapter a slice joined, if it joined one; of several, the first. */
@@ -512,6 +516,8 @@ const KIND_LABEL = {
 interface Located {
   slice: SliceData
   where: string
+  /** Where the slice is written, as `notes.ts:12`, from the model's directory. */
+  line?: string
 }
 
 /** What a terminal line about `name`, found in a slice, leads with: `Name (where)`, or else, for the slice's own heading, `where`. */
@@ -524,12 +530,13 @@ const titled = ({ slice, where }: Located) => words(slice.name ?? where)
 function check(
   chapters: Assembled["chapters"],
   unchaptered: SliceData[],
+  dir: string,
   fail: Fail,
   conflict: Fail,
 ): void {
   const located = [
-    ...chapters.flatMap((chapter) => locate(chapter.name, chapter.slices)),
-    ...locate(undefined, unchaptered),
+    ...chapters.flatMap((chapter) => locate(chapter.name, chapter.slices, dir)),
+    ...locate(undefined, unchaptered, dir),
   ]
   const built = builtOf(located)
   for (const at of located) {
@@ -623,12 +630,16 @@ function checkThrown(at: Located, fail: Fail): void {
 }
 
 /** `chapter` is undefined for the slices in none. */
-function locate(chapter: string | undefined, slices: SliceData[]): Located[] {
+function locate(chapter: string | undefined, slices: SliceData[], dir: string): Located[] {
   return slices.map((slice, i) => {
     const named = heading(slice)
     if (named !== undefined) slice.name = named
     const name = slice.name ?? `slice ${i + 1}`
-    return { slice, where: chapter === undefined ? name : `${chapter} › ${name}` }
+    return {
+      slice,
+      where: chapter === undefined ? name : `${chapter} › ${name}`,
+      ...(slice.site && { line: at(slice.site, dir) }),
+    }
   })
 }
 
@@ -764,7 +775,7 @@ function checkFilled({ slice, where }: Located, fail: Fail): void {
  * event by name, by a mapping or as what a generated value is made from; generating from the whole
  * command uses every field, and so does a query after it that filters by one.
  */
-function checkRecorded({ slice, where }: Located, fail: Fail): void {
+function checkRecorded({ slice, where, line }: Located, fail: Fail): void {
   const { command, events } = slice
   if (!command || events.length === 0) return
   const all = Object.keys(command.decl.fields)
@@ -774,10 +785,18 @@ function checkRecorded({ slice, where }: Located, fail: Fail): void {
     for (const s of Object.values(read.mapping))
       if ("from" in s && origin(read, s) === command.decl) recorded.push(s.from)
   const name = command.decl.name ?? ""
+  const names = (external: boolean) =>
+    events.flatMap((e) => (Boolean(e.decl.external) === external ? [e.decl.name] : [])).join(" or ")
+  const [ours, calls] = [names(false), names(true)]
+  // A call's external event is the whole exchange. Without one, a field to keep out of our events
+  // goes to a system that keeps it.
+  const fix = calls
+    ? `An external event is what its call sends and gets back: add it to ${calls}. Or ${ours ? `record it in ${ours}, or ` : ""}remove it.`
+    : `Record it in ${ours}, send it in an external event of a system that keeps it, such as a keystore, or remove it.`
   for (const field of all.filter((f) => !recorded.includes(f)))
     fail(
       error({
-        message: `${name}.${field} (${where}): reaches no event. Record it in ${events.map((e) => e.decl.name).join(" or ")}, or remove it.`,
+        message: `${line ? `${line}  ${name}.${field}` : `${name}.${field} (${where})`}: reaches no event. ${fix}`,
         ui: `${words(name)}: ${field} is never recorded`,
         element: name,
         slice: slice.id ?? "",
@@ -889,8 +908,19 @@ function checkCovered(at: Located, fail: Fail): void {
 /** What the wiring puts in a field, and where it says so; undefined `value` is anything. */
 interface Expected {
   value: unknown
-  says: string
+  says: (name: Namer) => string
 }
+
+/** A declaration's name as a message says it: as written in the terminal, as words in the viewer. */
+type Namer = (name: string | undefined) => string
+const asDeclared: Namer = (name) => name ?? ""
+const asWords: Namer = (name) => words(name ?? "")
+
+/** A row's values as the viewer says them: `noteId "n-1", status "inbox"`. */
+const valued = (data: Record<string, unknown>) =>
+  Object.entries(data)
+    .map(([k, v]) => `${k} ${show(v)}`)
+    .join(", ")
 
 /**
  * A specification agrees with its slice's wiring: each value it shows is the one that flows in. A
@@ -910,18 +940,18 @@ function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
       )
       continue
     }
-    const said: Said = (element, rest, problem, lead = element) =>
+    const said: Said = (element, rest, problem, values, lead = element) =>
       fail(
         error({
           message: `${lead} in "${t.name}" (${where}): ${rest}`,
-          ui: `${words(element)}: ${problem}`,
+          ui: `${words(element)}: ${problem} in "${t.name}"${values ? `: ${values}` : ""}`,
           element,
           slice: slice.id ?? "",
         }),
       )
     for (const { decl, path, message } of t.invalid ?? []) {
       const name = decl.name ?? ""
-      said(name, message, `${path} isn't valid`, path === "" ? name : `${name}.${path}`)
+      said(name, message, `${path} isn't valid`, "", path === "" ? name : `${name}.${path}`)
     }
     const compare = (
       example: ExampleData,
@@ -933,10 +963,12 @@ function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
         const e = expected(field)
         if (e?.value === undefined || shown === undefined || isDeepStrictEqual(shown, e.value))
           continue
+        const has = `${clause} has ${show(shown)}, but`
         said(
           name,
-          `${clause} has ${show(shown)}, but ${e.says}.`,
+          `${has} ${e.says(asDeclared)}.`,
           `${field} doesn't match`,
+          `${has} ${e.says(asWords)}`,
           `${name}.${field}`,
         )
       }
@@ -953,6 +985,7 @@ function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
             name,
             `then has ${rowName(view, c.data)}, but when excludes it. Remove it from then.`,
             "shows a row its context excludes",
+            valued(rowOf(view, c.data)),
           )
         if (matched.length === 1) compare(c, "then", (f) => matched[0]?.values[f])
         else if (matched.length === 0)
@@ -960,6 +993,7 @@ function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
             name,
             `then has ${rowName(view, c.data)}, but given builds no such row.`,
             "shows a row nothing builds",
+            valued(rowOf(view, c.data)),
           )
       }
       // A described outcome claims what the rows leave out.
@@ -971,14 +1005,18 @@ function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
           name,
           `given builds ${rowName(view, data)}, but then leaves it out. Add it to then.`,
           "leaves out a row",
+          valued(rowOf(view, data)),
         )
       }
     } else if (command) checkHandled(slice, t, built, compare, said)
   }
 }
 
-/** An error in a specification about `element`: the terminal's rest, the viewer's problem, and what the terminal leads with. */
-type Said = (element: string, rest: string, problem: string, lead?: string) => void
+/**
+ * An error in a specification about `element`: the terminal's rest, the viewer's problem and the
+ * values it names, and what the terminal leads with.
+ */
+type Said = (element: string, rest: string, problem: string, values: string, lead?: string) => void
 
 type Compare = (
   example: ExampleData,
@@ -1004,22 +1042,23 @@ function checkHandled(
   if (!command || !when) return
   // What each declaration before a step holds here, and how a message says so. An external event the
   // call gets back may hold anything.
-  const known = new Map<DeclData, { data: Record<string, unknown>; has: string }>()
-  known.set(command.decl, { data: when.data, has: "when sends" })
+  const known = new Map<DeclData, { data: Record<string, unknown>; has: (n: Namer) => string }>()
+  known.set(command.decl, { data: when.data, has: () => "when sends" })
   const given = t.given.find((g) => g.decl === trigger)
-  if (given) known.set(given.decl, { data: given.data, has: `${given.decl.name} in given has` })
+  if (given)
+    known.set(given.decl, { data: given.data, has: (n) => `${n(given.decl.name)} in given has` })
   const expected = (flow: Flow, field: string): Expected | undefined => {
     const s = flow.mapping[field] ?? (field in flow.context ? { from: field } : undefined)
     if (s === undefined) return undefined
     if ("value" in s)
-      return { value: s.value, says: `${flow.decl.name}'s mapping sets ${show(s.value)}` }
+      return { value: s.value, says: (n) => `${n(flow.decl.name)}'s mapping sets ${show(s.value)}` }
     if ("generate" in s) return undefined
     const from = origin(flow, s)
     const at = from && known.get(from)
     if (!at) return undefined
     const value = at.data[s.from]
     const renamed = s.from === field ? "" : `${s.from} `
-    return { value, says: `${at.has} ${renamed}${show(value)}` }
+    return { value, says: (n) => `${at.has(n)} ${renamed}${show(value)}` }
   }
   // Whether when agrees with what flows into the command from `decl`.
   const agrees = (decl: DeclData) =>
@@ -1039,15 +1078,20 @@ function checkHandled(
         polls.name ?? "",
         `${picks}, but given builds none. Add the event that does.`,
         `no row for ${words(issued)}`,
+        valued(keyed),
       )
     else if (rows.length > 1)
       said(
         polls.name ?? "",
         `${picks}, but given builds ${rows.length}. Copy every key column into ${issued}.`,
         `several rows for ${words(issued)}`,
+        valued(keyed),
       )
     else
-      known.set(polls, { data: valuesOf(rows[0]), has: `the ${polls.name} row given builds has` })
+      known.set(polls, {
+        data: valuesOf(rows[0]),
+        has: (n) => `the ${n(polls.name)} row given builds has`,
+      })
   }
   const before = slice.beforeCommand ?? 0
   for (const [i, q] of slice.reads.entries()) {
@@ -1063,7 +1107,7 @@ function checkHandled(
     const rows = project(view, views, t.given).filter((r) =>
       Object.entries(filter).every(([k, v]) => isDeepStrictEqual(r.values[k]?.value, v)),
     )
-    const has = `the ${view.name} row given builds has`
+    const has = (n: Namer) => `the ${n(view.name)} row given builds has`
     if (rows.length === 0) {
       const none = `given builds no row with ${show(filter)}`
       if (i < before) {
@@ -1071,6 +1115,7 @@ function checkHandled(
           view.name ?? "",
           `${none}, so ${issued} is never issued. Add the event that builds it.`,
           "no matching row",
+          valued(filter),
         )
         // No command is issued, so the handler reads nothing.
         break
@@ -1080,6 +1125,7 @@ function checkHandled(
           view.name ?? "",
           `${none}, so ${issued} is refused. Add the event that builds it, or reject.`,
           "no matching row",
+          valued(filter),
         )
       continue
     }
@@ -1098,6 +1144,7 @@ function checkHandled(
         view.name ?? "",
         `when matches none of the ${rows.length} rows with ${show(filter)}.`,
         `${words(issued)} matches none of its rows`,
+        valued(filter),
       )
       if (i < before) break
     }
@@ -1137,12 +1184,12 @@ function polledKey(command: Flow, when: ExampleData, view: DeclData): Record<str
 }
 
 /** A row by its keys, or by every value when the view has none or is a list. */
-function rowName(view: DeclData, data: Record<string, unknown>): string {
+function rowOf(view: DeclData, data: Record<string, unknown>): Record<string, unknown> {
   const keys = view.keys.length > 0 && !view.list ? view.keys : Object.keys(data)
-  return show(
-    Object.fromEntries(keys.flatMap((k) => (data[k] === undefined ? [] : [[k, data[k]]]))),
-  )
+  return Object.fromEntries(keys.flatMap((k) => (data[k] === undefined ? [] : [[k, data[k]]])))
 }
+
+const rowName = (view: DeclData, data: Record<string, unknown>) => show(rowOf(view, data))
 
 /**
  * A query field filters the rows by equality with the column of the same name. One with no such
@@ -1160,16 +1207,17 @@ function source(
   flow: Flow,
   field: string,
   example: ExampleData,
-  has: string,
+  has: (n: Namer) => string,
 ): Expected | undefined {
   const s = flow.mapping[field] ?? (field in example.decl.fields ? { from: field } : undefined)
   if (s === undefined) return undefined
   if ("value" in s)
-    return { value: s.value, says: `${flow.decl.name}'s mapping sets ${show(s.value)}` }
-  if ("generate" in s) return { value: undefined, says: `${flow.decl.name} generates ${field}` }
+    return { value: s.value, says: (n) => `${n(flow.decl.name)}'s mapping sets ${show(s.value)}` }
+  if ("generate" in s)
+    return { value: undefined, says: (n) => `${n(flow.decl.name)} generates ${field}` }
   const value = example.data[s.from]
   const renamed = s.from === field ? "" : `${s.from} `
-  return { value, says: `${has} ${renamed}${show(value)}` }
+  return { value, says: (n) => `${has(n)} ${renamed}${show(value)}` }
 }
 
 /**
@@ -1185,7 +1233,7 @@ function project(
   for (const g of given) {
     const flow = flows.find((f) => f.decl === g.decl)
     if (!flow) continue
-    const has = `${g.decl.name} in given has`
+    const has = (n: Namer) => `${n(g.decl.name)} in given has`
     const values: Record<string, Expected> = {}
     for (const column of Object.keys(view.fields)) {
       const e = source(flow, column, g, has)

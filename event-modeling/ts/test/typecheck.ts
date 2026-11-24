@@ -258,6 +258,12 @@ m.slice("ArchiveItemScheduler").automation(d.PriceChanged).query(d.CartsWithProd
 // In one step's context too: name flows from the later TodoList row alone.
 m.slice().command(d.AddItem).query(d.TodoList, "listId").query(d.TodoList, "listId").event(d.ListCreated)
 
+// A view nothing declares is the one error: the context stays, so ListCreated still takes listId and name from the command.
+m.slice().command(d.CreateList)
+  // @ts-expect-error TodoLists is declared nowhere
+  .query(d.TodoLists, "listId")
+  .event(d.ListCreated)
+
 // @ts-expect-error the view has no column price
 m.slice().automation(d.PriceChanged).query(d.CartsWithProducts, "price")
 
@@ -476,6 +482,12 @@ inbox.spec("x", { then: [] })
 
 // @ts-expect-error a state view with no context has no when
 m.slice().view(d.TodoList).event(d.ListCreated).spec("x", { when: { name: "a" }, then: [] })
+
+// A later state view of a view is read with the context its first gives, said once.
+m.slice().view(d.Drafts).event(d.ItemShared, (c) => ({ text: m.generate(c.ItemShared) })).spec("x", { when: { listId: "l-1" }, then: [] })
+
+// @ts-expect-error so it is asked with the context's values
+m.slice().view(d.Drafts).event(d.ItemShared, (c) => ({ text: m.generate(c.ItemShared) })).spec("x", { then: [] })
 
 // @ts-expect-error then is rows of what the view shows, and it does not show Shelf
 inbox.spec("x", { when: { name: "a" }, then: d.Shelf({ shelfId: "s-1" }) })
