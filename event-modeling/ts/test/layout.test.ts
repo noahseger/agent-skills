@@ -29,6 +29,7 @@ import {
   STICKY_HEAD_LINE,
   STICKY_LINES,
   served,
+  shortIds,
   source,
   stickies,
   TITLE_LINE,
@@ -922,4 +923,15 @@ test("the header's path names the model, then the selected slice's chapter, the 
     columns: [loose],
   }
   assert.equal(text(crumbs("Todo", bare, loose, null)), "Todo › Add Item")
+})
+
+test("a value shows each UUID in it by its first group, and anything else as it is", () => {
+  assert.equal(
+    shortIds(
+      "{id: 6F1C2D4E-0B9A-4C3D-8E7F-1A2B3C4D5E6F, by: 0b9a4c3d-6f1c-2d4e-8e7f-1a2b3c4d5e6f}",
+    ),
+    "{id: 6F1C2D4E, by: 0b9a4c3d}",
+  )
+  assert.equal(shortIds("list-1"), "list-1")
+  assert.equal(shortIds("6f1c2d4e-0b9a-4c3d-8e7f"), "6f1c2d4e-0b9a-4c3d-8e7f")
 })

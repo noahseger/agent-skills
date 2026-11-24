@@ -306,6 +306,11 @@ export function valueLines(value: string): string[] {
   )
 }
 
+const UUID = /\b([0-9a-f]{8})-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi
+
+/** A value as shown: each UUID in it cut to its first group, which tells one from another. */
+export const shortIds = (value: string): string => value.replace(UUID, "$1")
+
 /**
  * Wraps to lines no wider than `room` as `width` measures them, breaking at spaces, and inside a word
  * only when the word alone is wider than a line.
