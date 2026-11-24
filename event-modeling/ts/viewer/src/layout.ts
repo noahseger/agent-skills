@@ -143,10 +143,7 @@ export interface Chapter {
 /** A note drawn on the canvas: what it is about, then its text cut to a few lines that fit. */
 export interface Sticky {
   kind: NoteKind
-  /**
-   * What the note is about, as words, the element or the slice, after "Question · " or
-   * "Critical · ", in the lines that fit the note.
-   */
+  /** The kind's icon, then what the note is about as words, in the lines that fit the note. */
   head: string[]
   text: string
   lines: string[]
@@ -369,15 +366,16 @@ export function fitLines(
   ]
 }
 
-const LABEL: Record<NoteKind, string> = {
-  question: "Question · ",
-  critical: "Critical · ",
-  info: "",
+/** Each kind of note as an icon, so a note says its kind without colour and its subject in words. */
+export const ICON: Record<NoteKind, string> = {
+  critical: "⚠",
+  question: "?",
+  info: "ⓘ",
 }
 
 /**
  * Notes on `subject` stacked from `top`, each cut to `STICKY_LINES` lines; the detail shows the whole
- * text. A question or a critical note says so in words too, not only in colour.
+ * text. The header is the kind's icon, then the subject.
  */
 export function stickies(
   notes: readonly Note[],
@@ -389,7 +387,7 @@ export function stickies(
   const note = (s: string) => measure(s, "note")
   let y = top
   return notes.map(({ text, kind }) => {
-    const head = wrap(`${LABEL[kind]}${subject}`, room, (s) => measure(s, "noteHead"))
+    const head = wrap(`${ICON[kind]} ${subject}`, room, (s) => measure(s, "noteHead"))
     const lines = fitLines(text, room, STICKY_LINES, note)
     const h =
       STICKY_HEAD +

@@ -4,7 +4,7 @@ import type { Feed } from "../../src/spec.ts"
 import type { Board } from "./board.ts"
 import Canvas from "./Canvas.vue"
 import Detail from "./Detail.vue"
-import { type Box, type Crumb, crumbs, layout, nextError } from "./layout.ts"
+import { type Box, type Crumb, crumbs, ICON, layout, nextError } from "./layout.ts"
 import Messages from "./Messages.vue"
 import { measure } from "./measure.ts"
 import Nav from "./Nav.vue"
@@ -226,6 +226,7 @@ onUnmounted(() => {
       <span v-if="model?.description" class="description">{{ model.description }}</span>
       <span class="legend">
         <span v-for="[kind, label] in LEGEND" :key="kind" class="swatch" :class="kind">{{ label }}</span>
+        <span v-for="(icon, kind) in ICON" :key="kind" class="swatch note" :class="kind" :data-icon="icon">{{ kind }}</span>
       </span>
       <details class="keys">
         <summary>Keys</summary>

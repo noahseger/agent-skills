@@ -245,6 +245,10 @@ body,
 .top .swatch.readModel::before { background: var(--view-fill); border-color: var(--view-stroke); }
 .top .swatch.automation::before { background: var(--automation-fill); border-color: var(--automation-stroke); }
 .top .swatch.external::before { background: var(--external-fill); border-color: var(--external-stroke); border-style: dashed; }
+.top .swatch.note::before { content: attr(data-icon); width: auto; height: auto; border: 0; font-weight: 700; }
+.top .swatch.critical::before { color: var(--danger); }
+.top .swatch.question::before { color: var(--question-stroke); }
+.top .swatch.info::before { color: var(--muted); }
 
 .top .present {
   border: 1px solid var(--line);
@@ -746,7 +750,7 @@ pre.error {
   line-height: 1.45;
 }
 
-.sticky-note .tag { margin-right: 6px; }
+.sticky-note .icon { margin-right: 6px; font-weight: 700; }
 .sticky-note.critical { background: var(--danger-fill); border-color: var(--danger-stroke); color: var(--danger-ink); }
 .sticky-note.question { background: var(--question-fill); border-color: var(--question-stroke); color: var(--question-ink); }
 
