@@ -409,6 +409,22 @@ test("a slice's note lines up with its first card and names the slice; the lanes
   assert.equal(drawn.width, out.width + NOTE_W + NOTE_GAP)
 })
 
+test("a chapter's note stands in its first slice's rail, level with the first card, and names the chapter", () => {
+  const copy: Board = JSON.parse(JSON.stringify(model))
+  const chapter = copy.chapters[1]
+  assert.ok(chapter)
+  copy.notes[chapter.name] = [{ text: "Retries with backoff.", kind: "critical" }]
+  const drawn = layout(copy)
+  const first = drawn.columns.find((c) => c.slice === chapter.slices[0])
+  const [sticky] = first?.notes ?? []
+  assert.ok(first && sticky)
+  const top = Math.min(...drawn.boxes.filter((b) => b.column === first.index).map((b) => b.y))
+  assert.equal(sticky.y, top)
+  assert.equal(sticky.kind, "critical")
+  assert.deepEqual(sticky.head, [`Critical · ${words(chapter.name)}`])
+  assert.equal(drawn.columns[first.index + 1]?.notes, out.columns[first.index + 1]?.notes)
+})
+
 test("specifications are off the canvas, which ends at its last lane; each is its slice's, a card per clause with a line per field", () => {
   const lanes = out.boxes.map((b) => rowOf(b) ?? { y: 0, h: 0 })
   assert.equal(out.height, Math.max(...lanes.map((r) => r.y + r.h)) + LANE_PAD)

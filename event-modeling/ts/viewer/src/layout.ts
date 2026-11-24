@@ -136,8 +136,6 @@ export interface Chapter {
   name: string
   /** `name` as words, for the picture. */
   title: string
-  /** Its notes' text, one per line. */
-  note?: string
   x: number
   w: number
 }
@@ -559,11 +557,9 @@ export function layout(model: Board, measure: Measure): Layout {
     }
     if (chapter.slices.length === 0) x += COL_W
     // Assembly leaves the slices in no chapter in a nameless one, last, which has no heading.
-    const note = model.notes[chapter.name]?.map((n) => n.text).join("\n")
     chapters.push({
       name: chapter.name,
       title: words(chapter.name),
-      ...(note && { note }),
       x: start,
       w: x - start,
     })
@@ -865,8 +861,14 @@ export function layout(model: Board, measure: Measure): Layout {
     }
   }
 
+  // A chapter's notes stand in the rail of its first slice.
+  const chapterNotes = (col: Column) => {
+    const chapter = model.chapters[col.chapter]
+    return chapter?.slices[0] === col.slice ? model.notes[chapter.name] : undefined
+  }
   // A slice with notes gets a rail beside it, so its notes take width, not height.
   const noted = (col: Column) =>
+    chapterNotes(col) !== undefined ||
     col.slice.notes !== undefined ||
     [...slots.values()].some((stacks) =>
       stacks[col.index]?.some((tier) => tier.some((b) => b.notes)),
@@ -1038,8 +1040,8 @@ export function layout(model: Board, measure: Measure): Layout {
     })
   })
 
-  // A rail lines each note up with the top of what it is about, the slice's with its first card,
-  // and pushes a note down only to clear the one above.
+  // A rail lines each note up with the top of what it is about, the chapter's and the slice's with
+  // its first card, and pushes a note down only to clear the one above.
   let bottom = y
   for (const col of rails) {
     const notes: Sticky[] = []
@@ -1052,11 +1054,10 @@ export function layout(model: Board, measure: Measure): Layout {
         next = from + n.y + n.h + STICKY_GAP
       }
     }
-    if (col.slice.notes)
-      stack(
-        stickies(col.slice.notes, 0, col.title, measure),
-        cards[0]?.y ?? HEADER_H + NAME_H + STICKY_GAP,
-      )
+    const top = cards[0]?.y ?? HEADER_H + NAME_H + STICKY_GAP
+    const chapter = chapterNotes(col)
+    if (chapter) stack(stickies(chapter, 0, chapters[col.chapter]?.title ?? "", measure), top)
+    if (col.slice.notes) stack(stickies(col.slice.notes, 0, col.title, measure), top)
     for (const b of cards) if (b.notes) stack(b.notes, b.y)
     col.notes = notes
     bottom = Math.max(bottom, next)

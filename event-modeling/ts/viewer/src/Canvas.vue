@@ -294,7 +294,6 @@ const transform = computed(
 
         <template v-for="(chapter, i) in layout.chapters" :key="chapter.name + chapter.x">
           <g v-if="chapter.title" class="chapter" @click.stop="firstSlice(i)">
-            <title v-if="chapter.note">{{ chapter.note }}</title>
             <path :d="arrow(chapter.x, chapter.w, i === 0)" />
             <Fit
               :text="chapter.title"

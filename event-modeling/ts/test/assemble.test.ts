@@ -1728,7 +1728,6 @@ test("chapters come in the order of their numbers, each with its slices in the o
     ],
   )
   assert.deepEqual(json.notes.First, [{ text: "Where it starts.", kind: "info" }])
-  assert.equal(layout(json).chapters[0]?.note, "Where it starts.")
 })
 
 test("a file that imports an example from a later chapter's file still comes first, and so do its lanes", async () => {
