@@ -78,12 +78,17 @@ test("init scaffolds a model that assembles, and refuses to overwrite it", () =>
   }
 })
 
-test("an assembly error is one line and exit 1", () => {
+test("an assembly error is one line and exit 1; d types a name declared twice as each declaration, so only assembly says so", () => {
   const run = em("json", here("./fixtures/declared-twice"))
   assert.equal(run.status, 1)
   assert.equal(
     run.stderr.trim(),
     "Created: declared twice, at index.ts:5 and index.ts:6. Keep one.",
+  )
+  assert.ok(
+    readFileSync(here("./fixtures/declared-twice/em-registry.d.ts"), "utf8").includes(
+      '    Created: EventDecl<"Created", { id: Field<string> }> & EventDecl<"Created", { id: Field<string>; at: Field<string, "datetime"> }>\n',
+    ),
   )
 })
 
@@ -408,6 +413,19 @@ export default m.model("Chess")
     const saved = server.log().slice(server.log().indexOf("Saved"))
     assert.ok(saved.startsWith("Saved index.ts ") && !saved.includes(error), server.log())
 
+    // Or a visible one: the save is still the model file's.
+    await reloaded(server.url, () => {
+      writeFileSync(join(dir, "index.ts.tmp.2.f00d"), readFileSync(file, "utf8"))
+      renameSync(join(dir, "index.ts.tmp.2.f00d"), file)
+    })
+    assert.equal(
+      server
+        .log()
+        .match(/(?:Saved|Deleted) \S+/g)
+        ?.at(-1),
+      "Saved index.ts",
+    )
+
     await reloaded(server.url, () => writeFileSync(join(dir, "extra.ts"), "export {}\n"))
     await reloaded(server.url, () => rmSync(join(dir, "extra.ts")))
     assert.match(server.log(), /\d Deleted extra\.ts \(/)
@@ -616,6 +634,31 @@ export default m.model("x")
         "  index.ts:8  Pending: many rows (the view is a list); only an automation reads many, before its .command().",
         "",
       ].join("\n"),
+    )
+  } finally {
+    server.close()
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test("a model that stops loading shows the error that stopped it, not the names declared after it", async () => {
+  const dir = mkdtempSync(here("../tmp-stop-"))
+  writeFileSync(
+    join(dir, "index.ts"),
+    `import { d, m, t } from "#em"
+
+m.event("Created", { id: t.string() }).spec("creates", { then: [] })
+m.command("Create", { id: t.string() })
+m.slice().command(d.Create).event(d.Created)
+export default m.model("x")
+`,
+  )
+  const server = await view(dir)
+  try {
+    const log = server.log()
+    assert.equal(
+      log.slice(log.indexOf("The model didn't load:\n") + 23, log.indexOf("Showing")),
+      "  index.ts:3  Property 'spec' does not exist on type 'EventNoted'.\n",
     )
   } finally {
     server.close()

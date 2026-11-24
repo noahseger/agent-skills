@@ -71,20 +71,24 @@ export async function serve(options: ServeOptions): Promise<Server> {
     res.end(readFileSync(file))
   })
 
-  let pending = false
+  // The files changed since the last load, in the order the watcher saw them.
+  let changed: string[] = []
   // One load at a time, so a slow load never overwrites a later save's.
   let loading = Promise.resolve()
   const watcher = watch(options.root, { recursive: true }, (_event, filename) => {
     // A hidden file is an editor's temporary copy; the rename onto the model file follows it.
-    if (!filename || filename.includes("node_modules") || pending) return
-    if (basename(filename.toString()).startsWith(".")) return
+    if (!filename || filename.includes("node_modules")) return
+    const file = filename.toString()
+    if (basename(file).startsWith(".")) return
     // A load writes em-registry.d.ts, and type-checks again itself when it changed.
-    if (basename(filename.toString()).startsWith(GENERATED)) return
-    pending = true
+    if (basename(file).startsWith(GENERATED)) return
+    changed.push(file)
+    if (changed.length > 1) return
     setTimeout(() => {
-      pending = false
-      const file = filename.toString()
-      const cause = `${existsSync(join(options.root, file)) ? "Saved" : "Deleted"} ${file}`
+      // An editor that saves a temporary copy and renames it over the file leaves only the file.
+      const saved = changed.find((f) => existsSync(join(options.root, f)))
+      const cause = saved ? `Saved ${saved}` : `Deleted ${changed[0]}`
+      changed = []
       loading = loading.then(async () => {
         snapshot = await options.load(cause)
         for (const client of clients) client.write("data: changed\n\n")

@@ -203,13 +203,19 @@ async function reload(path: string, types: Checker, cause = "Started"): Promise<
     const { errors: wrong = [], warnings = [], ...feed } = JSON.parse(run.stdout) as Feed
     return report(cause, started, { ...feed, ...kinds(merged(errors, [...wrong, ...warnings])) })
   }
-  // A compiler error says where and why; the JavaScript error it caused only says what broke.
+  // A compiler error says where and why; the JavaScript error it caused only says what broke. The
+  // modules stopped where one threw, so em-registry.d.ts lacks what they declare after it: a name
+  // missing from it is that error's, not one of its own.
+  const roots = errors.filter((e) => !UNREGISTERED.test(e.message))
+  const shown = roots.length > 0 ? roots : errors
   return failed(
     cause,
     started,
-    errors.length > 0 ? errors.map((e) => e.message).join("\n") : run.stderr || run.stdout,
+    shown.length > 0 ? shown.map((e) => e.message).join("\n") : run.stderr || run.stdout,
   )
 }
+
+const UNREGISTERED = /Property '\w+' does not exist on type 'Registry'/
 
 /** A spec JSON file is drawn as it is; each place it breaks the schema is an error. */
 function readSpec(path: string): Feed {
