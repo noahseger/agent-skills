@@ -37,6 +37,8 @@ const scope = computed<Scope | null>(() =>
   typeof selection.value === "object" ? selection.value : null,
 )
 const hovered = ref<string | null>(null)
+/** The keyboard leads, so hover shows nothing, from a key press until the mouse next moves. */
+const keyed = ref(false)
 /** Bumping `seq` fits the slice or chapter, or with none the whole model. */
 const focus = ref<{ scope: Scope | null; seq: number }>({ scope: null, seq: 0 })
 /** The board alone, for showing the model to others: no navigation, detail, marks or selection. */
@@ -155,6 +157,11 @@ function onKey(e: KeyboardEvent) {
     go(sel?.view === "slice" ? { column: sel.column } : null, { zoom: true })
   } else return
   e.preventDefault()
+  keyed.value = true
+}
+// A real move: the browser also sends moves of none when the canvas slides under a resting pointer.
+function onMove(e: PointerEvent) {
+  if (e.movementX || e.movementY) keyed.value = false
 }
 onMounted(() => {
   refresh()
@@ -171,17 +178,19 @@ onMounted(() => {
     feed.onmessage = () => refresh()
   }
   window.addEventListener("keydown", onKey)
+  window.addEventListener("pointermove", onMove)
   window.addEventListener("popstate", onPop)
 })
 onUnmounted(() => {
   feed?.close()
   window.removeEventListener("keydown", onKey)
+  window.removeEventListener("pointermove", onMove)
   window.removeEventListener("popstate", onPop)
 })
 </script>
 
 <template>
-  <div class="app" :class="{ presenting: present }">
+  <div class="app" :class="{ presenting: present, keyed }">
     <header class="top">
       <h1 class="crumbs">
         <template v-for="(crumb, i) in path" :key="crumb.level">
@@ -220,7 +229,7 @@ onUnmounted(() => {
         :model="model"
         :column="selectedColumn"
         :selected-box="selectedBox?.id ?? null"
-        :hovered="hovered"
+        :hovered="keyed ? null : hovered"
         @select-card="pick"
         @hover="hovered = $event"
         @link="follow"
@@ -232,7 +241,7 @@ onUnmounted(() => {
         :layout="drawn"
         :selected="present ? null : scope"
         :selected-box="present ? null : (selectedBox?.id ?? null)"
-        :hovered="hovered"
+        :hovered="keyed ? null : hovered"
         :focus="focus"
         @select-card="pick"
         @select-slice="go({ column: $event }, { zoom: true })"

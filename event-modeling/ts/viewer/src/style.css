@@ -582,7 +582,9 @@ pre.error {
   transition: fill 120ms ease, stroke 120ms ease;
 }
 
-.slice-outline.hover {
+/* Hover shows on the canvas only while the mouse leads: a key press hands the lead to the keyboard
+   (`.keyed`) until the mouse next moves. */
+.app:not(.keyed) .slice-outline.hover {
   stroke: #cbd5e1;
 }
 
@@ -595,7 +597,7 @@ pre.error {
   cursor: pointer;
 }
 
-.chapter:hover path {
+.app:not(.keyed) .chapter:hover path {
   fill: #1d4ed8;
 }
 
@@ -607,12 +609,12 @@ pre.error {
   fill: transparent;
 }
 
-.slice-head:hover rect,
-.slice-head.hover rect {
+.app:not(.keyed) .slice-head:hover rect,
+.app:not(.keyed) .slice-head.hover rect {
   fill: #eef2f7;
 }
 
-.slice-head.hover text {
+.app:not(.keyed) .slice-head.hover text {
   fill: var(--ink);
 }
 
@@ -743,7 +745,7 @@ pre.error {
   fill: var(--accent);
 }
 
-.card .link:hover rect {
+.app:not(.keyed) .card .link:hover rect {
   stroke: var(--accent);
 }
 
