@@ -93,12 +93,15 @@ export interface Box {
   h: number
 }
 
-export interface Edge {
+export interface Link {
   from: string
   to: string
   dashed: boolean
-  /** The route, corner by corner, for an edge between columns. */
-  points?: Pt[]
+}
+
+export interface Edge extends Link {
+  /** The route, corner by corner. */
+  points: Pt[]
 }
 
 export interface Row {
@@ -445,16 +448,110 @@ export function cardHeight(
   return top + detail + box.fields.length * FIELD_H + (box.fields.length > 0 ? 10 : 6)
 }
 
-/** An SVG path from the edge of one box to the edge of another, in one column. */
-export function path(a: Box, b: Box): string {
-  const up = a.y > b.y
-  const sx = a.x + a.w / 2
-  const sy = up ? a.y : a.y + a.h
-  const tx = b.x + b.w / 2
-  const ty = up ? b.y + b.h : b.y
-  if (Math.abs(sx - tx) < 1) return `M${sx} ${sy} L${tx} ${ty}`
-  const dy = (ty - sy) / 2
-  return `M${sx} ${sy} C${sx} ${sy + dy} ${tx} ${ty - dy} ${tx} ${ty}`
+type Rect = Pick<Box, "x" | "y" | "w" | "h">
+
+/** A route's straight runs, each as its two ends. */
+const runs = (points: readonly Pt[]): [Pt, Pt][] =>
+  points.slice(1).map((q, i) => [points[i] as Pt, q])
+
+/** Whether two spans of one axis share a stretch longer than a point. */
+const shared = (a: number, b: number, c: number, d: number) =>
+  Math.min(Math.max(a, b), Math.max(c, d)) > Math.max(Math.min(a, b), Math.min(c, d))
+
+/** Whether two runs lie on one line and share a stretch of it. */
+const along = ([p, q]: [Pt, Pt], [r, t]: [Pt, Pt]) =>
+  (p[0] === q[0] && r[0] === t[0] && p[0] === r[0] && shared(p[1], q[1], r[1], t[1])) ||
+  (p[1] === q[1] && r[1] === t[1] && p[1] === r[1] && shared(p[0], q[0], r[0], t[0]))
+
+/**
+ * Whether the route runs through any of the cards but its own two ends, or along a stretch of
+ * another route, where the two could not be told apart.
+ */
+function blocked(
+  points: Pt[],
+  cards: readonly Rect[],
+  ends: readonly Rect[],
+  lines: readonly Pt[][],
+): boolean {
+  const others = lines.flatMap(runs)
+  return runs(points).some(
+    ([p, q]) =>
+      cards.some(
+        (c) =>
+          !ends.includes(c) &&
+          Math.max(p[0], q[0]) > c.x &&
+          Math.min(p[0], q[0]) < c.x + c.w &&
+          Math.max(p[1], q[1]) > c.y &&
+          Math.min(p[1], q[1]) < c.y + c.h,
+      ) || others.some((other) => along([p, q], other)),
+  )
+}
+
+/**
+ * The shortest orthogonal route from the side of `a` that faces `b` to the side of `b` that faces
+ * `a`, turning midway, else just past `a`, else just before `b`, whichever first crosses no card
+ * and runs along none of the `lines` already drawn. Undefined when every one does. `out` and `into`
+ * move its ends along their sides.
+ */
+export function direct(
+  a: Box,
+  b: Box,
+  cards: readonly Rect[] = [],
+  lines: readonly Pt[][] = [],
+  out = 0,
+  into = 0,
+): Pt[] | undefined {
+  // Across when one stands wholly beside the other, else up or down: work in x, flipping for y.
+  const across = b.x >= a.x + a.w || b.x + b.w <= a.x
+  const turn = ({ x, y, w, h }: Rect): Rect =>
+    across ? { x, y, w, h } : { x: y, y: x, w: h, h: w }
+  const flip = ([x, y]: Pt): Pt => (across ? [x, y] : [y, x])
+  const [A, B] = [turn(a), turn(b)]
+  const dir = B.x > A.x ? 1 : -1
+  const sx = dir > 0 ? A.x + A.w : A.x
+  const tx = dir > 0 ? B.x : B.x + B.w
+  const sy = A.y + A.h / 2 + out
+  const ty = B.y + B.h / 2 + into
+  for (const mx of [
+    (sx + tx) / 2,
+    sx + dir * (Math.abs(out) + FAN),
+    tx - dir * (Math.abs(into) + FAN),
+  ]) {
+    const line: Pt[] =
+      sy === ty
+        ? [
+            [sx, sy],
+            [tx, ty],
+          ]
+        : [
+            [sx, sy],
+            [mx, sy],
+            [mx, ty],
+            [tx, ty],
+          ]
+    const points = line.map(flip)
+    if (!blocked(points, cards, [a, b], lines)) return points
+  }
+  return undefined
+}
+
+/** Round the right side of the cards standing between `a` and `b`, one above the other. */
+export function around(a: Box, b: Box, cards: readonly Rect[]): Pt[] {
+  const [top, bottom] = a.y < b.y ? [a, b] : [b, a]
+  const between = cards.filter(
+    (c) =>
+      c.y >= top.y + top.h &&
+      c.y + c.h <= bottom.y &&
+      c.x < Math.max(a.x + a.w, b.x + b.w) &&
+      c.x + c.w > Math.min(a.x, b.x),
+  )
+  const side = Math.max(...[a, b, ...between].map((c) => c.x + c.w)) + FAN
+  return [
+    [a.x + a.w, a.y + a.h / 2],
+    [side, a.y + a.h / 2],
+    [side, b.y + b.h / 2],
+    [b.x + b.w, b.y + b.h / 2],
+  ]
 }
 
 /** An SVG path along the points, with rounded corners. */
@@ -680,7 +777,7 @@ export function layout(model: Board, measure: Measure): Layout {
   }
   const edges: Edge[] = []
   const edge = (from: Placed, to: Placed, dashed = false) =>
-    edges.push({ from: from.id, to: to.id, dashed })
+    edges.push({ from: from.id, to: to.id, dashed, points: [] })
   const actorIds: string[] = []
   const useActor = (id: string) => {
     if (!actorIds.includes(id)) actorIds.push(id)
@@ -689,7 +786,6 @@ export function layout(model: Board, measure: Measure): Layout {
   const targets = new Map<number, Placed>()
   const consumers = new Map<number, { command?: Placed; gear?: Placed }>()
   const readLinks: { name: string; column: number; polls: boolean }[] = []
-  const calling: Edge[] = []
 
   for (const col of columns) {
     const s = col.slice
@@ -788,8 +884,7 @@ export function layout(model: Board, measure: Measure): Layout {
     if (!command) for (const ui of uis) for (const rm of readModels) edge(rm, ui)
     if (gear && command) edge(gear, command)
     if (command) for (const ev of events) edge(command, ev)
-    if (command)
-      for (const call of calls) calling.push({ from: command.id, to: call.id, dashed: false })
+    if (command) for (const call of calls) edge(command, call)
     for (const c of s.calls ?? [])
       for (const reply of calls.filter((b) => b.name === parse(c.event).name))
         for (const ev of events.filter((e) => c.kept?.includes(e.name))) edge(reply, ev)
@@ -801,14 +896,13 @@ export function layout(model: Board, measure: Measure): Layout {
   }
 
   // Reads are dashed from the view into the automation, or else the command.
-  const crossing: Edge[] = []
   for (const link of readLinks) {
     const c = consumers.get(link.column)
     const consumer = c?.gear ?? c?.command
     if (!consumer) continue
     const source = first.get(`readModel:${link.name}`)
     if (source) {
-      crossing.push({ from: source.id, to: consumer.id, dashed: true })
+      edge(source, consumer, true)
       continue
     }
     const ref = make(
@@ -821,8 +915,7 @@ export function layout(model: Board, measure: Measure): Layout {
     edge(ref, consumer, true)
   }
 
-  // A trigger comes from the event's nearest emission and runs in the channel
-  // above the streams.
+  // A trigger comes from the event's nearest emission.
   for (const col of columns) {
     const target = targets.get(col.index)
     const trigger = col.slice.trigger ?? col.slice.external_event
@@ -832,10 +925,9 @@ export function layout(model: Board, measure: Measure): Layout {
       const sources = eventBoxes.get(name) ?? []
       const before = sources.filter((b) => b.column < col.index).at(-1)
       const source = before ?? sources[0]
-      if (source) crossing.push({ from: source.id, to: target.id, dashed: false })
+      if (source) edge(source, target)
     }
   }
-  edges.push(...crossing, ...calling)
 
   const tierHeight = (tier: Placed[]) => Math.max(0, ...tier.map((b) => b.h))
   const stackHeight = (stack: Placed[][]) =>
@@ -968,9 +1060,8 @@ export function layout(model: Board, measure: Measure): Layout {
   rows.push({ id: "middle", label: "Interaction", kind: "middle", y, h: middleH })
   y += middleH
 
+  // The channel above the streams carries the arrows between columns that no direct route can take.
   const channelTop = y
-  if (crossing.length > 0) y += 2 * CHANNEL_PAD + (crossing.length - 1) * CHANNEL_STEP
-
   for (const agg of model.aggregates) {
     const slot = `stream:${agg.id}`
     const h = lane(y, Math.max(slotHeight(slot), COMPACT_H) + 2 * LANE_PAD, () =>
@@ -981,60 +1072,78 @@ export function layout(model: Board, measure: Measure): Layout {
   }
   lanes(ids.filter(outside))
 
-  // Edges that cross columns each get their own line, and fan out where they
-  // share an end, so each one can be followed.
+  // Every arrow takes the direct route, from the side of its source that faces its target to the
+  // side of its target that faces it, unless that crosses a card. Then it goes round: in its own
+  // column down the side of what stands between, between columns along the channel, each on its own
+  // line. Arrows between columns fan out where they share an end, leaving right of centre (or below
+  // it) and entering left (or above), so each one can be followed.
   const byId = new Map(boxes.map((b) => [b.id, b]))
-  // Time runs right: edges leave right of centre and enter left of it.
+  const ends = (e: Edge) => [byId.get(e.from), byId.get(e.to)] as [Box, Box]
+  const between = edges.filter((e) => {
+    const [a, b] = ends(e)
+    return a.column !== b.column
+  })
   const fan = (key: "from" | "to", direction: 1 | -1) => {
     const groups = new Map<string, Edge[]>()
-    for (const e of crossing) groups.set(e[key], [...(groups.get(e[key]) ?? []), e])
-    return (e: Edge) => direction * (FAN + (groups.get(e[key])?.indexOf(e) ?? 0) * FAN)
+    for (const e of between) groups.set(e[key], [...(groups.get(e[key]) ?? []), e])
+    return (e: Edge) =>
+      groups.has(e[key]) ? direction * (FAN + (groups.get(e[key])?.indexOf(e) ?? 0) * FAN) : 0
   }
   const fanFrom = fan("from", 1)
   const fanTo = fan("to", -1)
-  crossing.forEach((e, i) => {
-    const a = byId.get(e.from)
-    const b = byId.get(e.to)
-    if (!a || !b) return
-    const via = channelTop + CHANNEL_PAD + i * CHANNEL_STEP
-    const sx = a.x + a.w / 2 + fanFrom(e)
-    const sy = a.kind === "event" || a.kind === "external" ? a.y : a.y + a.h
-    if (b.kind !== "readModel") {
-      const margin = (columns[b.column]?.x ?? 0) + 10 - fanTo(e) - FAN
-      const my = b.y + b.h / 2 + fanTo(e) + FAN
-      e.points = [
-        [sx, sy],
-        [sx, via],
-        [margin, via],
-        [margin, my],
-        [b.x, my],
-      ]
-    } else {
-      const tx = b.x + b.w / 2 + fanTo(e)
-      e.points = [
-        [sx, sy],
-        [sx, via],
-        [tx, via],
-        [tx, b.y + b.h],
-      ]
-    }
-  })
+  const cards = (): Rect[] => [
+    ...boxes,
+    ...columns.flatMap((c) => (c.notes ?? []).map((n) => ({ ...n, w: NOTE_W }))),
+  ]
+  // The direct routes, in order, each clear of the ones before it.
+  const straight = () => {
+    const lines: Pt[][] = []
+    return new Map(
+      edges.map((e) => {
+        const route = direct(...ends(e), cards(), lines, fanFrom(e), fanTo(e))
+        if (route) lines.push(route)
+        return [e, route]
+      }),
+    )
+  }
 
-  // A call's arrow goes down the side of the events of ours between the command and its outside
-  // event, which it would otherwise run behind, and enters the external event from that side.
-  for (const e of calling) {
-    const a = byId.get(e.from)
-    const b = byId.get(e.to)
-    if (!a || !b) continue
-    const between = boxes.filter((x) => x.column === a.column && x.y > a.y && x.y < b.y)
-    if (between.length === 0) continue
-    const side = Math.max(...[a, b, ...between].map((x) => x.x + x.w)) + FAN
-    e.points = [
-      [a.x + a.w, a.y + a.h / 2],
-      [side, a.y + a.h / 2],
-      [side, b.y + b.h / 2],
-      [b.x + b.w, b.y + b.h / 2],
+  // Whether a route crosses a card or another route does not change as everything below the
+  // channel moves down together, so the channel is as tall as the arrows that take it, and only those.
+  const planned = straight()
+  const channelled = between.filter((e) => !planned.get(e))
+  const channelH =
+    channelled.length > 0 ? 2 * CHANNEL_PAD + (channelled.length - 1) * CHANNEL_STEP : 0
+  for (const b of boxes) if (b.y >= channelTop) b.y += channelH
+  for (const r of rows) if (r.y >= channelTop) r.y += channelH
+  for (const col of columns) for (const n of col.notes ?? []) if (n.y >= channelTop) n.y += channelH
+  y += channelH
+
+  const channel = (e: Edge, a: Box, b: Box): Pt[] => {
+    const via = channelTop + CHANNEL_PAD + channelled.indexOf(e) * CHANNEL_STEP
+    const sx = a.x + a.w / 2 + fanFrom(e)
+    const sy = a.y > channelTop ? a.y : a.y + a.h
+    const tx = b.x + b.w / 2 + fanTo(e)
+    const up: Pt[] = [
+      [sx, sy],
+      [sx, via],
+      [tx, via],
+      [tx, b.y + b.h],
     ]
+    if (!blocked(up, cards(), [a, b], [])) return up
+    const margin = (columns[b.column]?.x ?? 0) + 10 - fanTo(e) - FAN
+    const my = b.y + b.h / 2 + fanTo(e) + FAN
+    return [
+      [sx, sy],
+      [sx, via],
+      [margin, via],
+      [margin, my],
+      [b.x, my],
+    ]
+  }
+  const routes = straight()
+  for (const e of edges) {
+    const [a, b] = ends(e)
+    e.points = routes.get(e) ?? (channelled.includes(e) ? channel(e, a, b) : around(a, b, cards()))
   }
 
   const specs: Spec[] = columns.flatMap((col) => {

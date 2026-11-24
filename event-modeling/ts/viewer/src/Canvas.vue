@@ -11,7 +11,6 @@ import {
   type Layout,
   NAME_H,
   outside,
-  path,
   polyline,
   type Row,
   type Scope,
@@ -45,7 +44,6 @@ const view = ref({ x: 0, y: 0, k: 1 })
 const animate = ref(false)
 const dragging = ref(false)
 const hoverColumn = ref<number | null>(null)
-const byId = computed(() => new Map(props.layout.boxes.map((b) => [b.id, b])))
 const selectedColumn = computed(() =>
   props.selected && "column" in props.selected ? props.selected.column : null,
 )
@@ -196,10 +194,7 @@ function cardClass(b: Box) {
 function edgePath(i: number) {
   const e = props.layout.edges[i]
   if (!e) return ""
-  if (e.points) return polyline(e.points)
-  const a = byId.value.get(e.from)
-  const b = byId.value.get(e.to)
-  return a && b ? path(a, b) : ""
+  return polyline(e.points)
 }
 function hoverCard(b: Box | null) {
   emit("hover", b?.name ?? null)

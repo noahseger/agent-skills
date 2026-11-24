@@ -5,15 +5,17 @@ import Card from "./Card.vue"
 import Fit from "./Fit.vue"
 import {
   actorOf,
+  around,
   type Box,
   CARD_W,
   type Column,
   cardHeight,
-  type Edge,
+  direct,
   LANE_PAD,
   type Layout,
+  type Link,
   parse,
-  path,
+  polyline,
   STACK_GAP,
   served,
   source,
@@ -57,7 +59,7 @@ const local = computed(() => {
   const consumer =
     mine.find((b) => b.kind === "automation") ?? mine.find((b) => b.kind === "command")
   const refs: Box[] = []
-  const extra: Edge[] = []
+  const extra: Link[] = []
   let below = 0
   for (const name of [...(s.reads ?? []), ...(s.polls ? [s.polls] : [])]) {
     const full = props.layout.boxes.find(
@@ -101,9 +103,15 @@ const local = computed(() => {
 })
 const byId = computed(() => new Map(local.value.boxes.map((b) => [b.id, b])))
 const edges = computed(() => [
-  ...props.layout.edges.filter((e) => !e.points && byId.value.has(e.from) && byId.value.has(e.to)),
+  ...props.layout.edges.filter((e) => byId.value.has(e.from) && byId.value.has(e.to)),
   ...local.value.extra,
 ])
+// The same rule as the canvas, over the slice's own cards: direct, else round what stands between.
+function route(e: Link) {
+  const [a, b] = [byId.value.get(e.from), byId.value.get(e.to)]
+  if (!a || !b) return ""
+  return polyline(direct(a, b, local.value.boxes) ?? around(a, b, local.value.boxes))
+}
 const specs = computed(() => props.layout.specs.filter((s) => s.column === props.column.index))
 const selectedName = computed(() => local.value.boxes.find((b) => b.id === props.selectedBox)?.name)
 const viewBox = computed(() => `${props.column.x} 0 ${props.column.w} ${local.value.height}`)
@@ -151,7 +159,7 @@ function cardClass(b: Box) {
           :key="i"
           class="edge"
           :class="{ dashed: e.dashed }"
-          :d="path(byId.get(e.from)!, byId.get(e.to)!)"
+          :d="route(e)"
           marker-end="url(#arrow)"
         />
         <Card

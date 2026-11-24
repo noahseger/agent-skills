@@ -15,6 +15,7 @@ import {
   CARD_W,
   type Column,
   crumbs,
+  direct,
   fitColumns,
   fitLines,
   fitTo,
@@ -29,7 +30,6 @@ import {
   outside,
   parse,
   parseClause,
-  path,
   polyline,
   STICKY_GAP,
   STICKY_LINES,
@@ -185,7 +185,7 @@ test("every edge joins two cards, and a projection is fed by each of its events"
   )
   for (const s of sources) assert.equal(s.kind, "event")
   for (const e of feeding) {
-    assert.ok(e.points && e.points.length >= 4, "a crossing edge is routed corner by corner")
+    assert.ok(e.points.length >= 2, "a crossing edge is routed corner by corner")
     for (const [x, y] of e.points) assert.ok(x >= 0 && x <= out.width && y >= 0 && y <= out.height)
   }
 })
@@ -207,14 +207,13 @@ test("an automation is in its actor's lane, and reads are drawn back from the vi
   )
   assert.ok(search)
   const reads = out.edges.find((e) => e.from === search.id && e.to === gear.id)
-  assert.ok(reads?.dashed && reads.points, "a dashed, routed edge from the view to the automation")
+  assert.ok(reads?.dashed, "a dashed edge from the view to the automation")
   const start = reads.points[0]
-  assert.ok(start && start[0] > search.x + search.w / 2, "leaves the view right of centre")
-  assert.equal(start?.[1], search.y + search.h)
+  assert.equal(start?.[0], search.x + search.w, "leaves the view's right side, which faces it")
   const end = reads.points.at(-1)
   assert.ok(end && end[0] === gear.x && end[1] > gear.y && end[1] < gear.y + gear.h)
-  const trigger = out.edges.find((e) => e.to === gear.id && e.points)
-  assert.ok(trigger?.points)
+  const trigger = out.edges.find((e) => e.to === gear.id && e !== reads)
+  assert.ok(trigger)
   const into = trigger.points.at(-1)
   assert.ok(into && into[0] === gear.x && into[1] > gear.y && into[1] < gear.y + gear.h)
 })
@@ -293,23 +292,35 @@ test("a table shows the columns that fit and counts the rest", () => {
   })
 })
 
-test("an edge leaving an element sits right of centre, an edge entering sits left", () => {
+test("an edge leaving an element sits right of or below its centre, an edge entering left of or above it", () => {
   const created = out.boxes.find((b) => b.kind === "event" && b.name === "ListCreated")
   const target = out.boxes.find(
     (b) => b.kind === "readModel" && b.name === "TodoList" && !b.compact,
   )
   assert.ok(created && target)
-  for (const e of out.edges.filter((e) => e.from === created.id && e.points)) {
-    assert.ok((e.points?.[0]?.[0] ?? 0) > created.x + created.w / 2, "leaves right of centre")
+  for (const e of out.edges.filter((e) => e.from === created.id)) {
+    const [x, y] = e.points[0] ?? ([0, 0] as const)
+    assert.ok(
+      x > created.x + created.w / 2 || y > created.y + created.h / 2,
+      "leaves right of or below centre",
+    )
   }
   const ends = out.edges
-    .filter((e) => e.to === target.id && e.points)
-    .map((e) => e.points?.at(-1)?.[0] ?? 0)
-  for (const x of ends) assert.ok(x < target.x + target.w / 2, "enters left of centre")
-  assert.equal(new Set(ends).size, ends.length, "each edge into TodoList has its own x")
+    .filter((e) => e.to === target.id)
+    .map((e) => e.points.at(-1) ?? ([0, 0] as const))
+  for (const [x, y] of ends)
+    assert.ok(
+      x < target.x + target.w / 2 || y < target.y + target.h / 2,
+      "enters left of or above centre",
+    )
+  assert.equal(
+    new Set(ends.map(String)).size,
+    ends.length,
+    "each edge into TodoList has its own point",
+  )
 })
 
-test("a path starts at one box's edge and ends at the other's", () => {
+test("a direct route leaves the side facing its target and enters the side facing its source", () => {
   const a: Box = {
     id: "a",
     kind: "command",
@@ -324,8 +335,16 @@ test("a path starts at one box's edge and ends at the other's", () => {
     h: 40,
   }
   const b: Box = { ...a, id: "b", y: 100 }
-  assert.equal(path(a, b), "M50 40 L50 100")
-  assert.match(path(b, { ...a, x: 300 }), /^M50 100 C.* 350 40$/)
+  assert.deepEqual(direct(a, b), [
+    [50, 40],
+    [50, 100],
+  ])
+  assert.deepEqual(direct(b, { ...a, x: 300 }), [
+    [100, 120],
+    [200, 120],
+    [200, 20],
+    [300, 20],
+  ])
   assert.equal(
     polyline([
       [0, 0],
@@ -333,6 +352,86 @@ test("a path starts at one box's edge and ends at the other's", () => {
       [50, 100],
     ]),
     "M0 0 L0 88 Q0 100 12 100 L50 100",
+  )
+})
+
+test("a view feeding an automation in the next column goes straight across, and an arrow whose every direct route crosses a card takes the channel", () => {
+  const next = layout({
+    name: "x",
+    description: "",
+    actors: [
+      { id: "user", name: "User", type: "user" },
+      { id: "system", name: "System", type: "system" },
+    ],
+    aggregates: [{ id: "notes", name: "Notes" }],
+    chapters: [
+      {
+        name: "Ch",
+        slices: [
+          {
+            name: "Capture",
+            actor: "user",
+            aggregate: "notes",
+            ui: "Notes/Capture",
+            command: "Capture(noteId)",
+            events: ["Captured(noteId, destination)"],
+            tests: [],
+          },
+          {
+            name: "ToSync",
+            actor: "user",
+            aggregate: "notes",
+            read_models: ["ToSync(*noteId, destination)"],
+            trigger: ["Captured(noteId)"],
+            tests: [],
+          },
+          {
+            name: "Sync",
+            actor: "system",
+            aggregate: "notes",
+            automation: "Syncer",
+            reads: ["ToSync"],
+            command: "SyncNote(noteId)",
+            events: ["Synced(noteId)"],
+            tests: [],
+          },
+        ],
+      },
+    ],
+    notes: {},
+  })
+  const view = next.boxes.find((b) => b.kind === "readModel")
+  const gear = next.boxes.find((b) => b.kind === "automation")
+  assert.ok(view && gear && gear.column === view.column + 1)
+  const reads = next.edges.find((e) => e.from === view.id && e.to === gear.id)
+  assert.ok(reads)
+  assert.equal(reads.points[0]?.[0], view.x + view.w, "leaves the view's right side")
+  assert.equal(reads.points.at(-1)?.[0], gear.x, "enters the automation's left side")
+  for (const [x, y] of reads.points) {
+    assert.ok(x >= view.x + view.w && x <= gear.x, "never doubles back")
+    assert.ok(y <= view.y + view.h, "never drops below the view")
+  }
+  const [lane, below] = [
+    next.rows.find((r) => r.id === "middle"),
+    next.rows.find((r) => r.kind === "stream"),
+  ]
+  assert.equal(
+    below?.y,
+    (lane?.y ?? 0) + (lane?.h ?? 0),
+    "no arrow takes the channel, so there is none",
+  )
+
+  // ItemAdded feeds ListItems five columns on: every direct route crosses a card, so it takes the
+  // channel between the Interaction lane and the streams.
+  const added = out.boxes.find((b) => b.kind === "event" && b.name === "ItemAdded" && !b.compact)
+  const items = out.boxes.find((b) => b.kind === "readModel" && b.name === "ListItems")
+  const middle = out.rows.find((r) => r.id === "middle")
+  const stream = out.rows.find((r) => r.kind === "stream")
+  assert.ok(added && items && middle && stream)
+  const fed = out.edges.find((e) => e.from === added.id && e.to === items.id)
+  assert.ok(
+    fed?.points.some(([, y]) => y > middle.y + middle.h && y < stream.y),
+    "runs in the channel",
   )
 })
 
