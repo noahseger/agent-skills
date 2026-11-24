@@ -669,16 +669,14 @@ pre.error {
   stroke: var(--accent);
 }
 
-/* A note is a sticky in its kind's colour: critical red, a question amber, info neutral. */
-.sticky {
-  filter: drop-shadow(0 1px 1px rgb(15 23 42 / 0.2));
-}
-
-.sticky .paper { fill: var(--bg); stroke: var(--faint); }
-.sticky text { font-size: 9.5px; fill: var(--ink); }
-.sticky.critical .paper { fill: var(--danger-fill); stroke: var(--danger-stroke); }
+/* A note is square paper in its kind's colour, lighter than the card it is about: thinner line,
+   smaller type, no shadow. Critical red, a question amber, info neutral. */
+.sticky .paper { fill: var(--panel); stroke: var(--line); stroke-width: 1; }
+.sticky text { font-size: 9px; fill: var(--muted); }
+.sticky .head { font-size: 8px; font-weight: 600; letter-spacing: 0.02em; }
+.sticky.critical .paper { fill: var(--danger-fill); stroke: color-mix(in oklab, var(--danger-stroke) 45%, transparent); }
 .sticky.critical text { fill: var(--danger-ink); }
-.sticky.question .paper { fill: var(--question-fill); stroke: var(--question-stroke); }
+.sticky.question .paper { fill: var(--question-fill); stroke: color-mix(in oklab, var(--question-stroke) 45%, transparent); }
 .sticky.question text { fill: var(--question-ink); }
 
 .notes {

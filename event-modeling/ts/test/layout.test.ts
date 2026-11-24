@@ -14,7 +14,6 @@ import {
   grouped,
   LANE_PAD,
   layout,
-  NAME_H,
   NOTE_GAP,
   NOTE_W,
   nextError,
@@ -335,6 +334,7 @@ test("an element's notes stand in a rail beside its slice, level with its first 
   const [info, question] = col?.notes ?? []
   assert.ok(col && info && question)
   assert.deepEqual([info.kind, question.kind], ["info", "question"])
+  assert.equal(info.subject, "Item Added")
   assert.equal(info.y, full.y)
   assert.equal(question.y, info.y + info.h + STICKY_GAP)
   assert.equal(col.railX, col.x + (out.columns[full.column]?.w ?? 0))
@@ -348,7 +348,7 @@ test("an element's notes stand in a rail beside its slice, level with its first 
   assert.equal(command?.notes?.[0]?.kind, "critical")
 })
 
-test("a slice's notes top its rail; the lanes stay where they were and later columns move right", () => {
+test("a slice's note lines up with its first card and names the slice; the lanes stay and later columns move right", () => {
   const copy: Board = JSON.parse(JSON.stringify(model))
   const slice = copy.chapters[0]?.slices[2]
   assert.ok(slice)
@@ -356,7 +356,9 @@ test("a slice's notes top its rail; the lanes stay where they were and later col
   const drawn = layout(copy)
   const [sticky] = drawn.columns[2]?.notes ?? []
   assert.ok(sticky)
-  assert.equal(sticky.y, drawn.nameY + NAME_H + STICKY_GAP)
+  const top = Math.min(...drawn.boxes.filter((b) => b.column === 2).map((b) => b.y))
+  assert.equal(sticky.y, top)
+  assert.equal(sticky.subject, drawn.columns[2]?.title)
   assert.equal(drawn.rows[0]?.y, out.rows[0]?.y)
   assert.equal(drawn.columns[3]?.x, (out.columns[3]?.x ?? 0) + NOTE_W + NOTE_GAP)
   assert.equal(drawn.width, out.width + NOTE_W + NOTE_GAP)

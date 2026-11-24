@@ -119,9 +119,11 @@ export interface Chapter {
   w: number
 }
 
-/** A note drawn on the canvas: its text cut to a few lines that fit. */
+/** A note drawn on the canvas: what it is about, then its text cut to a few lines that fit. */
 export interface Sticky {
   kind: NoteKind
+  /** What the note is about, as words: the element or the slice. */
+  subject: string
   text: string
   lines: string[]
   y: number
@@ -188,9 +190,10 @@ export const TABLE_PAD = 12
 export const TABLE_MORE_W = 26
 export const STICKY_CHARS = 22
 export const STICKY_LINES = 3
-export const STICKY_LINE = 12
+export const STICKY_LINE = 11
 export const STICKY_PAD = 6
 export const STICKY_GAP = 6
+export const STICKY_HEAD = 12
 export const NOTE_W = 128
 export const NOTE_GAP = 12
 
@@ -293,8 +296,8 @@ export function wrap(text: string, max: number, indent = 0): string[] {
   return lines
 }
 
-/** Notes stacked from `top`, each cut to `STICKY_LINES` lines; the detail shows the whole text. */
-export function stickies(notes: readonly Note[], top: number): Sticky[] {
+/** Notes on `subject` stacked from `top`, each cut to `STICKY_LINES` lines; the detail shows the whole text. */
+export function stickies(notes: readonly Note[], top: number, subject: string): Sticky[] {
   let y = top
   return notes.map(({ text, kind }) => {
     const all = wrap(text, STICKY_CHARS)
@@ -302,7 +305,8 @@ export function stickies(notes: readonly Note[], top: number): Sticky[] {
       all.length > STICKY_LINES
         ? [...all.slice(0, STICKY_LINES - 1), `${all[STICKY_LINES - 1]}…`]
         : all
-    const sticky = { kind, text, lines, y, h: lines.length * STICKY_LINE + 2 * STICKY_PAD }
+    const h = STICKY_HEAD + lines.length * STICKY_LINE + 2 * STICKY_PAD
+    const sticky = { kind, subject, text, lines, y, h }
     y += sticky.h + STICKY_GAP
     return sticky
   })
@@ -496,6 +500,8 @@ export function layout(model: Board): Layout {
 
   // Draw each element in full once; later cards link back to it.
   const first = new Map<string, Placed>()
+  // A screen shows in every slice that names it; its notes go beside the first.
+  const screensNoted = new Set<string>()
   let next = 0
   const make = (
     column: number,
@@ -551,7 +557,7 @@ export function layout(model: Board): Layout {
         : kind === "ui"
           ? extra.notes
           : model.notes[el.name]
-    if (own) box.notes = stickies(own, 0)
+    if (own) box.notes = stickies(own, 0, words(el.name))
     if (!extra.reference && kind !== "ui" && !first.has(key)) first.set(key, box)
     return box
   }
@@ -604,6 +610,9 @@ export function layout(model: Board): Layout {
       const commandFields = s.command ? parse(s.command).fields : []
       const view = s.read_models?.[0] ? parse(s.read_models[0]) : undefined
       const one = view !== undefined && view.keys.length === 0 && !view.list
+      const screenNotes =
+        s.screen && !screensNoted.has(s.screen) ? model.notes[s.screen] : undefined
+      if (screenNotes && s.screen) screensNoted.add(s.screen)
       for (const actor of s.actors ?? [s.actor]) {
         const ui = make(
           i,
@@ -615,7 +624,7 @@ export function layout(model: Board): Layout {
             ...(s.command ? { button: parse(s.command).name } : {}),
             ...(view === undefined ? {} : { table: view.fields }),
             ...(one && { tableRows: 1 as const }),
-            ...(s.screen && model.notes[s.screen] && { notes: model.notes[s.screen] }),
+            ...(screenNotes && { notes: screenNotes }),
           },
         )
         uis.push(ui)
@@ -910,11 +919,13 @@ export function layout(model: Board): Layout {
     }),
   )
 
-  // A rail stacks the slice's notes from the top, then each card's level with it, never overlapping.
+  // A rail lines each note up with the top of what it is about, the slice's with its first card,
+  // and pushes a note down only to clear the one above.
   let bottom = y
   for (const col of rails) {
     const notes: Sticky[] = []
-    let next = HEADER_H + NAME_H + STICKY_GAP
+    const cards = boxes.filter((b) => b.column === col.index).sort((a, b) => a.y - b.y)
+    let next = 0
     const stack = (list: readonly Sticky[], at: number) => {
       const from = Math.max(at, next)
       for (const n of list) {
@@ -922,11 +933,9 @@ export function layout(model: Board): Layout {
         next = from + n.y + n.h + STICKY_GAP
       }
     }
-    if (col.slice.notes) stack(stickies(col.slice.notes, 0), next)
-    for (const b of boxes
-      .filter((b) => b.column === col.index && b.notes)
-      .sort((a, b) => a.y - b.y))
-      stack(b.notes ?? [], b.y)
+    if (col.slice.notes)
+      stack(stickies(col.slice.notes, 0, col.title), cards[0]?.y ?? HEADER_H + NAME_H + STICKY_GAP)
+    for (const b of cards) if (b.notes) stack(b.notes, b.y)
     col.notes = notes
     bottom = Math.max(bottom, next)
   }
