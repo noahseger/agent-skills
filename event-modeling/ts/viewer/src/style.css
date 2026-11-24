@@ -145,8 +145,8 @@ body,
   background: var(--bg);
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
-  /* text never overflows: a word wider than its box breaks */
-  overflow-wrap: anywhere;
+  /* text never overflows: a word wider than its box breaks, and only then */
+  overflow-wrap: break-word;
 }
 
 /* Header, then a model that didn't load, then the body takes what is left. */
