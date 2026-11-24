@@ -1129,8 +1129,8 @@ export function outside(layout: Layout, chapter: number): Set<number> {
   return new Set(layout.edges.flatMap((e, i) => (inside(e.from) && inside(e.to) ? [] : [i])))
 }
 
-/** How far a fitted slice zooms at most: its card text at 1.5 times its size. */
-export const MAX_ZOOM = 1.5
+/** How far a fitted slice zooms at most: its card text at 1.25 times its size. */
+export const MAX_ZOOM = 1.25
 /** Room left between a fitted slice and the viewport's edges. */
 export const FIT_MARGIN = 24
 

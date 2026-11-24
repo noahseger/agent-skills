@@ -238,6 +238,14 @@ const transform = computed(
         <marker id="arrow-lit" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M 0 0 L 10 5 L 0 10 z" fill="#2563eb" />
         </marker>
+        <!-- A lane name's backing ends in a fade, so the cards it cuts read as passing under it. -->
+        <linearGradient id="pin-fade">
+          <stop :offset="(LABEL_W - 8) / (LABEL_W + 16)" stop-color="white" />
+          <stop offset="1" stop-color="white" stop-opacity="0" />
+        </linearGradient>
+        <mask id="pin-mask" maskContentUnits="objectBoundingBox">
+          <rect width="1" height="1" fill="url(#pin-fade)" />
+        </mask>
       </defs>
       <g class="world" :class="{ animate }" :style="{ transform }">
         <rect class="page" :x="0" :y="0" :width="layout.width" :height="layout.height" @click="background" />
@@ -321,7 +329,7 @@ const transform = computed(
           :class="[row.kind, { idle: used && !used.has(row.id) }]"
           :style="{ transform: pin }"
         >
-          <rect :x="0" :y="row.y + 1" :width="LABEL_W - 8" :height="row.h - 1" />
+          <rect :x="0" :y="row.y + 1" :width="LABEL_W + 16" :height="row.h - 1" mask="url(#pin-mask)" />
           <Fit v-if="row.label" class="lane-label" :text="row.label" :room="LANE_ROOM" font="lane" :lines="laneLines(row)" :x="16" :y="row.y + 22" />
           <text v-if="row.sub" class="lane-kind" :x="16" :y="row.y + 37 + (drawnLines(row) - 1) * 15">
             {{ row.sub }}
