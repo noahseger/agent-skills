@@ -20,7 +20,7 @@
   --panel: #ffffff;
   --line: #e4e7eb;
   --ink: #0f172a;
-  --muted: #526071;
+  --muted: #475569;
   --faint: #94a3b8;
   --accent: #2563eb;
   --accent-ink: #1e3a8a;
@@ -597,8 +597,10 @@ pre.error {
   cursor: pointer;
 }
 
-.app:not(.keyed) .chapter:hover path {
-  fill: #1d4ed8;
+/* Hovering anything on the canvas, a card, a note, a lane name or a chapter, deepens its fill; one
+   rule for every kind. The fill only, so its text keeps its contrast (4.98:1 or more, hovered). */
+.app:not(.keyed) :is(.card, .sticky, .lane-name, .chapter):hover > :is(.shape, .paper, rect, path) {
+  filter: saturate(1.3) brightness(0.9);
 }
 
 .slice-head {
