@@ -47,8 +47,9 @@ shows them as words.
 
 **A note is a sticky everyone sees.** `.note(text, kind)` on a declaration sticks one beside its
 card, on a slice beside the slice, and on a chapter above its band: red for `"critical"`, amber
-for `"question"`, neutral for `"info"`, the default. A second stacks under the first, or beside it
-above a chapter.
+for `"question"`, neutral for `"info"`, the default; its kind's icon (⚠ ? ⓘ) starts its text. It
+stands level with what it is about, so it carries no header; hover it for that name. A second
+stacks under the first, or beside it above a chapter.
 
 ```ts
 m.command("DeleteItem", { listId: t.string(), itemId: t.string() })

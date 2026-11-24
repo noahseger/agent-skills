@@ -74,7 +74,6 @@
   --font-title: 600 12.5px var(--sans);
   --font-table: 600 8.5px var(--sans);
   --font-note: 9px var(--sans);
-  --font-noteHead: 600 8px var(--sans);
   --font-lane: 700 13px var(--sans);
   --font-chapter: 600 13px var(--sans);
   --font-slice: 700 12px var(--sans);
@@ -755,7 +754,6 @@ pre.error {
    smaller type, no shadow. Critical red, a question amber, info neutral. */
 .sticky .paper { fill: var(--panel); stroke: var(--line); stroke-width: 1; }
 .sticky text { font: var(--font-note); fill: var(--muted); }
-.sticky .head { font: var(--font-noteHead); }
 .sticky.critical .paper { fill: var(--danger-fill); stroke: color-mix(in oklab, var(--danger-stroke) 45%, transparent); }
 .sticky.critical text { fill: var(--danger-ink); }
 .sticky.question .paper { fill: var(--question-fill); stroke: color-mix(in oklab, var(--question-stroke) 45%, transparent); }

@@ -31,7 +31,6 @@ export type Font =
   | "title"
   | "table"
   | "note"
-  | "noteHead"
   | "lane"
   | "tag"
   | "laneTag"
@@ -140,11 +139,11 @@ export interface Chapter {
   notes?: Sticky[]
 }
 
-/** A note drawn on the canvas: what it is about, then its text cut to a few lines that fit. */
+/** A note drawn on the canvas: its kind's icon, then its text, cut to a few lines that fit. */
 export interface Sticky {
   kind: NoteKind
-  /** The kind's icon, then what the note is about as words, in the lines that fit the note. */
-  head: string[]
+  /** What the note is about, as words: where it stands says so, and its tooltip names it. */
+  subject: string
   text: string
   lines: string[]
   x: number
@@ -214,8 +213,6 @@ export const STICKY_LINES = 3
 export const STICKY_LINE = 11
 export const STICKY_PAD = 6
 export const STICKY_GAP = 6
-export const STICKY_HEAD = 12
-export const STICKY_HEAD_LINE = 10
 export const NOTE_W = 128
 export const NOTE_GAP = 12
 
@@ -374,8 +371,8 @@ export const ICON: Record<NoteKind, string> = {
 }
 
 /**
- * Notes on `subject` stacked from `top`, each cut to `STICKY_LINES` lines; the detail shows the whole
- * text. The header is the kind's icon, then the subject.
+ * Notes on `subject` stacked from `top`, each its kind's icon then its text, cut to `STICKY_LINES`
+ * lines; the detail shows the whole text.
  */
 export function stickies(
   notes: readonly Note[],
@@ -387,14 +384,9 @@ export function stickies(
   const note = (s: string) => measure(s, "note")
   let y = top
   return notes.map(({ text, kind }) => {
-    const head = wrap(`${ICON[kind]} ${subject}`, room, (s) => measure(s, "noteHead"))
-    const lines = fitLines(text, room, STICKY_LINES, note)
-    const h =
-      STICKY_HEAD +
-      (head.length - 1) * STICKY_HEAD_LINE +
-      lines.length * STICKY_LINE +
-      2 * STICKY_PAD
-    const sticky = { kind, head, text, lines, x: 0, y, h }
+    const lines = fitLines(`${ICON[kind]} ${text}`, room, STICKY_LINES, note)
+    const h = lines.length * STICKY_LINE + 2 * STICKY_PAD
+    const sticky = { kind, subject, text, lines, x: 0, y, h }
     y += sticky.h + STICKY_GAP
     return sticky
   })

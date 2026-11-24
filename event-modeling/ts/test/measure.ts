@@ -7,7 +7,6 @@ const CHAR: Record<Font, number> = {
   title: 6.6,
   table: 5.2,
   note: 5.2,
-  noteHead: 4.4,
   lane: 7,
   tag: 7,
   laneTag: 5,

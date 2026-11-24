@@ -32,7 +32,6 @@ import {
   path,
   polyline,
   STICKY_GAP,
-  STICKY_HEAD_LINE,
   STICKY_LINES,
   served,
   shortIds,
@@ -366,7 +365,8 @@ test("an element's notes stand in a rail beside its slice, level with its first 
   const [info, question] = col?.notes ?? []
   assert.ok(col && info && question)
   assert.deepEqual([info.kind, question.kind], ["info", "question"])
-  assert.deepEqual(info.head, ["ⓘ Item Added"])
+  assert.equal(info.subject, "Item Added", "its tooltip names what it is about")
+  assert.ok(info.lines[0]?.startsWith("ⓘ "), "its kind's icon starts its text")
   assert.equal(info.y, full.y)
   assert.equal(question.y, info.y + info.h + STICKY_GAP)
   assert.equal(info.x, col.x + (out.columns[full.column]?.w ?? 0))
@@ -380,7 +380,7 @@ test("an element's notes stand in a rail beside its slice, level with its first 
   assert.equal(command?.notes?.[0]?.kind, "critical")
 })
 
-test("a long name wraps inside its card, which grows to hold it, and so does a note's header", () => {
+test("a long name wraps inside its card, which grows to hold it; a note is as tall as its text", () => {
   assert.deepEqual(titled({ name: "CompleteVendorConnection" }, CARD_W, false, measure), [
     "Complete Vendor",
     "Connection",
@@ -398,8 +398,8 @@ test("a long name wraps inside its card, which grows to hold it, and so does a n
   const note = { text: "Rate limited.", kind: "critical" } as const
   const [wide] = stickies([note], 0, "Complete Vendor Connection", measure)
   const [narrow] = stickies([note], 0, "Create List", measure)
-  assert.deepEqual(wide?.head, ["⚠ Complete Vendor", "Connection"])
-  assert.equal(wide?.h, (narrow?.h ?? 0) + STICKY_HEAD_LINE)
+  assert.deepEqual(wide?.lines, ["⚠ Rate limited."])
+  assert.equal(wide?.h, narrow?.h, "the subject takes no room")
 })
 
 test("a slice's note lines up with its first card and names the slice; the lanes stay and later columns move right", () => {
@@ -412,7 +412,8 @@ test("a slice's note lines up with its first card and names the slice; the lanes
   assert.ok(sticky)
   const top = Math.min(...drawn.boxes.filter((b) => b.column === 2).map((b) => b.y))
   assert.equal(sticky.y, top)
-  assert.deepEqual(sticky.head, [`? ${drawn.columns[2]?.title}`])
+  assert.equal(sticky.subject, drawn.columns[2]?.title)
+  assert.ok(sticky.lines[0]?.startsWith("? "))
   assert.equal(drawn.rows[0]?.y, out.rows[0]?.y)
   assert.equal(drawn.columns[3]?.x, (out.columns[3]?.x ?? 0) + NOTE_W + NOTE_GAP)
   assert.equal(drawn.width, out.width + NOTE_W + NOTE_GAP)
@@ -434,7 +435,8 @@ test("a chapter's notes stand above its band from its left edge, in a row as tal
   assert.equal(band.x, out.chapters[1]?.x, "the slices keep their place")
   assert.deepEqual([critical.x, question.x], [band.x, band.x + NOTE_W + STICKY_GAP])
   assert.equal(critical.y, question.y)
-  assert.deepEqual(critical.head, [`⚠ ${words(chapter.name)}`])
+  assert.equal(critical.subject, words(chapter.name))
+  assert.ok(critical.lines[0]?.startsWith("⚠ "))
   const row = Math.max(critical.h, question.h) + NOTE_GAP
   assert.equal(drawn.nameY, out.nameY + row, "the band moves down under the row")
   assert.equal(drawn.rows[0]?.y, (out.rows[0]?.y ?? 0) + row)
