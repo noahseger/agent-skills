@@ -998,14 +998,21 @@ pre.error {
   font-weight: 600;
 }
 
+/* The two columns stand side by side while both fit their minimum, and stack when they don't. */
 .slice-body {
-  display: grid;
-  grid-template-columns: minmax(240px, 340px) 1fr;
+  display: flex;
+  flex-wrap: wrap;
   gap: 28px;
-  align-items: start;
+  align-items: flex-start;
+}
+
+.slice-body > .column {
+  flex: 1 1 240px;
+  max-width: 340px;
 }
 
 .slice-right {
+  flex: 1 1 280px;
   min-width: 0;
 }
 
