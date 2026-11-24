@@ -1129,6 +1129,46 @@ export function outside(layout: Layout, chapter: number): Set<number> {
   return new Set(layout.edges.flatMap((e, i) => (inside(e.from) && inside(e.to) ? [] : [i])))
 }
 
+/** How far a fitted slice zooms at most: its card text at 1.5 times its size. */
+export const MAX_ZOOM = 1.5
+/** Room left between a fitted slice and the viewport's edges. */
+export const FIT_MARGIN = 24
+
+/** A slice's extent: its column, from its top-most card or rail note to its bottom-most. */
+export function sliceBounds(layout: Layout, column: number) {
+  const col = layout.columns[column]
+  if (!col) return undefined
+  const items = [...layout.boxes.filter((b) => b.column === column), ...(col.notes ?? [])]
+  if (items.length === 0) return undefined
+  const y = Math.min(...items.map((b) => b.y))
+  const bottom = Math.max(...items.map((b) => b.y + b.h))
+  return { x: col.x, y, w: col.w, h: bottom - y }
+}
+
+/** The view that fits a slice top to bottom in a viewport, its column centred, never past `MAX_ZOOM`. */
+export function fitSlice(layout: Layout, column: number, viewport: { w: number; h: number }) {
+  const b = sliceBounds(layout, column)
+  if (!b) return undefined
+  const k = Math.min(
+    MAX_ZOOM,
+    (viewport.h - 2 * FIT_MARGIN) / b.h,
+    (viewport.w - 2 * FIT_MARGIN) / b.w,
+  )
+  return {
+    x: viewport.w / 2 - k * (b.x + b.w / 2),
+    y: viewport.h / 2 - k * (b.y + b.h / 2),
+    k,
+  }
+}
+
+/** The lanes a slice has a card in. */
+export function usedLanes(layout: Layout, column: number): Set<string> {
+  const cards = layout.boxes.filter((b) => b.column === column)
+  return new Set(
+    layout.rows.filter((r) => cards.some((b) => b.y >= r.y && b.y < r.y + r.h)).map((r) => r.id),
+  )
+}
+
 /**
  * Who acts in a slice, as words: who sees it, or the machine of ours that runs it. A translation is
  * run by one of ours, from the External System its event comes from.

@@ -6,6 +6,7 @@ import {
   ARROW_H,
   type Box,
   fitLines,
+  fitSlice,
   LABEL_W,
   type Layout,
   NAME_H,
@@ -13,6 +14,7 @@ import {
   path,
   polyline,
   type Row,
+  usedLanes,
 } from "./layout.ts"
 import Mark from "./Mark.vue"
 import { measure } from "./measure.ts"
@@ -23,7 +25,7 @@ const props = defineProps<{
   selectedColumn: number | null
   selectedBox: string | null
   hovered: string | null
-  /** Bumping `seq` brings the column into view, or with none the whole model. */
+  /** Bumping `seq` fits the column's slice top to bottom, or with none the whole model. */
   focus: { column: number | null; seq: number }
 }>()
 const emit = defineEmits<{
@@ -59,17 +61,11 @@ onMounted(() => {
 })
 
 function focusColumn(index: number) {
-  const col = props.layout.columns[index]
   const box = el.value?.getBoundingClientRect()
-  if (!col || !box) return
-  const rect = { x: col.x - 16, y: 0, w: col.w + 32, h: props.layout.height }
-  const k = Math.min(1.25, (box.width - 40) / rect.w, (box.height - 40) / rect.h)
+  const fitted = box && fitSlice(props.layout, index, { w: box.width, h: box.height })
+  if (!fitted) return
   animate.value = true
-  view.value = {
-    x: box.width / 2 - k * (rect.x + rect.w / 2),
-    y: Math.max(20, box.height / 2 - k * (rect.h / 2)),
-    k,
-  }
+  view.value = fitted
   setTimeout(() => {
     animate.value = false
   }, 350)
@@ -159,6 +155,11 @@ const away = computed(() => {
   return col ? outside(props.layout, col.chapter) : new Set<number>()
 })
 
+// A selected slice dims the lanes it has no card in.
+const used = computed(() =>
+  props.selectedColumn === null ? null : usedLanes(props.layout, props.selectedColumn),
+)
+
 function edgeClass(i: number) {
   if (!lit.value) return { dim: away.value.has(i) }
   return { lit: lit.value.edges.has(i), dim: !lit.value.edges.has(i) }
@@ -211,6 +212,8 @@ const drawnLines = (row: Row) =>
 const notes = computed(() =>
   [...props.layout.chapters, ...props.layout.columns].flatMap((c) => c.notes ?? []),
 )
+// Lane names stay at the viewport's left edge, so every lane is named wherever the canvas is panned.
+const pin = computed(() => `translateX(${Math.max(0, -view.value.x / view.value.k)}px)`)
 const transform = computed(
   () => `translate(${view.value.x}px, ${view.value.y}px) scale(${view.value.k})`,
 )
@@ -239,21 +242,8 @@ const transform = computed(
       <g class="world" :class="{ animate }" :style="{ transform }">
         <rect class="page" :x="0" :y="0" :width="layout.width" :height="layout.height" @click="background" />
         <g v-for="row in layout.rows" :key="row.id">
-          <rect class="lane" :class="row.kind" :x="0" :y="row.y" :width="layout.width" :height="row.h" @click="background" />
+          <rect class="lane" :class="[row.kind, { idle: used && !used.has(row.id) }]" :x="0" :y="row.y" :width="layout.width" :height="row.h" @click="background" />
           <line class="lane-line" :x1="0" :x2="layout.width" :y1="row.y" :y2="row.y" />
-          <Fit
-            v-if="row.label"
-            class="lane-label"
-            :text="row.label"
-            :room="LANE_ROOM"
-            font="lane"
-            :lines="laneLines(row)"
-            :x="16"
-            :y="row.y + 22"
-          />
-          <text v-if="row.sub" class="lane-kind" :x="16" :y="row.y + 37 + (drawnLines(row) - 1) * 15">
-            {{ row.sub }}
-          </text>
         </g>
         <line class="lane-line" :x1="0" :x2="layout.width" :y1="layout.height" :y2="layout.height" />
 
@@ -323,6 +313,20 @@ const transform = computed(
           @pointerenter="hoverCard(box)"
           @pointerleave="hoverCard(null)"
         />
+
+        <g
+          v-for="row in layout.rows"
+          :key="row.id"
+          class="lane-name"
+          :class="[row.kind, { idle: used && !used.has(row.id) }]"
+          :style="{ transform: pin }"
+        >
+          <rect :x="0" :y="row.y + 1" :width="LABEL_W - 8" :height="row.h - 1" />
+          <Fit v-if="row.label" class="lane-label" :text="row.label" :room="LANE_ROOM" font="lane" :lines="laneLines(row)" :x="16" :y="row.y + 22" />
+          <text v-if="row.sub" class="lane-kind" :x="16" :y="row.y + 37 + (drawnLines(row) - 1) * 15">
+            {{ row.sub }}
+          </text>
+        </g>
       </g>
     </svg>
   </div>

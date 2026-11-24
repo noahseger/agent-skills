@@ -539,6 +539,29 @@ pre.error {
   fill: var(--muted);
 }
 
+/* A lane's name stands at the viewport's left edge, on its lane's colour, above the cards it passes. */
+.lane-name rect {
+  fill: var(--bg);
+}
+
+.lane-name.stream rect {
+  fill: #fbfbfc;
+}
+
+.world.animate .lane-name {
+  transition: transform 300ms ease;
+}
+
+/* A selected slice fades the lanes it has no card in. */
+.lane.idle {
+  opacity: 0.4;
+}
+
+.lane-name.idle .lane-label,
+.lane-name.idle .lane-kind {
+  opacity: 0.3;
+}
+
 /* chapters are arrows along the time line */
 .chapter path {
   fill: var(--accent);
