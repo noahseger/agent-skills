@@ -205,7 +205,7 @@ onUnmounted(() => {
         <span v-for="(icon, kind) in ICON" :key="kind" class="swatch note" :class="kind" :data-icon="icon">{{ kind }}</span>
       </span>
       <details class="keys">
-        <summary>Keys</summary>
+        <summary>Shortcuts</summary>
         <dl>
           <dt>← →</dt><dd>move between slices</dd>
           <dt>Enter</dt><dd>open a slice</dd>
