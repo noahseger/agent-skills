@@ -6,11 +6,9 @@ import {
   ARROW_H,
   type Box,
   fitLines,
-  HEADER_H,
   LABEL_W,
   type Layout,
   NAME_H,
-  NOTE_W,
   outside,
   path,
   polyline,
@@ -198,7 +196,7 @@ function firstSlice(chapter: number) {
 
 // A chapter is an arrow along the time line; the first has a flat start.
 function arrow(x: number, w: number, first: boolean) {
-  const y = HEADER_H - ARROW_H - 12
+  const y = props.layout.nameY - ARROW_H - 12
   const h = ARROW_H
   const n = 12
   const start = first ? `M${x} ${y}` : `M${x} ${y} L${x + n} ${y + h / 2} L${x} ${y + h}`
@@ -210,6 +208,9 @@ const LANE_ROOM = LABEL_W - 24
 const laneLines = (row: Row) => Math.max(1, Math.floor((row.h - 45) / 15) + 1)
 const drawnLines = (row: Row) =>
   fitLines(row.label, LANE_ROOM, laneLines(row), (s) => measure(s, "lane")).length
+const notes = computed(() =>
+  [...props.layout.chapters, ...props.layout.columns].flatMap((c) => c.notes ?? []),
+)
 const transform = computed(
   () => `translate(${view.value.x}px, ${view.value.y}px) scale(${view.value.k})`,
 )
@@ -288,9 +289,7 @@ const transform = computed(
           </g>
         </g>
 
-        <template v-for="col in layout.columns" :key="col.index">
-          <Sticky v-for="(note, i) in col.notes ?? []" :key="i" :sticky="note" :x="col.railX ?? col.x" :w="NOTE_W" />
-        </template>
+        <Sticky v-for="(note, i) in notes" :key="i" :sticky="note" />
 
         <template v-for="(chapter, i) in layout.chapters" :key="chapter.name + chapter.x">
           <g v-if="chapter.title" class="chapter" @click.stop="firstSlice(i)">
@@ -300,7 +299,7 @@ const transform = computed(
               :room="chapter.w - (i === 0 ? 38 : 46)"
               font="chapter"
               :x="chapter.x + (i === 0 ? 16 : 24)"
-              :y="HEADER_H - 12 - ARROW_H / 2 + 5"
+              :y="layout.nameY - 12 - ARROW_H / 2 + 5"
             />
           </g>
         </template>

@@ -362,8 +362,8 @@ test("an element's notes stand in a rail beside its slice, level with its first 
   assert.deepEqual(info.head, ["Item Added"])
   assert.equal(info.y, full.y)
   assert.equal(question.y, info.y + info.h + STICKY_GAP)
-  assert.equal(col.railX, col.x + (out.columns[full.column]?.w ?? 0))
-  assert.ok((col.railX ?? 0) >= full.x + full.w, "the rail is right of the card")
+  assert.equal(info.x, col.x + (out.columns[full.column]?.w ?? 0))
+  assert.ok(info.x >= full.x + full.w, "the rail is right of the card")
   assert.equal(col.w, (out.columns[full.column]?.w ?? 0) + NOTE_W + NOTE_GAP)
   assert.equal(question.lines.length, STICKY_LINES)
   assert.ok(question.lines.at(-1)?.endsWith("…"), "a long note is cut; the detail has it whole")
@@ -411,20 +411,33 @@ test("a slice's note lines up with its first card and names the slice; the lanes
   assert.equal(drawn.width, out.width + NOTE_W + NOTE_GAP)
 })
 
-test("a chapter's note stands in its first slice's rail, level with the first card, and names the chapter", () => {
+test("a chapter's notes stand above its band from its left edge, in a row as tall as the tallest, and name the chapter", () => {
+  assert.ok(out.chapters.every((c) => c.notes === undefined))
   const copy: Board = JSON.parse(JSON.stringify(model))
   const chapter = copy.chapters[1]
   assert.ok(chapter)
-  copy.notes[chapter.name] = [{ text: "Retries with backoff.", kind: "critical" }]
+  copy.notes[chapter.name] = [
+    { text: "Retries with backoff.", kind: "critical" },
+    { text: "Who may see a list once it is shared with another household?", kind: "question" },
+  ]
   const drawn = layout(copy)
-  const first = drawn.columns.find((c) => c.slice === chapter.slices[0])
-  const [sticky] = first?.notes ?? []
-  assert.ok(first && sticky)
-  const top = Math.min(...drawn.boxes.filter((b) => b.column === first.index).map((b) => b.y))
-  assert.equal(sticky.y, top)
-  assert.equal(sticky.kind, "critical")
-  assert.deepEqual(sticky.head, [`Critical · ${words(chapter.name)}`])
-  assert.equal(drawn.columns[first.index + 1]?.notes, out.columns[first.index + 1]?.notes)
+  const band = drawn.chapters[1]
+  const [critical, question] = band?.notes ?? []
+  assert.ok(band && critical && question)
+  assert.equal(band.x, out.chapters[1]?.x, "the slices keep their place")
+  assert.deepEqual([critical.x, question.x], [band.x, band.x + NOTE_W + STICKY_GAP])
+  assert.equal(critical.y, question.y)
+  assert.deepEqual(critical.head, [`Critical · ${words(chapter.name)}`])
+  const row = Math.max(critical.h, question.h) + NOTE_GAP
+  assert.equal(drawn.nameY, out.nameY + row, "the band moves down under the row")
+  assert.equal(drawn.rows[0]?.y, (out.rows[0]?.y ?? 0) + row)
+  assert.equal(drawn.height, out.height + row)
+  for (const col of drawn.columns)
+    assert.deepEqual(
+      col.notes?.map((n) => n.y),
+      out.columns[col.index]?.notes?.map((n) => n.y + row),
+      "no rail holds the chapter's notes",
+    )
 })
 
 test("specifications are off the canvas, which ends at its last lane; each is its slice's, a card per clause with a line per field", () => {

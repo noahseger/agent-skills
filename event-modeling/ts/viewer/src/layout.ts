@@ -123,8 +123,6 @@ export interface Column {
   noted: boolean
   /** The notes in the rail beside the slice: its own at the top, then each card's level with it. */
   notes?: Sticky[]
-  /** Where the rail starts, for a slice with notes. */
-  railX?: number
   /** The slice's messages: its own, or, for a declaration in no slice, those about it. */
   messages: Message[]
   mark?: Mark
@@ -138,6 +136,8 @@ export interface Chapter {
   title: string
   x: number
   w: number
+  /** The chapter's notes, above its band from its left edge, wrapping within its width. */
+  notes?: Sticky[]
 }
 
 /** A note drawn on the canvas: what it is about, then its text cut to a few lines that fit. */
@@ -150,6 +150,7 @@ export interface Sticky {
   head: string[]
   text: string
   lines: string[]
+  x: number
   y: number
   h: number
 }
@@ -395,7 +396,7 @@ export function stickies(
       (head.length - 1) * STICKY_HEAD_LINE +
       lines.length * STICKY_LINE +
       2 * STICKY_PAD
-    const sticky = { kind, head, text, lines, y, h }
+    const sticky = { kind, head, text, lines, x: 0, y, h }
     y += sticky.h + STICKY_GAP
     return sticky
   })
@@ -866,14 +867,8 @@ export function layout(model: Board, measure: Measure): Layout {
     }
   }
 
-  // A chapter's notes stand in the rail of its first slice.
-  const chapterNotes = (col: Column) => {
-    const chapter = model.chapters[col.chapter]
-    return chapter?.slices[0] === col.slice ? model.notes[chapter.name] : undefined
-  }
   // A slice with notes gets a rail beside it, so its notes take width, not height.
   const noted = (col: Column) =>
-    chapterNotes(col) !== undefined ||
     col.slice.notes !== undefined ||
     [...slots.values()].some((stacks) =>
       stacks[col.index]?.some((tier) => tier.some((b) => b.notes)),
@@ -887,17 +882,36 @@ export function layout(model: Board, measure: Measure): Layout {
     chapter.x += shiftAt(chapter.x)
     chapter.w = end + shiftAt(end) - chapter.x
   }
+  const railX = new Map<Column, number>()
   for (const col of columns) {
     col.x += shiftAt(before[col.index] ?? 0)
     if (!rails.includes(col)) continue
-    col.railX = col.x + col.w
+    railX.set(col, col.x + col.w)
     col.w += NOTE_W + NOTE_GAP
   }
   const width =
     PAD_X + Math.max(0, ...chapters.map((c) => c.x + c.w), ...columns.map((c) => c.x + c.w))
 
-  let y = HEADER_H + NAME_H
-  const nameY = HEADER_H
+  // A chapter's notes stand above its band, left to right from its left edge, wrapping within its
+  // width; the canvas makes a row for them as tall as the tallest, and none for no notes.
+  const top = HEADER_H - ARROW_H - 12
+  let above = 0
+  for (const at of chapters) {
+    const notes = model.notes[at.name]
+    if (!notes) continue
+    let [x, y, row] = [at.x, top, 0]
+    at.notes = stickies(notes, 0, at.title, measure).map((n) => {
+      if (x > at.x && x + NOTE_W > at.x + at.w) [x, y, row] = [at.x, y + row + STICKY_GAP, 0]
+      const placed = { ...n, x, y }
+      x += NOTE_W + STICKY_GAP
+      row = Math.max(row, n.h)
+      return placed
+    })
+    above = Math.max(above, y + row - top + NOTE_GAP)
+  }
+
+  const nameY = HEADER_H + above
+  let y = nameY + NAME_H
   const actors = new Map(model.actors.map((a) => [a.id, a]))
   // Every actor gets a lane, used or not; an outside system's goes beneath our streams.
   const ids = [...model.actors.map((a) => a.id), ...actorIds.filter((id) => !actors.has(id))]
@@ -1045,8 +1059,8 @@ export function layout(model: Board, measure: Measure): Layout {
     })
   })
 
-  // A rail lines each note up with the top of what it is about, the chapter's and the slice's with
-  // its first card, and pushes a note down only to clear the one above.
+  // A rail lines each note up with the top of what it is about, the slice's with its first card,
+  // and pushes a note down only to clear the one above.
   let bottom = y
   for (const col of rails) {
     const notes: Sticky[] = []
@@ -1055,14 +1069,12 @@ export function layout(model: Board, measure: Measure): Layout {
     const stack = (list: readonly Sticky[], at: number) => {
       const from = Math.max(at, next)
       for (const n of list) {
-        notes.push({ ...n, y: from + n.y })
+        notes.push({ ...n, x: railX.get(col) ?? col.x, y: from + n.y })
         next = from + n.y + n.h + STICKY_GAP
       }
     }
-    const top = cards[0]?.y ?? HEADER_H + NAME_H + STICKY_GAP
-    const chapter = chapterNotes(col)
-    if (chapter) stack(stickies(chapter, 0, chapters[col.chapter]?.title ?? "", measure), top)
-    if (col.slice.notes) stack(stickies(col.slice.notes, 0, col.title, measure), top)
+    const first = cards[0]?.y ?? nameY + NAME_H + STICKY_GAP
+    if (col.slice.notes) stack(stickies(col.slice.notes, 0, col.title, measure), first)
     for (const b of cards) if (b.notes) stack(b.notes, b.y)
     col.notes = notes
     bottom = Math.max(bottom, next)
