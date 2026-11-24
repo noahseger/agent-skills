@@ -1,6 +1,6 @@
 # event-modeling
 
-Describe a system’s commands, events, and views in TypeScript. The `em` command draws a live diagram, checks the model, and exports JSON and protobuf service definitions. Use it to find missing data sources and inconsistent examples before implementation.
+Describe a system’s commands, events, and views in TypeScript. The `em` command draws a live diagram, checks the model, and exports JSON and protobuf service definitions. Use it to find missing data sources and invalid examples before implementation.
 
 It runs wherever node 22.6 or later runs.
 
@@ -437,7 +437,7 @@ filter of a list, picks many rows, which only an automation reads, before its co
 command once per row.
 
 The handler refuses a command whose row is missing, and an automation that finds no row issues
-nothing; a specification has to agree, as [Specifications](#specifications) says.
+nothing.
 
 ### Screens, services and headings
 
@@ -520,21 +520,14 @@ trigger event, in some `given`. A string in `then` is no event. An automation a 
 trigger event, so it needs none. Every state view has a specification. Until then the model is
 unfinished. A `given` may also hold other events, the history that shaped the state.
 
-A specification must agree with its slice's wiring. A value copied or mapped from the command, the
-trigger event, the polled row, a queried row or a given event must equal the value there; a
-constant the mapping sets, the constant. A generated field, and any field of an external event or
-kept from one, may be anything. The polled row is the one `given` builds whose key columns hold
-what the command copied from them. A queried row is one `given` builds that the filter picks; of
-several, the one `when` agrees with. When `given` builds none, an automation issues nothing, so its
-specification says nothing happens, and the handler refuses a command, so its specification has
-`reject`. One that says nothing happens is wrong when `given` builds a row of the view the
-automation polls, or holds its trigger event, and each query before the command picks a row; the
-error names that row or event. A disagreement names the specification, the field and both values.
+Specifications illustrate behavior. The tool checks their shape and value types, not that `then`
+follows from `given` and `when`, so a `then` may join text, count, or leave out a row a later event
+removed.
 
 A value the specification does not care about, such as an id, is `m.generate()`, at any depth, such
 as a field of an item in a list. Each one is a value of its field's type that no other generated
 value in the specification has, the same on every run, so one used in both `given` and `then`
-agrees, and two different ones do not. To name one, write the specification as a function:
+shows the same value in each. To name one, write the specification as a function:
 
 ```ts
 .spec("A captured note shows in the inbox", () => {
@@ -547,12 +540,6 @@ agrees, and two different ones do not. To name one, write the specification as a
 ```
 
 A specification written as a function runs at assembly, so it may use examples declared below the slice.
-
-A state view's `given` builds the rows through its events. Each row in `then` must be one of them,
-matched by its key columns, or in a list by every value it has, with the values they have. A row
-`given` builds and `then` leaves out must be one the context excludes, unless a string in `then`
-says what the rows leave out. A context field with no column of its name, such as a search's
-`text`, excludes nothing, so its specification lists every row `given` builds or describes the rest.
 
 ### Automations
 
@@ -734,10 +721,6 @@ title has no source`.
 | An event in both a stream and an External System | Separate statements can call `.stream()` and `.external()` on it. |
 | An event of ours in no stream, once the model declares one | Whether anything uses a value is not a type. |
 | A slice's event, or a state view, that no specification covers, as [Specifications](#specifications) says | The compiler checks each `.spec()` on its own, not against the slice's other specifications. |
-| A specification value that is not what flows in: from `when`, the trigger in `given`, or the events that build the row or a queried row | Example values are data, not types. |
-| A queried row `given` does not build, in a specification that does not `reject`; in an automation, before its command, any specification | Same. |
-| A specification that says nothing happens, while `given` starts the automation | Same. |
-| A state view's row that `given` does not build, or a built row `then` leaves out, describes nothing about, and the context does not exclude | Same. |
 | A mapping's result that is a field but no source field, such as `c.AddNote.title.describe("loud")` | A field's method returns a field of the same type. |
 | A mapping that throws, such as `m.generate()` given something other than a field: the diagram draws its slice without the mapping | The mapping runs when the model does. |
 | `m.generate()` in an automation's command | `m.generate()` is one function, wherever you call it. |
@@ -840,9 +823,8 @@ after it, so the log leaves out the names it lacks.
 
 The picture marks the same: a red disc with "!" for an error, a grey ring for a warning, on the
 slice in the navigation, its column heading and the card it is about. A selected or opened slice
-lists its own in plain words, under the element each is about, with the specification and the
-values a disagreement names; the navigation's Model row lists those about no slice. `E` steps to the
-next slice with an error, `Shift-E` back.
+lists its own in plain words, under the element each is about; the navigation's Model row lists
+those about no slice. `E` steps to the next slice with an error, `Shift-E` back.
 
 `view` and `export` also draw a model written as spec JSON, by hand or extracted from a running
 system. They draw it as far as it goes, and list each place it breaks the schema as an error, as

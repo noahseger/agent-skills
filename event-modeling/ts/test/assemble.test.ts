@@ -287,7 +287,7 @@ test("m.generate() in a specification is one value of its field's type wherever 
       .event(d.Moved)
       .actor(d.User)
       .service(d.Svc, "Get")
-      .spec("agrees", () => {
+      .spec("one value", () => {
         const move = {
           id: m.generate(),
           gameId: m.generate(),
@@ -301,7 +301,7 @@ test("m.generate() in a specification is one value of its field's type wherever 
         }
         return { given: d.Moved(move), then: d.Moves(move) }
       })
-      .spec("disagrees", {
+      .spec("two values", {
         given: d.Moved({ id: m.generate() }),
         then: d.Moves({ id: m.generate() }),
       })
@@ -310,16 +310,10 @@ test("m.generate() in a specification is one value of its field's type wherever 
   }
   const feed = feedOf([model()], { partial: true })
   drawn(feed)
-  const said = (name: string) =>
-    (feed.errors ?? []).filter((m) => m.message.includes(`"${name}"`)).map((m) => m.message)
-  assert.deepEqual(said("agrees"), [])
-  assert.match(
-    said("disagrees")[0] ?? "",
-    /^Moves in "disagrees" \(Ch › Moves\): then has \{"id":"[^"]+"\}, but given builds no such row\./,
-  )
-  const [agrees] = feed.model.slices.find((s) => s.title === "Moves")?.specifications ?? []
-  const given = agrees?.given[0]?.examples?.[0]
-  assert.deepEqual(given, agrees?.then[0]?.examples?.[0])
+  const [one, two] = feed.model.slices.find((s) => s.title === "Moves")?.specifications ?? []
+  const given = one?.given[0]?.examples?.[0]
+  assert.deepEqual(given, one?.then[0]?.examples?.[0])
+  assert.notDeepEqual(two?.given[0]?.examples?.[0], two?.then[0]?.examples?.[0])
   assert.equal(z.object(fields as never).safeParse(given).success, true)
   assert.deepEqual(feedOf([model()], { partial: true }).model, feed.model)
 })
@@ -933,13 +927,7 @@ test("a view with no specification is a missing specification", () => {
 
 const hardware = { id: "list-2", name: "Hardware" }
 
-/** The errors in a model whose view is `view`. */
-const viewed = (view: Slice) => {
-  chapters({ Ch: [create(), view] })
-  return feedOf([{ default: m.model("x") }], { partial: true }).errors?.map((m) => m.message)
-}
-
-test("a view's specification shows the rows given builds that its query asks for", () => {
+test("a state view's when is its context's values, a step titled with its screen", () => {
   fixture()
   const byName = unspecifiedView()
     .context({ name: t.string() })
@@ -961,83 +949,14 @@ test("a view's specification shows the rows given builds that its query asks for
   assert.deepEqual([feed.errors, feed.warnings], [undefined, undefined])
 })
 
-test("a view's row given does not build, or with another value, is named", () => {
-  fixture()
-  const wrong = unspecifiedView().spec("Groceries shows", {
-    given: d.Created(list),
-    then: [d.Table({ ...list, name: "Hardware" }), d.Table({ id: "list-9", name: "Nails" })],
-  })
-  assert.deepEqual(viewed(wrong), [
-    'Table.name in "Groceries shows" (Ch › Table): then has "Hardware", but Created in given has "Groceries".',
-    'Table in "Groceries shows" (Ch › Table): then has {"id":"list-9"}, but given builds no such row.',
-  ])
-})
-
-test("a row given does not build is an error when strict", () => {
-  // A field an example leaves out is not compared, so the second row is the one given builds.
-  const model = () => {
-    fixture()
-    const missing = unspecifiedView().spec("A new list is a row", {
-      given: d.Created(list),
-      then: [d.Table({ ...list, id: "missing" }), d.Table({ id: "list-1" })],
-    })
-    chapters({ Ch: [create(), missing] })
-    return { default: m.model("x") }
-  }
-  const message =
-    'Table in "A new list is a row" (Ch › Table): then has {"id":"missing"}, but given builds no such row.'
-  assert.deepEqual(
-    feedOf([model()], { partial: true }).errors?.map((m) => [m.message, m.ui]),
-    [[message, `Table: shows a row nothing builds in "A new list is a row": id "missing"`]],
-  )
-  assert.throws(() => feedOf([model()]), { message })
-})
-
-test("a view's row its query excludes is named", () => {
-  fixture()
-  const byName = unspecifiedView()
-    .context({ name: t.string() })
-    .spec("Only Hardware shows", {
-      given: [d.Created(list), d.Created(hardware)],
-      when: { name: "Hardware" },
-      then: [d.Table(hardware), d.Table({ id: "list-1" })],
-    })
-  assert.deepEqual(viewed(byName), [
-    'Table in "Only Hardware shows" (Ch › Table): then has {"id":"list-1"}, but when excludes it. Remove it from then.',
-  ])
-})
-
-test("a row given builds that then leaves out is named, unless the query excludes it", () => {
-  fixture()
-  const search = unspecifiedView()
-    .context({ text: t.string() })
-    .spec("A search finds Groceries", {
-      given: [d.Created(list), d.Created(hardware)],
-      when: { text: "Groc" },
-      then: d.Table(list),
-    })
-  assert.deepEqual(viewed(search), [
-    'Table in "A search finds Groceries" (Ch › Table): given builds {"id":"list-2"}, but then leaves it out. Add it to then.',
-  ])
-})
-
-test("a then that describes its outcome may leave out rows given builds, and still checks the rows it has", () => {
+test("a then may describe its outcome in words beside its rows", () => {
   fixture()
   const described = unspecifiedView().spec("Only Groceries shows", {
     given: [d.Created(list), d.Created(hardware)],
-    then: ["Hardware is archived", d.Table({ ...list, name: "Hardware" })],
+    then: ["Hardware is archived", d.Table(list)],
   })
   chapters({ Ch: [create(), described] })
-  const feed = feedOf([{ default: m.model("x") }], { partial: true })
-  assert.deepEqual(
-    feed.errors?.map((m) => [m.message, m.ui]),
-    [
-      [
-        'Table.name in "Only Groceries shows" (Ch › Table): then has "Hardware", but Created in given has "Groceries".',
-        `Table: name doesn't match in "Only Groceries shows": then has "Hardware", but Created in given has "Groceries"`,
-      ],
-    ],
-  )
+  const feed = feedOf([{ default: m.model("x") }])
   assert.deepEqual(validate(feed.model), [])
   assert.deepEqual(feed.model.slices[1]?.specifications[0]?.then[0], {
     id: "table:spec:0:then:0",
@@ -1046,28 +965,6 @@ test("a then that describes its outcome may leave out rows given builds, and sti
   })
   const card = layout(read(feed)).specs[1]?.steps.at(-1)?.cards[0]
   assert.deepEqual([card?.kind, card?.lines], ["description", ["Hardware is archived"]])
-})
-
-test("the viewer's wording of a specification error names the specification and the values, and names as words", () => {
-  fixture()
-  m.view("ListNames", { id: t.string().key(), name: t.string() })
-  m.event("ListCreated", { id: t.string(), name: t.string() })
-  const names = m
-    .slice()
-    .view(d.ListNames)
-    .event(d.ListCreated)
-    .spec("A list shows its name", {
-      given: d.ListCreated(list),
-      then: d.ListNames({ ...list, name: "Hardware" }),
-    })
-  chapters({ Ch: [names] })
-  const feed = feedOf([{ default: m.model("x") }], { partial: true })
-  assert.deepEqual(
-    feed.errors?.filter((m) => m.element === "ListNames").map((m) => m.ui),
-    [
-      `List Names: name doesn't match in "A list shows its name": then has "Hardware", but List Created in given has "Groceries"`,
-    ],
-  )
 })
 
 test("a described outcome shows no event", () => {
@@ -1382,72 +1279,6 @@ test("a .automation() automation polls the view", () => {
   assert.equal(slice?.automation, "Processor")
   assert.equal(slice?.trigger, undefined)
   assert.equal(slice?.polls, "Table")
-})
-
-test("a polled command's when matches the row given builds", () => {
-  const model = (label: string) => {
-    fixture()
-    m.command("Process", { id: t.string(), label: t.string() })
-    m.event("Processed", { id: t.string(), label: t.string().optional() })
-    const processor = m
-      .slice("Processor")
-      .automation(d.Table)
-      .command(d.Process, (c: C) => ({ label: c.Table.name }))
-      .event(d.Processed)
-      .spec("A listed row is processed", {
-        given: d.Created(list),
-        when: d.Process({ id: "list-1", label }),
-        then: d.Processed({ id: "list-1" }),
-      })
-    return assembled([create(), processor, processedView()])
-  }
-  model("Groceries")
-  assert.throws(() => model("Milk"), {
-    message: `Process.label in "A listed row is processed" (Ch › Processor): when has "Milk", but the Table row given builds has name "Groceries".`,
-  })
-})
-
-test("a polled command's when whose row given builds none of, or several of, is an error", () => {
-  fixture("Table", "Created")
-  m.view("Table", { id: t.string().key(), owner: t.string().key(), name: t.string() })
-  m.event("Created", { id: t.string(), owner: t.string(), name: t.string() })
-  m.command("Process", { id: t.string() })
-  m.event("Processed", { id: t.string() })
-  const mine = { ...list, owner: "u-1" }
-  const theirs = { ...list, owner: "u-2" }
-  const processor = m
-    .slice("Processor")
-    .automation(d.Table)
-    .command(d.Process)
-    .event(d.Processed)
-    .spec("none", {
-      given: d.Created(mine),
-      when: d.Process({ id: "list-2" }),
-      then: d.Processed({ id: "list-2" }),
-    })
-    .spec("several", {
-      given: [d.Created(mine), d.Created(theirs)],
-      when: d.Process({ id: "list-1" }),
-      then: d.Processed({ id: "list-1" }),
-    })
-  const projection = m.slice().view(d.Table).event(d.Created)
-  chapters({ Ch: [processor, projection] })
-  const json = assembleModules([{ default: m.model("x") }], { partial: true })
-  assert.deepEqual(
-    json.messages
-      ?.filter((m) => m.element === "Table" && m.kind === "error")
-      .map((m) => [m.message, m.ui]),
-    [
-      [
-        'Table in "none" (Ch › Processor): when is for row {"id":"list-2"}, but given builds none. Add the event that does.',
-        'Table: no row for Process in "none": id "list-2"',
-      ],
-      [
-        'Table in "several" (Ch › Processor): when is for row {"id":"list-1"}, but given builds 2. Copy every key column into Process.',
-        'Table: several rows for Process in "several": id "list-1"',
-      ],
-    ],
-  )
 })
 
 test("same-named streams from two modules are one lane", () => {
@@ -2313,213 +2144,17 @@ test("an example's nested values are printed", () => {
   )
 })
 
-// --- A specification agrees with what flows into it. ---------------------------
-
-/** What a partial assembly says about the specifications of `slices`. */
-function disagreements(slices: readonly Slice[]): string[] {
-  chapters({ Ch: slices })
-  const json = assembleModules([{ default: m.model("x") }], { partial: true })
-  return (json.messages ?? []).map((m) => m.message).filter((m) => / in ".*" \(/.test(m))
-}
-
-test("a state change's then has what its command sends and its mapping sets", () => {
-  const tags = t.array(t.object({ name: t.string() }))
-  const sent = { id: "a-1", text: "buy milk", tags: [{ name: "food" }] }
-  /** The slice, specified so it agrees and, when `wrong`, so it does not too. */
-  const add = (wrong: boolean) => {
-    fixture()
-    m.command("Add", { id: t.string(), text: t.string(), tags })
-    m.event("Added", {
-      id: t.string(),
-      title: t.string(),
-      status: t.string(),
-      at: t.string(),
-      tags,
-    })
-    const slice = m
-      .slice()
-      .command(d.Add)
-      .event(d.Added, (c: C) => ({
-        title: c.Add.text,
-        status: t.literal("open"),
-        at: m.generate(),
-      }))
-      .spec("agrees", {
-        when: d.Add(sent),
-        then: d.Added({
-          id: "a-1",
-          title: "buy milk",
-          status: "open",
-          at: "any",
-          tags: [{ name: "food" }],
-        }),
-      })
-    if (!wrong) return slice
-    return slice.spec("disagrees", {
-      when: d.Add(sent),
-      then: d.Added({
-        id: "a-2",
-        title: "buy bread",
-        status: "done",
-        at: "any",
-        tags: [{ name: "drink" }],
-      }),
-    })
-  }
-  assert.deepEqual(disagreements([add(false)]), [])
-  assert.deepEqual(disagreements([add(true)]), [
-    'Added.id in "disagrees" (Ch › Add): then has "a-2", but when sends "a-1".',
-    'Added.title in "disagrees" (Ch › Add): then has "buy bread", but when sends text "buy milk".',
-    `Added.status in "disagrees" (Ch › Add): then has "done", but Added's mapping sets "open".`,
-    'Added.tags in "disagrees" (Ch › Add): then has [{"name":"drink"}], but when sends [{"name":"food"}].',
-  ])
-  chapters({ Ch: [add(true)] })
-  const json = assembleModules([{ default: m.model("x") }], { partial: true })
-  assert.ok(json.messages?.some((m) => m.element === "Added" && m.slice === "add"))
-  chapters({ Ch: [add(true)] })
-  assert.throws(
-    () => assembleModules([{ default: m.model("x") }]),
-    // Every problem, not just the first.
-    /^Error: Added\.id in "disagrees" \(Ch › Add\): then has "a-2", but when sends "a-1"\.\nAdded\.title in "disagrees" /,
-  )
-})
-
-test("an external event's fields come from outside, so its then may have anything", () => {
-  fixture()
-  m.external("Remote")
-  m.event("Answered", { id: t.string(), name: t.string() }).external(d.Remote)
-  const ask = m
+test("a list view's fields are an array of its rows, and it is drawn as a list", () => {
+  m.event("Captured", { noteId: t.string() })
+  m.event("Edited", { noteId: t.string() })
+  m.view("Activity", t.array({ noteId: t.string().key(), what: t.string() }))
+  const projection = m
     .slice()
-    .command(d.Create)
-    .event(d.Answered)
-    .spec("answered", {
-      when: d.Create(list),
-      then: d.Answered({ id: "other", name: "other" }),
-    })
-  assert.deepEqual(disagreements([ask]), [])
-})
-
-test("an automation's when has what its trigger in given carries and its mapping sets", () => {
-  /** The slice, specified so it agrees and, when `wrong`, so it does not too. */
-  const processor = (wrong: boolean) => {
-    fixture()
-    m.command("Process", { id: t.string(), label: t.string(), by: t.string() })
-    m.event("Processed", { id: t.string() })
-    const slice = m
-      .slice("Processor")
-      .automation(d.Created)
-      .command(d.Process, (c: C) => ({ label: c.Created.name, by: t.literal("processor") }))
-      .event(d.Processed)
-      .spec("agrees", {
-        given: d.Created(list),
-        when: d.Process({ id: "list-1", label: "Groceries", by: "processor" }),
-        then: d.Processed({ id: "list-1" }),
-      })
-      .spec("no trigger given", {
-        when: d.Process({ id: "list-9", label: "Anything", by: "processor" }),
-        then: d.Processed({ id: "list-9" }),
-      })
-    if (!wrong) return slice
-    return slice.spec("disagrees", {
-      given: d.Created(list),
-      when: d.Process({ id: "list-2", label: "Chores", by: "someone" }),
-      then: d.Processed({ id: "list-3" }),
-    })
-  }
-  assert.deepEqual(disagreements([processor(false)]), [])
-  assert.deepEqual(disagreements([processor(true)]), [
-    'Process.id in "disagrees" (Ch › Processor): when has "list-2", but Created in given has "list-1".',
-    'Process.label in "disagrees" (Ch › Processor): when has "Chores", but Created in given has name "Groceries".',
-    `Process.by in "disagrees" (Ch › Processor): when has "someone", but Process's mapping sets "processor".`,
-    'Processed.id in "disagrees" (Ch › Processor): then has "list-3", but when sends "list-2".',
-  ])
-})
-
-test("a view's rows have what given builds, matched by key", () => {
-  const groceries = { userId: "u-1", listId: "l-1" }
-  const chores = { userId: "u-1", listId: "l-2" }
-  /** The projection, specified by `then` from the same given. */
-  const projection = (name: string, then: (typeof groceries & Record<string, unknown>)[]) => {
-    m.view("Lists", {
-      userId: t.string().key(),
-      listId: t.string().key(),
-      name: t.string(),
-      title: t.string(),
-      items: t.int(),
-      status: t.string(),
-    })
-    m.event("ListCreated", { userId: t.string(), listId: t.string(), name: t.string() })
-    m.event("ItemAdded", { userId: t.string(), listId: t.string() })
-    m.event("ListClosed", { userId: t.string(), listId: t.string() })
-    return m
-      .slice()
-      .view(d.Lists)
-      .event(d.ListCreated, (c: C) => ({
-        title: c.ListCreated.name,
-        items: t.literal(0),
-        status: t.literal("open"),
-      }))
-      .event(d.ItemAdded, (c: C) => ({ items: m.generate(c.ItemAdded) }))
-      .event(d.ListClosed, () => ({ status: t.literal("closed") }))
-      .spec(name, {
-        given: [
-          d.ListCreated({ ...groceries, name: "Groceries" }),
-          d.ListCreated({ ...chores, name: "Chores" }),
-          d.ItemAdded(groceries),
-          d.ItemAdded(groceries),
-          d.ListClosed(chores),
-        ],
-        then: then.map((row) => d.Lists(row)),
-      })
-  }
-  const agrees = projection("agrees", [
-    { ...groceries, name: "Groceries", title: "Groceries", items: 2, status: "open" },
-    { ...chores, name: "Chores", title: "Chores", items: 0, status: "closed" },
-  ])
-  assert.deepEqual(disagreements([agrees]), [])
-  const wrong = projection("disagrees", [
-    { ...groceries, name: "Chores", title: "Chores", items: 1, status: "closed" },
-    { ...chores, status: "open" },
-  ])
-  assert.deepEqual(disagreements([wrong]), [
-    'Lists.name in "disagrees" (Ch › Lists): then has "Chores", but ListCreated in given has "Groceries".',
-    'Lists.title in "disagrees" (Ch › Lists): then has "Chores", but ListCreated in given has name "Groceries".',
-    `Lists.status in "disagrees" (Ch › Lists): then has "closed", but ListCreated's mapping sets "open".`,
-    `Lists.status in "disagrees" (Ch › Lists): then has "open", but ListClosed's mapping sets "closed".`,
-  ])
-})
-
-test("a list view: each event adds a row, told apart by every value, and drawn as a list", () => {
-  const projection = () => {
-    m.event("Captured", { noteId: t.string() })
-    m.event("Edited", { noteId: t.string() })
-    m.view("Activity", t.array({ noteId: t.string().key(), what: t.string() }))
-    return m
-      .slice()
-      .view(d.Activity)
-      .event(d.Captured, () => ({ what: t.literal("captured") }))
-      .event(d.Edited, () => ({ what: t.literal("edited") }))
-      .context({ noteId: t.string() })
-  }
-  const given = () => [d.Captured({ noteId: "n-1" }), d.Edited({ noteId: "n-1" })]
-  const both = projection().spec("both", {
-    given: given(),
-    when: { noteId: "n-1" },
-    then: [
-      d.Activity({ noteId: "n-1", what: "captured" }),
-      d.Activity({ noteId: "n-1", what: "edited" }),
-    ],
-  })
-  assert.deepEqual(disagreements([both]), [])
-  const one = projection().spec("one", {
-    given: given(),
-    when: { noteId: "n-1" },
-    then: d.Activity({ noteId: "n-1", what: "captured" }),
-  })
-  assert.deepEqual(disagreements([one]), [
-    'Activity in "one" (Ch › Activity): given builds {"noteId":"n-1","what":"edited"}, but then leaves it out. Add it to then.',
-  ])
-  chapters({ Ch: [projection()] })
+    .view(d.Activity)
+    .event(d.Captured, () => ({ what: t.literal("captured") }))
+    .event(d.Edited, () => ({ what: t.literal("edited") }))
+    .context({ noteId: t.string() })
+  chapters({ Ch: [projection] })
   const feed = feedOf([{ default: m.model("x") }], { partial: true })
   const [table] = feed.model.slices.find((s) => s.title === "Activity")?.readmodels ?? []
   assert.deepEqual([table?.fields.type, table?.key], ["array", ["noteId"]])
@@ -2534,7 +2169,49 @@ test("a list view: each event adds a row, told apart by every value, and drawn a
   )
 })
 
-// --- A query: the rows a filter picks from what given builds. -----------------
+// --- A specification illustrates behavior. ------------------------------------
+
+test("a specification illustrates behavior: assembly does not replay its given to check its then", () => {
+  m.event("NoteCaptured", { noteId: t.string(), text: t.string() })
+  m.event("NoteFiled", { noteId: t.string() })
+  m.event("NoteSynced", { noteId: t.string() })
+  m.view("Inbox", { noteId: t.string().key(), text: t.string() })
+  m.view("NotesToSync", { noteId: t.string().key() })
+  m.command("SyncNote", { noteId: t.string() })
+  const captured = (text: string) => d.NoteCaptured({ noteId: "n-1", text })
+  const filed = (noteId: string) => d.NoteFiled({ noteId })
+  const synced = d.NoteSynced({ noteId: "n-1" })
+  const inbox = m
+    .slice()
+    .view(d.Inbox)
+    .event(d.NoteCaptured)
+    .spec("Two captures merge", {
+      given: [captured("buy milk"), captured("buy eggs")],
+      then: d.Inbox({ noteId: "n-1", text: "buy milk & eggs" }),
+    })
+  const queue = m
+    .slice()
+    .view(d.NotesToSync)
+    .event(d.NoteFiled)
+    .spec("A synced note leaves the queue", {
+      given: [filed("n-1"), filed("n-2"), synced],
+      then: d.NotesToSync({ noteId: "n-2" }),
+    })
+  const syncer = m
+    .slice("Syncer")
+    .automation(d.NotesToSync)
+    .command(d.SyncNote)
+    .event(d.NoteSynced)
+    .spec("A synced note is not synced again", { given: [filed("n-1"), synced], then: [] })
+  chapters({ Ch: [inbox, queue, syncer] })
+  const json = assembleModules([{ default: m.model("x") }], { partial: true })
+  assert.deepEqual(
+    (json.messages ?? []).filter((m) => / in ".*" \(/.test(m.message)),
+    [],
+  )
+})
+
+// --- A query. -----------------------------------------------------------------
 
 /** The eventsourcing book's cart: a price change archives the item in every cart that holds it. */
 function cart() {
@@ -2566,7 +2243,6 @@ function cart() {
 }
 
 const cartId = "11111111-1111-4111-8111-111111111111"
-const otherCart = "22222222-2222-4222-8222-222222222222"
 const productId = "33333333-3333-4333-8333-333333333333"
 const itemId = "44444444-4444-4444-8444-444444444444"
 
@@ -2662,141 +2338,6 @@ test("the book's ArchiveItem slice: a price change archives the item in the cart
   assert.ok(
     command?.dependencies.some((d) => d.type === "INBOUND" && d.title === "CartsWithProducts"),
   )
-})
-
-/** A projection of the cart's view, so a query has rows to pick from. */
-const cartsView = () => m.slice().view(d.CartsWithProducts).event(d.ItemAdded)
-
-test("an automation's when is for one of the rows its query picks", () => {
-  cart()
-  const inCart = (aggregateId: string) => d.ItemAdded({ aggregateId, itemId, productId, price: 10 })
-  const given = [inCart(cartId), inCart(otherCart), d.PriceChanged({ productId, newPrice: 12 })]
-  const slice = archiveItem()
-    .spec("agrees", {
-      given,
-      when: d.ArchiveItem({ aggregateId: otherCart, productId }),
-      then: d.ItemArchived({ aggregateId: otherCart }),
-    })
-    .spec("disagrees", {
-      given,
-      when: d.ArchiveItem({ aggregateId: "55555555-5555-4555-8555-555555555555", productId }),
-      then: d.ItemArchived({ aggregateId: "55555555-5555-4555-8555-555555555555" }),
-    })
-  assert.deepEqual(disagreements([slice, cartsView()]), [
-    `CartsWithProducts in "disagrees" (Ch › ArchiveItemScheduler): when matches none of the 2 rows with {"productId":"${productId}"}.`,
-  ])
-})
-
-test("a query that picks no row: an automation issues nothing, and a command is refused", () => {
-  cart()
-  const issues = archiveItem().spec("no cart holds the product", {
-    given: d.PriceChanged({ productId, newPrice: 12 }),
-    when: d.ArchiveItem({ aggregateId: cartId, productId }),
-    then: d.ItemArchived({ aggregateId: cartId }),
-  })
-  assert.deepEqual(disagreements([issues, cartsView()]), [
-    `CartsWithProducts in "no cart holds the product" (Ch › ArchiveItemScheduler): given builds no row with {"productId":"${productId}"}, so ArchiveItem is never issued. Add the event that builds it.`,
-  ])
-  cart()
-  const archive = m
-    .slice()
-    .command(d.ArchiveItem)
-    .query(d.CartsWithProducts, (x: C) => ({
-      aggregateId: x.ArchiveItem.aggregateId,
-      productId: x.ArchiveItem.productId,
-    }))
-    .event(d.ItemArchived, (x: C) => ({
-      itemId: m.generate(x.ArchiveItem.productId),
-    }))
-    .spec("archived", {
-      when: d.ArchiveItem({ aggregateId: cartId, productId }),
-      then: d.ItemArchived({ aggregateId: cartId }),
-    })
-    .spec("refused", {
-      when: d.ArchiveItem({ aggregateId: cartId, productId }),
-      reject: "the cart does not hold the product",
-    })
-    .spec("described", {
-      when: d.ArchiveItem({ aggregateId: cartId, productId }),
-      then: "The cart no longer holds the product",
-    })
-  assert.deepEqual(disagreements([archive, cartsView()]), [
-    `CartsWithProducts in "archived" (Ch › ArchiveItem): given builds no row with {"aggregateId":"${cartId}","productId":"${productId}"}, so ArchiveItem is refused. Add the event that builds it, or reject.`,
-    `CartsWithProducts in "described" (Ch › ArchiveItem): given builds no row with {"aggregateId":"${cartId}","productId":"${productId}"}, so ArchiveItem is refused. Add the event that builds it, or reject.`,
-  ])
-})
-
-test("a translation whose query picks no row never issues its command", () => {
-  m.external("Provider")
-  m.event("Authorized", { state: t.string() }).external(d.Provider)
-  m.view("Pending", { state: t.string().key() })
-  m.event("Requested", { state: t.string() })
-  m.command("Complete", { state: t.string() })
-  m.event("Completed", { state: t.string() })
-  const forged = m
-    .slice()
-    .translation(d.Authorized)
-    .query(d.Pending, "state")
-    .command(d.Complete)
-    .event(d.Completed)
-    .spec("forged", {
-      given: d.Authorized({ state: "s-1" }),
-      when: d.Complete({ state: "s-1" }),
-      then: d.Completed({ state: "s-1" }),
-    })
-  assert.deepEqual(disagreements([forged, m.slice().view(d.Pending).event(d.Requested)]), [
-    `Pending in "forged" (Ch › Complete): given builds no row with {"state":"s-1"}, so Complete is never issued. Add the event that builds it.`,
-  ])
-})
-
-test("a polled automation's specification with no when says nothing happens, so given builds no row it polls", () => {
-  m.view("ToPublish", { draftId: t.string().key() })
-  m.event("DraftSuggested", { draftId: t.string() })
-  m.event("DraftApproved", { draftId: t.string() })
-  m.command("Publish", { draftId: t.string() })
-  m.event("Published", { draftId: t.string() })
-  const draft = { draftId: "d-1" }
-  const publisher = m
-    .slice("Publisher")
-    .automation(d.ToPublish)
-    .command(d.Publish)
-    .event(d.Published)
-    .spec("A suggestion is left alone", { given: d.DraftSuggested(draft), then: [] })
-    .spec("An approved draft is left alone", {
-      given: [d.DraftSuggested(draft), d.DraftApproved(draft)],
-      then: [],
-    })
-  const work = m.slice().view(d.ToPublish).event(d.DraftApproved)
-  assert.deepEqual(disagreements([publisher, work]), [
-    `ToPublish in "An approved draft is left alone" (Ch › Publisher): given builds a row with {"draftId":"d-1"}, so the automation issues Publish.`,
-  ])
-})
-
-test("an automation an event starts, or a translation, does nothing when given holds no trigger or a query before its command picks no row", () => {
-  cart()
-  const added = d.ItemAdded({ aggregateId: cartId, itemId, productId, price: 10 })
-  const repriced = d.PriceChanged({ productId, newPrice: 12 })
-  const scheduler = archiveItem()
-    .spec("No price changes", { given: added, then: [] })
-    .spec("No cart holds the product", { given: repriced, then: [] })
-    .spec("A cart holds the product", { given: [added, repriced], then: [] })
-  assert.deepEqual(disagreements([scheduler, cartsView()]), [
-    `CartsWithProducts in "A cart holds the product" (Ch › ArchiveItemScheduler): given builds a row with {"aggregateId":"${cartId}","productId":"${productId}"}, so the automation issues ArchiveItem.`,
-  ])
-  m.external("Provider")
-  m.event("Authorized", { state: t.string() }).external(d.Provider)
-  m.command("Complete", { state: t.string() })
-  m.event("Completed", { state: t.string() })
-  const translation = m
-    .slice()
-    .translation(d.Authorized)
-    .command(d.Complete)
-    .event(d.Completed)
-    .spec("Nothing arrives", { then: [] })
-    .spec("An authorization arrives", { given: d.Authorized({ state: "s-1" }), then: [] })
-  assert.deepEqual(disagreements([translation]), [
-    `Authorized in "An authorization arrives" (Ch › Complete): given has it, so the translation issues Complete.`,
-  ])
 })
 
 test("an event nothing uses is one line, naming every slice that records it", () => {

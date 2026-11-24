@@ -311,7 +311,7 @@ For one workflow at a time, trace from trigger to completion:
 
 ### Phase 5: Write Specifications
 
-Write specifications **with business experts**, not alone. Give each slice Given/When/Then examples with **concrete data**: real IDs, real numbers, real outcomes. Business knowledge becomes an executable specification in code:
+Write specifications **with business experts**, not alone. Give each slice Given/When/Then examples with **concrete data**: real IDs, real numbers, real outcomes. Business knowledge becomes a specification in code:
 
 ```ts
 .spec("Inventory reserved after order placed", {
@@ -320,6 +320,8 @@ Write specifications **with business experts**, not alone. Give each slice Given
   then:  d.InventoryReserved({ orderId: "ord-100", items: ["sku-1"], warehouseId: "wh-east" }),
 })
 ```
+
+Specifications illustrate behavior. The tool checks their shape and value types, not that `then` follows from `given` and `when`.
 
 In spec JSON each of these is a step with its values in `examples`, as in the example above.
 

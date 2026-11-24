@@ -2,7 +2,6 @@
 import { readdirSync, statSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
-import { isDeepStrictEqual } from "node:util"
 
 import { type Feed, toFeed } from "./spec.ts"
 import {
@@ -12,7 +11,6 @@ import {
   type Declaration,
   type DeclData,
   DRAFTS,
-  type ExampleData,
   type Exported,
   type ExternalData,
   type Flow,
@@ -550,7 +548,7 @@ function check(
     checkStored(at, own)
     checkCovered(at, own)
     checkSeen(at, own)
-    checkSpecs(at, built, own)
+    checkSpecs(at, own)
     checkGenerated(at, own)
   }
   checkFilledSomewhere(located, fail)
@@ -905,31 +903,13 @@ function checkCovered(at: Located, fail: Fail): void {
   for (const [decl, clause] of missing) unshown(decl, clause)
 }
 
-/** What the wiring puts in a field, and where it says so; undefined `value` is anything. */
-interface Expected {
-  value: unknown
-  says: (name: Namer) => string
-}
-
-/** A declaration's name as a message says it: as written in the terminal, as words in the viewer. */
-type Namer = (name: string | undefined) => string
-const asDeclared: Namer = (name) => name ?? ""
-const asWords: Namer = (name) => words(name ?? "")
-
-/** A row's values as the viewer says them: `noteId "n-1", status "inbox"`. */
-const valued = (data: Record<string, unknown>) =>
-  Object.entries(data)
-    .map(([k, v]) => `${k} ${show(v)}`)
-    .join(", ")
-
 /**
- * A specification agrees with its slice's wiring: each value it shows is the one that flows in. A
- * generated field, or an external event's, may be anything.
+ * A specification illustrates behavior, so assembly does not work out its then from its given:
+ * the specification runs, and each value it shows fits its field.
  */
-function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
-  const { view } = slice
+function checkSpecs({ slice, where }: Located, fail: Fail): void {
   for (const t of slice.tests) {
-    if (t.threw !== undefined) {
+    if (t.threw !== undefined)
       fail(
         error({
           message: `"${t.name}" (${where}): threw: ${t.threw}`,
@@ -938,370 +918,18 @@ function checkSpecs({ slice, where }: Located, built: Built, fail: Fail): void {
           slice: slice.id ?? "",
         }),
       )
-      continue
-    }
-    const said: Said = (element, rest, problem, values, lead = element) =>
+    for (const { decl, path, message } of t.invalid ?? []) {
+      const name = decl.name ?? ""
       fail(
         error({
-          message: `${lead} in "${t.name}" (${where}): ${rest}`,
-          ui: `${words(element)}: ${problem} in "${t.name}"${values ? `: ${values}` : ""}`,
-          element,
+          message: `${path === "" ? name : `${name}.${path}`} in "${t.name}" (${where}): ${message}`,
+          ui: `${words(name)}: ${path} isn't valid in "${t.name}"`,
+          element: name,
           slice: slice.id ?? "",
         }),
       )
-    for (const { decl, path, message } of t.invalid ?? []) {
-      const name = decl.name ?? ""
-      said(name, message, `${path} isn't valid`, "", path === "" ? name : `${name}.${path}`)
-    }
-    const compare = (
-      example: ExampleData,
-      clause: "when" | "then",
-      expected: (field: string) => Expected | undefined,
-    ) => {
-      const name = example.decl.name ?? ""
-      for (const [field, shown] of Object.entries(example.data)) {
-        const e = expected(field)
-        if (e?.value === undefined || shown === undefined || isDeepStrictEqual(shown, e.value))
-          continue
-        const has = `${clause} has ${show(shown)}, but`
-        said(
-          name,
-          `${has} ${e.says(asDeclared)}.`,
-          `${field} doesn't match`,
-          `${has} ${e.says(asWords)}`,
-          `${name}.${field}`,
-        )
-      }
-    }
-    if (view) {
-      const rows = project(view, slice.events, t.given)
-      const then = t.then.flatMap((c) => ("decl" in c && c.decl === view ? [c] : []))
-      const name = view.name ?? ""
-      for (const c of then) {
-        const matched = rowsLike(rows, view, c.data)
-        const built = matched.length === 1 && matched[0] ? valuesOf(matched[0]) : {}
-        if (excluded({ ...built, ...c.data }, t.context ?? {}))
-          said(
-            name,
-            `then has ${rowName(view, c.data)}, but when excludes it. Remove it from then.`,
-            "shows a row its context excludes",
-            valued(rowOf(view, c.data)),
-          )
-        if (matched.length === 1) compare(c, "then", (f) => matched[0]?.values[f])
-        else if (matched.length === 0)
-          said(
-            name,
-            `then has ${rowName(view, c.data)}, but given builds no such row.`,
-            "shows a row nothing builds",
-            valued(rowOf(view, c.data)),
-          )
-      }
-      // A described outcome claims what the rows leave out.
-      for (const row of t.then.some((c) => "description" in c) ? [] : rows) {
-        const data = valuesOf(row)
-        if (then.some((c) => rowsLike([row], view, c.data).length > 0)) continue
-        if (excluded(data, t.context ?? {})) continue
-        said(
-          name,
-          `given builds ${rowName(view, data)}, but then leaves it out. Add it to then.`,
-          "leaves out a row",
-          valued(rowOf(view, data)),
-        )
-      }
-    } else if (t.when) checkHandled(slice, t, built, compare, said)
-    else checkIdle(slice, t, built, said)
-  }
-}
-
-/**
- * An error in a specification about `element`: the terminal's rest, the viewer's problem and the
- * values it names, and what the terminal leads with.
- */
-type Said = (element: string, rest: string, problem: string, values: string, lead?: string) => void
-
-type Compare = (
-  example: ExampleData,
-  clause: "when" | "then",
-  expected: (field: string) => Expected | undefined,
-) => void
-
-/**
- * A handler's specification, step by step: what given holds for the trigger, the polled row and
- * each row a query picks, and what when sends, is what flows into the command and its events. A
- * query picks the rows given builds that its filter selects; with none, an automation issues
- * nothing and a command is refused.
- */
-function checkHandled(
-  slice: SliceData,
-  t: TestData,
-  built: Built,
-  compare: Compare,
-  said: Said,
-): void {
-  const { command, trigger, polls } = slice
-  const when = t.when
-  if (!command || !when) return
-  // An external event the call gets back may hold anything.
-  const known: Known = new Map()
-  known.set(command.decl, { data: when.data, has: () => "when sends" })
-  const given = t.given.find((g) => g.decl === trigger)
-  if (given) known.set(given.decl, { data: given.data, has: heldBy(given.decl) })
-  // Whether when agrees with what flows into the command from `decl`.
-  const agrees = (decl: DeclData) =>
-    Object.entries(when.data).every(([f, shown]) => {
-      const s = command.mapping[f] ?? { from: f }
-      const e = "from" in s && origin(command, s) === decl ? expected(known, command, f) : undefined
-      return e?.value === undefined || shown === undefined || isDeepStrictEqual(shown, e.value)
-    })
-  // A command that copies no key column names no polled row, so there is none to look for.
-  const keyed = polls ? polledKey(command, when, polls) : {}
-  const issued = command.decl.name ?? ""
-  if (polls && Object.keys(keyed).length > 0) {
-    const rows = rowsLike(project(polls, built.get(polls) ?? [], t.given), polls, keyed)
-    const picks = `when is for row ${rowName(polls, keyed)}`
-    if (!rows[0])
-      said(
-        polls.name ?? "",
-        `${picks}, but given builds none. Add the event that does.`,
-        `no row for ${words(issued)}`,
-        valued(keyed),
-      )
-    else if (rows.length > 1)
-      said(
-        polls.name ?? "",
-        `${picks}, but given builds ${rows.length}. Copy every key column into ${issued}.`,
-        `several rows for ${words(issued)}`,
-        valued(keyed),
-      )
-    else known.set(polls, { data: valuesOf(rows[0]), has: heldBy(polls) })
-  }
-  const before = slice.beforeCommand ?? 0
-  for (const [i, q] of slice.reads.entries()) {
-    const view = q.decl
-    // Nothing builds it: assembly says so once, for the model.
-    if (!built.has(view)) continue
-    const { filter, rows } = picked(q, known, built, t.given)
-    const has = heldBy(view)
-    if (rows.length === 0) {
-      const none = `given builds no row with ${show(filter)}`
-      if (i < before) {
-        said(
-          view.name ?? "",
-          `${none}, so ${issued} is never issued. Add the event that builds it.`,
-          "no matching row",
-          valued(filter),
-        )
-        // No command is issued, so the handler reads nothing.
-        break
-      }
-      if (!t.then.some((c) => "message" in c))
-        said(
-          view.name ?? "",
-          `${none}, so ${issued} is refused. Add the event that builds it, or reject.`,
-          "no matching row",
-          valued(filter),
-        )
-      continue
-    }
-    // Of several rows, the command is for one: the one when agrees with.
-    const row =
-      rows.length === 1
-        ? rows[0]
-        : rows.find((r) => {
-            known.set(view, { data: valuesOf(r), has })
-            return agrees(view)
-          })
-    if (row) known.set(view, { data: valuesOf(row), has })
-    else {
-      known.delete(view)
-      said(
-        view.name ?? "",
-        `when matches none of the ${rows.length} rows with ${show(filter)}.`,
-        `${words(issued)} matches none of its rows`,
-        valued(filter),
-      )
-      if (i < before) break
     }
   }
-  compare(when, "when", (f) => expected(known, command, f))
-  for (const c of t.then) {
-    if (!("decl" in c) || c.decl.external) continue
-    const flow = slice.events.find((e) => e.decl === c.decl)
-    if (flow) compare(c, "then", (f) => expected(known, flow, f))
-  }
-}
-
-/**
- * A specification with no when says the automation issues nothing. Given says otherwise when it
- * starts the automation, with a trigger event or a row of the view it polls, and every query before
- * the command picks a row; the error names the last of these.
- */
-function checkIdle(slice: SliceData, t: TestData, built: Built, said: Said): void {
-  const { command, trigger, polls } = slice
-  if (!command) return
-  const starts: ExampleData[] = polls
-    ? project(polls, built.get(polls) ?? [], t.given).map((r) => ({
-        decl: polls,
-        data: valuesOf(r),
-      }))
-    : t.given.filter((g) => g.decl === trigger)
-  const issuer = (start: ExampleData): ExampleData | undefined => {
-    const known: Known = new Map([[start.decl, { data: start.data, has: heldBy(start.decl) }]])
-    let last = start
-    for (const q of slice.reads.slice(0, slice.beforeCommand ?? 0)) {
-      const [row] = picked(q, known, built, t.given).rows
-      if (!row) return undefined
-      last = { decl: q.decl, data: valuesOf(row) }
-      known.set(q.decl, { data: last.data, has: heldBy(q.decl) })
-    }
-    return last
-  }
-  const by = starts.map(issuer).find((s) => s !== undefined)
-  if (!by) return
-  const row = by.decl.kind === "view" ? rowOf(by.decl, by.data) : undefined
-  const issued = command.decl.name ?? ""
-  said(
-    by.decl.name ?? "",
-    `${row ? `given builds a row with ${show(row)}` : "given has it"}, so the ${trigger?.external ? "translation" : "automation"} issues ${issued}.`,
-    `${words(issued)} is issued`,
-    row ? valued(row) : "",
-  )
-}
-
-/** What each declaration before a step holds in a specification, and how a message says so. */
-type Known = Map<DeclData, { data: Record<string, unknown>; has: (n: Namer) => string }>
-
-/** How a message says what an event in given, or the row given builds of a view, holds. */
-const heldBy =
-  (decl: DeclData) =>
-  (n: Namer): string =>
-    decl.kind === "view"
-      ? `the ${n(decl.name)} row given builds has`
-      : `${n(decl.name)} in given has`
-
-/** What flows into `flow`'s `field` from what `known` holds; undefined is anything. */
-function expected(known: Known, flow: Flow, field: string): Expected | undefined {
-  const s = flow.mapping[field] ?? (field in flow.context ? { from: field } : undefined)
-  if (s === undefined) return undefined
-  if ("value" in s)
-    return { value: s.value, says: (n) => `${n(flow.decl.name)}'s mapping sets ${show(s.value)}` }
-  if ("generate" in s) return undefined
-  const from = origin(flow, s)
-  const at = from && known.get(from)
-  if (!at) return undefined
-  const value = at.data[s.from]
-  const renamed = s.from === field ? "" : `${s.from} `
-  return { value, says: (n) => `${at.has(n)} ${renamed}${show(value)}` }
-}
-
-/** The filter query `q` reads with, by what `known` holds, and the rows given builds that it picks. */
-function picked(q: Flow, known: Known, built: Built, given: ExampleData[]) {
-  const filter: Record<string, unknown> = {}
-  for (const column of Object.keys(q.mapping)) {
-    const e = expected(known, q, column)
-    if (e?.value !== undefined) filter[column] = e.value
-  }
-  const rows = project(q.decl, built.get(q.decl) ?? [], given).filter((r) =>
-    Object.entries(filter).every(([k, v]) => isDeepStrictEqual(r.values[k]?.value, v)),
-  )
-  return { filter, rows }
-}
-
-/** A built row's values, without where each came from. */
-function valuesOf(row: { values: Record<string, Expected> }): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(row.values).map(([k, e]) => [k, e.value]))
-}
-
-/** The rows with the key values `data` has; a list's rows share theirs, so with every value it has. */
-function rowsLike<R extends { values: Record<string, Expected> }>(
-  rows: R[],
-  view: DeclData,
-  data: Record<string, unknown>,
-): R[] {
-  const keys = (view.list ? Object.keys(data) : view.keys).filter((k) => data[k] !== undefined)
-  return rows.filter((r) => keys.every((k) => isDeepStrictEqual(r.values[k]?.value, data[k])))
-}
-
-/** The key columns of the polled row a command was issued for, with what the command copied from them. */
-function polledKey(command: Flow, when: ExampleData, view: DeclData): Record<string, unknown> {
-  const keyed: Record<string, unknown> = {}
-  for (const field of Object.keys(command.decl.fields)) {
-    const s = command.mapping[field] ?? { from: field }
-    if ("from" in s && origin(command, s) === view && view.keys.includes(s.from))
-      keyed[s.from] = when.data[field]
-  }
-  return keyed
-}
-
-/** A row by its keys, or by every value when the view has none or is a list. */
-function rowOf(view: DeclData, data: Record<string, unknown>): Record<string, unknown> {
-  const keys = view.keys.length > 0 && !view.list ? view.keys : Object.keys(data)
-  return Object.fromEntries(keys.flatMap((k) => (data[k] === undefined ? [] : [[k, data[k]]])))
-}
-
-const rowName = (view: DeclData, data: Record<string, unknown>) => show(rowOf(view, data))
-
-/**
- * A query field filters the rows by equality with the column of the same name. One with no such
- * column, or a column whose value the given cannot tell, excludes nothing.
- */
-function excluded(row: Record<string, unknown>, query: Record<string, unknown>): boolean {
-  return Object.entries(query).some(
-    ([field, asked]) =>
-      asked !== undefined && row[field] !== undefined && !isDeepStrictEqual(row[field], asked),
-  )
-}
-
-/** What `flow` puts in `field` from `example`, which `has` introduces in a message. */
-function source(
-  flow: Flow,
-  field: string,
-  example: ExampleData,
-  has: (n: Namer) => string,
-): Expected | undefined {
-  const s = flow.mapping[field] ?? (field in example.decl.fields ? { from: field } : undefined)
-  if (s === undefined) return undefined
-  if ("value" in s)
-    return { value: s.value, says: (n) => `${n(flow.decl.name)}'s mapping sets ${show(s.value)}` }
-  if ("generate" in s)
-    return { value: undefined, says: (n) => `${n(flow.decl.name)} generates ${field}` }
-  const value = example.data[s.from]
-  const renamed = s.from === field ? "" : `${s.from} `
-  return { value, says: (n) => `${has(n)} ${renamed}${show(value)}` }
-}
-
-/**
- * The rows `given` builds, in order, so the last event to set a column wins; each column says where
- * it came from. Each event into a list adds a row.
- */
-function project(
-  view: DeclData,
-  flows: Flow[],
-  given: ExampleData[],
-): { values: Record<string, Expected> }[] {
-  const rows: ReturnType<typeof project> = []
-  for (const g of given) {
-    const flow = flows.find((f) => f.decl === g.decl)
-    if (!flow) continue
-    const has = (n: Namer) => `${n(g.decl.name)} in given has`
-    const values: Record<string, Expected> = {}
-    for (const column of Object.keys(view.fields)) {
-      const e = source(flow, column, g, has)
-      if (e) values[column] = e
-    }
-    const keys = view.keys.filter((k) => values[k]?.value !== undefined)
-    let matched = view.list
-      ? []
-      : rows.filter((r) =>
-          keys.every((k) => isDeepStrictEqual(r.values[k]?.value, values[k]?.value)),
-        )
-    if (matched.length === 0) {
-      matched = [{ values: {} }]
-      rows.push(...matched)
-    }
-    for (const row of matched) Object.assign(row.values, values)
-  }
-  return rows
 }
 
 function show(value: unknown): string {
