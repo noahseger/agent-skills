@@ -223,7 +223,7 @@ An automation issues a command with no actor. One of two things drives it. An ex
 | event-driven | the event points at the processor | `.automation(d.Event).command(d.Command)…` | One event is enough to decide, and the work is quick and safe to repeat |
 | polled view | the view points at the processor | `.automation(d.View).command(d.Command)…` | The work is slow, can fail, calls another system, or must not run twice |
 
-The polled view lists the work to do. A projection adds a row when the work becomes due and marks it done when the event that finishes it arrives. The processor reads the list on its own schedule and issues the command for each open row. The view records pending and completed work. The implementation must make retries safe.
+The polled view holds only the work to do: its state view adds a row from the event that makes the work due. The processor reads the list on its own schedule and issues the command for each row. The implementation must make retries safe.
 
 An event-driven automation has none of this. If the handler fails after the event, it loses the work unless the transport replays the event.
 
