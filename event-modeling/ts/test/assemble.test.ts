@@ -1572,7 +1572,7 @@ test("everything is on the timeline in declaration order until organized into sl
   )
   assert.deepEqual(
     drawing.rows.map((r) => r.label),
-    ["", "Notes"],
+    ["Interaction", "Notes"],
     "nothing here has an actor, so no actor has a lane",
   )
 })

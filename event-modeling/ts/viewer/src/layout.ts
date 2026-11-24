@@ -68,7 +68,7 @@ export interface Box {
   keys: string[]
   /** A list view, titled with `[]`. */
   list?: true
-  /** A second line under the name: the service of a ui card. */
+  /** A second line under the name: the service that handles a command or serves a view. */
   detail?: string
   /** Name only: a reference to a view, or a later appearance of an element. */
   compact?: boolean
@@ -639,7 +639,7 @@ export function layout(model: Board, measure: Measure): Layout {
       fields: el.fields,
       keys: el.keys,
       ...(el.list && { list: true }),
-      ...(extra.detail === undefined ? {} : { detail: extra.detail }),
+      ...(extra.detail === undefined || extra.compact || earlier ? {} : { detail: extra.detail }),
       ...(extra.form === undefined ? {} : { form: extra.form }),
       ...(extra.button === undefined ? {} : { button: extra.button }),
       ...(extra.table === undefined
@@ -710,11 +710,12 @@ export function layout(model: Board, measure: Measure): Layout {
     const events: Placed[] = []
     const calls: Placed[] = []
 
+    // The service handles the command and serves the view; the screen shows only its name and form.
+    const slash = s.ui?.indexOf("/") ?? -1
+    const service = s.ui && slash >= 0 ? { detail: s.ui.slice(0, slash) } : {}
     // A screen in each actor's lane.
     if (s.ui) {
-      const slash = s.ui.indexOf("/")
-      const service = slash < 0 ? undefined : s.ui.slice(0, slash)
-      const method = slash < 0 ? s.ui : s.ui.slice(slash + 1)
+      const method = s.ui.slice(slash + 1)
       // The wireframe is the command's form or the view's table.
       const commandFields = s.command ? parse(s.command).fields : []
       const view = s.read_models?.[0] ? parse(s.read_models[0]) : undefined
@@ -728,7 +729,6 @@ export function layout(model: Board, measure: Measure): Layout {
           "ui",
           { name: s.screen ?? method, fields: s.context ?? [], keys: [] },
           {
-            ...(service === undefined ? {} : { detail: service }),
             form: s.command ? commandFields : (s.context ?? []),
             ...(s.command ? { button: parse(s.command).name } : {}),
             ...(view === undefined ? {} : { table: view.fields }),
@@ -761,12 +761,12 @@ export function layout(model: Board, measure: Measure): Layout {
     for (const name of s.reads ?? []) readLinks.push({ name, column: i, polls: false })
     if (s.polls) readLinks.push({ name: s.polls, column: i, polls: true })
     for (const rm of s.read_models ?? []) {
-      const box = make(i, "readModel", parse(rm))
+      const box = make(i, "readModel", parse(rm), service)
       readModels.push(box)
       into("middle:top", i, box)
     }
     if (s.command) {
-      command = make(i, "command", parse(s.command))
+      command = make(i, "command", parse(s.command), service)
       into("middle:bottom", i, command)
     }
     for (const ev of s.events ?? []) {
@@ -973,7 +973,7 @@ export function layout(model: Board, measure: Measure): Layout {
     place("middle:top", y + LANE_PAD)
     place("middle:bottom", y + LANE_PAD + topH + gap)
   })
-  rows.push({ id: "middle", label: "", kind: "middle", y, h: middleH })
+  rows.push({ id: "middle", label: "Interaction", kind: "middle", y, h: middleH })
   y += middleH
 
   const channelTop = y

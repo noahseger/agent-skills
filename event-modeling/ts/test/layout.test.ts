@@ -1023,10 +1023,10 @@ test("a slice or a chapter uses the lanes it has a card in", () => {
     return out.rows.filter((r) => used.has(r.id)).map((r) => r.label)
   }
   const column = (label: string) => ({ column: out.columns.findIndex((c) => c.label === label) })
-  assert.deepEqual(lanes(column("AddItem")), ["User", "", "Items"])
-  assert.deepEqual(lanes(column("ListCompleter")), ["Automations", "", "Lists"])
+  assert.deepEqual(lanes(column("AddItem")), ["User", "Interaction", "Items"])
+  assert.deepEqual(lanes(column("ListCompleter")), ["Automations", "Interaction", "Lists"])
   const chapter = out.chapters.findIndex((c) => c.name === "ListManagement")
-  assert.deepEqual(lanes({ chapter }), ["User", "", "Lists", "Items"])
+  assert.deepEqual(lanes({ chapter }), ["User", "Interaction", "Lists", "Items"])
 })
 
 test("a lane grows to hold the notes beside its cards, so none overflows its lane", () => {
@@ -1047,4 +1047,20 @@ test("a lane grows to hold the notes beside its cards, so none overflows its lan
         noted.rows.some((r) => r.y <= n.y && n.y + n.h <= r.y + r.h - LANE_PAD),
         `a note in ${col.label} stays inside a lane`,
       )
+})
+
+test("the lane of commands and views is Interaction, and their cards name the service, not the screen", () => {
+  const middle = out.rows.find((r) => r.id === "middle")
+  assert.equal(middle?.label, "Interaction")
+  const add = out.columns.findIndex((c) => c.label === "AddItem")
+  const card = (kind: Box["kind"]) => out.boxes.find((b) => b.column === add && b.kind === kind)
+  assert.equal(card("command")?.detail, "TodoService")
+  assert.equal(card("ui")?.detail, undefined)
+  const list = out.columns.findIndex((c) => c.label === "TodoList")
+  const view = out.boxes.find((b) => b.column === list && b.kind === "readModel" && !b.compact)
+  assert.equal(view?.detail, "TodoService")
+  assert.ok(
+    out.boxes.every((b) => !b.compact || b.detail === undefined),
+    "a name-only card has none",
+  )
 })

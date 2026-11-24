@@ -29,6 +29,8 @@ const centred = computed(
 const keyW = measure("KEY", "tag") + 6
 /** Where what is under the title starts. */
 const top = computed(() => TITLE_H + titleDrop(props.box))
+/** Where what is under the service line starts. */
+const body = computed(() => top.value + (props.box.detail ? 14 : 0))
 </script>
 
 <template>
@@ -54,7 +56,7 @@ const top = computed(() => TITLE_H + titleDrop(props.box))
         v-for="(field, i) in box.form ?? []"
         :key="field"
         class="input"
-        :transform="`translate(12 ${top + (box.detail ? 14 : 0) + 2 + i * INPUT_H})`"
+        :transform="`translate(12 ${body + 2 + i * INPUT_H})`"
       >
         <rect :width="box.w - 24" :height="INPUT_H - 5" rx="4" />
         <Fit :text="field" :room="box.w - 38" font="input" :x="7" :y="12" />
@@ -62,7 +64,7 @@ const top = computed(() => TITLE_H + titleDrop(props.box))
       <g
         v-if="box.button"
         class="button"
-        :transform="`translate(12 ${top + (box.detail ? 14 : 0) + 4 + (box.form?.length ?? 0) * INPUT_H})`"
+        :transform="`translate(12 ${body + 4 + (box.form?.length ?? 0) * INPUT_H})`"
       >
         <rect :width="box.w - 24" :height="BUTTON_H - 8" rx="4" />
         <Fit text-anchor="middle" :text="box.button" :room="box.w - 36" font="button" :x="(box.w - 24) / 2" :y="14" />
@@ -70,7 +72,7 @@ const top = computed(() => TITLE_H + titleDrop(props.box))
       <g
         v-if="box.table"
         class="table"
-        :transform="`translate(12 ${top + (box.detail ? 14 : 0) + 4 + (box.form?.length ?? 0) * INPUT_H})`"
+        :transform="`translate(12 ${body + 4 + (box.form?.length ?? 0) * INPUT_H})`"
       >
         <rect class="head" :width="box.w - 24" :height="16" rx="3" />
         <Fit
@@ -111,14 +113,14 @@ const top = computed(() => TITLE_H + titleDrop(props.box))
           :room="box.w - 24 - (box.keys.includes(field) ? keyW : 0)"
           :font="box.keys.includes(field) ? 'key' : 'field'"
           :x="12"
-          :y="top + (box.detail ? 14 : 0) + 6 + i * FIELD_H"
+          :y="body + 6 + i * FIELD_H"
         />
         <text
           v-if="box.keys.includes(field)"
           class="key-mark"
           text-anchor="end"
           :x="box.w - 12"
-          :y="top + (box.detail ? 14 : 0) + 6 + i * FIELD_H"
+          :y="body + 6 + i * FIELD_H"
         >
           KEY
         </text>

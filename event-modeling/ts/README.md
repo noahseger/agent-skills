@@ -446,7 +446,10 @@ nothing.
 no screen; without `.service()` it has no service method. When the handler reads a view to
 decide, query it: `.command(d.FileNote).query(d.Inbox, "noteId").event(d.NoteFiled)`.
 
-The screen shows the command's form or the view's table, titled with the service method. To
+The screen shows the command's form or the view's table, titled with the service method; the
+command's card, or the view's, names the service under its title, since the service handles the one
+and serves the other. Commands and views stand in the lane between the actors and the streams,
+Interaction. To
 say which screen the actor is on, declare it once, `m.screen("LockScreen")`, and name
 it: `.screen(d.LockScreen)`. The card's title is then the screen's name, and several slices can
 share one. The slice's actors see its screen, so a slice with a screen and no actor is a warning, and the
