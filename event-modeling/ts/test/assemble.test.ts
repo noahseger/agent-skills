@@ -14,9 +14,9 @@ import {
 } from "../src/assemble.ts"
 import { toFeed } from "../src/spec.ts"
 import { validate } from "../src/validate.ts"
-import { layout } from "../viewer/src/layout.ts"
 import { read } from "../viewer/src/read.ts"
 import { type C, d, m } from "./loose.ts"
+import { layout } from "./measure.ts"
 
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url))
 

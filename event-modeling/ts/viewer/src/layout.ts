@@ -1,5 +1,5 @@
 // Lays out the eventmodeling.org canvas from the board `read.ts` makes. Pure, so it
-// is tested without a browser.
+// is tested without a browser: text is measured by the function it is given.
 
 import {
   inputNames,
@@ -23,6 +23,10 @@ export function source(s: Source): string {
 
 export type Kind = "ui" | "external" | "command" | "event" | "readModel" | "automation"
 export type Pt = [number, number]
+/** The fonts text is fitted in, each a `--font-*` token in `style.css`. */
+export type Font = "title" | "table" | "note" | "noteHead"
+/** How wide `text` is drawn in `font`, in px. */
+export type Measure = (text: string, font: Font) => number
 /** What a slice, a card or the model is marked with: its strongest message. */
 export type Mark = Message["kind"]
 
@@ -182,8 +186,6 @@ export const STACK_GAP = 12
 export const SLOT_GAP = 32
 export const TITLE_H = 30
 export const TITLE_LINE = 15
-/** A title's average glyph width, for the characters a line of a card holds. */
-export const TITLE_CHAR = 6.6
 export const FIELD_H = 15
 export const COMPACT_H = 34
 export const CHANNEL_PAD = 10
@@ -193,16 +195,13 @@ export const FAN = 8
 export const INPUT_H = 22
 export const BUTTON_H = 28
 export const TABLE_H = 52
-export const TABLE_CHAR = 5.2
 export const TABLE_PAD = 12
 export const TABLE_MORE_W = 26
-export const STICKY_CHARS = 22
 export const STICKY_LINES = 3
 export const STICKY_LINE = 11
 export const STICKY_PAD = 6
 export const STICKY_GAP = 6
 export const STICKY_HEAD = 12
-export const STICKY_HEAD_CHARS = 26
 export const STICKY_HEAD_LINE = 10
 export const NOTE_W = 128
 export const NOTE_GAP = 12
@@ -292,35 +291,48 @@ export function valueLines(value: string): string[] {
   )
 }
 
-/** Wraps by character count, breaking only words longer than a line. */
-export function wrap(text: string, max: number, indent = 0): string[] {
+/**
+ * Wraps to lines no wider than `room` as `width` measures them, breaking at spaces, and inside a word
+ * only when the word alone is wider than a line.
+ */
+export function wrap(text: string, room: number, width: (s: string) => number): string[] {
   const lines: string[] = []
   let line = ""
-  const flush = () => {
-    if (line.trim().length > 0) lines.push(line)
-    line = ""
-  }
   for (const word of text.split(/\s+/).filter((w) => w.length > 0)) {
     let rest = word
     while (rest.length > 0) {
-      if (line.length === 0 && lines.length > 0) line = " ".repeat(indent)
-      const sep = line.trim().length > 0 ? " " : ""
-      const room = max - line.length - sep.length
-      if (rest.length <= room) {
-        line += sep + rest
+      const joined = line.length > 0 ? `${line} ${rest}` : rest
+      if (width(joined) <= room) {
+        line = joined
         rest = ""
-      } else if (line.trim().length > 0 && rest.length <= max - indent) {
-        flush()
+      } else if (line.length > 0) {
+        lines.push(line)
+        line = ""
       } else {
-        const take = Math.max(1, room)
-        line += sep + rest.slice(0, take)
+        const take = Math.max(1, longest(rest, room, width))
+        lines.push(rest.slice(0, take))
         rest = rest.slice(take)
-        flush()
       }
     }
   }
-  flush()
+  if (line.length > 0) lines.push(line)
   return lines
+}
+
+/** How many of `text`'s first characters fit `room`. */
+function longest(text: string, room: number, width: (s: string) => number): number {
+  let n = 0
+  while (n < text.length && width(text.slice(0, n + 1)) <= room) n++
+  return n
+}
+
+/** `text`, or as much of it as fits `room` with an ellipsis. */
+function clip(text: string, room: number, width: (s: string) => number): string {
+  if (width(text) <= room) return text
+  return `${text.slice(
+    0,
+    longest(text, room, (s) => width(`${s}…`)),
+  )}…`
 }
 
 const LABEL: Record<NoteKind, string> = {
@@ -333,14 +345,21 @@ const LABEL: Record<NoteKind, string> = {
  * Notes on `subject` stacked from `top`, each cut to `STICKY_LINES` lines; the detail shows the whole
  * text. A question or a critical note says so in words too, not only in colour.
  */
-export function stickies(notes: readonly Note[], top: number, subject: string): Sticky[] {
+export function stickies(
+  notes: readonly Note[],
+  top: number,
+  subject: string,
+  measure: Measure,
+): Sticky[] {
+  const room = NOTE_W - 2 * STICKY_PAD
+  const note = (s: string) => measure(s, "note")
   let y = top
   return notes.map(({ text, kind }) => {
-    const head = wrap(`${LABEL[kind]}${subject}`, STICKY_HEAD_CHARS)
-    const all = wrap(text, STICKY_CHARS)
+    const head = wrap(`${LABEL[kind]}${subject}`, room, (s) => measure(s, "noteHead"))
+    const all = wrap(text, room, note)
     const lines =
       all.length > STICKY_LINES
-        ? [...all.slice(0, STICKY_LINES - 1), `${all[STICKY_LINES - 1]}…`]
+        ? [...all.slice(0, STICKY_LINES - 1), clip(`${all[STICKY_LINES - 1]}…`, room, note)]
         : all
     const h =
       STICKY_HEAD +
@@ -353,18 +372,24 @@ export function stickies(notes: readonly Note[], top: number, subject: string): 
   })
 }
 
-/** As many columns as fit the width, left to right, leaving room for a `+n`. */
+/**
+ * As many columns as fit the width, left to right, leaving room for a `+n`; a first column wider than
+ * that is cut to fit.
+ */
 export function fitColumns(
   names: string[],
   width: number,
+  measure: Measure,
 ): { columns: { name: string; x: number; w: number }[]; more: number } {
   const columns: { name: string; x: number; w: number }[] = []
+  const table = (s: string) => measure(s, "table")
   let x = 0
   for (let i = 0; i < names.length; i++) {
-    const name = names[i] ?? ""
-    const w = name.length * TABLE_CHAR + TABLE_PAD
     const limit = i < names.length - 1 ? width - TABLE_MORE_W : width
-    if (columns.length > 0 && x + w > limit) break
+    const name =
+      columns.length > 0 ? (names[i] ?? "") : clip(names[i] ?? "", limit - TABLE_PAD, table)
+    const w = table(name) + TABLE_PAD
+    if (x + w > limit) break
     columns.push({ name, x, w })
     x += w
   }
@@ -372,9 +397,14 @@ export function fitColumns(
 }
 
 /** A card's title in the lines that fit `w`, less the room a link back to its first card takes. */
-export function titled(el: Pick<Element, "name" | "list">, w: number, linked: boolean): string[] {
+export function titled(
+  el: Pick<Element, "name" | "list">,
+  w: number,
+  linked: boolean,
+  measure: Measure,
+): string[] {
   const room = w - 24 - (linked ? 26 : 0)
-  return wrap(`${words(el.name)}${el.list ? "[]" : ""}`, Math.floor(room / TITLE_CHAR))
+  return wrap(`${words(el.name)}${el.list ? "[]" : ""}`, room, (s) => measure(s, "title"))
 }
 
 /** How far a card's title reaches below one line's. */
@@ -456,7 +486,7 @@ function columnWidth(s: BoardSlice): number {
   return COL_W + (beside - 1) * (CARD_W + STACK_GAP)
 }
 
-export function layout(model: Board): Layout {
+export function layout(model: Board, measure: Measure): Layout {
   // A `reads` entry is a name. Its fields come from where the view is drawn in full.
   const registry = new Map<string, Element>()
   const kinds = new Map<string, Kind>()
@@ -579,7 +609,7 @@ export function layout(model: Board): Layout {
       id: `b${next++}`,
       kind,
       name: el.name,
-      title: titled(el, w, earlier !== undefined),
+      title: titled(el, w, earlier !== undefined, measure),
       fields: el.fields,
       keys: el.keys,
       ...(el.list && { list: true }),
@@ -591,8 +621,8 @@ export function layout(model: Board): Layout {
         : {
             table: extra.table,
             ...(extra.tableRows && { tableRows: extra.tableRows }),
-            tableColumns: fitColumns(extra.table, CARD_W - 24).columns,
-            tableMore: fitColumns(extra.table, CARD_W - 24).more,
+            tableColumns: fitColumns(extra.table, CARD_W - 24, measure).columns,
+            tableMore: fitColumns(extra.table, CARD_W - 24, measure).more,
           }),
       ...(extra.compact || earlier ? { compact: true } : {}),
       ...(earlier ? { canonical: earlier.id } : {}),
@@ -610,7 +640,7 @@ export function layout(model: Board): Layout {
         : kind === "ui"
           ? extra.notes
           : model.notes[el.name]
-    if (own) box.notes = stickies(own, 0, words(el.name))
+    if (own) box.notes = stickies(own, 0, words(el.name), measure)
     if (!extra.reference && kind !== "ui" && !first.has(key)) first.set(key, box)
     return box
   }
@@ -997,7 +1027,10 @@ export function layout(model: Board): Layout {
       }
     }
     if (col.slice.notes)
-      stack(stickies(col.slice.notes, 0, col.title), cards[0]?.y ?? HEADER_H + NAME_H + STICKY_GAP)
+      stack(
+        stickies(col.slice.notes, 0, col.title, measure),
+        cards[0]?.y ?? HEADER_H + NAME_H + STICKY_GAP,
+      )
     for (const b of cards) if (b.notes) stack(b.notes, b.y)
     col.notes = notes
     bottom = Math.max(bottom, next)

@@ -15,7 +15,6 @@ import {
   fitColumns,
   grouped,
   LANE_PAD,
-  layout,
   NOTE_GAP,
   NOTE_W,
   nextError,
@@ -30,7 +29,6 @@ import {
   served,
   source,
   stickies,
-  TITLE_CHAR,
   TITLE_LINE,
   titled,
   valueLines,
@@ -38,6 +36,7 @@ import {
   wrap,
 } from "../viewer/src/layout.ts"
 import { read } from "../viewer/src/read.ts"
+import { layout, measure } from "./measure.ts"
 
 // A model read from its spec JSON alone, as a hand-written one is.
 const model = read({
@@ -270,12 +269,19 @@ test("a screen's table shows one row for a view with no key column, and two for 
 })
 
 test("a table shows the columns that fit and counts the rest", () => {
-  const { columns, more } = fitColumns(["userId", "listId", "name", "itemCount", "status"], 144)
+  const { columns, more } = fitColumns(
+    ["userId", "listId", "name", "itemCount", "status"],
+    144,
+    measure,
+  )
   assert.ok(columns.length >= 2 && columns.length < 5)
   assert.equal(more, 5 - columns.length)
   const last = columns.at(-1)
   assert.ok(last && last.x + last.w <= 144 - 26, "room is left for the +n")
-  assert.deepEqual(fitColumns(["a"], 144), { columns: [{ name: "a", x: 0, w: 5.2 + 12 }], more: 0 })
+  assert.deepEqual(fitColumns(["a"], 144, measure), {
+    columns: [{ name: "a", x: 0, w: 5.2 + 12 }],
+    more: 0,
+  })
 })
 
 test("an edge leaving an element sits right of centre, an edge entering sits left", () => {
@@ -365,7 +371,7 @@ test("an element's notes stand in a rail beside its slice, level with its first 
 })
 
 test("a long name wraps inside its card, which grows to hold it, and so does a note's header", () => {
-  assert.deepEqual(titled({ name: "CompleteVendorConnection" }, CARD_W, false), [
+  assert.deepEqual(titled({ name: "CompleteVendorConnection" }, CARD_W, false, measure), [
     "Complete Vendor",
     "Connection",
   ])
@@ -377,11 +383,11 @@ test("a long name wraps inside its card, which grows to hold it, and so does a n
   const short = out.boxes.find((b) => b.name === "CreateList" && b.kind === "command")
   assert.ok(long && short)
   assert.deepEqual(long.title, ["Create List From", "Every Household"])
-  for (const line of long.title) assert.ok(line.length * TITLE_CHAR <= long.w - 24, line)
+  for (const line of long.title) assert.ok(measure(line, "title") <= long.w - 24, line)
   assert.equal(long.h, short.h + TITLE_LINE)
   const note = { text: "Rate limited.", kind: "critical" } as const
-  const [wide] = stickies([note], 0, "Complete Vendor Connection")
-  const [narrow] = stickies([note], 0, "Create List")
+  const [wide] = stickies([note], 0, "Complete Vendor Connection", measure)
+  const [narrow] = stickies([note], 0, "Create List", measure)
   assert.deepEqual(wide?.head, ["Critical · Complete Vendor", "Connection"])
   assert.equal(wide?.h, (narrow?.h ?? 0) + STICKY_HEAD_LINE)
 })
@@ -649,14 +655,36 @@ test("a command's outcomes stand side by side in their lane, each joined to the 
     assert.ok(both.edges.some((e) => e.from === command.id && e.to === outcome.id))
 })
 
-test("wrap breaks at words, and splits only a word longer than a line, indenting the rest", () => {
-  assert.deepEqual(wrap("Adding a fourth item is rejected", 20), [
+test("wrap breaks at words, and splits only a word wider than a line", () => {
+  const chars = (s: string) => s.length
+  assert.deepEqual(wrap("Adding a fourth item is rejected", 20, chars), [
     "Adding a fourth item",
     "is rejected",
   ])
-  assert.equal(wrap("abcdefghijklmnopqrstuvwxyz", 10).join("|"), "abcdefghij|klmnopqrst|uvwxyz")
-  assert.deepEqual(wrap("Duplicate list name rejected", 26), ["Duplicate list name", "rejected"])
-  assert.deepEqual(wrap("a bbbbbbbbbb", 8, 2), ["a bbbbbb", "  bbbb"])
+  assert.equal(
+    wrap("abcdefghijklmnopqrstuvwxyz", 10, chars).join("|"),
+    "abcdefghij|klmnopqrst|uvwxyz",
+  )
+  assert.deepEqual(wrap("Duplicate list name rejected", 26, chars), [
+    "Duplicate list name",
+    "rejected",
+  ])
+})
+
+test("a title wraps by the width its font draws it, and a table header is cut to fit", () => {
+  // Wider than a guess of 6.6px a character: the browser draws "Move Member Workspace" 157.5px wide.
+  const wide = (text: string) => text.length * 7.5
+  for (const name of [
+    "LockScreenNotification",
+    "MoveMemberWorkspace",
+    "Supercalifragilisticexpialidocious",
+  ]) {
+    const title = titled({ name }, CARD_W, false, wide)
+    for (const line of title) assert.ok(wide(line) <= CARD_W - 24, line)
+    assert.equal(title.join("").replaceAll(" ", ""), name)
+  }
+  const [only] = fitColumns(["aVeryLongColumnNameThatCannotFit"], 60, measure).columns
+  assert.ok(only && only.w <= 60 && only.name.endsWith("…"))
 })
 
 test("a loose declaration is a column after the story, with no heading, its card in its lane", () => {

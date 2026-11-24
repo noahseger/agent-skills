@@ -6,6 +6,7 @@ import Canvas from "./Canvas.vue"
 import Detail from "./Detail.vue"
 import { type Box, layout, nextError } from "./layout.ts"
 import Messages from "./Messages.vue"
+import { measure } from "./measure.ts"
 import Nav from "./Nav.vue"
 import { read } from "./read.ts"
 import SliceView from "./SliceView.vue"
@@ -31,7 +32,7 @@ const focus = ref<{ column: number | null; seq: number }>({ column: null, seq: 0
 /** The board alone, for showing the model to others: no navigation, detail, marks or selection. */
 const present = ref(false)
 
-const drawn = computed(() => (model.value ? layout(model.value) : null))
+const drawn = computed(() => (model.value ? layout(model.value, measure) : null))
 const selectedBox = computed<Box | null>(() => {
   const sel = picked.value
   if (!sel?.name) return null

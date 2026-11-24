@@ -20,6 +20,7 @@ import {
 } from "./layout.ts"
 import Mark from "./Mark.vue"
 import Messages from "./Messages.vue"
+import { measure } from "./measure.ts"
 import Name from "./Name.vue"
 import Notes from "./Notes.vue"
 import Specs from "./Specs.vue"
@@ -66,7 +67,7 @@ const local = computed(() => {
     )
     if (!full || !consumer) continue
     const { mark: _, notes: __, ...bare } = full
-    const title = titled(full, CARD_W, true)
+    const title = titled(full, CARD_W, true, measure)
     const ref: Box = {
       ...bare,
       id: `read:${name}`,

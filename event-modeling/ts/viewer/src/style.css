@@ -69,6 +69,12 @@
 
   --sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* the fonts text is fitted in: layout.ts wraps and cuts by measuring them */
+  --font-title: 600 12.5px var(--sans);
+  --font-table: 600 8.5px var(--sans);
+  --font-note: 9px var(--sans);
+  --font-noteHead: 600 8px var(--sans);
 }
 
 /* keyboard focus is always visible; motion only for those who want it */
@@ -591,8 +597,7 @@ pre.error {
 }
 
 .card .title {
-  font-size: 12.5px;
-  font-weight: 600;
+  font: var(--font-title);
 }
 
 .card .detail {
@@ -642,8 +647,7 @@ pre.error {
 
 .card .table .col,
 .card .table .more {
-  font-size: 8.5px;
-  font-weight: 600;
+  font: var(--font-table);
   fill: var(--muted);
 }
 
@@ -672,8 +676,8 @@ pre.error {
 /* A note is square paper in its kind's colour, lighter than the card it is about: thinner line,
    smaller type, no shadow. Critical red, a question amber, info neutral. */
 .sticky .paper { fill: var(--panel); stroke: var(--line); stroke-width: 1; }
-.sticky text { font-size: 9px; fill: var(--muted); }
-.sticky .head { font-size: 8px; font-weight: 600; letter-spacing: 0.02em; }
+.sticky text { font: var(--font-note); fill: var(--muted); }
+.sticky .head { font: var(--font-noteHead); }
 .sticky.critical .paper { fill: var(--danger-fill); stroke: color-mix(in oklab, var(--danger-stroke) 45%, transparent); }
 .sticky.critical text { fill: var(--danger-ink); }
 .sticky.question .paper { fill: var(--question-fill); stroke: color-mix(in oklab, var(--question-stroke) 45%, transparent); }
