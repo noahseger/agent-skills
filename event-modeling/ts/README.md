@@ -569,7 +569,7 @@ its command, so it is the one slice that usually takes a name. Name it for what 
 The second form polls a view of the work to do. From a hotel model:
 
 ```ts
-m.slice().view(d.PaymentsToProcess).event(d.PaymentApproved)
+m.slice().view(d.PaymentsToProcess).event(d.PaymentApproved).event(d.PaymentSucceeded)
 
 m.slice("PaymentProcessor")
   .automation(d.PaymentsToProcess)
@@ -579,8 +579,7 @@ m.slice("PaymentProcessor")
 
 A view as the trigger runs on the processor's own schedule, and the command's fields come from the
 row. No event and no service method starts it. The view holds only the work: the processor issues
-its command for every row, so build the view only from the event that makes the work, here
-`PaymentApproved`.
+its command for every row, so `PaymentApproved` adds a row and `PaymentSucceeded` takes it out.
 
 ### External events
 
