@@ -358,7 +358,8 @@ body,
   background: var(--bg);
 }
 
-.nav .slice.selected {
+.nav .slice.selected,
+.nav .chapter.selected {
   background: #dbeafe;
   color: var(--command-ink);
   font-weight: 600;

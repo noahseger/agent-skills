@@ -13,11 +13,14 @@ import {
   type Box,
   bounds,
   CARD_W,
+  type Column,
   crumbs,
   fitColumns,
   fitLines,
   fitTo,
+  fromHash,
   grouped,
+  hashOf,
   LANE_PAD,
   MAX_ZOOM,
   NOTE_GAP,
@@ -918,28 +921,44 @@ test("every actor gets a lane, and cards in one lane share a top edge", () => {
   }
 })
 
-test("the header's path names the model, then the selected slice's chapter, the slice and the card", () => {
+test("the header's path names the model, then the selected chapter, the slice and the card", () => {
   const text = (path: ReturnType<typeof crumbs>) => path.map((c) => c.text).join(" › ")
-  assert.deepEqual(crumbs("Todo", out, null, null), [{ level: "model", text: "Todo" }])
-  const add = out.columns[1]
-  assert.ok(add)
-  assert.deepEqual(crumbs("Todo", out, add, null), [
-    { level: "model", text: "Todo" },
-    { level: "chapter", text: "List Management", column: 0 },
-    { level: "slice", text: "Add Item", column: 1 },
+  assert.deepEqual(crumbs("Todo", out, null), [{ level: "model", text: "Todo", to: null }])
+  assert.deepEqual(crumbs("Todo", out, { chapter: 0 }), [
+    { level: "model", text: "Todo", to: null },
+    { level: "chapter", text: "List Management", to: { chapter: 0 } },
+  ])
+  assert.deepEqual(crumbs("Todo", out, { column: 1, view: "slice" }), [
+    { level: "model", text: "Todo", to: null },
+    { level: "chapter", text: "List Management", to: { chapter: 0 } },
+    { level: "slice", text: "Add Item", to: { column: 1, view: "slice" } },
   ])
   const added = out.boxes.find((b) => b.column === 1 && b.kind === "event")
+  assert.ok(added)
   assert.equal(
-    text(crumbs("Todo", out, add, added ?? null)),
+    text(crumbs("Todo", out, { column: 1, kind: added.kind, name: added.name })),
     "Todo › List Management › Add Item › Item Added",
   )
-  const loose = { ...add, chapter: out.chapters.length }
+  const loose = { ...(out.columns[1] as Column), index: 0, chapter: out.chapters.length }
   const bare = {
     ...out,
     chapters: [...out.chapters, { name: "", title: "", x: 0, w: 0 }],
     columns: [loose],
   }
-  assert.equal(text(crumbs("Todo", bare, loose, null)), "Todo › Add Item")
+  assert.equal(text(crumbs("Todo", bare, { column: 0 })), "Todo › Add Item")
+})
+
+test("the URL hash records a chapter, a slice, a card or the model, and reads back the same", () => {
+  const selections = [
+    null,
+    "model",
+    { chapter: 2 },
+    { column: 3 },
+    { column: 3, view: "slice" },
+    { column: 3, kind: "event", name: "Item Added" },
+  ] as const
+  for (const sel of selections) assert.deepEqual(fromHash(hashOf(sel)), sel)
+  assert.equal(hashOf({ chapter: 2 }), "#ch2")
 })
 
 test("a value shows each UUID in it by its first group, and anything else as it is", () => {

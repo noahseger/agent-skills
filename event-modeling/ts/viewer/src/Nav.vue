@@ -1,8 +1,16 @@
 <script setup lang="ts">
-import type { Layout } from "./layout.ts"
+import { computed } from "vue"
+import type { Layout, Selection } from "./layout.ts"
 import Mark from "./Mark.vue"
 
-defineProps<{ layout: Layout; selected: number | "model" | null }>()
+const props = defineProps<{ layout: Layout; selected: Selection | null }>()
+const sel = computed(() => (typeof props.selected === "object" ? props.selected : null))
+const selectedColumn = computed(() =>
+  sel.value && "column" in sel.value ? sel.value.column : null,
+)
+const selectedChapter = computed(() =>
+  sel.value && "chapter" in sel.value ? sel.value.chapter : null,
+)
 defineEmits<{ select: [column: number]; chapter: [chapter: number]; model: [] }>()
 </script>
 
@@ -23,6 +31,8 @@ defineEmits<{ select: [column: number]; chapter: [chapter: number]; model: [] }>
         v-if="chapter.title"
         type="button"
         class="chapter"
+        :class="{ selected: ci === selectedChapter }"
+        :aria-current="ci === selectedChapter ? 'true' : undefined"
         @click="$emit('chapter', ci)"
       >
         {{ chapter.title }}
@@ -32,8 +42,8 @@ defineEmits<{ select: [column: number]; chapter: [chapter: number]; model: [] }>
         :key="col.index"
         type="button"
         class="slice"
-        :class="{ selected: col.index === selected, inside: chapter.title }"
-        :aria-current="col.index === selected ? 'true' : undefined"
+        :class="{ selected: col.index === selectedColumn, inside: chapter.title }"
+        :aria-current="col.index === selectedColumn ? 'true' : undefined"
         @click="$emit('select', col.index)"
       >
         {{ col.title }}

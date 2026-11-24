@@ -4,7 +4,18 @@ import type { Feed } from "../../src/spec.ts"
 import type { Board } from "./board.ts"
 import Canvas from "./Canvas.vue"
 import Detail from "./Detail.vue"
-import { type Box, type Crumb, crumbs, ICON, layout, nextError, type Scope } from "./layout.ts"
+import {
+  type Box,
+  boxOf,
+  crumbs,
+  fromHash,
+  hashOf,
+  ICON,
+  layout,
+  nextError,
+  type Scope,
+  type Selection,
+} from "./layout.ts"
 import Messages from "./Messages.vue"
 import { measure } from "./measure.ts"
 import Nav from "./Nav.vue"
@@ -15,15 +26,7 @@ const model = ref<Board | null>(null)
 const error = ref<string | null>(null)
 const live = ref(false)
 
-/** A slice, within it a card by kind and name, and whether the slice is open at full width. */
-interface Selection {
-  column: number
-  kind?: Box["kind"]
-  name?: string
-  view?: "slice"
-}
-/** A slice, a chapter, or the model's own messages. */
-const selection = ref<Selection | { chapter: number } | "model" | null>(null)
+const selection = ref<Selection | null>(null)
 const picked = computed(() =>
   typeof selection.value === "object" && selection.value && "column" in selection.value
     ? selection.value
@@ -33,7 +36,6 @@ const picked = computed(() =>
 const scope = computed<Scope | null>(() =>
   typeof selection.value === "object" ? selection.value : null,
 )
-const at = computed(() => (selection.value === "model" ? "model" : (picked.value?.column ?? null)))
 const hovered = ref<string | null>(null)
 /** Bumping `seq` fits the slice or chapter, or with none the whole model. */
 const focus = ref<{ scope: Scope | null; seq: number }>({ scope: null, seq: 0 })
@@ -41,15 +43,7 @@ const focus = ref<{ scope: Scope | null; seq: number }>({ scope: null, seq: 0 })
 const present = ref(false)
 
 const drawn = computed(() => (model.value ? layout(model.value, measure) : null))
-const selectedBox = computed<Box | null>(() => {
-  const sel = picked.value
-  if (!sel?.name) return null
-  return (
-    drawn.value?.boxes.find(
-      (b) => b.column === sel.column && b.kind === sel.kind && b.name === sel.name,
-    ) ?? null
-  )
-})
+const selectedBox = computed(() => (drawn.value && boxOf(drawn.value, picked.value)) ?? null)
 const selectedColumn = computed(() => {
   const sel = picked.value
   return sel && drawn.value?.columns[sel.column] ? drawn.value.columns[sel.column] : null
@@ -57,13 +51,8 @@ const selectedColumn = computed(() => {
 const sliceOpen = computed(() => picked.value?.view === "slice")
 const path = computed(() =>
   present.value
-    ? crumbs(model.value?.name ?? "Event model", null, null, null)
-    : crumbs(
-        model.value?.name ?? "Event model",
-        drawn.value,
-        selectedColumn.value,
-        selectedBox.value,
-      ),
+    ? crumbs(model.value?.name ?? "Event model", null, null)
+    : crumbs(model.value?.name ?? "Event model", drawn.value, selection.value),
 )
 
 const LEGEND: [string, string][] = [
@@ -76,29 +65,7 @@ const LEGEND: [string, string][] = [
 ]
 
 // The selection lives in the URL hash, so Back works and every view is a link.
-function hashOf(sel: Selection | { chapter: number } | "model" | null): string {
-  if (!sel) return ""
-  if (sel === "model") return "#model"
-  if ("chapter" in sel) return location.hash
-  const card = sel.kind && sel.name ? `/${sel.kind}/${encodeURIComponent(sel.name)}` : ""
-  return `#${sel.view === "slice" ? "s" : "c"}${sel.column}${card}`
-}
-function fromHash(): Selection | "model" | null {
-  if (location.hash === "#model") return "model"
-  const m = location.hash.match(/^#([cs])(\d+)(?:\/(\w+)\/(.*))?$/)
-  if (!m) return null
-  const sel: Selection = { column: Number(m[2]) }
-  if (m[1] === "s") sel.view = "slice"
-  if (m[3] && m[4]) {
-    sel.kind = m[3] as Box["kind"]
-    sel.name = decodeURIComponent(m[4])
-  }
-  return sel
-}
-function go(
-  sel: Selection | { chapter: number } | "model" | null,
-  options: { push?: boolean; zoom?: boolean } = {},
-) {
+function go(sel: Selection | null, options: { push?: boolean; zoom?: boolean } = {}) {
   selection.value = sel
   const hash = hashOf(sel)
   if (options.push !== false && hash !== location.hash) {
@@ -109,7 +76,7 @@ function go(
   }
 }
 function selectChapter(chapter: number) {
-  go({ chapter }, { push: false, zoom: true })
+  go({ chapter }, { zoom: true })
 }
 function step(delta: number) {
   const columns = drawn.value?.columns ?? []
@@ -125,7 +92,8 @@ function step(delta: number) {
 }
 function stepError(delta: 1 | -1) {
   if (!drawn.value) return
-  const next = nextError(drawn.value, at.value, delta)
+  const at = selection.value === "model" ? "model" : (picked.value?.column ?? null)
+  const next = nextError(drawn.value, at, delta)
   if (next === "model") go("model")
   else if (next !== undefined)
     go({ column: next, ...(sliceOpen.value ? { view: "slice" } : {}) }, { zoom: true })
@@ -134,38 +102,17 @@ function togglePresent() {
   present.value = !present.value
   if (present.value) focus.value = { scope: null, seq: focus.value.seq + 1 }
 }
-function pick(box: Box) {
-  go({
-    column: box.column,
-    kind: box.kind,
-    name: box.name,
-    ...(sliceOpen.value ? { view: "slice" } : {}),
-  })
+function pick(box: Box, zoom = false) {
+  const view = sliceOpen.value ? { view: "slice" as const } : {}
+  go({ column: box.column, kind: box.kind, name: box.name, ...view }, { zoom })
 }
 function follow(canonical: string) {
   const box = drawn.value?.boxes.find((b) => b.id === canonical)
-  if (box) {
-    go(
-      {
-        column: box.column,
-        kind: box.kind,
-        name: box.name,
-        ...(sliceOpen.value ? { view: "slice" } : {}),
-      },
-      { zoom: true },
-    )
-  }
+  if (box) pick(box, true)
 }
 function openSlice(column: number) {
   go({ column, view: "slice" })
 }
-function climb(crumb: Crumb) {
-  const column = crumb.column
-  if (column === undefined) go(null)
-  else if (crumb.level === "chapter") selectChapter(drawn.value?.columns[column]?.chapter ?? 0)
-  else go({ column, ...(sliceOpen.value ? { view: "slice" } : {}) }, { zoom: true })
-}
-
 // An exported page carries the model in a script tag: no server, no feed.
 const embedded = document.getElementById("model")
 const snapshot = embedded !== null
@@ -175,7 +122,7 @@ let loaded = false
 async function refresh() {
   if (embedded) {
     model.value = read(JSON.parse(embedded.textContent ?? "null") as Feed)
-    go(fromHash(), { push: false, zoom: !loaded })
+    go(fromHash(location.hash), { push: false, zoom: !loaded })
     loaded = true
     return
   }
@@ -183,7 +130,7 @@ async function refresh() {
   if (res.ok) {
     model.value = read((await res.json()) as Feed)
     error.value = null
-    go(fromHash(), { push: false, zoom: !loaded })
+    go(fromHash(location.hash), { push: false, zoom: !loaded })
     loaded = true
   } else {
     error.value = await res.text()
@@ -191,7 +138,7 @@ async function refresh() {
 }
 
 let feed: EventSource | undefined
-const onPop = () => go(fromHash(), { push: false, zoom: true })
+const onPop = () => go(fromHash(location.hash), { push: false, zoom: true })
 function onKey(e: KeyboardEvent) {
   if (e.target instanceof HTMLInputElement) return
   // A letter with a modifier is the browser's.
@@ -239,7 +186,7 @@ onUnmounted(() => {
       <h1 class="crumbs">
         <template v-for="(crumb, i) in path" :key="crumb.level">
           <span v-if="i > 0" class="sep" aria-hidden="true">›</span>
-          <button v-if="i < path.length - 1" type="button" :title="crumb.text" @click="climb(crumb)">{{ crumb.text }}</button>
+          <button v-if="i < path.length - 1" type="button" :title="crumb.text" @click="go(crumb.to, { zoom: true })">{{ crumb.text }}</button>
           <span v-else :title="crumb.text">{{ crumb.text }}</span>
         </template>
       </h1>
@@ -266,7 +213,7 @@ onUnmounted(() => {
     </header>
     <pre v-if="error !== null" class="error" role="alert">{{ error }}</pre>
     <main class="body">
-      <Nav v-if="drawn && !present" :layout="drawn" :selected="at" @select="openSlice" @chapter="selectChapter" @model="go('model')" />
+      <Nav v-if="drawn && !present" :layout="drawn" :selected="selection" @select="openSlice" @chapter="selectChapter" @model="go('model')" />
       <SliceView
         v-if="drawn && model && sliceOpen && selectedColumn && !present"
         :layout="drawn"

@@ -1093,32 +1093,68 @@ export function layout(model: Board, measure: Measure): Layout {
   }
 }
 
-/** A step of the header's path to what is selected, and the column a click on it selects. */
+/**
+ * What is selected: the model's own messages, a chapter, or a slice, within it a card by kind and
+ * name, open at full width or not.
+ */
+export type Selection =
+  | "model"
+  | { chapter: number }
+  | { column: number; kind?: Kind; name?: string; view?: "slice" }
+
+/** A selection as the URL hash, so Back works and every view is a link. */
+export function hashOf(sel: Selection | null): string {
+  if (!sel) return ""
+  if (sel === "model") return "#model"
+  if ("chapter" in sel) return `#ch${sel.chapter}`
+  const card = sel.kind && sel.name ? `/${sel.kind}/${encodeURIComponent(sel.name)}` : ""
+  return `#${sel.view === "slice" ? "s" : "c"}${sel.column}${card}`
+}
+
+export function fromHash(hash: string): Selection | null {
+  if (hash === "#model") return "model"
+  const chapter = hash.match(/^#ch(\d+)$/)
+  if (chapter) return { chapter: Number(chapter[1]) }
+  const m = hash.match(/^#([cs])(\d+)(?:\/(\w+)\/(.*))?$/)
+  if (!m) return null
+  return {
+    column: Number(m[2]),
+    ...(m[1] === "s" && { view: "slice" as const }),
+    ...(m[3] && m[4] && { kind: m[3] as Kind, name: decodeURIComponent(m[4]) }),
+  }
+}
+
+/** The card a selection names, if it is drawn. */
+export function boxOf(layout: Layout, sel: Selection | null): Box | undefined {
+  if (!sel || sel === "model" || !("column" in sel) || !sel.name) return undefined
+  return layout.boxes.find(
+    (b) => b.column === sel.column && b.kind === sel.kind && b.name === sel.name,
+  )
+}
+
+/** A step of the header's path to what is selected, and what a click on it selects. */
 export interface Crumb {
   level: "model" | "chapter" | "slice" | "card"
   text: string
-  column?: number
+  to: Selection | null
 }
 
 /**
- * The model's name, then the selected slice's chapter, the slice, and the selected card's element,
- * as words. A slice in no chapter skips it; a chapter's crumb goes to its first slice.
+ * The model's name, then the selected chapter, or the selected slice's chapter, the slice and the
+ * selected card's element, as words. A slice in no chapter skips it.
  */
-export function crumbs(
-  name: string,
-  layout: Layout | null,
-  column: Column | null,
-  box: Box | null,
-): Crumb[] {
-  const path: Crumb[] = [{ level: "model", text: name }]
-  if (!layout || !column) return path
-  const chapter = layout.chapters[column.chapter]
-  const first = layout.columns.find((c) => c.chapter === column.chapter)
-  if (chapter?.title && first) {
-    path.push({ level: "chapter", text: chapter.title, column: first.index })
-  }
-  path.push({ level: "slice", text: column.title, column: column.index })
-  if (box) path.push({ level: "card", text: words(box.name), column: column.index })
+export function crumbs(name: string, layout: Layout | null, sel: Selection | null): Crumb[] {
+  const path: Crumb[] = [{ level: "model", text: name, to: null }]
+  if (!layout || !sel || sel === "model") return path
+  const column = "column" in sel ? layout.columns[sel.column] : undefined
+  const chapter = "chapter" in sel ? sel.chapter : column?.chapter
+  const title = chapter === undefined ? undefined : layout.chapters[chapter]?.title
+  if (chapter !== undefined && title) path.push({ level: "chapter", text: title, to: { chapter } })
+  if (!column || !("column" in sel)) return path
+  const view = sel.view ? { view: sel.view } : {}
+  path.push({ level: "slice", text: column.title, to: { column: column.index, ...view } })
+  const box = boxOf(layout, sel)
+  if (box) path.push({ level: "card", text: words(box.name), to: sel })
   return path
 }
 
