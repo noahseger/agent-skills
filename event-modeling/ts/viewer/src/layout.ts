@@ -23,8 +23,25 @@ export function source(s: Source): string {
 
 export type Kind = "ui" | "external" | "command" | "event" | "readModel" | "automation"
 export type Pt = [number, number]
-/** The fonts text is fitted in, each a `--font-*` token in `style.css`. */
-export type Font = "title" | "table" | "note" | "noteHead"
+/**
+ * The fonts text is fitted in, each a `--font-*` token in `style.css`; a tag is set in capitals,
+ * tracked by `--tracking`.
+ */
+export type Font =
+  | "title"
+  | "table"
+  | "note"
+  | "noteHead"
+  | "lane"
+  | "tag"
+  | "laneTag"
+  | "chapter"
+  | "slice"
+  | "detail"
+  | "field"
+  | "key"
+  | "input"
+  | "button"
 /** How wide `text` is drawn in `font`, in px. */
 export type Measure = (text: string, font: Font) => number
 /** What a slice, a card or the model is marked with: its strongest message. */
@@ -326,13 +343,26 @@ function longest(text: string, room: number, width: (s: string) => number): numb
   return n
 }
 
-/** `text`, or as much of it as fits `room` with an ellipsis. */
-function clip(text: string, room: number, width: (s: string) => number): string {
-  if (width(text) <= room) return text
-  return `${text.slice(
-    0,
-    longest(text, room, (s) => width(`${s}…`)),
-  )}…`
+/**
+ * `text` in at most `max` lines no wider than `room`; when it takes more, the last line shown ends in
+ * an ellipsis, cut further if it has to be.
+ */
+export function fitLines(
+  text: string,
+  room: number,
+  max: number,
+  width: (s: string) => number,
+): string[] {
+  const all = wrap(text, room, width)
+  if (all.length <= max) return all
+  const last = all[max - 1] ?? ""
+  return [
+    ...all.slice(0, max - 1),
+    `${last.slice(
+      0,
+      longest(last, room, (s) => width(`${s}…`)),
+    )}…`,
+  ]
 }
 
 const LABEL: Record<NoteKind, string> = {
@@ -356,11 +386,7 @@ export function stickies(
   let y = top
   return notes.map(({ text, kind }) => {
     const head = wrap(`${LABEL[kind]}${subject}`, room, (s) => measure(s, "noteHead"))
-    const all = wrap(text, room, note)
-    const lines =
-      all.length > STICKY_LINES
-        ? [...all.slice(0, STICKY_LINES - 1), clip(`${all[STICKY_LINES - 1]}…`, room, note)]
-        : all
+    const lines = fitLines(text, room, STICKY_LINES, note)
     const h =
       STICKY_HEAD +
       (head.length - 1) * STICKY_HEAD_LINE +
@@ -374,7 +400,7 @@ export function stickies(
 
 /**
  * As many columns as fit the width, left to right, leaving room for a `+n`; a first column wider than
- * that is cut to fit.
+ * that is narrowed to fit, its name to be cut.
  */
 export function fitColumns(
   names: string[],
@@ -386,9 +412,9 @@ export function fitColumns(
   let x = 0
   for (let i = 0; i < names.length; i++) {
     const limit = i < names.length - 1 ? width - TABLE_MORE_W : width
-    const name =
-      columns.length > 0 ? (names[i] ?? "") : clip(names[i] ?? "", limit - TABLE_PAD, table)
-    const w = table(name) + TABLE_PAD
+    const name = names[i] ?? ""
+    const w =
+      columns.length > 0 ? table(name) + TABLE_PAD : Math.min(table(name) + TABLE_PAD, limit)
     if (x + w > limit) break
     columns.push({ name, x, w })
     x += w

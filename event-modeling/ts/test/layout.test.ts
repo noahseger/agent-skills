@@ -13,6 +13,7 @@ import {
   type Box,
   CARD_W,
   fitColumns,
+  fitLines,
   grouped,
   LANE_PAD,
   NOTE_GAP,
@@ -684,7 +685,20 @@ test("a title wraps by the width its font draws it, and a table header is cut to
     assert.equal(title.join("").replaceAll(" ", ""), name)
   }
   const [only] = fitColumns(["aVeryLongColumnNameThatCannotFit"], 60, measure).columns
-  assert.ok(only && only.w <= 60 && only.name.endsWith("…"))
+  assert.ok(only && only.w <= 60)
+})
+
+test("a name that cannot wrap far enough is cut to its lines, ending in an ellipsis", () => {
+  const chars = (s: string) => s.length
+  assert.deepEqual(fitLines("Create List From Every Household", 20, 1, chars), [
+    "Create List From…",
+  ])
+  assert.deepEqual(fitLines("Create List From Every Household", 20, 2, chars), [
+    "Create List From",
+    "Every Household",
+  ])
+  assert.deepEqual(fitLines("Supercalifragilistic", 10, 1, chars), ["Supercali…"])
+  assert.deepEqual(fitLines("Create List From Every", 16, 1, chars), ["Create List Fro…"])
 })
 
 test("a loose declaration is a column after the story, with no heading, its card in its lane", () => {

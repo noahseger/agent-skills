@@ -75,6 +75,17 @@
   --font-table: 600 8.5px var(--sans);
   --font-note: 9px var(--sans);
   --font-noteHead: 600 8px var(--sans);
+  --font-lane: 700 13px var(--sans);
+  --font-chapter: 600 13px var(--sans);
+  --font-slice: 700 12px var(--sans);
+  --font-detail: 10.5px var(--sans);
+  --font-field: 10.5px var(--mono);
+  --font-key: 700 10.5px var(--mono);
+  --font-input: 9.5px var(--sans);
+  --font-button: 600 10px var(--sans);
+  /* tags are also set in capitals and tracked by --tracking */
+  --font-tag: 600 var(--text-xs) var(--sans);
+  --font-laneTag: 600 7px var(--sans);
 }
 
 /* keyboard focus is always visible; motion only for those who want it */
@@ -134,6 +145,8 @@ body,
   background: var(--bg);
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
+  /* text never overflows: a word wider than its box breaks */
+  overflow-wrap: anywhere;
 }
 
 /* Header, then a model that didn't load, then the body takes what is left. */
@@ -476,8 +489,7 @@ pre.error {
 }
 
 .lane-label {
-  font-size: 13px;
-  font-weight: 700;
+  font: var(--font-lane);
   fill: var(--ink);
 }
 
@@ -491,8 +503,7 @@ pre.error {
 }
 
 .chapter text {
-  font-size: 13px;
-  font-weight: 600;
+  font: var(--font-chapter);
   fill: #ffffff;
 }
 
@@ -544,8 +555,7 @@ pre.error {
 }
 
 .slice-head text {
-  font-size: 12px;
-  font-weight: 700;
+  font: var(--font-slice);
   fill: var(--muted);
 }
 
@@ -601,18 +611,17 @@ pre.error {
 }
 
 .card .detail {
-  font-size: 10.5px;
+  font: var(--font-detail);
   fill: var(--muted);
 }
 
 .card .field {
-  font-family: var(--mono);
-  font-size: 10.5px;
+  font: var(--font-field);
   fill: var(--ink);
 }
 
 .card .field.key {
-  font-weight: 700;
+  font: var(--font-key);
 }
 
 .card.command .field { fill: var(--command-ink); }
@@ -627,7 +636,7 @@ pre.error {
 }
 
 .card .input text {
-  font-size: 9.5px;
+  font: var(--font-input);
   fill: var(--muted);
 }
 
@@ -636,8 +645,7 @@ pre.error {
 }
 
 .card .button text {
-  font-size: 10px;
-  font-weight: 600;
+  font: var(--font-button);
   fill: #ffffff;
 }
 
@@ -992,7 +1000,7 @@ pre.error {
 }
 
 .slice-body .lane-tag {
-  font-size: 7px;
+  font: var(--font-laneTag);
   fill: var(--muted);
 }
 

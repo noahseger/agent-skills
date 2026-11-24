@@ -2,6 +2,7 @@
 import { computed } from "vue"
 import type { Board } from "./board.ts"
 import Card from "./Card.vue"
+import Fit from "./Fit.vue"
 import {
   actorOf,
   type Box,
@@ -155,7 +156,7 @@ function cardClass(b: Box) {
       <svg class="column" :viewBox="viewBox">
         <g v-for="lane in local.lanes" :key="lane.label + lane.y">
           <line class="lane-line" :x1="column.x" :x2="column.x + column.w" :y1="lane.y" :y2="lane.y" />
-          <text v-if="lane.label" class="lane-tag" :x="column.x + 6" :y="lane.y + 11">{{ lane.label }}</text>
+          <Fit v-if="lane.label" class="lane-tag" :text="lane.label" :room="column.w - 12" font="laneTag" :x="column.x + 6" :y="lane.y + 11" />
         </g>
         <path
           v-for="(e, i) in edges"

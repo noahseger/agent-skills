@@ -1,18 +1,23 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue"
 import Card from "./Card.vue"
+import Fit from "./Fit.vue"
 import {
   ARROW_H,
   type Box,
+  fitLines,
   HEADER_H,
+  LABEL_W,
   type Layout,
   NAME_H,
   NOTE_W,
   outside,
   path,
   polyline,
+  type Row,
 } from "./layout.ts"
 import Mark from "./Mark.vue"
+import { measure } from "./measure.ts"
 import Sticky from "./Sticky.vue"
 
 const props = defineProps<{
@@ -200,6 +205,11 @@ function arrow(x: number, w: number, first: boolean) {
   const body = first ? `L${x} ${y + h}` : ""
   return `${start} ${body} L${x + w - n - 4} ${y + h} L${x + w - 4} ${y + h / 2} L${x + w - n - 4} ${y} Z`
 }
+/** A lane's name wraps in the label column as far as its lane is tall, its kind under it. */
+const LANE_ROOM = LABEL_W - 24
+const laneLines = (row: Row) => Math.max(1, Math.floor((row.h - 45) / 15) + 1)
+const drawnLines = (row: Row) =>
+  fitLines(row.label, LANE_ROOM, laneLines(row), (s) => measure(s, "lane")).length
 const transform = computed(
   () => `translate(${view.value.x}px, ${view.value.y}px) scale(${view.value.k})`,
 )
@@ -230,8 +240,19 @@ const transform = computed(
         <g v-for="row in layout.rows" :key="row.id">
           <rect class="lane" :class="row.kind" :x="0" :y="row.y" :width="layout.width" :height="row.h" @click="background" />
           <line class="lane-line" :x1="0" :x2="layout.width" :y1="row.y" :y2="row.y" />
-          <text v-if="row.label" class="lane-label" :x="16" :y="row.y + 22">{{ row.label }}</text>
-          <text v-if="row.sub" class="lane-kind" :x="16" :y="row.y + 37">{{ row.sub }}</text>
+          <Fit
+            v-if="row.label"
+            class="lane-label"
+            :text="row.label"
+            :room="LANE_ROOM"
+            font="lane"
+            :lines="laneLines(row)"
+            :x="16"
+            :y="row.y + 22"
+          />
+          <text v-if="row.sub" class="lane-kind" :x="16" :y="row.y + 37 + (drawnLines(row) - 1) * 15">
+            {{ row.sub }}
+          </text>
         </g>
         <line class="lane-line" :x1="0" :x2="layout.width" :y1="layout.height" :y2="layout.height" />
 
@@ -255,9 +276,14 @@ const transform = computed(
             @keydown.enter.stop="emit('openSlice', col.index)"
           >
             <rect :x="col.x + 4" :y="layout.nameY" :width="col.w - 8" :height="NAME_H" rx="10" />
-            <text text-anchor="middle" :x="col.x + col.w / 2" :y="layout.nameY + NAME_H / 2 + 4.5">
-              {{ col.title }}
-            </text>
+            <Fit
+              text-anchor="middle"
+              :text="col.title"
+              :room="col.w - 60"
+              font="slice"
+              :x="col.x + col.w / 2"
+              :y="layout.nameY + NAME_H / 2 + 4.5"
+            />
             <Mark :mark="col.mark" :at="[col.x + 20, layout.nameY + NAME_H / 2]" />
           </g>
         </g>
@@ -270,7 +296,13 @@ const transform = computed(
           <g v-if="chapter.title" class="chapter" @click.stop="firstSlice(i)">
             <title v-if="chapter.note">{{ chapter.note }}</title>
             <path :d="arrow(chapter.x, chapter.w, i === 0)" />
-            <text :x="chapter.x + (i === 0 ? 16 : 24)" :y="HEADER_H - 12 - ARROW_H / 2 + 5">{{ chapter.title }}</text>
+            <Fit
+              :text="chapter.title"
+              :room="chapter.w - (i === 0 ? 38 : 46)"
+              font="chapter"
+              :x="chapter.x + (i === 0 ? 16 : 24)"
+              :y="HEADER_H - 12 - ARROW_H / 2 + 5"
+            />
           </g>
         </template>
 

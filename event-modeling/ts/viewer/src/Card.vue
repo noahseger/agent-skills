@@ -1,17 +1,20 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { words } from "../../src/types.ts"
+import Fit from "./Fit.vue"
 import {
   type Box,
   BUTTON_H,
   FIELD_H,
   INPUT_H,
   KIND,
+  TABLE_PAD,
   TITLE_H,
   TITLE_LINE,
   titleDrop,
 } from "./layout.ts"
 import Mark from "./Mark.vue"
+import { measure } from "./measure.ts"
 
 const props = defineProps<{ box: Box }>()
 defineEmits<{ link: [canonical: string]; pick: [] }>()
@@ -22,6 +25,8 @@ const centred = computed(
     props.box.compact ||
     (props.box.kind !== "ui" && props.box.fields.length === 0 && props.box.detail === undefined),
 )
+/** The room a key field leaves its `KEY` tag, and a gap before it. */
+const keyW = measure("KEY", "tag") + 6
 /** Where what is under the title starts. */
 const top = computed(() => TITLE_H + titleDrop(props.box))
 </script>
@@ -41,7 +46,7 @@ const top = computed(() => TITLE_H + titleDrop(props.box))
     <text class="title" :y="centred ? (box.h - titleDrop(box)) / 2 + 4.5 : 20">
       <tspan v-for="(line, i) in box.title" :key="i" :x="12" :dy="i === 0 ? 0 : TITLE_LINE">{{ line }}</tspan>
     </text>
-    <text v-if="box.detail" class="detail" :x="12" :y="top + 4">{{ box.detail }}</text>
+    <Fit v-if="box.detail" class="detail" :text="box.detail" :room="box.w - 24" font="detail" :x="12" :y="top + 4" />
 
     <!-- A screen is a wireframe: inputs, a button, a table. -->
     <template v-if="box.kind === 'ui' && !box.compact">
@@ -52,7 +57,7 @@ const top = computed(() => TITLE_H + titleDrop(props.box))
         :transform="`translate(12 ${top + (box.detail ? 14 : 0) + 2 + i * INPUT_H})`"
       >
         <rect :width="box.w - 24" :height="INPUT_H - 5" rx="4" />
-        <text :x="7" :y="12">{{ field }}</text>
+        <Fit :text="field" :room="box.w - 38" font="input" :x="7" :y="12" />
       </g>
       <g
         v-if="box.button"
@@ -60,7 +65,7 @@ const top = computed(() => TITLE_H + titleDrop(props.box))
         :transform="`translate(12 ${top + (box.detail ? 14 : 0) + 4 + (box.form?.length ?? 0) * INPUT_H})`"
       >
         <rect :width="box.w - 24" :height="BUTTON_H - 8" rx="4" />
-        <text text-anchor="middle" :x="(box.w - 24) / 2" :y="14">{{ box.button }}</text>
+        <Fit text-anchor="middle" :text="box.button" :room="box.w - 36" font="button" :x="(box.w - 24) / 2" :y="14" />
       </g>
       <g
         v-if="box.table"
@@ -68,9 +73,16 @@ const top = computed(() => TITLE_H + titleDrop(props.box))
         :transform="`translate(12 ${top + (box.detail ? 14 : 0) + 4 + (box.form?.length ?? 0) * INPUT_H})`"
       >
         <rect class="head" :width="box.w - 24" :height="16" rx="3" />
-        <text v-for="col in box.tableColumns ?? []" :key="col.name" class="col" :x="col.x + 6" :y="11">
-          {{ col.name }}
-        </text>
+        <Fit
+          v-for="col in box.tableColumns ?? []"
+          :key="col.name"
+          class="col"
+          :text="col.name"
+          :room="col.w - TABLE_PAD"
+          font="table"
+          :x="col.x + 6"
+          :y="11"
+        />
         <template v-for="r in box.tableRows ?? 2" :key="r">
           <line :x1="0" :x2="box.w - 24" :y1="16 + r * 14" :y2="16 + r * 14" />
           <rect
@@ -92,14 +104,15 @@ const top = computed(() => TITLE_H + titleDrop(props.box))
 
     <template v-else>
       <template v-for="(field, i) in box.compact ? [] : box.fields" :key="field">
-        <text
+        <Fit
           class="field"
           :class="{ key: box.keys.includes(field) }"
+          :text="field"
+          :room="box.w - 24 - (box.keys.includes(field) ? keyW : 0)"
+          :font="box.keys.includes(field) ? 'key' : 'field'"
           :x="12"
           :y="top + (box.detail ? 14 : 0) + 6 + i * FIELD_H"
-        >
-          {{ field }}
-        </text>
+        />
         <text
           v-if="box.keys.includes(field)"
           class="key-mark"
