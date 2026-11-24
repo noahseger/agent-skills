@@ -20,7 +20,7 @@
   --panel: #ffffff;
   --line: #e4e7eb;
   --ink: #0f172a;
-  --muted: #475569;
+  --muted: #526071;
   --faint: #94a3b8;
   --accent: #2563eb;
   --accent-ink: #1e3a8a;
@@ -539,12 +539,17 @@ pre.error {
 }
 
 /* A lane's name stands at the viewport's left edge, on its lane's colour, above the cards it passes. */
-.lane-name rect {
-  fill: var(--bg);
+.lane-name {
+  --fill: var(--bg);
+  color: var(--ink);
 }
 
-.lane-name.stream rect {
-  fill: #fbfbfc;
+.lane-name.stream {
+  --fill: #fbfbfc;
+}
+
+.lane-name rect {
+  fill: var(--fill);
 }
 
 .world.animate .lane-name {
@@ -562,13 +567,18 @@ pre.error {
 }
 
 /* chapters are arrows along the time line */
+svg .chapter {
+  --fill: var(--accent);
+  color: #ffffff;
+}
+
 .chapter path {
-  fill: var(--accent);
+  fill: var(--fill);
 }
 
 .chapter text {
   font: var(--font-chapter);
-  fill: #ffffff;
+  fill: currentColor;
 }
 
 /* slices */
@@ -595,10 +605,10 @@ pre.error {
   cursor: pointer;
 }
 
-/* Hovering anything on the canvas, a card, a note, a lane name or a chapter, deepens its fill; one
-   rule for every kind. The fill only, so its text keeps its contrast (4.98:1 or more, hovered). */
+/* Hover is a state layer: whatever the pointer is over, a card, a note, a lane name or a chapter, lays
+   its own ink over its fill at 8%. Each sets `--fill` and its ink as `color`; one rule for every kind. */
 .app:not(.keyed) :is(.card, .sticky, .lane-name, .chapter):hover > :is(.shape, .paper, rect, path) {
-  filter: saturate(1.3) brightness(0.9);
+  fill: color-mix(in srgb, currentColor 8%, var(--fill));
 }
 
 .slice-head {
@@ -662,6 +672,8 @@ pre.error {
 }
 
 .card .shape {
+  fill: var(--fill);
+  stroke: var(--stroke);
   stroke-width: 1.25;
 }
 
@@ -675,6 +687,7 @@ pre.error {
 
 .card .title {
   font: var(--font-title);
+  fill: currentColor;
 }
 
 .card .detail {
@@ -684,17 +697,12 @@ pre.error {
 
 .card .field {
   font: var(--font-field);
-  fill: var(--ink);
+  fill: currentColor;
 }
 
 .card .field.key {
   font: var(--font-key);
 }
-
-.card.command .field { fill: var(--command-ink); }
-.card.event .field { fill: var(--event-ink); }
-.card.external .field { fill: var(--external-ink); }
-.card.readModel .field { fill: var(--view-ink); }
 
 /* a screen's wireframe */
 .card .input rect {
@@ -750,12 +758,11 @@ pre.error {
 
 /* A note is square paper in its kind's colour, lighter than the card it is about: thinner line,
    smaller type. Critical red, a question amber, info neutral. */
-.sticky .paper { fill: var(--panel); stroke: var(--line); stroke-width: 1; }
-.sticky text { font: var(--font-note); fill: var(--muted); }
-.sticky.critical .paper { fill: var(--danger-fill); stroke: color-mix(in oklab, var(--danger-stroke) 45%, transparent); }
-.sticky.critical text { fill: var(--danger-ink); }
-.sticky.question .paper { fill: var(--question-fill); stroke: color-mix(in oklab, var(--question-stroke) 45%, transparent); }
-.sticky.question text { fill: var(--question-ink); }
+.sticky { --fill: var(--panel); --stroke: var(--line); color: var(--muted); }
+.sticky.critical { --fill: var(--danger-fill); --stroke: color-mix(in oklab, var(--danger-stroke) 45%, transparent); color: var(--danger-ink); }
+.sticky.question { --fill: var(--question-fill); --stroke: color-mix(in oklab, var(--question-stroke) 45%, transparent); color: var(--question-ink); }
+.sticky .paper { fill: var(--fill); stroke: var(--stroke); stroke-width: 1; }
+.sticky text { font: var(--font-note); fill: currentColor; }
 
 .notes {
   display: grid;
@@ -781,18 +788,13 @@ pre.error {
   font-weight: 500;
 }
 
-.card.ui .shape { fill: var(--ui-fill); stroke: var(--ui-stroke); }
-.card.ui .title { fill: var(--ui-ink); }
-.card.command .shape { fill: var(--command-fill); stroke: var(--command-stroke); }
-.card.command .title { fill: var(--command-ink); }
-.card.event .shape { fill: var(--event-fill); stroke: var(--event-stroke); }
-.card.event .title { fill: var(--event-ink); }
-.card.external .shape { fill: var(--external-fill); stroke: var(--external-stroke); stroke-dasharray: 5 3; }
-.card.external .title { fill: var(--external-ink); }
-.card.readModel .shape { fill: var(--view-fill); stroke: var(--view-stroke); }
-.card.readModel .title { fill: var(--view-ink); }
-.card.automation .shape { fill: var(--automation-fill); stroke: var(--automation-stroke); }
-.card.automation .title { fill: var(--automation-ink); }
+.card.ui { --fill: var(--ui-fill); --stroke: var(--ui-stroke); color: var(--ui-ink); }
+.card.command { --fill: var(--command-fill); --stroke: var(--command-stroke); color: var(--command-ink); }
+.card.event { --fill: var(--event-fill); --stroke: var(--event-stroke); color: var(--event-ink); }
+.card.external { --fill: var(--external-fill); --stroke: var(--external-stroke); color: var(--external-ink); }
+.card.readModel { --fill: var(--view-fill); --stroke: var(--view-stroke); color: var(--view-ink); }
+.card.automation { --fill: var(--automation-fill); --stroke: var(--automation-stroke); color: var(--automation-ink); }
+.card.external .shape { stroke-dasharray: 5 3; }
 
 /* A key column is tagged KEY, as a kind is: small caps in the kind's ink. Only a view has keys. */
 .card .key-mark {
