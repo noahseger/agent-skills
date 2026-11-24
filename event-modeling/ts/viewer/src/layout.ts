@@ -1078,6 +1078,35 @@ export function layout(model: Board, measure: Measure): Layout {
   }
 }
 
+/** A step of the header's path to what is selected, and the column a click on it selects. */
+export interface Crumb {
+  level: "model" | "chapter" | "slice" | "card"
+  text: string
+  column?: number
+}
+
+/**
+ * The model's name, then the selected slice's chapter, the slice, and the selected card's element,
+ * as words. A slice in no chapter skips it; a chapter's crumb goes to its first slice.
+ */
+export function crumbs(
+  name: string,
+  layout: Layout | null,
+  column: Column | null,
+  box: Box | null,
+): Crumb[] {
+  const path: Crumb[] = [{ level: "model", text: name }]
+  if (!layout || !column) return path
+  const chapter = layout.chapters[column.chapter]
+  const first = layout.columns.find((c) => c.chapter === column.chapter)
+  if (chapter?.title && first) {
+    path.push({ level: "chapter", text: chapter.title, column: first.index })
+  }
+  path.push({ level: "slice", text: column.title, column: column.index })
+  if (box) path.push({ level: "card", text: words(box.name), column: column.index })
+  return path
+}
+
 /** The edges that come from or go to another chapter, which focusing `chapter` dims. */
 export function outside(layout: Layout, chapter: number): Set<number> {
   const chapterOf = new Map(layout.boxes.map((b) => [b.id, layout.columns[b.column]?.chapter]))

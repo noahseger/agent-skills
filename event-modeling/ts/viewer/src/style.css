@@ -172,8 +172,46 @@ body,
   letter-spacing: -0.01em;
 }
 
+/* The path to what is selected; the middle crumbs give way first, each cut with "…". */
+.top .crumbs {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.top .crumbs > :not(.sep) {
+  min-width: 1.5em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.top .crumbs > :not(.sep):not(:first-child):not(:last-child) {
+  flex-shrink: 100;
+}
+
+.top .crumbs button {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.top .crumbs button:hover {
+  color: var(--accent);
+}
+
+.top .crumbs .sep {
+  color: var(--faint);
+}
+
+/* Takes the room the path leaves, wrapping in it. */
 .top .description {
   color: var(--muted);
+  flex: 1 1 0;
 }
 
 .top .legend {
@@ -926,25 +964,8 @@ pre.error {
 .slice-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   margin-bottom: 16px;
-}
-
-.slice-header .crumbs {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.slice-header .chapter {
-  color: var(--muted);
-  font-weight: 500;
-}
-
-.slice-header .sep {
-  color: var(--faint);
 }
 
 .slice-header .controls {

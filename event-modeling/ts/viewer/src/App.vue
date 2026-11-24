@@ -4,7 +4,7 @@ import type { Feed } from "../../src/spec.ts"
 import type { Board } from "./board.ts"
 import Canvas from "./Canvas.vue"
 import Detail from "./Detail.vue"
-import { type Box, layout, nextError } from "./layout.ts"
+import { type Box, type Crumb, crumbs, layout, nextError } from "./layout.ts"
 import Messages from "./Messages.vue"
 import { measure } from "./measure.ts"
 import Nav from "./Nav.vue"
@@ -47,6 +47,16 @@ const selectedColumn = computed(() => {
   return sel && drawn.value?.columns[sel.column] ? drawn.value.columns[sel.column] : null
 })
 const sliceOpen = computed(() => picked.value?.view === "slice")
+const path = computed(() =>
+  present.value
+    ? crumbs(model.value?.name ?? "Event model", null, null, null)
+    : crumbs(
+        model.value?.name ?? "Event model",
+        drawn.value,
+        selectedColumn.value,
+        selectedBox.value,
+      ),
+)
 
 const LEGEND: [string, string][] = [
   ["ui", "screen"],
@@ -129,6 +139,12 @@ function follow(canonical: string) {
 function openSlice(column: number) {
   go({ column, view: "slice" })
 }
+function climb(crumb: Crumb) {
+  const column = crumb.column
+  if (column === undefined) go(null)
+  else if (crumb.level === "chapter") openSlice(column)
+  else go({ column, ...(sliceOpen.value ? { view: "slice" } : {}) }, { zoom: true })
+}
 
 // An exported page carries the model in a script tag: no server, no feed.
 const embedded = document.getElementById("model")
@@ -200,7 +216,13 @@ onUnmounted(() => {
 <template>
   <div class="app" :class="{ presenting: present }">
     <header class="top">
-      <h1>{{ model?.name ?? "Event model" }}</h1>
+      <h1 class="crumbs">
+        <template v-for="(crumb, i) in path" :key="crumb.level">
+          <span v-if="i > 0" class="sep" aria-hidden="true">›</span>
+          <button v-if="i < path.length - 1" type="button" :title="crumb.text" @click="climb(crumb)">{{ crumb.text }}</button>
+          <span v-else :title="crumb.text">{{ crumb.text }}</span>
+        </template>
+      </h1>
       <span v-if="model?.description" class="description">{{ model.description }}</span>
       <span class="legend">
         <span v-for="[kind, label] in LEGEND" :key="kind" class="swatch" :class="kind">{{ label }}</span>

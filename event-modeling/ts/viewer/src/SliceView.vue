@@ -19,7 +19,6 @@ import {
   source,
   titled,
 } from "./layout.ts"
-import Mark from "./Mark.vue"
 import Messages from "./Messages.vue"
 import { measure } from "./measure.ts"
 import Name from "./Name.vue"
@@ -41,8 +40,6 @@ const emit = defineEmits<{
   step: [delta: number]
   close: []
 }>()
-
-const chapter = computed(() => props.layout.chapters[props.column.chapter])
 
 // The slice's column without its empty lanes, with its reads drawn in place.
 const local = computed(() => {
@@ -136,15 +133,6 @@ function cardClass(b: Box) {
 <template>
   <section class="slice-view" aria-label="Slice">
     <header class="slice-header">
-      <div class="crumbs">
-        <template v-if="chapter?.title">
-          <span class="chapter">{{ chapter.title }}</span>
-          <span class="sep">›</span>
-        </template>
-        <span class="name">{{ column.title }}</span>
-        <span v-if="column.noted" class="note-dot"></span>
-        <Mark :mark="column.mark" />
-      </div>
       <div class="controls">
         <button type="button" aria-label="Previous slice" :disabled="column.index <= first" @click="emit('step', -1)">←</button>
         <button type="button" aria-label="Next slice" :disabled="column.index >= last" @click="emit('step', 1)">→</button>

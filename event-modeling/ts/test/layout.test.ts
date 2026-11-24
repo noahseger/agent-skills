@@ -12,6 +12,7 @@ import {
   actorOf,
   type Box,
   CARD_W,
+  crumbs,
   fitColumns,
   fitLines,
   grouped,
@@ -897,4 +898,28 @@ test("every actor gets a lane, and cards in one lane share a top edge", () => {
     const tops = new Set(out.boxes.filter((b) => rowOf(b)?.id === row.id).map((b) => b.y))
     assert.ok(tops.size <= (row.kind === "middle" ? 2 : 1), `${row.id} has ${tops.size} top edges`)
   }
+})
+
+test("the header's path names the model, then the selected slice's chapter, the slice and the card", () => {
+  const text = (path: ReturnType<typeof crumbs>) => path.map((c) => c.text).join(" › ")
+  assert.deepEqual(crumbs("Todo", out, null, null), [{ level: "model", text: "Todo" }])
+  const add = out.columns[1]
+  assert.ok(add)
+  assert.deepEqual(crumbs("Todo", out, add, null), [
+    { level: "model", text: "Todo" },
+    { level: "chapter", text: "List Management", column: 0 },
+    { level: "slice", text: "Add Item", column: 1 },
+  ])
+  const added = out.boxes.find((b) => b.column === 1 && b.kind === "event")
+  assert.equal(
+    text(crumbs("Todo", out, add, added ?? null)),
+    "Todo › List Management › Add Item › Item Added",
+  )
+  const loose = { ...add, chapter: out.chapters.length }
+  const bare = {
+    ...out,
+    chapters: [...out.chapters, { name: "", title: "", x: 0, w: 0 }],
+    columns: [loose],
+  }
+  assert.equal(text(crumbs("Todo", bare, loose, null)), "Todo › Add Item")
 })
