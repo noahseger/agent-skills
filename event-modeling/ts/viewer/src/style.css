@@ -258,7 +258,8 @@ body,
   display: none;
 }
 
-.top .swatch {
+/* A legend item: its sign, then its word. */
+.top .legend > span {
   display: flex;
   align-items: center;
   gap: 6px;

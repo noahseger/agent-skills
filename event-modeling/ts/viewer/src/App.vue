@@ -12,10 +12,12 @@ import {
   hashOf,
   ICON,
   layout,
+  type Mark as MarkKind,
   nextError,
   type Scope,
   type Selection,
 } from "./layout.ts"
+import Mark from "./Mark.vue"
 import Messages from "./Messages.vue"
 import { measure } from "./measure.ts"
 import Nav from "./Nav.vue"
@@ -72,6 +74,7 @@ const LEGEND: [string, string][] = [
   ["readModel", "view"],
   ["automation", "automation"],
 ]
+const MARKS: MarkKind[] = ["error", "warning"]
 
 // The selection lives in the URL hash, so Back works and every view is a link.
 function go(sel: Selection | null, options: { push?: boolean; zoom?: boolean } = {}) {
@@ -219,7 +222,8 @@ onUnmounted(() => {
       <details class="legend" :open="legend" @toggle="legend = ($event.target as HTMLDetailsElement).open">
         <summary><u>L</u>egend</summary>
         <span v-for="[kind, label] in LEGEND" :key="kind" class="swatch" :class="kind">{{ label }}</span>
-        <span v-for="(_, kind) in ICON" :key="kind" ><NoteIcon :kind="kind" /> {{ kind }}</span>
+        <span v-for="(_, kind) in ICON" :key="kind"><NoteIcon :kind="kind" />{{ kind }}</span>
+        <span v-for="mark in MARKS" :key="mark"><Mark :mark="mark" />{{ mark }}</span>
       </details>
       <details class="keys" :open="shortcuts" @toggle="shortcuts = ($event.target as HTMLDetailsElement).open">
         <summary><u>S</u>hortcuts</summary>
