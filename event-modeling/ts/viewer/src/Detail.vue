@@ -96,9 +96,11 @@ const groups = computed(() => {
   <aside class="detail" aria-label="Details">
     <header>
       <span class="kind" :class="box?.kind ?? 'slice'">{{ box ? KIND[box.kind] : "slice" }}</span>
-      <button v-if="!open" class="open" type="button" title="Open the slice" @click="$emit('open')">Open</button>
+      <h2>
+        <button v-if="!open" type="button" class="named link" title="Open the slice (Enter)" @click="$emit('open')"><Name v-if="box" :name="box.name" /><template v-else>{{ column.title }}</template></button>
+        <template v-else><Name v-if="box" :name="box.name" /><template v-else>{{ column.title }}</template></template>
+      </h2>
       <button class="close" type="button" title="Close (Esc)" @click="$emit('close')">×</button>
-      <h2><Name v-if="box" :name="box.name" /><template v-else>{{ column.title }}</template></h2>
     </header>
 
     <Notes v-if="full?.notes" :notes="full.notes" />

@@ -219,7 +219,7 @@ export const STICKY_LINE = 11
 export const PAD = 12
 /** A note's inner padding: lighter than a card's, as the note is. */
 export const NOTE_PAD = 8
-export const STICKY_GAP = 12
+export const STICKY_GAP = 6
 export const NOTE_W = 128
 export const NOTE_GAP = 12
 
@@ -394,7 +394,7 @@ export function stickies(
   subject: string,
   measure: Measure,
 ): Sticky[] {
-  const room = NOTE_W - 2 * NOTE_PAD
+  const room = NOTE_W - NOTE_TEXT_X - NOTE_PAD
   const note = (s: string) => measure(s, "note")
   let y = top
   return notes.map(({ text, kind }) => {
@@ -433,8 +433,8 @@ export function fitColumns(
 /** A mark follows what it marks: `MARK_GAP` after its end, centred on its first line (`baseline`). */
 export const MARK_R = 6
 export const MARK_GAP = 6
-/** A note's badge sits on its top-left corner, level with the title of the card it is about. */
-export const NOTE_DROP = 20 - 4.5
+/** Where a note's text starts: after its badge, as in a panel. */
+export const NOTE_TEXT_X = 8 + 2 * 6 + 6
 export const markAt = (end: number, baseline: number): Pt => [
   end + MARK_GAP + MARK_R,
   baseline - 4.5,
@@ -1119,10 +1119,9 @@ export function layout(model: Board, measure: Measure): Layout {
       if (!col || !railX.has(col)) continue
       if (!railEnd.has(col)) {
         railEnd.set(col, b.y)
-        if (col.slice.notes)
-          stack(col, stickies(col.slice.notes, 0, col.title, measure), b.y + NOTE_DROP)
+        if (col.slice.notes) stack(col, stickies(col.slice.notes, 0, col.title, measure), b.y)
       }
-      if (b.notes) stack(col, b.notes, b.y + NOTE_DROP)
+      if (b.notes) stack(col, b.notes, b.y)
       end = Math.max(end, (railEnd.get(col) ?? 0) - STICKY_GAP)
     }
     return end
@@ -1347,9 +1346,9 @@ export function fromHash(hash: string): Selection | null {
 /** The card a selection names, if it is drawn. */
 export function boxOf(layout: Layout, sel: Selection | null): Box | undefined {
   if (!sel || sel === "model" || !("column" in sel)) return undefined
-  // A column of one card, such as a declaration in no slice, is that card: selecting it selects the card.
+  // A column of one card, a declaration in no slice, is that card: selecting it selects the card.
   if (!sel.name) {
-    const cards = layout.boxes.filter((b) => b.column === sel.column && !b.compact)
+    const cards = layout.boxes.filter((b) => b.column === sel.column)
     return cards.length === 1 ? cards[0] : undefined
   }
   return layout.boxes.find(

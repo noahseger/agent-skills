@@ -403,15 +403,19 @@ body,
   margin: 0;
 }
 
-/* A badge: whatever is said about an element, one solid circle, 12px across (MARK_R), in its note's
+/* A badge: whatever is said about an element, one circle, 12px across (MARK_R), in its note's
    colour: critical and an error red, a question and a warning amber, info slate. A note's carries its
-   letter in white, bold; an issue's none. It follows what it marks, 6px after (MARK_GAP); in a page it
+   letter in white, bold, on a solid circle; an issue's is a ring. It follows what it marks, 6px after (MARK_GAP); in a page it
    stands in a box one line tall (`.badge-line`), so it centres on the first line of what it starts. */
 .badge { flex: none; overflow: visible; }
 .badge circle { fill: var(--external-stroke); }
 .badge text { font: 800 8px var(--sans); fill: #ffffff; }
 .badge:is(.error, .critical) circle { fill: var(--danger-stroke); }
 .badge:is(.warning, .question) circle { fill: var(--question-stroke); }
+/* A model issue is a ring, white inside, so it never reads as a note. */
+.badge:is(.error, .warning) circle { fill: #ffffff; stroke-width: 2.5; }
+.badge.error circle { stroke: var(--danger-stroke); }
+.badge.warning circle { stroke: var(--question-stroke); }
 .badge-line { display: inline-flex; align-items: center; flex: none; height: 1lh; }
 
 .canvas {
@@ -776,7 +780,7 @@ svg .chapter {
   margin-bottom: 14px;
 }
 
-.detail header > button:first-of-type {
+.detail header .close {
   margin-left: auto;
 }
 
@@ -793,27 +797,17 @@ svg .chapter {
 .kind.readModel { background: var(--view-fill); color: var(--view-ink); }
 .kind.automation { background: var(--automation-fill); color: var(--automation-ink); }
 
+/* The kind tag, the name (a link that opens the slice) and close, on one row; a long name wraps. */
 .detail h2 {
   margin: 0;
+  flex: 1 1 0;
+  min-width: 0;
   font-size: 16px;
   font-weight: 600;
-  flex-basis: 100%;
 }
 
-.detail .open {
-  border: 1px solid var(--line);
-  background: var(--panel);
-  color: var(--accent);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.detail .open:hover {
-  border-color: var(--accent);
+.detail h2 .link {
+  font-size: inherit;
 }
 
 .detail .close {

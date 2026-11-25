@@ -22,11 +22,11 @@ const GLYPH_Y = (8 * 0.72) / 2
 
 <template>
   <g v-if="mark && at" class="badge" :class="mark" :transform="`translate(${at[0]} ${at[1]})`" role="img" :aria-label="SAID[mark]">
-    <circle :r="R" />
+    <circle :r="R - (mark === 'error' || mark === 'warning' ? 1.25 : 0)" />
     <text v-if="LETTER[mark]" text-anchor="middle" :y="GLYPH_Y">{{ LETTER[mark] }}</text>
   </g>
   <span v-else-if="mark" class="badge-line"><svg class="badge" :class="mark" :viewBox="`${-R} ${-R} ${2 * R} ${2 * R}`" :width="2 * R" :height="2 * R" role="img" :aria-label="SAID[mark]">
-    <circle :r="R" />
+    <circle :r="R - (mark === 'error' || mark === 'warning' ? 1.25 : 0)" />
     <text v-if="LETTER[mark]" text-anchor="middle" :y="GLYPH_Y">{{ LETTER[mark] }}</text>
   </svg></span>
 </template>

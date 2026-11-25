@@ -240,7 +240,7 @@ onUnmounted(() => {
     </header>
     <pre v-if="error !== null" class="error" role="alert">{{ error }}</pre>
     <main class="body">
-      <Nav v-if="drawn" :layout="drawn" :selected="selection" @select="openSlice" @chapter="selectChapter" @model="go('model')" />
+      <Nav v-if="drawn" :layout="drawn" :selected="selection" @select="(column: number) => go({ column }, { zoom: true })" @chapter="selectChapter" @model="go('model')" />
       <SliceView
         v-if="drawn && model && sliceOpen && selectedColumn"
         :layout="drawn"

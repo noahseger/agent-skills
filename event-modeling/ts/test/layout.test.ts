@@ -27,7 +27,6 @@ import {
   type Kind,
   LANE_PAD,
   MAX_ZOOM,
-  NOTE_DROP,
   NOTE_GAP,
   NOTE_W,
   nextMark,
@@ -513,12 +512,8 @@ test("an element's notes stand in a rail beside its slice, level with its first 
   assert.ok(col && info && question)
   assert.deepEqual([info.kind, question.kind], ["info", "question"])
   assert.equal(info.subject, "Item Added", "its tooltip names what it is about")
-  assert.equal(info.lines[0], "Titles are trimmed.", "its text alone: its kind is its badge's")
-  assert.equal(
-    info.y,
-    full.y + NOTE_DROP,
-    "its badge, on its top-left corner, is level with the card's title",
-  )
+  assert.equal(info.lines.join(" "), "Titles are trimmed.", "its text alone: its kind is its badge's")
+  assert.equal(info.y, full.y, "level with the card it is about")
   assert.equal(question.y, info.y + info.h + STICKY_GAP)
   assert.equal(info.x, full.x + full.w + NOTE_GAP, "a note stands NOTE_GAP right of the card")
   assert.equal(
@@ -566,7 +561,7 @@ test("a slice's note lines up with its first card and names the slice; the lanes
   const [sticky] = drawn.columns[2]?.notes ?? []
   assert.ok(sticky)
   const top = Math.min(...drawn.boxes.filter((b) => b.column === 2).map((b) => b.y))
-  assert.equal(sticky.y, top + NOTE_DROP)
+  assert.equal(sticky.y, top)
   assert.equal(sticky.subject, drawn.columns[2]?.title)
   assert.equal(drawn.rows[0]?.y, out.rows[0]?.y)
   assert.equal(drawn.columns[3]?.x, (out.columns[3]?.x ?? 0) + NOTE_W + NOTE_GAP)
