@@ -853,23 +853,6 @@ svg .chapter {
   border-color: var(--accent);
 }
 
-.detail .group {
-  display: block;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  margin: 12px 0 6px;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.detail .group:hover {
-  color: var(--accent);
-}
-
 .detail .close {
   border: 0;
   background: transparent;
@@ -1088,22 +1071,6 @@ svg .chapter {
   color: var(--muted);
 }
 
-.facts .ref {
-  border: 0;
-  background: transparent;
-  padding: 0;
-  margin-right: 10px;
-  font: inherit;
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--accent);
-  cursor: pointer;
-}
-
-.facts .ref:hover {
-  text-decoration: underline;
-}
-
 .specs-title {
   margin: 28px 0 12px;
   color: var(--muted);
@@ -1153,8 +1120,12 @@ svg .chapter {
   font-size: var(--text-sm);
 }
 
-/* An element's name: words, bold, in its kind's ink. */
-.named { font-weight: 600; }
+/* An element's name: words, bold, in its kind's ink; one that goes somewhere is a link, the same everywhere. */
+.named { font-family: var(--sans); font-weight: 600; }
+.named.link { border: 0; background: none; padding: 0; font-size: inherit; color: var(--accent); text-align: left; cursor: pointer; }
+.named.link:hover { text-decoration: underline; }
+.named.link + .named.link { margin-left: 10px; }
+.detail .named.group { display: block; margin: 12px 0 6px; }
 .named.ui { color: var(--ui-ink); }
 .named.command { color: var(--command-ink); }
 .named.event { color: var(--event-ink); }

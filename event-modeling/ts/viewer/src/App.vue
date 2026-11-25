@@ -262,6 +262,7 @@ onUnmounted(() => {
         @close="go(sliceOpen ? { column: selectedColumn.index, view: 'slice' } : null)"
         @open="openSlice(selectedColumn.index)"
         @goto="openSlice"
+        @link="follow"
       />
       <aside v-else-if="selection === 'model' && drawn && !present" class="detail" aria-label="Details">
         <header>

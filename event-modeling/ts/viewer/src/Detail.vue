@@ -5,6 +5,7 @@ import {
   actorOf,
   type Box,
   type Column,
+  firstCard,
   KIND,
   type Layout,
   parse,
@@ -25,14 +26,23 @@ const props = defineProps<{
   /** Whether the slice is already open at full width. */
   open: boolean
 }>()
-defineEmits<{ close: []; open: []; goto: [column: number] }>()
+const emit = defineEmits<{
+  close: []
+  open: []
+  goto: [column: number]
+  link: [canonical: string]
+}>()
+function follow(name: string) {
+  const id = firstCard(props.layout, name)?.id
+  if (id) emit("link", id)
+}
 
 const slice = computed(() => props.column.slice)
 
 // A compact card is a reference; its fields and notes are where the element is drawn in full.
 const full = computed(() => {
   const box = props.box
-  return box?.compact ? props.layout.boxes.find((b) => b.name === box.name && !b.compact) : box
+  return box?.compact ? firstCard(props.layout, box.name) : box
 })
 const fields = computed(() => ({ fields: full.value?.fields ?? [], keys: full.value?.keys ?? [] }))
 
@@ -118,14 +128,14 @@ const groups = computed(() => {
         <template v-if="who.from"><dt>From</dt><dd>{{ who.from }}</dd></template>
         <template v-if="served(slice)"><dt>Service</dt><dd>{{ slice.ui }}</dd></template>
         <template v-if="slice.context?.length"><dt>Context</dt><dd>{{ slice.context.join(", ") }}</dd></template>
-        <template v-if="slice.polls"><dt>Polls</dt><dd><Name :name="slice.polls" kind="readModel" /></dd></template>
+        <template v-if="slice.polls"><dt>Polls</dt><dd><Name :name="slice.polls" link @click="follow(slice.polls)" /></dd></template>
         <template v-if="slice.reads?.length">
           <dt>Reads</dt>
-          <dd><template v-for="(r, i) in slice.reads" :key="r">{{ i > 0 ? ", " : "" }}<Name :name="r" kind="readModel" /></template></dd>
+          <dd><Name v-for="r in slice.reads" :key="r" :name="r" link @click="follow(r)" /></dd>
         </template>
         <template v-if="triggers.length">
           <dt>On</dt>
-          <dd><template v-for="(t, i) in triggers" :key="t">{{ i > 0 ? ", " : "" }}<Name :name="t" /></template></dd>
+          <dd><Name v-for="t in triggers" :key="t" :name="t" link @click="follow(t)" /></dd>
         </template>
       </dl>
       <Notes v-if="slice.notes" :notes="slice.notes" />
@@ -134,7 +144,7 @@ const groups = computed(() => {
     <template v-if="groups.length">
       <h3>Specifications</h3>
       <template v-for="g in groups" :key="g.column">
-        <button v-if="box" type="button" class="group" @click="$emit('goto', g.column)">{{ g.heading }}</button>
+        <Name v-if="box" class="group" :name="g.heading" link @click="$emit('goto', g.column)" />
         <Specs :specs="g.specs" :mark="box?.name" />
       </template>
     </template>

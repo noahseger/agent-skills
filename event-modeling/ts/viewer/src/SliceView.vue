@@ -11,6 +11,7 @@ import {
   type Column,
   direct,
   face,
+  firstCard,
   LANE_PAD,
   type Layout,
   type Link,
@@ -125,12 +126,8 @@ const triggers = computed(() => {
 const first = props.layout.columns.length > 0 ? 0 : -1
 const last = props.layout.columns.length - 1
 
-/** The card an element is drawn in full on, for a link out of the facts. */
-function canonical(name: string): string | undefined {
-  return props.layout.boxes.find((b) => b.name === name && !b.compact)?.id
-}
 function follow(name: string) {
-  const id = canonical(name)
+  const id = firstCard(props.layout, name)?.id
   if (id) emit("link", id)
 }
 function cardClass(b: Box) {
@@ -186,18 +183,18 @@ function cardClass(b: Box) {
             <template v-if="slice.context?.length"><dt>Context</dt><dd>{{ slice.context.join(", ") }}</dd></template>
             <template v-if="slice.polls">
               <dt>Polls</dt>
-              <dd><button type="button" class="ref" @click="follow(slice.polls)"><Name :name="slice.polls" kind="readModel" /></button></dd>
+              <dd><Name :name="slice.polls" link @click="follow(slice.polls)" /></dd>
             </template>
             <template v-if="slice.reads?.length">
               <dt>Reads</dt>
               <dd>
-                <button v-for="r in slice.reads" :key="r" type="button" class="ref" @click="follow(r)"><Name :name="r" kind="readModel" /></button>
+                <Name v-for="r in slice.reads" :key="r" :name="r" link @click="follow(r)" />
               </dd>
             </template>
             <template v-if="triggers.length">
               <dt>On</dt>
               <dd>
-                <button v-for="t in triggers" :key="t" type="button" class="ref" @click="follow(t)"><Name :name="t" /></button>
+                <Name v-for="t in triggers" :key="t" :name="t" link @click="follow(t)" />
               </dd>
             </template>
           </dl>

@@ -430,6 +430,10 @@ export function titled(
   return wrap(`${words(el.name)}${el.list ? "[]" : ""}`, room, (s) => measure(s, "title"))
 }
 
+/** The card an element is drawn in full on, where a link to it goes. */
+export const firstCard = (layout: Pick<Layout, "boxes">, name: string) =>
+  layout.boxes.find((b) => b.name === name && !b.compact)
+
 /** How far a card's title reaches below one line's. */
 export const titleDrop = (box: Pick<Box, "title">) => (box.title.length - 1) * TITLE_LINE
 
