@@ -1134,3 +1134,7 @@ svg .chapter {
 .hcard .hsaid {
   font-size: 12px;
 }
+
+/* The model's to-do list: each slice with something left, by name, a link to it, then its messages. */
+.detail .todo { margin-top: 14px; }
+.detail .todo h3 { margin: 0 0 6px; text-transform: none; letter-spacing: 0; font-size: var(--text-md); }

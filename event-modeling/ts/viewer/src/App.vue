@@ -288,7 +288,11 @@ onUnmounted(() => {
           <h2>Model</h2>
         </header>
         <Messages :messages="drawn.model.messages" :boxes="drawn.boxes" />
-        <p v-if="!drawn.model.mark" class="note">Nothing left to do.</p>
+        <section v-for="col in drawn.columns.filter((c) => c.messages.length > 0)" :key="col.index" class="todo">
+          <h3><button type="button" class="named link" @click="go({ column: col.index }, { zoom: true })">{{ col.title }}</button></h3>
+          <Messages :messages="col.messages" :boxes="drawn.boxes" />
+        </section>
+        <p v-if="!drawn.model.mark && drawn.columns.every((c) => c.messages.length === 0)" class="note">Nothing left to do.</p>
       </aside>
     </main>
   </div>
