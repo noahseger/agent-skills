@@ -218,8 +218,8 @@ onUnmounted(() => {
       <details class="legend" :open="legend" @toggle="legend = ($event.target as HTMLDetailsElement).open">
         <summary><u>L</u>egend</summary>
         <span v-for="[kind, label] in LEGEND" :key="kind" class="swatch" :class="kind">{{ label }}</span>
-        <span v-for="(_, kind) in ICON" :key="kind"><NoteIcon :kind="kind" />{{ kind }}</span>
         <span v-for="mark in MARKS" :key="mark"><Mark :mark="mark" />{{ mark }}</span>
+        <span v-for="(_, kind) in ICON" :key="kind"><NoteIcon :kind="kind" />{{ kind }}</span>
       </details>
       <details class="keys" :open="shortcuts" @toggle="shortcuts = ($event.target as HTMLDetailsElement).open">
         <summary><u>S</u>hortcuts</summary>

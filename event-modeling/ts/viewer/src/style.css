@@ -74,6 +74,13 @@
   --font-title: 600 12.5px var(--sans);
   --font-table: 600 8.5px var(--sans);
   --font-note: 9px var(--sans);
+  --note-tracking: 0.02em;
+  /* A mark (error or warning dot) and a note's icon are one size. Each glyph's font size makes its
+     drawn height that size: ⚠ draws 0.76 of its em, ? 0.72, ⓘ 0.92 (measured, 800 weight). */
+  --mark-size: 10px;
+  --icon-critical: calc(var(--mark-size) / 0.76);
+  --icon-question: calc(var(--mark-size) / 0.72);
+  --icon-info: calc(var(--mark-size) / 0.92);
   --font-lane: 700 13px var(--sans);
   --font-chapter: 600 13px var(--sans);
   --font-slice: 700 12px var(--sans);
@@ -281,7 +288,16 @@ body,
 .top .swatch.external::before { background: var(--external-fill); border-color: var(--external-stroke); border-style: dashed; }
 
 /* A kind of note as its icon, in the kind's colour: the legend's, and a navigation row's. */
-.note-icon { font-weight: 700; color: var(--muted); }
+.note-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--mark-size);
+  height: var(--mark-size);
+  line-height: 1;
+  font-weight: 800;
+  color: var(--muted);
+}
 .note-icon.critical { color: var(--danger); }
 .note-icon.question { color: var(--question-stroke); }
 /* A navigation row's marks stand in two fixed slots at its right, note icon then dot, so every row's line up. */
@@ -295,8 +311,8 @@ body,
 }
 
 .top .dot {
-  width: 8px;
-  height: 8px;
+  width: var(--mark-size);
+  height: var(--mark-size);
   border-radius: 50%;
   background: #22c55e;
 }
@@ -417,8 +433,8 @@ span:is(.mark-error, .mark-warning) {
 
 span:is(.mark-error, .mark-warning)::before {
   content: "";
-  width: 8px;
-  height: 8px;
+  width: var(--mark-size);
+  height: var(--mark-size);
   border-radius: 50%;
   background: var(--mark);
 }
@@ -568,15 +584,14 @@ svg .chapter {
   cursor: pointer;
 }
 
-/* Hover is a state layer: whatever the pointer is over, a card, a note, a lane name or a chapter, lays
+/* Hover is a state layer: whatever the pointer is over that a click selects, a card, a note, a chapter or a slice header, lays
    its own ink over its fill at 8%. Each sets `--fill` and its ink as `color`; one rule for every kind. */
-.app:not(.keyed) :is(.card, .sticky, .lane-name, .chapter, .slice-head):hover > :is(.shape, .paper, rect, path),
+.app:not(.keyed) :is(.card, .sticky, .chapter, .slice-head):hover > :is(.shape, .paper, rect, path),
 .app:not(.keyed) .slice-head.hover > path {
   fill: color-mix(in srgb, var(--layer, currentColor) 8%, var(--fill));
 }
 
-/* The board's own chrome, lane names and slice headers, lays one layer: the ink's. */
-.lane-name,
+/* A slice header lays the ink's layer, as the board's own chrome. */
 .slice-head {
   --layer: var(--ink);
 }
@@ -728,7 +743,11 @@ svg .chapter {
 .sticky.critical { --fill: var(--danger-fill); --stroke: var(--danger-stroke); color: var(--danger-ink); }
 .sticky.question { --fill: var(--question-fill); --stroke: var(--question-stroke); color: var(--question-ink); }
 .sticky .paper { fill: var(--fill); stroke: var(--stroke); stroke-width: 1; }
-.sticky text { font: var(--font-note); fill: currentColor; }
+.sticky text { font: var(--font-note); letter-spacing: var(--note-tracking); fill: currentColor; }
+.sticky .icon { font-weight: 800; }
+:is(.note-icon, .sticky .icon) { font-size: var(--icon-info); }
+:is(.note-icon.critical, .sticky.critical .icon) { font-size: var(--icon-critical); }
+:is(.note-icon.question, .sticky.question .icon) { font-size: var(--icon-question); }
 
 .notes {
   display: grid;
@@ -738,17 +757,25 @@ svg .chapter {
   list-style: none;
 }
 
-.sticky-note {
+/* Something said about the model, in a panel: a note, an error or a warning. One box: its mark or
+   icon first, centred on the first line, then the words; its line in its kind's stroke, as on the canvas. */
+.said {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
   padding: 8px 10px;
-  border: 1px solid var(--faint);
+  border: 1px solid var(--ui-stroke);
   border-radius: 2px;
-  background: var(--bg);
+  background: var(--panel);
   line-height: 1.45;
 }
-
-.sticky-note .icon { margin-right: 6px; font-weight: 700; }
-.sticky-note.critical { background: var(--danger-fill); border-color: var(--danger-stroke); color: var(--danger-ink); }
-.sticky-note.question { background: var(--question-fill); border-color: var(--question-stroke); color: var(--question-ink); }
+.said > :first-child { line-height: inherit; height: 1lh; }
+.said.critical { background: var(--danger-fill); border-color: var(--danger-stroke); color: var(--danger-ink); }
+.said.question { background: var(--question-fill); border-color: var(--question-stroke); color: var(--question-ink); }
+.said.error { border-color: var(--danger-stroke); }
+.said.warning { border-color: var(--warning); }
+.said b { font-weight: 600; }
 
 .card.compact .title {
   font-weight: 500;
@@ -868,16 +895,8 @@ svg .chapter {
   margin-bottom: 4px;
 }
 
-.messages .message {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  margin: 4px 0 0;
-  line-height: 1.45;
-}
-
-.messages .message b {
-  font-weight: 600;
+.messages .said + .said {
+  margin-top: 6px;
 }
 
 .detail table {

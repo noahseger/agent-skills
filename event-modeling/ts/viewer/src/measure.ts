@@ -5,6 +5,8 @@ const context = document.createElement("canvas").getContext("2d") as CanvasRende
 const fonts = new Map<Font, string>()
 const token = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name)
 const TAGS: readonly Font[] = ["tag", "laneTag"]
+// A font drawn with letter spacing, and how much.
+const SPACED: Partial<Record<Font, string>> = { note: "--note-tracking" }
 
 export const measure: Measure = (text, font) => {
   let set = fonts.get(font)
@@ -14,6 +16,7 @@ export const measure: Measure = (text, font) => {
   }
   const tag = TAGS.includes(font)
   context.font = set
-  context.letterSpacing = tag ? token("--tracking") : "0px"
+  const spaced = SPACED[font]
+  context.letterSpacing = tag ? token("--tracking") : spaced ? token(spaced) : "0px"
   return context.measureText(tag ? text.toUpperCase() : text).width
 }

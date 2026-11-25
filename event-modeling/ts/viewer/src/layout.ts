@@ -217,6 +217,8 @@ export const STICKY_LINES = 3
 export const STICKY_LINE = 11
 /** A card's and a note's inner padding: its text stands this far from its edge. */
 export const PAD = 12
+/** A note's inner padding: lighter than a card's, as the note is. */
+export const NOTE_PAD = 8
 export const STICKY_GAP = 6
 export const NOTE_W = 128
 export const NOTE_GAP = 12
@@ -392,12 +394,13 @@ export function stickies(
   subject: string,
   measure: Measure,
 ): Sticky[] {
-  const room = NOTE_W - 2 * PAD
+  // Less the room the icon's larger glyph takes over the note's own font.
+  const room = NOTE_W - 2 * NOTE_PAD - 6
   const note = (s: string) => measure(s, "note")
   let y = top
   return notes.map(({ text, kind }) => {
     const lines = fitLines(`${ICON[kind]} ${text}`, room, STICKY_LINES, note)
-    const h = lines.length * STICKY_LINE + 2 * PAD
+    const h = lines.length * STICKY_LINE + 2 * NOTE_PAD
     const sticky = { kind, subject, text, lines, x: 0, y, h }
     y += sticky.h + STICKY_GAP
     return sticky
@@ -1341,7 +1344,12 @@ export function fromHash(hash: string): Selection | null {
 
 /** The card a selection names, if it is drawn. */
 export function boxOf(layout: Layout, sel: Selection | null): Box | undefined {
-  if (!sel || sel === "model" || !("column" in sel) || !sel.name) return undefined
+  if (!sel || sel === "model" || !("column" in sel)) return undefined
+  // A column of one card, such as a declaration in no slice, is that card: selecting it selects the card.
+  if (!sel.name) {
+    const cards = layout.boxes.filter((b) => b.column === sel.column && !b.compact)
+    return cards.length === 1 ? cards[0] : undefined
+  }
   return layout.boxes.find(
     (b) => b.column === sel.column && b.kind === sel.kind && b.name === sel.name,
   )
