@@ -1985,7 +1985,7 @@ test("a state view's context written as it once was, as a query, is drawn withou
   )
 })
 
-test("a slice missing part of its core is drawn with the rest and warns of what it lacks, which a strict assembly lets through", () => {
+test("a slice missing part of its core is drawn with the rest; no event is an error, as its command's data goes nowhere, and no command a warning", () => {
   const slices = () => {
     fixture()
     return [
@@ -2010,7 +2010,7 @@ test("a slice missing part of its core is drawn with the rest and warns of what 
     json.messages?.filter((m) => /: no (event|command)\. /.test(m.message)),
     [
       {
-        kind: "warning",
+        kind: "error",
         message: "Ch › Create: no event. Add .event() after .command(d.Create).",
         ui: "Create: no event",
         element: "",
@@ -2026,7 +2026,7 @@ test("a slice missing part of its core is drawn with the rest and warns of what 
     ],
   )
   assert.ok(layout(json).boxes.length > 0)
-  assert.doesNotThrow(() => assembled(slices()))
+  assert.throws(() => assembled(slices()), /Create: no event\./)
 })
 
 test("a mapping that throws is an error, naming its slice, which is drawn whole", () => {

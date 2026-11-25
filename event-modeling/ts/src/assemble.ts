@@ -577,10 +577,15 @@ function checkCore(at: Located, fail: Fail): void {
       "no command",
       `Add .command() after .${from.external ? "translation" : "automation"}(d.${from.name}).`,
     )
+  // What a command takes in, or a view shows, has nowhere to go or no source: wrong, not unfinished.
   else if (events.length === 0)
-    unfinished(
-      "no event",
-      `Add .event() after ${command ? `.command(d.${command.decl.name})` : `.view(d.${view?.name})`}.`,
+    fail(
+      error({
+        message: `${where}: no event. Add .event() after ${command ? `.command(d.${command.decl.name})` : `.view(d.${view?.name})`}.`,
+        ui: `${titled(at)}: no event`,
+        element: "",
+        slice: slice.id ?? "",
+      }),
     )
   // The compiler refuses it too; without a name, proto would write an rpc with none.
   if (view && slice.service && slice.service.method === undefined)

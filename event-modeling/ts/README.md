@@ -711,7 +711,7 @@ The compiler catches:
 
 Assembly catches the rest. Each finding is an error when data is wrong or has no source, and a
 warning when the model is unfinished but nothing is wrong, such as a missing specification or a
-slice with no event yet. Each names its element first, then its slice, and the
+slice with no command yet. A slice with no event is an error: what its command takes in goes nowhere. Each names its element first, then its slice, and the
 fix: `ItemAdded.title (ListManagement › AddItem): no source. Add title to a step before .event(),
 or set it in the mapping.` A command field that reaches no event names instead, as the compiler
 does, the `file:line` its slice starts at. The diagram says the same without the code: `Item Added:
@@ -839,7 +839,7 @@ after it, so the log leaves out the names it lacks.
 The picture marks the same: a red dot for an error, a yellow dot for a warning, on the
 slice in the navigation, its column heading and the card it is about. A selected or opened slice
 lists its own in plain words, under the element each is about; the navigation's Model row lists
-those about no slice. `E` steps to the next slice with a red dot, `Shift-E` back.
+those about no slice. `E` steps to the next slice with a red dot and `W` to the next with a yellow one; `Shift` steps back.
 
 `view` and `export` also draw a model written as spec JSON, by hand or extracted from a running
 system. They draw it as far as it goes, and list each place it breaks the schema as an error, as

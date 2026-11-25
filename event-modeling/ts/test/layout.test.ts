@@ -29,7 +29,7 @@ import {
   MAX_ZOOM,
   NOTE_GAP,
   NOTE_W,
-  nextError,
+  nextMark,
   outside,
   parse,
   parseClause,
@@ -1019,7 +1019,7 @@ test("a message reads without the name its group shows, its fields cut out", () 
   assert.deepEqual(wording(old), [{ text: "nothing records it." }])
 })
 
-test("E visits the model's errors, then each slice with an error in order, and wraps; Shift-E goes back", () => {
+test("E visits the model's errors, then each slice with an error in order, and wraps; Shift-E goes back; W does the same for warnings", () => {
   const errors = layout({
     ...model,
     messages: [
@@ -1034,7 +1034,7 @@ test("E visits the model's errors, then each slice with an error in order, and w
     const seen: (number | "model" | undefined)[] = []
     let at: number | "model" | null = null
     for (let i = 0; i < 4; i++) {
-      const next = nextError(errors, at, delta)
+      const next = nextMark(errors, "error", at, delta)
       seen.push(next)
       at = next ?? null
     }
@@ -1042,8 +1042,10 @@ test("E visits the model's errors, then each slice with an error in order, and w
   }
   assert.deepEqual(walk(1), ["model", 2, 5, "model"])
   assert.deepEqual(walk(-1), [5, 2, "model", 5])
-  assert.equal(nextError(errors, 3, 1), 5, "from a slice with none, the next one with one")
-  assert.equal(nextError(out, null, 1), undefined, "nowhere to go")
+  assert.equal(nextMark(errors, "error", 3, 1), 5, "from a slice with none, the next one with one")
+  assert.equal(nextMark(out, "error", null, 1), undefined, "nowhere to go")
+  const warned = errors.columns.find((c) => c.messages.some((m) => m.kind === "warning"))?.index
+  assert.equal(nextMark(errors, "warning", null, 1), warned, "W goes to the slice with a warning")
 })
 
 test("a feed with only a warnings list, from before errors were split out, marks them as warnings", () => {

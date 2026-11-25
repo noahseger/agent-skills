@@ -13,7 +13,7 @@ import {
   ICON,
   layout,
   type Mark as MarkKind,
-  nextError,
+  nextMark,
   type Scope,
   type Selection,
 } from "./layout.ts"
@@ -97,10 +97,10 @@ function step(delta: number) {
   const column = Math.min(columns.length - 1, Math.max(0, current + delta))
   go({ column, ...(sliceOpen.value ? { view: "slice" } : {}) }, { zoom: true })
 }
-function stepError(delta: 1 | -1) {
+function stepMark(kind: "error" | "warning", delta: 1 | -1) {
   if (!drawn.value) return
   const at = selection.value === "model" ? "model" : (picked.value?.column ?? null)
-  const next = nextError(drawn.value, at, delta)
+  const next = nextMark(drawn.value, kind, at, delta)
   if (next === "model") go("model")
   else if (next !== undefined)
     go({ column: next, ...(sliceOpen.value ? { view: "slice" } : {}) }, { zoom: true })
@@ -149,7 +149,8 @@ function onKey(e: KeyboardEvent) {
   // Left and right move between slices; up and down are left to the page.
   if (e.key === "ArrowRight") step(1)
   else if (e.key === "ArrowLeft") step(-1)
-  else if (letter === "e") stepError(e.shiftKey ? -1 : 1)
+  else if (letter === "e") stepMark("error", e.shiftKey ? -1 : 1)
+  else if (letter === "w") stepMark("warning", e.shiftKey ? -1 : 1)
   else if (letter === "s") shortcuts.value = !shortcuts.value
   else if (letter === "l") legend.value = !legend.value
   else if (e.key === "Enter" && picked.value && !sliceOpen.value) {
@@ -227,6 +228,7 @@ onUnmounted(() => {
           <dt>Enter</dt><dd>open a slice</dd>
           <dt>Esc</dt><dd>go back</dd>
           <dt>E</dt><dd>next error (Shift-E: previous)</dd>
+          <dt>W</dt><dd>next warning (Shift-W: previous)</dd>
           <dt>S</dt><dd>show or hide these shortcuts</dd>
           <dt>L</dt><dd>show or hide the legend</dd>
         </dl>

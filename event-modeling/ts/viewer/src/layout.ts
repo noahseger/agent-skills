@@ -1516,18 +1516,20 @@ export function wording(m: Message): { text: string; field?: true }[] {
 }
 
 /**
- * Where E goes from `at`: the next slice with an error, or with -1 the one before, wrapping. The
- * model's own errors come first, as the navigation lists them.
+ * Where E (errors) or W (warnings) goes from `at`: the next slice with one of that kind, or with -1 the
+ * one before, wrapping. The model's own come first.
  */
-export function nextError(
+export function nextMark(
   layout: Layout,
+  kind: "error" | "warning",
   at: number | "model" | null,
   delta: 1 | -1,
 ): number | "model" | undefined {
   const MODEL = -1
+  const has = (messages: readonly Message[]) => messages.some((m) => m.kind === kind)
   const stops = [
-    ...(layout.model.mark === "error" ? [MODEL] : []),
-    ...layout.columns.filter((c) => c.mark === "error").map((c) => c.index),
+    ...(has(layout.model.messages) ? [MODEL] : []),
+    ...layout.columns.filter((c) => has(c.messages)).map((c) => c.index),
   ]
   const here = at === "model" ? MODEL : (at ?? (delta > 0 ? -Infinity : Infinity))
   const stop =
