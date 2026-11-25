@@ -284,8 +284,9 @@ onUnmounted(() => {
       />
       <aside v-else-if="selection === 'model' && drawn" class="detail" aria-label="Details">
         <header>
+          <span class="kind slice">model</span>
+          <h2>{{ model?.name }}</h2>
           <button class="close" type="button" title="Close (Esc)" @click="go(null)">×</button>
-          <h2>Model</h2>
         </header>
         <Messages :messages="drawn.model.messages" :boxes="drawn.boxes" />
         <section v-for="col in drawn.columns.filter((c) => c.messages.length > 0)" :key="col.index" class="todo">

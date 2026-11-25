@@ -435,9 +435,10 @@ export const MARK_R = 6
 export const MARK_GAP = 6
 /** Where a note's text starts: after its badge, as in a panel. */
 export const NOTE_TEXT_X = 8 + 2 * 6 + 6
-export const markAt = (end: number, baseline: number): Pt => [
+/** A badge after text of `size`: centred on its x-height's middle, 0.27 of the size above the baseline. */
+export const markAt = (end: number, baseline: number, size: number): Pt => [
   end + MARK_GAP + MARK_R,
-  baseline - 4.5,
+  baseline - 0.27 * size,
 ]
 
 /** A card's title in the lines that fit `w`, less the room a link back to its first card takes. */
@@ -1346,10 +1347,20 @@ export function fromHash(hash: string): Selection | null {
 /** The card a selection names, if it is drawn. */
 export function boxOf(layout: Layout, sel: Selection | null): Box | undefined {
   if (!sel || sel === "model" || !("column" in sel)) return undefined
-  // A column of one card, a declaration in no slice, is that card: selecting it selects the card.
+  // A declaration in no slice is a slice of that one element alone: selecting it selects the element.
   if (!sel.name) {
-    const cards = layout.boxes.filter((b) => b.column === sel.column)
-    return cards.length === 1 ? cards[0] : undefined
+    const s = layout.columns[sel.column]?.slice
+    const alone =
+      s &&
+      !s.screen &&
+      !s.automation &&
+      !s.trigger &&
+      (s.command ? 1 : 0) +
+        (s.events?.length ?? 0) +
+        (s.read_models?.length ?? 0) +
+        (s.external_event ? 1 : 0) ===
+        1
+    return alone ? layout.boxes.find((b) => b.column === sel.column) : undefined
   }
   return layout.boxes.find(
     (b) => b.column === sel.column && b.kind === sel.kind && b.name === sel.name,
@@ -1513,8 +1524,14 @@ export function grouped(
  */
 export function wording(m: Message): { text: string; field?: true }[] {
   const said = m.ui ?? m.message
-  const named = `${words(m.element)}: `
-  const problem = m.element !== "" && said.startsWith(named) ? said.slice(named.length) : said
+  // About an element, its group names it; about a slice, the slice's heading does.
+  const lead =
+    m.element !== ""
+      ? `${words(m.element)}: `
+      : m.slice
+        ? said.slice(0, said.indexOf(": ") + 2)
+        : ""
+  const problem = lead && said.startsWith(lead) ? said.slice(lead.length) : said
   const fields = m.fields ?? []
   if (fields.length === 0) return [{ text: problem }]
   const at = new RegExp(`\\b(${fields.join("|")})\\b`)

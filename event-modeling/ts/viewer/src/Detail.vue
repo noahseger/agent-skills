@@ -122,10 +122,10 @@ const groups = computed(() => {
     </template>
 
     <template v-if="!open">
-      <h3>Slice</h3>
+      <!-- With the slice itself selected, the header already names it. -->
+      <h3 v-if="box">Slice</h3>
       <dl>
-        <dt>Name</dt>
-        <dd><Name :name="column.label" /></dd>
+        <template v-if="box"><dt>Name</dt><dd><Name :name="column.label" /></dd></template>
         <template v-if="who.actor"><dt>Actor</dt><dd>{{ who.actor }}</dd></template>
         <template v-if="who.from"><dt>From</dt><dd>{{ who.from }}</dd></template>
         <template v-if="served(slice)"><dt>Service</dt><dd>{{ slice.ui }}</dd></template>

@@ -107,6 +107,6 @@ const keyW = measure("KEY", "tag") + 6
       <rect :x="box.w - 26" :y="box.h / 2 - 9" width="18" height="18" rx="4" />
       <text text-anchor="middle" :x="box.w - 17" :y="box.h / 2 + 4">↗</text>
     </g>
-    <Mark :mark="box.mark" :at="markAt(PAD + measure(box.title[0] ?? '', 'title'), at.title)" />
+    <Mark :mark="box.mark" :at="markAt(PAD + measure(box.title[0] ?? '', 'title'), at.title, 12.5)" />
   </g>
 </template>

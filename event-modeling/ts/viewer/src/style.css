@@ -417,6 +417,8 @@ body,
 .badge.error circle { stroke: var(--danger-stroke); }
 .badge.warning circle { stroke: var(--question-stroke); }
 .badge-line { display: inline-flex; align-items: center; flex: none; height: 1lh; }
+/* Centred on the line a badge meets the capitals' middle; text reads on its x-height's, 0.09em lower. */
+.badge-line > .badge { transform: translateY(0.09em); }
 
 .canvas {
   min-width: 0;

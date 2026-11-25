@@ -11,7 +11,7 @@ defineProps<{ sticky: Sticky }>()
   <g class="sticky" :class="sticky.kind" :transform="`translate(${sticky.x} ${sticky.y})`" role="note" :aria-label="`${sticky.kind} note on ${sticky.subject}: ${sticky.text}`">
     <title>{{ sticky.subject }}: {{ sticky.text }}</title>
     <rect class="paper" :width="NOTE_W" :height="sticky.h" />
-    <Mark :mark="sticky.kind" :at="[NOTE_PAD + MARK_R, NOTE_PAD + 8 - 3]" />
+    <Mark :mark="sticky.kind" :at="[NOTE_PAD + MARK_R, NOTE_PAD + 8 - 0.27 * 9]" />
     <text v-for="(line, i) in sticky.lines" :key="i" :x="NOTE_TEXT_X" :y="NOTE_PAD + 8 + i * STICKY_LINE">{{ line }}</text>
   </g>
 </template>
