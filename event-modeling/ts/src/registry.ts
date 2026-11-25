@@ -222,10 +222,15 @@ function sourceMap(dir: string, text: string): string {
         break
       }
     }
-    const segment = [sources.indexOf(source), at[0] ?? 0, at[1] ?? 0]
-    const out = vlq(MEMBER.length) + segment.map((v, i) => vlq(v - (last[i] ?? 0))).join("")
-    last = segment
-    return out
+    // The name's start and its end, so the span a definition reports is the name and no more.
+    const start = [sources.indexOf(source), at[0] ?? 0, at[1] ?? 0]
+    const end = [start[0] ?? 0, start[1] ?? 0, (start[2] ?? 0) + member.name.length]
+    const step = (segment: number[]) => {
+      const out = segment.map((v, i) => vlq(v - (last[i] ?? 0))).join("")
+      last = segment
+      return out
+    }
+    return `${vlq(MEMBER.length)}${step(start)},${vlq(member.name.length)}${step(end)}`
   })
   const map = { version: 3, file: GENERATED, sources, names: [], mappings: mappings.join(";") }
   return `${JSON.stringify(map)}\n`

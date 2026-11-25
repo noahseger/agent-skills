@@ -92,7 +92,10 @@ test("an assembly error is one line and exit 1; d types a name declared twice as
   )
 })
 
-/** Each name the declaration map maps, and the text at the position it maps to. */
+/**
+ * Each name the declaration map maps, and the text between where it maps the name's start and its end,
+ * which an editor reports as the definition's span.
+ */
 function mapped(dir: string): [string, string][] {
   const map = JSON.parse(readFileSync(join(dir, "d.d.ts.map"), "utf8")) as {
     sources: string[]
@@ -101,25 +104,29 @@ function mapped(dir: string): [string, string][] {
   const lines = readFileSync(join(dir, "d.d.ts"), "utf8").split("\n")
   const digits = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
   const at = [0, 0, 0]
-  return map.mappings.split(";").flatMap((segment, line) => {
-    if (segment === "") return []
-    const values: number[] = []
-    let value = 0
-    let shift = 0
-    for (const char of segment) {
-      const digit = digits.indexOf(char)
-      value += (digit & 31) << shift
-      shift += 5
-      if (digit & 32) continue
-      values.push(value & 1 ? -(value >> 1) : value >> 1)
-      value = 0
-      shift = 0
-    }
-    for (const i of [0, 1, 2]) at[i] = (at[i] ?? 0) + (values[i + 1] ?? 0)
-    const [file = 0, row = 0, col = 0] = at
+  return map.mappings.split(";").flatMap((text, line) => {
+    if (text === "") return []
+    const ends = text.split(",").map((segment) => {
+      const values: number[] = []
+      let value = 0
+      let shift = 0
+      for (const char of segment) {
+        const digit = digits.indexOf(char)
+        value += (digit & 31) << shift
+        shift += 5
+        if (digit & 32) continue
+        values.push(value & 1 ? -(value >> 1) : value >> 1)
+        value = 0
+        shift = 0
+      }
+      for (const i of [0, 1, 2]) at[i] = (at[i] ?? 0) + (values[i + 1] ?? 0)
+      return [...at]
+    })
+    const [file = 0, row = 0, col = 0] = ends[0] ?? []
+    const [, endRow, endCol] = ends[1] ?? []
     const source = readFileSync(join(dir, map.sources[file] ?? ""), "utf8").split("\n")[row] ?? ""
     const name = (lines[line] ?? "").trim().split(":")[0] ?? ""
-    return [[name, source.slice(col, col + name.length)]]
+    return [[name, endRow === row ? source.slice(col, endCol) : `ends on line ${endRow}`]]
   })
 }
 
