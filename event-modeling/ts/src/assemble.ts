@@ -168,7 +168,7 @@ function assembled(modules: readonly object[], options: Options, dir: string): A
   for (const d of loose) {
     const name = d.name ?? ""
     // A slice that assumes or reacts to it has already said what is missing.
-    if (messages.some((m) => m.element === name)) continue
+    if (messages.some((m) => m.element === name && m.slice !== undefined)) continue
     const gap =
       d.kind === "event" && d.external
         ? ["nothing translates it", `Add m.slice().translation(d.${name}).`]

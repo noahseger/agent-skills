@@ -2179,7 +2179,8 @@ test("a stream and a view of one name are declared twice, and that is all: the e
     json.messages
       ?.filter(
         (m) =>
-          (m.element === "Lists" || m.element === "Named") && !/nothing records/.test(m.message),
+          (m.element === "Lists" || m.element === "Named") &&
+          !/nothing (records|builds) it/.test(m.message),
       )
       .map((m) => m.message.replace(/, at \S+ and \S+\./, ".")),
     ["Lists: declared twice. Keep one."],
