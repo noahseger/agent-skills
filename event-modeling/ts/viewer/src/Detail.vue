@@ -1,21 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import type { Board, BoardField } from "./board.ts"
-import {
-  actorOf,
-  type Box,
-  type Column,
-  firstCard,
-  KIND,
-  type Layout,
-  parse,
-  type Spec,
-  served,
-  source,
-} from "./layout.ts"
-import Messages from "./Messages.vue"
+import { type Box, type Column, firstCard, KIND, type Layout, type Spec, source } from "./layout.ts"
 import Name from "./Name.vue"
 import Notes from "./Notes.vue"
+import SliceFacts from "./SliceFacts.vue"
 import Specs from "./Specs.vue"
 
 const props = defineProps<{
@@ -32,11 +21,6 @@ const emit = defineEmits<{
   goto: [column: number]
   link: [canonical: string]
 }>()
-function follow(name: string) {
-  const id = firstCard(props.layout, name)?.id
-  if (id) emit("link", id)
-}
-
 const slice = computed(() => props.column.slice)
 
 // A compact card is a reference; its fields and notes are where the element is drawn in full.
@@ -59,16 +43,11 @@ const rows = computed(() => {
   })
 })
 
-const who = computed(() => actorOf(props.model, slice.value))
 const mapping = computed(() =>
   props.box?.kind === "event" || props.box?.kind === "command"
     ? slice.value.mapping?.[props.box.name]
     : undefined,
 )
-const triggers = computed(() => {
-  const t = slice.value.trigger
-  return t ? (Array.isArray(t) ? t : [t]).map((x) => parse(x).name) : []
-})
 
 // The element's specifications, its slice's first, or the slice's when nothing is selected. An
 // opened slice shows its own beside this.
@@ -103,8 +82,8 @@ const groups = computed(() => {
       <button class="close" type="button" title="Close (Esc)" @click="$emit('close')">×</button>
     </header>
 
+    <SliceFacts v-if="!open && !box" :model="model" :layout="layout" :column="column" @link="emit('link', $event)" />
     <Notes v-if="full?.notes" :notes="full.notes" />
-    <Messages v-if="!open" :messages="column.messages" :boxes="layout.boxes" />
 
     <template v-if="fields.fields.length">
       <h3>{{ box?.kind === "ui" ? "Query" : "Fields" }}</h3>
@@ -121,26 +100,9 @@ const groups = computed(() => {
       </table>
     </template>
 
-    <template v-if="!open">
-      <!-- With the slice itself selected, the header already names it. -->
-      <h3 v-if="box">Slice</h3>
-      <dl>
-        <template v-if="box"><dt>Name</dt><dd><Name :name="column.label" /></dd></template>
-        <template v-if="who.actor"><dt>Actor</dt><dd>{{ who.actor }}</dd></template>
-        <template v-if="who.from"><dt>From</dt><dd>{{ who.from }}</dd></template>
-        <template v-if="served(slice)"><dt>Service</dt><dd>{{ slice.ui }}</dd></template>
-        <template v-if="slice.context?.length"><dt>Context</dt><dd>{{ slice.context.join(", ") }}</dd></template>
-        <template v-if="slice.polls"><dt>Polls</dt><dd><Name :name="slice.polls" link @click="follow(slice.polls)" /></dd></template>
-        <template v-if="slice.reads?.length">
-          <dt>Reads</dt>
-          <dd><Name v-for="r in slice.reads" :key="r" :name="r" link @click="follow(r)" /></dd>
-        </template>
-        <template v-if="triggers.length">
-          <dt>On</dt>
-          <dd><Name v-for="t in triggers" :key="t" :name="t" link @click="follow(t)" /></dd>
-        </template>
-      </dl>
-      <Notes v-if="slice.notes" :notes="slice.notes" />
+    <template v-if="!open && box">
+      <h3>Slice</h3>
+      <dl><dt>Name</dt><dd><Name :name="column.label" link @click="$emit('open')" /></dd></dl>
     </template>
 
     <template v-if="groups.length">

@@ -4,7 +4,6 @@ import type { Board } from "./board.ts"
 import Card from "./Card.vue"
 import Fit from "./Fit.vue"
 import {
-  actorOf,
   apart,
   around,
   type Box,
@@ -12,21 +11,15 @@ import {
   type Column,
   direct,
   face,
-  firstCard,
   LANE_PAD,
   type Layout,
   type Link,
-  parse,
   polyline,
   STACK_GAP,
-  served,
-  source,
   titled,
 } from "./layout.ts"
-import Messages from "./Messages.vue"
 import { measure } from "./measure.ts"
-import Name from "./Name.vue"
-import Notes from "./Notes.vue"
+import SliceFacts from "./SliceFacts.vue"
 import Specs from "./Specs.vue"
 
 // One slice at full width, with room to read its specifications.
@@ -121,18 +114,9 @@ const selectedName = computed(() => local.value.boxes.find((b) => b.id === props
 const viewBox = computed(() => `${props.column.x} 0 ${props.column.w} ${local.value.height}`)
 
 const slice = computed(() => props.column.slice)
-const who = computed(() => actorOf(props.model, slice.value))
-const triggers = computed(() => {
-  const t = slice.value.trigger
-  return t ? (Array.isArray(t) ? t : [t]).map((x) => parse(x).name) : []
-})
 const first = props.layout.columns.length > 0 ? 0 : -1
 const last = props.layout.columns.length - 1
 
-function follow(name: string) {
-  const id = firstCard(props.layout, name)?.id
-  if (id) emit("link", id)
-}
 function cardClass(b: Box) {
   return { selected: b.id === props.selectedBox, lit: props.hovered === b.name }
 }
@@ -176,43 +160,7 @@ function cardClass(b: Box) {
       </svg>
 
       <div class="slice-right">
-        <div class="facts">
-          <Notes v-if="slice.notes" :notes="slice.notes" />
-          <Messages :messages="column.messages" :boxes="layout.boxes" />
-          <dl>
-            <template v-if="who.actor"><dt>Actor</dt><dd>{{ who.actor }}</dd></template>
-            <template v-if="who.from"><dt>From</dt><dd>{{ who.from }}</dd></template>
-            <template v-if="served(slice)"><dt>Service</dt><dd>{{ slice.ui }}</dd></template>
-            <template v-if="slice.context?.length"><dt>Context</dt><dd>{{ slice.context.join(", ") }}</dd></template>
-            <template v-if="slice.polls">
-              <dt>Polls</dt>
-              <dd><Name :name="slice.polls" link @click="follow(slice.polls)" /></dd>
-            </template>
-            <template v-if="slice.reads?.length">
-              <dt>Reads</dt>
-              <dd>
-                <Name v-for="r in slice.reads" :key="r" :name="r" link @click="follow(r)" />
-              </dd>
-            </template>
-            <template v-if="triggers.length">
-              <dt>On</dt>
-              <dd>
-                <Name v-for="t in triggers" :key="t" :name="t" link @click="follow(t)" />
-              </dd>
-            </template>
-          </dl>
-          <template v-if="slice.mapping">
-            <h3>Mapping</h3>
-            <dl v-for="(fields, event) in slice.mapping" :key="event">
-              <template v-for="(src, field) in fields" :key="field">
-                <dt><Name :name="String(event)" />.{{ field }}</dt>
-                <dd>
-                  {{ source(src) }}
-                </dd>
-              </template>
-            </dl>
-          </template>
-        </div>
+        <SliceFacts :model="model" :layout="layout" :column="column" @link="emit('link', $event)" />
 
         <h3 v-if="specs.length" class="specs-title">Specifications</h3>
         <Specs :specs="specs" :mark="selectedName" @hover="emit('hover', $event)" />
