@@ -210,7 +210,7 @@ onUnmounted(() => {
           <span v-else :title="crumb.text">{{ crumb.text }}</span>
         </template>
       </h1>
-      <span v-if="model?.description" class="description">{{ model.description }}</span>
+      <span v-if="model?.description" class="description" :title="model.description">{{ model.description }}</span>
       <span class="legend">
         <span v-for="[kind, label] in LEGEND" :key="kind" class="swatch" :class="kind">{{ label }}</span>
         <span v-for="(icon, kind) in ICON" :key="kind" class="swatch note" :class="kind" :data-icon="icon">{{ kind }}</span>

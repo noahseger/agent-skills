@@ -207,10 +207,14 @@ body,
   color: var(--faint);
 }
 
-/* Takes the room the path leaves, wrapping in it. */
+/* One line in the room the path leaves; what doesn't fit ends in "…", whole on hover. */
 .top .description {
   color: var(--muted);
   flex: 1 1 0;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .top .legend {
