@@ -836,10 +836,10 @@ left to do.` An example used above its declaration is one line per file, listing
 When a module throws, the model doesn't load and `generated/d.d.ts` lacks what the modules declare
 after it, so the log leaves out the names it lacks.
 
-The picture marks the same: a red dot for an error, a yellow dot for a warning, on the
-slice in the navigation, its column heading and the card it is about. A selected or opened slice
-lists its own in plain words, under the element each is about; the navigation's Model row lists
-those about no slice. `E` steps to the next slice with a red dot and `W` to the next with a yellow one; `Shift` steps back.
+The picture marks the same: a red ring for an error, a yellow ring for a warning, on the
+slice in the navigation, its column heading and the card it is about. A selected slice or card
+lists its own in plain words in the panel beside the board; the model's name in the header lists
+them all. `E` steps to the next slice with a red dot and `W` to the next with a yellow one; `Shift` steps back.
 
 `view` and `export` also draw a model written as spec JSON, by hand or extracted from a running
 system. They draw it as far as it goes, and list each place it breaks the schema as an error, as

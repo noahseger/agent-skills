@@ -1325,7 +1325,7 @@ export function layout(model: Board, measure: Measure): Layout {
 export type Selection =
   | "model"
   | { chapter: number }
-  | { column: number; kind?: Kind; name?: string; view?: "slice" }
+  | { column: number; kind?: Kind; name?: string }
 
 /** A selection as the URL hash, so Back works and every view is a link. */
 export function hashOf(sel: Selection | null): string {
@@ -1333,7 +1333,7 @@ export function hashOf(sel: Selection | null): string {
   if (sel === "model") return "#model"
   if ("chapter" in sel) return `#ch${sel.chapter}`
   const card = sel.kind && sel.name ? `/${sel.kind}/${encodeURIComponent(sel.name)}` : ""
-  return `#${sel.view === "slice" ? "s" : "c"}${sel.column}${card}`
+  return `#c${sel.column}${card}`
 }
 
 export function fromHash(hash: string): Selection | null {
@@ -1344,7 +1344,6 @@ export function fromHash(hash: string): Selection | null {
   if (!m) return null
   return {
     column: Number(m[2]),
-    ...(m[1] === "s" && { view: "slice" as const }),
     ...(m[3] && m[4] && { kind: m[3] as Kind, name: decodeURIComponent(m[4]) }),
   }
 }
@@ -1393,8 +1392,7 @@ export function crumbs(name: string, layout: Layout | null, sel: Selection | nul
   const title = chapter === undefined ? undefined : layout.chapters[chapter]?.title
   if (chapter !== undefined && title) path.push({ level: "chapter", text: title, to: { chapter } })
   if (!column || !("column" in sel)) return path
-  const view = sel.view ? { view: sel.view } : {}
-  path.push({ level: "slice", text: column.title, to: { column: column.index, ...view } })
+  path.push({ level: "slice", text: column.title, to: { column: column.index } })
   const box = boxOf(layout, sel)
   if (box) path.push({ level: "card", text: words(box.name), to: sel })
   return path

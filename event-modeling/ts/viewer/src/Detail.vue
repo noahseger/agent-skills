@@ -4,7 +4,6 @@ import type { Board, BoardField } from "./board.ts"
 import { type Box, type Column, firstCard, KIND, type Layout, type Spec, source } from "./layout.ts"
 import Messages from "./Messages.vue"
 import Name from "./Name.vue"
-import Notes from "./Notes.vue"
 import SliceFacts from "./SliceFacts.vue"
 import Specs from "./Specs.vue"
 
@@ -13,12 +12,9 @@ const props = defineProps<{
   column: Column
   layout: Layout
   model: Board
-  /** Whether the slice is already open at full width. */
-  open: boolean
 }>()
 const emit = defineEmits<{
   close: []
-  open: []
   goto: [column: number]
   link: [canonical: string]
 }>()
@@ -57,15 +53,14 @@ const mapping = computed(() =>
     : undefined,
 )
 
-// The element's specifications, its slice's first, or the slice's when nothing is selected. An
-// opened slice shows its own beside this.
+// The element's specifications, its slice's first, or the slice's when nothing is selected.
 const groups = computed(() => {
   const name = props.box?.name
   const here = props.column.index
   const mine = (s: Spec) =>
     name ? s.steps.some((st) => st.cards.some((c) => c.name === name)) : s.column === here
   const columns = [
-    ...props.layout.columns.filter((col) => col.index === here && !props.open),
+    ...props.layout.columns.filter((col) => col.index === here),
     ...props.layout.columns.filter((col) => col.index !== here),
   ]
   return columns.flatMap((col) => {
@@ -83,14 +78,11 @@ const groups = computed(() => {
   <aside class="detail" aria-label="Details">
     <header>
       <span class="kind" :class="box?.kind ?? 'slice'">{{ box ? KIND[box.kind] : "slice" }}</span>
-      <h2>
-        <button v-if="!open" type="button" class="named link" title="Open the slice (Enter)" @click="$emit('open')"><Name v-if="box" :name="box.name" /><template v-else>{{ column.title }}</template></button>
-        <template v-else><Name v-if="box" :name="box.name" /><template v-else>{{ column.title }}</template></template>
-      </h2>
+      <h2><Name v-if="box" :name="box.name" /><template v-else>{{ column.title }}</template></h2>
       <button class="close" type="button" title="Close (Esc)" @click="$emit('close')">×</button>
     </header>
 
-    <SliceFacts v-if="!open && !box" :layout="layout" :column="column" />
+    <SliceFacts v-if="!box" :layout="layout" :column="column" />
 
     <template v-if="fields.fields.length">
       <h3>{{ box?.kind === "ui" ? "Query" : "Fields" }}</h3>
@@ -108,19 +100,14 @@ const groups = computed(() => {
     </template>
 
     <!-- A declaration in no slice has no slice to name. -->
-    <template v-if="!open && box && layout.boxes.some((b) => b.column === column.index && b.id !== box?.id)">
+    <template v-if="box && layout.boxes.some((b) => b.column === column.index && b.id !== box?.id)">
       <h3>Slice</h3>
-      <dl><dt>Name</dt><dd><Name :name="column.label" link @click="$emit('open')" /></dd></dl>
+      <dl><dt>Name</dt><dd><Name :name="column.label" link @click="$emit('goto', column.index)" /></dd></dl>
     </template>
 
     <template v-if="said.length">
       <h3>Validation</h3>
       <Messages :messages="said" :boxes="layout.boxes" :self="box?.name" />
-    </template>
-
-    <template v-if="full?.notes">
-      <h3>Notes</h3>
-      <Notes :notes="full.notes" />
     </template>
 
     <template v-if="groups.length">

@@ -1090,10 +1090,10 @@ test("the header's path names the model, then the selected chapter, the slice an
     { level: "model", text: "Todo", to: null },
     { level: "chapter", text: "List Management", to: { chapter: 0 } },
   ])
-  assert.deepEqual(crumbs("Todo", out, { column: 1, view: "slice" }), [
+  assert.deepEqual(crumbs("Todo", out, { column: 1 }), [
     { level: "model", text: "Todo", to: null },
     { level: "chapter", text: "List Management", to: { chapter: 0 } },
-    { level: "slice", text: "Add Item", to: { column: 1, view: "slice" } },
+    { level: "slice", text: "Add Item", to: { column: 1 } },
   ])
   const added = out.boxes.find((b) => b.column === 1 && b.kind === "event")
   assert.ok(added)
@@ -1116,7 +1116,6 @@ test("the URL hash records a chapter, a slice, a card or the model, and reads ba
     "model",
     { chapter: 2 },
     { column: 3 },
-    { column: 3, view: "slice" },
     { column: 3, kind: "event", name: "Item Added" },
   ] as const
   for (const sel of selections) assert.deepEqual(fromHash(hashOf(sel)), sel)

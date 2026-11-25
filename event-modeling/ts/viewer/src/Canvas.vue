@@ -34,7 +34,6 @@ const emit = defineEmits<{
   selectCard: [box: Box]
   selectSlice: [column: number]
   selectChapter: [chapter: number]
-  openSlice: [column: number]
   link: [canonical: string]
   hover: [name: string | null]
   clear: []
@@ -136,11 +135,6 @@ function click(e: MouseEvent) {
   if (y < props.layout.nameY && chapter >= 0) emit("selectChapter", chapter)
   else if (column !== null) emit("selectSlice", column)
   else emit("clear")
-}
-// A double click opens the slice it lands in, anywhere in its column.
-function dblclick(e: MouseEvent) {
-  const column = sliceAt(e)
-  if (!moved && column !== null) emit("openSlice", column)
 }
 function wheel(e: WheelEvent) {
   e.preventDefault()
@@ -257,7 +251,7 @@ const transform = computed(
     @pointerleave="leave"
     @wheel="wheel"
   >
-    <svg role="img" :aria-label="`Event model canvas, ${layout.columns.length} slices`" @click="click" @dblclick="dblclick">
+    <svg role="img" :aria-label="`Event model canvas, ${layout.columns.length} slices`" @click="click">
       <defs>
         <!-- A lane name's backing ends in a fade, so the cards it cuts read as passing under it. -->
         <linearGradient id="pin-fade">
@@ -283,7 +277,7 @@ const transform = computed(
             role="button"
             tabindex="0"
             :aria-label="`Slice ${col.title}`"
-            @keydown.enter.stop="emit('openSlice', col.index)"
+            @keydown.enter.stop="emit('selectSlice', col.index)"
           >
             <path :d="head(col.x + 4, layout.nameY, col.w - 8)" />
             <Fit

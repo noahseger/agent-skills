@@ -122,9 +122,7 @@ svg .slice-head:focus-visible > path {
 .kind,
 .nav .chapter,
 .facts h3,
-.specs-title,
-.hstep .word,
-.slice-body .lane-tag {
+.hstep .word {
   font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: var(--tracking);
@@ -930,96 +928,12 @@ svg .chapter {
   font-size: 12px;
 }
 
-/* the slice at full width */
-.slice-view {
-  overflow: auto;
-  padding: 20px 28px 40px;
-  min-width: 0;
-}
-
-.slice-header {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  margin-bottom: 16px;
-}
-
-.slice-header .controls {
-  display: flex;
-  gap: 6px;
-}
-
-.slice-header button {
-  border: 1px solid var(--line);
-  background: var(--panel);
-  color: var(--ink);
-  font: inherit;
-  font-size: 13px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.slice-header button:disabled {
-  color: var(--faint);
-  cursor: default;
-}
-
-.slice-header button:not(:disabled):hover {
-  border-color: var(--accent);
-}
-
-.slice-header .canvas-btn {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-/* The two columns stand side by side while both fit their minimum, and stack when they don't. */
-.slice-body {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 28px;
-  align-items: flex-start;
-}
-
-/* The opened slice is drawn at one scale, whatever its width, so a card is the same size in every
-   slice; a slice too wide for its room scrolls. */
-.slice-body > .column {
-  flex: none;
-  max-width: 100%;
-}
-
-.slice-right {
-  flex: 1 1 280px;
-  min-width: 0;
-}
-
-.slice-right .specs-title {
-  margin-top: 24px;
-}
-
-.slice-body .column {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-}
-
-.slice-body .lane-tag {
-  font: var(--font-laneTag);
-  fill: var(--muted);
-}
-
 .facts .messages {
   margin-bottom: 14px;
 }
 
 .facts h3 {
   margin: 20px 0 8px;
-  color: var(--muted);
-}
-
-.specs-title {
-  margin: 28px 0 12px;
   color: var(--muted);
 }
 
