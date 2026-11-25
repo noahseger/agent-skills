@@ -241,11 +241,17 @@ body,
   display: contents;
 }
 
-.top .legend summary,
-.top .keys summary {
+/* A toggle reads like a shortcut's key, its key letter underlined; text a click can't select, so no highlight. */
+.top summary,
+.top .keys dt {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.top summary {
   cursor: pointer;
   list-style: none;
-  font-weight: 500;
+  user-select: none;
 }
 
 .top summary::-webkit-details-marker {
@@ -387,11 +393,6 @@ body,
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
-}
-
-.top .keys dt {
-  color: var(--ink);
-  font-weight: 600;
 }
 
 .top .keys dd {

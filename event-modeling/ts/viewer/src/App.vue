@@ -153,7 +153,7 @@ function onKey(e: KeyboardEvent) {
   else if (e.key === "ArrowLeft") step(-1)
   else if (letter === "e") stepError(e.shiftKey ? -1 : 1)
   else if (letter === "s") shortcuts.value = !shortcuts.value
-  else if (letter === "k") legend.value = !legend.value
+  else if (letter === "l") legend.value = !legend.value
   else if (e.key === "Enter" && picked.value && !sliceOpen.value) {
     openSlice(picked.value.column)
   } else if (e.key === "Escape") {
@@ -217,19 +217,19 @@ onUnmounted(() => {
       <span v-if="model?.description" class="description" :title="model.description">{{ model.description }}</span>
       <div class="tools">
       <details class="legend" :open="legend" @toggle="legend = ($event.target as HTMLDetailsElement).open">
-        <summary>Legend</summary>
+        <summary><u>L</u>egend</summary>
         <span v-for="[kind, label] in LEGEND" :key="kind" class="swatch" :class="kind">{{ label }}</span>
         <span v-for="(_, kind) in ICON" :key="kind" ><NoteIcon :kind="kind" /> {{ kind }}</span>
       </details>
       <details class="keys" :open="shortcuts" @toggle="shortcuts = ($event.target as HTMLDetailsElement).open">
-        <summary>Shortcuts</summary>
+        <summary><u>S</u>hortcuts</summary>
         <dl>
           <dt>← →</dt><dd>move between slices</dd>
           <dt>Enter</dt><dd>open a slice</dd>
           <dt>Esc</dt><dd>go back</dd>
           <dt>E</dt><dd>next error (Shift-E: previous)</dd>
           <dt>S</dt><dd>show or hide these shortcuts</dd>
-          <dt>K</dt><dd>show or hide the legend</dd>
+          <dt>L</dt><dd>show or hide the legend</dd>
         </dl>
       </details>
       <span class="status" role="status">
