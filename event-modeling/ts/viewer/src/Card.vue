@@ -2,7 +2,7 @@
 import { computed } from "vue"
 import { words } from "../../src/types.ts"
 import Fit from "./Fit.vue"
-import { type Box, BUTTON_H, face, INPUT_H, KIND, TABLE_PAD, TITLE_LINE } from "./layout.ts"
+import { type Box, BUTTON_H, face, INPUT_H, KIND, markAt, TABLE_PAD, TITLE_LINE } from "./layout.ts"
 import Mark from "./Mark.vue"
 import { measure } from "./measure.ts"
 
@@ -97,6 +97,6 @@ const keyW = measure("KEY", "tag") + 6
       <rect :x="box.w - 26" :y="box.h / 2 - 9" width="18" height="18" rx="4" />
       <text text-anchor="middle" :x="box.w - 17" :y="box.h / 2 + 4">↗</text>
     </g>
-    <Mark :mark="box.mark" :at="[1, 1]" />
+    <Mark :mark="box.mark" :at="markAt(12 + measure(box.title[0] ?? '', 'title'), at.title)" />
   </g>
 </template>

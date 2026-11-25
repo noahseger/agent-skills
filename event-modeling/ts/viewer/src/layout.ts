@@ -427,6 +427,14 @@ export function fitColumns(
   return { columns, more: names.length - columns.length }
 }
 
+/** A mark follows what it marks: `MARK_GAP` after its end, centred on its first line (`baseline`). */
+export const MARK_R = 4
+export const MARK_GAP = 6
+export const markAt = (end: number, baseline: number): Pt => [
+  end + MARK_GAP + MARK_R,
+  baseline - 4.5,
+]
+
 /** A card's title in the lines that fit `w`, less the room a link back to its first card takes. */
 export function titled(
   el: Pick<Element, "name" | "list">,
@@ -814,7 +822,7 @@ export function layout(model: Board, measure: Measure): Layout {
       id: `b${next++}`,
       kind,
       name: el.name,
-      title: titled(el, w, earlier !== undefined, measure),
+      title: titled(el, w - (mark ? MARK_GAP + 2 * MARK_R : 0), earlier !== undefined, measure),
       fields: el.fields,
       keys: el.keys,
       ...(el.list && { list: true }),

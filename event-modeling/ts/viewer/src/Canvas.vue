@@ -9,6 +9,7 @@ import {
   fitTo,
   LABEL_W,
   type Layout,
+  markAt,
   NAME_H,
   outside,
   polyline,
@@ -287,7 +288,7 @@ const transform = computed(
               :x="col.x + col.w / 2"
               :y="layout.nameY + NAME_H / 2 + 4.5"
             />
-            <Mark :mark="col.mark" :at="[col.x + 20, layout.nameY + NAME_H / 2]" />
+            <Mark :mark="col.mark" :at="markAt(col.x + col.w / 2 + measure(fitLines(col.title, col.w - 60, 1, (s) => measure(s, 'slice'))[0] ?? '', 'slice') / 2, layout.nameY + NAME_H / 2 + 4.5)" />
           </g>
           <!-- Above the header, so the header never cuts it. -->
           <rect
