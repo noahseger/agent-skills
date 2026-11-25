@@ -253,24 +253,6 @@ body,
 .top .swatch.question::before { color: var(--question-stroke); }
 .top .swatch.info::before { color: var(--muted); }
 
-.top .present {
-  border: 1px solid var(--line);
-  background: var(--panel);
-  color: var(--ink);
-  font: inherit;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-.top .present[aria-pressed="true"] {
-  background: var(--accent-fill);
-  border-color: var(--accent);
-  color: var(--accent-ink);
-}
-
 .top .status {
   margin-left: 20px;
   display: flex;
@@ -300,10 +282,6 @@ body,
   grid-template-columns: auto 1fr auto;
   flex: 1;
   min-height: 0;
-}
-
-.presenting .body {
-  grid-template-columns: 1fr;
 }
 
 /* navigation */
@@ -417,7 +395,7 @@ body,
   background: var(--accent);
 }
 
-/* Marks: an error is a red disc with "!", a warning a grey ring. Present hides them. */
+/* Marks: an error is a red disc with "!", a warning a grey ring. */
 .mark-error,
 .mark-warning {
   display: inline-grid;
@@ -464,11 +442,6 @@ svg .mark-error text {
   fill: #ffffff;
   font-size: 10px;
   font-weight: 800;
-}
-
-.presenting .mark-error,
-.presenting .mark-warning {
-  display: none;
 }
 
 .canvas {

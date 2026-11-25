@@ -26,7 +26,7 @@ const props = defineProps<{
   selected: Scope | null
   selectedBox: string | null
   hovered: string | null
-  /** Bumping `seq` fits the slice or chapter top to bottom, or with none the whole model. */
+  /** Bumping `seq` fits the slice or chapter top to bottom. */
   focus: { scope: Scope | null; seq: number }
 }>()
 const emit = defineEmits<{
@@ -48,7 +48,7 @@ const selectedColumn = computed(() =>
   props.selected && "column" in props.selected ? props.selected.column : null,
 )
 
-// Fit the whole model when it first arrives and when Present starts; a redraw keeps the user's view.
+// Fit the whole model when it first arrives; a redraw keeps the user's view.
 function fit() {
   const box = el.value?.getBoundingClientRect()
   if (!box) return
@@ -79,7 +79,6 @@ watch(
   () => props.focus.seq,
   () => {
     if (props.focus.scope !== null) focusOn(props.focus.scope)
-    else fit()
   },
   { flush: "post" },
 )

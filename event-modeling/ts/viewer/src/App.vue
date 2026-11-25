@@ -39,10 +39,8 @@ const scope = computed<Scope | null>(() =>
 const hovered = ref<string | null>(null)
 /** The keyboard leads, so hover shows nothing, from a key press until the mouse next moves. */
 const keyed = ref(false)
-/** Bumping `seq` fits the slice or chapter, or with none the whole model. */
+/** Bumping `seq` fits the slice or chapter. */
 const focus = ref<{ scope: Scope | null; seq: number }>({ scope: null, seq: 0 })
-/** The board alone, for showing the model to others: no navigation, detail, marks or selection. */
-const present = ref(false)
 
 const drawn = computed(() => (model.value ? layout(model.value, measure) : null))
 const selectedBox = computed(() => (drawn.value && boxOf(drawn.value, picked.value)) ?? null)
@@ -52,9 +50,7 @@ const selectedColumn = computed(() => {
 })
 const sliceOpen = computed(() => picked.value?.view === "slice")
 const path = computed(() =>
-  present.value
-    ? crumbs(model.value?.name ?? "Event model", null, null)
-    : crumbs(model.value?.name ?? "Event model", drawn.value, selection.value),
+  crumbs(model.value?.name ?? "Event model", drawn.value, selection.value),
 )
 
 const LEGEND: [string, string][] = [
@@ -99,10 +95,6 @@ function stepError(delta: 1 | -1) {
   if (next === "model") go("model")
   else if (next !== undefined)
     go({ column: next, ...(sliceOpen.value ? { view: "slice" } : {}) }, { zoom: true })
-}
-function togglePresent() {
-  present.value = !present.value
-  if (present.value) focus.value = { scope: null, seq: focus.value.seq + 1 }
 }
 function pick(box: Box, zoom = false) {
   const view = sliceOpen.value ? { view: "slice" as const } : {}
@@ -149,7 +141,6 @@ function onKey(e: KeyboardEvent) {
   if (e.key === "ArrowRight") step(1)
   else if (e.key === "ArrowLeft") step(-1)
   else if (letter === "e") stepError(e.shiftKey ? -1 : 1)
-  else if (letter === "p") togglePresent()
   else if (e.key === "Enter" && picked.value && !sliceOpen.value) {
     openSlice(picked.value.column)
   } else if (e.key === "Escape") {
@@ -190,7 +181,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="app" :class="{ presenting: present, keyed }">
+  <div class="app" :class="{ keyed }">
     <!-- Arrowheads, once for every drawing: the canvas and the opened slice. -->
     <svg class="markers" aria-hidden="true">
       <defs>
@@ -222,10 +213,8 @@ onUnmounted(() => {
           <dt>Enter</dt><dd>open a slice</dd>
           <dt>Esc</dt><dd>go back</dd>
           <dt>E</dt><dd>next error (Shift-E: previous)</dd>
-          <dt>P</dt><dd>present</dd>
         </dl>
       </details>
-      <button type="button" class="present" :aria-pressed="present" title="The board alone (P)" @click="togglePresent">Present</button>
       <span class="status" role="status">
         <span class="dot" :class="{ off: !live && !snapshot, error: error !== null }" aria-hidden="true"></span>
         {{ error !== null ? "Model didn't load" : snapshot ? "Exported copy" : live ? "Live" : "Disconnected" }}
@@ -233,9 +222,9 @@ onUnmounted(() => {
     </header>
     <pre v-if="error !== null" class="error" role="alert">{{ error }}</pre>
     <main class="body">
-      <Nav v-if="drawn && !present" :layout="drawn" :selected="selection" @select="openSlice" @chapter="selectChapter" @model="go('model')" />
+      <Nav v-if="drawn" :layout="drawn" :selected="selection" @select="openSlice" @chapter="selectChapter" @model="go('model')" />
       <SliceView
-        v-if="drawn && model && sliceOpen && selectedColumn && !present"
+        v-if="drawn && model && sliceOpen && selectedColumn"
         :layout="drawn"
         :model="model"
         :column="selectedColumn"
@@ -250,8 +239,8 @@ onUnmounted(() => {
       <Canvas
         v-else-if="drawn && model"
         :layout="drawn"
-        :selected="present ? null : scope"
-        :selected-box="present ? null : (selectedBox?.id ?? null)"
+        :selected="scope"
+        :selected-box="selectedBox?.id ?? null"
         :hovered="keyed ? null : hovered"
         :focus="focus"
         @select-card="pick"
@@ -264,7 +253,7 @@ onUnmounted(() => {
       />
       <div v-else class="empty">Waiting for the model…</div>
       <Detail
-        v-if="selectedColumn && drawn && model && !present && (!sliceOpen || selectedBox)"
+        v-if="selectedColumn && drawn && model && (!sliceOpen || selectedBox)"
         :box="selectedBox"
         :column="selectedColumn"
         :layout="drawn"
@@ -275,7 +264,7 @@ onUnmounted(() => {
         @goto="openSlice"
         @link="follow"
       />
-      <aside v-else-if="selection === 'model' && drawn && !present" class="detail" aria-label="Details">
+      <aside v-else-if="selection === 'model' && drawn" class="detail" aria-label="Details">
         <header>
           <h2>Model</h2>
           <button class="close" type="button" title="Close (Esc)" @click="go(null)">×</button>
