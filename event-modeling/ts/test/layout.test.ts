@@ -512,7 +512,11 @@ test("an element's notes stand in a rail beside its slice, level with its first 
   assert.ok(col && info && question)
   assert.deepEqual([info.kind, question.kind], ["info", "question"])
   assert.equal(info.subject, "Item Added", "its tooltip names what it is about")
-  assert.equal(info.lines.join(" "), "Titles are trimmed.", "its text alone: its kind is its badge's")
+  assert.equal(
+    info.lines.join(" "),
+    "Titles are trimmed.",
+    "its text alone: its kind is its badge's",
+  )
   assert.equal(info.y, full.y, "level with the card it is about")
   assert.equal(question.y, info.y + info.h + STICKY_GAP)
   assert.equal(info.x, full.x + full.w + NOTE_GAP, "a note stands NOTE_GAP right of the card")
