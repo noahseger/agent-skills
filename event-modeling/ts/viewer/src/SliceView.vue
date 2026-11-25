@@ -15,6 +15,8 @@ import {
   type Layout,
   type Link,
   MAX_ZOOM,
+  NOTE_GAP,
+  NOTE_W,
   polyline,
   STACK_GAP,
   titled,
@@ -71,7 +73,7 @@ const local = computed(() => {
       compact: true,
       canonical: full.id,
       column: index,
-      x: props.column.x + (props.column.w - CARD_W) / 2,
+      x: props.column.x + (width.value - CARD_W) / 2,
       y: below,
       w: CARD_W,
       h: face({ ...bare, title, compact: true }).h,
@@ -112,7 +114,10 @@ function route(e: Link) {
 }
 const specs = computed(() => props.layout.specs.filter((s) => s.column === props.column.index))
 const selectedName = computed(() => local.value.boxes.find((b) => b.id === props.selectedBox)?.name)
-const viewBox = computed(() => `${props.column.x} 0 ${props.column.w} ${local.value.height}`)
+// The slice's own width: on the canvas a column with notes is wider by their rail, which the opened
+// slice lists in its panel instead, so it draws without it.
+const width = computed(() => props.column.w - (props.column.notes ? NOTE_W + NOTE_GAP : 0))
+const viewBox = computed(() => `${props.column.x} 0 ${width.value} ${local.value.height}`)
 // One scale for every opened slice, the canvas's fitted zoom, so cards match from slice to slice.
 const SCALE = MAX_ZOOM
 // A lane's tag stands clear of the drawing's rounded corner.
@@ -138,10 +143,10 @@ function cardClass(b: Box) {
     </header>
 
     <div class="slice-body">
-      <svg class="column" :viewBox="viewBox" :width="column.w * SCALE" :height="local.height * SCALE">
+      <svg class="column" :viewBox="viewBox" :width="width * SCALE" :height="local.height * SCALE">
         <g v-for="lane in local.lanes" :key="lane.label + lane.y">
-          <line class="lane-line" :x1="column.x" :x2="column.x + column.w" :y1="lane.y" :y2="lane.y" />
-          <Fit v-if="lane.label" class="lane-tag" :text="lane.label" :room="column.w - 2 * TAG_INSET" font="laneTag" :x="column.x + TAG_INSET" :y="lane.y + 14" />
+          <line class="lane-line" :x1="column.x" :x2="column.x + width" :y1="lane.y" :y2="lane.y" />
+          <Fit v-if="lane.label" class="lane-tag" :text="lane.label" :room="width - 2 * TAG_INSET" font="laneTag" :x="column.x + TAG_INSET" :y="lane.y + 14" />
         </g>
         <path
           v-for="(e, i) in edges"
