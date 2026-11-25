@@ -284,8 +284,8 @@ onUnmounted(() => {
       />
       <aside v-else-if="selection === 'model' && drawn" class="detail" aria-label="Details">
         <header>
-          <h2>Model</h2>
           <button class="close" type="button" title="Close (Esc)" @click="go(null)">×</button>
+          <h2>Model</h2>
         </header>
         <Messages :messages="drawn.model.messages" :boxes="drawn.boxes" />
         <p v-if="!drawn.model.mark" class="note">Nothing left to do.</p>

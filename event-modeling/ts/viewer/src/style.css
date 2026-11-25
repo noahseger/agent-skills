@@ -791,11 +791,17 @@ svg .chapter {
   padding: 18px 20px 32px;
 }
 
+/* The panel's header: the kind tag left and the actions right, then the name on a line of its own. */
 .detail header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   margin-bottom: 14px;
+}
+
+.detail header > button:first-of-type {
+  margin-left: auto;
 }
 
 .kind {
@@ -815,7 +821,7 @@ svg .chapter {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  flex: 1;
+  flex-basis: 100%;
 }
 
 .detail .open {
