@@ -1,17 +1,17 @@
 // Written by em types from what the model declares, so d is typed. Do not edit.
-import type { Chapter, CommandDecl, EventDecl, External, ExternalEventDecl, Field } from "#em"
+import type { Chapter, Command, Event, External, ExternalEvent, Field } from "#em"
 
 declare module "#em" {
   interface Registry {
-    Bounced: ExternalEventDecl<"Bounced", { id: Field<string> }>
+    Bounced: ExternalEvent<"Bounced", { id: Field<string> }>
     Calendar: Chapter
     Inbox: Chapter
     Mail: External
-    Note: CommandDecl<"Note", { id: Field<string> }>
-    Noted: EventDecl<"Noted", { id: Field<string> }>
-    Received: ExternalEventDecl<"Received", { id: Field<string> }>
-    Record: CommandDecl<"Record", { id: Field<string> }>
-    Recorded: EventDecl<"Recorded", { id: Field<string> }>
+    Note: Command<"Note", { id: Field<string> }>
+    Noted: Event<"Noted", { id: Field<string> }>
+    Received: ExternalEvent<"Received", { id: Field<string> }>
+    Record: Command<"Record", { id: Field<string> }>
+    Recorded: Event<"Recorded", { id: Field<string> }>
   }
 }
 //# sourceMappingURL=d.d.ts.map

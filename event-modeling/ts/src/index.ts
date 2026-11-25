@@ -18,12 +18,12 @@ import {
   type ChapterData,
   type Context,
   type DeclData,
-  type DeclKind,
   DRAFTS,
   type ExampleData,
   type Exported,
   type ExternalData,
   type Flow,
+  type Kind,
   type MapFn,
   META,
   type ModelData,
@@ -90,14 +90,14 @@ type Misfit<S extends Fields, T extends Fields> = string extends keyof S
 // Declarations
 // ---------------------------------------------------------------------------
 
-export interface Example<K extends DeclKind = DeclKind, F extends Fields = Fields> {
+export interface Example<K extends Kind = Kind, F extends Fields = Fields> {
   readonly [META]: ExampleData
   readonly __kind: K
   readonly __fields: F
 }
 
 /** `d.Name`: a declaration by its name. Called with data, it is an example its fields check. */
-export interface Decl<N extends string, K extends DeclKind, F extends Fields> {
+interface Declaration<N extends string, K extends Kind, F extends Fields> {
   (data: Partial<Infer<F>>): Example<K, F>
   readonly [META]: DeclData
   readonly __name: N
@@ -106,12 +106,9 @@ export interface Decl<N extends string, K extends DeclKind, F extends Fields> {
 }
 
 /** An event: its fields, and when it was recorded, which every event has, so none declares it. */
-export type EventDecl<N extends string = string, F extends Fields = Fields> = Decl<
-  N,
-  "event",
-  F & { timestamp: Field<string, "datetime"> }
->
-export type CommandDecl<N extends string = string, F extends Fields = Fields> = Decl<
+export interface Event<N extends string = string, F extends Fields = Fields>
+  extends Declaration<N, "event", F & { timestamp: Field<string, "datetime"> }> {}
+export type Command<N extends string = string, F extends Fields = Fields> = Declaration<
   N,
   "command",
   F
@@ -121,20 +118,20 @@ export type CommandDecl<N extends string = string, F extends Fields = Fields> = 
  * A view, with its key columns in its fields and whether it is a list, so `.query()` can count the
  * rows it reads.
  */
-export interface ViewDecl<
+export interface View<
   N extends string = string,
   F extends Fields = Fields,
   L extends boolean = boolean,
   Q extends Fields = Record<never, never>,
-> extends Decl<N, "view", F> {
+> extends Declaration<N, "view", F> {
   readonly __list: L
   /** What it is read with: the context its first state view gives, so a later one need not repeat it. */
   readonly __context: Q
 }
 
 /** An event of a system we do not own. */
-export interface ExternalEventDecl<N extends string = string, F extends Fields = Fields>
-  extends EventDecl<N, F> {
+export interface ExternalEvent<N extends string = string, F extends Fields = Fields>
+  extends Event<N, F> {
   readonly __external: true
 }
 
@@ -250,7 +247,7 @@ function noting(data: { notes?: Note[] }): Noted {
   }
 }
 
-function decl(name: string, kind: DeclKind, fields: Fields): [Noted, DeclData] {
+function decl(name: string, kind: Kind, fields: Fields): [Noted, DeclData] {
   const data = declare(name, { kind, fields: fields as unknown as Schemas, keys: [] } as DeclData)
   return [noting(data), data]
 }
@@ -458,11 +455,11 @@ type ContextOf<V> = V extends { readonly __context: infer Q extends Fields }
   : Record<never, never>
 
 // biome-ignore lint/suspicious/noExplicitAny: any command's fields
-type AnyCommand = CommandDecl<string, any>
+type AnyCommand = Command<string, any>
 // biome-ignore lint/suspicious/noExplicitAny: any event's fields
-type AnyEvent = EventDecl<string, any>
+type AnyEvent = Event<string, any>
 // biome-ignore lint/suspicious/noExplicitAny: any view's columns
-type AnyView = ViewDecl<string, any, boolean, any>
+type AnyView = View<string, any, boolean, any>
 
 /**
  * Each declaration before a step, in order, by its name: `[name, fields, eq]`.
@@ -572,7 +569,7 @@ type Filled<
   D,
   Step extends string,
   O = Record<never, never>,
-> = N extends ExternalEventDecl
+> = N extends ExternalEvent
   ? Single<N, D>
   : unknown extends O
     ? Single<N, D>
@@ -606,7 +603,7 @@ type Unpicked<V, R, L, Cols> =
 
 /** The filter's columns, or the instruction. `Fan` says whether many rows are allowed here. */
 type Filter<C extends Ctx, V, F, Fan extends boolean> =
-  V extends ViewDecl<string, infer R, infer L>
+  V extends View<string, infer R, infer L>
     ? F extends string
       ? F extends keyof R
         ? Sources<C, F> extends readonly [infer N extends string]
@@ -670,7 +667,7 @@ interface Gate<Msg extends string> {
 }
 
 /** A translation's start: an external event, or, for anything else, the instruction to fix it. */
-type Translated<E> = E extends ExternalEventDecl
+type Translated<E> = E extends ExternalEvent
   ? E
   : `${NameOf<E>}: not an external event. Start its slice with .automation(d.${NameOf<E>}).`
 
@@ -680,7 +677,7 @@ type Unfiltered<N> =
 
 /** `N` if it is a view of one row, with no key column, which needs no filter; or else the instruction. */
 type OneRow<N> =
-  N extends ViewDecl<string, infer R, false>
+  N extends View<string, infer R, false>
     ? [KeysOf<R>] extends [never]
       ? Single<N, AnyView>
       : Unfiltered<N>
@@ -727,7 +724,7 @@ export interface Start {
   view<N extends object>(view: Single<N, AnyView>): Viewing<FieldsOf<N>, ContextOf<N>>
   /** Automation: an event of ours as it happens, or each row of a view it polls. */
   automation<N extends object>(
-    trigger: N extends ExternalEventDecl
+    trigger: N extends ExternalEvent
       ? `${NameOf<N>}: comes from outside. Start its slice with .translation(d.${NameOf<N>}).`
       : Single<N, AnyEvent | AnyView>,
   ): Triggered<Own<N>>
@@ -764,7 +761,7 @@ export interface Triggered<C extends Ctx, Fan extends boolean = true>
 }
 
 /** An external event brings back what the call got: it joins the context. An event of ours is an outcome. */
-type Kept<C extends Ctx, N> = N extends ExternalEventDecl
+type Kept<C extends Ctx, N> = N extends ExternalEvent
   ? readonly [...C, readonly [NameOf<N>, FieldsOf<N>, never]]
   : C
 
@@ -826,7 +823,7 @@ export interface Handled<
 }
 
 /** The view's event as `d.Name`, or the instruction. */
-type Projected<R extends Fields, N> = N extends ExternalEventDecl
+type Projected<R extends Fields, N> = N extends ExternalEvent
   ? `${NameOf<N>}: not stored. Translate it into an event of ours, then project that.`
   : [Misfit<FieldsOf<N>, R>] extends [never]
     ? Single<N, AnyEvent>

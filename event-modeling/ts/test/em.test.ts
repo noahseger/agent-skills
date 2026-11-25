@@ -87,7 +87,7 @@ test("an assembly error is one line and exit 1; d types a name declared twice as
   )
   assert.ok(
     readFileSync(here("./fixtures/declared-twice/generated/d.d.ts"), "utf8").includes(
-      '    Created: EventDecl<"Created", { id: Field<string> }> & EventDecl<"Created", { id: Field<string>; at: Field<string, "datetime"> }>\n',
+      '    Created: Event<"Created", { id: Field<string> }> & Event<"Created", { id: Field<string>; at: Field<string, "datetime"> }>\n',
     ),
   )
 })
@@ -156,11 +156,11 @@ m.actor("Filer", { icon: "system" })
     assert.match(wrote.stdout, /^Wrote .*d\.d\.ts\n$/)
     const text = readFileSync(join(dir, "generated", "d.d.ts"), "utf8")
     for (const member of [
-      'CaptureNote: CommandDecl<"CaptureNote", { text: Field<string> }>',
+      'CaptureNote: Command<"CaptureNote", { text: Field<string> }>',
       "Filer: SystemActor",
-      'Inbox: ViewDecl<"Inbox", { noteId: Field<string, "uuid", true>; text: Field<string> }, false>',
-      'NoteActivity: ViewDecl<"NoteActivity", { noteId: Field<string, "uuid", true>; what: Field<"captured" | "filed"> }, true>',
-      'NoteCaptured: EventDecl<"NoteCaptured", { noteId: Field<string, "uuid">; text: Field<string>; at: Field<string | undefined, "datetime"> }>',
+      'Inbox: View<"Inbox", { noteId: Field<string, "uuid", true>; text: Field<string> }, false>',
+      'NoteActivity: View<"NoteActivity", { noteId: Field<string, "uuid", true>; what: Field<"captured" | "filed"> }, true>',
+      'NoteCaptured: Event<"NoteCaptured", { noteId: Field<string, "uuid">; text: Field<string>; at: Field<string | undefined, "datetime"> }>',
       "Notes: Stream",
     ])
       assert.ok(text.includes(`    ${member}\n`), member)
@@ -450,7 +450,7 @@ m.event("GameEnded", { gameId: t.string() }).stream(d.Games)
 `,
       ),
     )
-    assert.match(readFileSync(join(dir, "generated", "d.d.ts"), "utf8"), /GameEnded: EventDecl/)
+    assert.match(readFileSync(join(dir, "generated", "d.d.ts"), "utf8"), /GameEnded: Event/)
     const ended = (await messages(server.url)).filter((m) => m.startsWith("ending.ts"))
     assert.deepEqual(ended, [])
   } finally {

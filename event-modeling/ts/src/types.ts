@@ -85,7 +85,7 @@ export function resolve(ref: unknown, as?: string): Exported {
 
 export type Fields = Record<string, z.ZodType>
 
-export type DeclKind = "event" | "command" | "view"
+export type Kind = "event" | "command" | "view"
 
 /** What a note flags: a critical one is drawn red, a question amber, info neutral. */
 export type NoteKind = "question" | "critical" | "info"
@@ -101,7 +101,7 @@ export interface Named {
 }
 
 export interface DeclData extends Named {
-  kind: DeclKind
+  kind: Kind
   /** Insertion order is the field order on the card and in the proto. */
   fields: Fields
   /** Views only: the columns rows are looked up by. */

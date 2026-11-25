@@ -124,14 +124,14 @@ function typeOf(name: string, data: Exported, context: Fields | undefined): stri
   const named = JSON.stringify(name)
   switch (data.kind) {
     case "event": {
-      // EventDecl adds the timestamp every event has.
+      // Event adds the timestamp every event has.
       const { timestamp: _, ...declared } = data.fields
-      return `${data.system ? "ExternalEventDecl" : "EventDecl"}<${named}, ${fieldsOf(declared)}>`
+      return `${data.system ? "ExternalEvent" : "Event"}<${named}, ${fieldsOf(declared)}>`
     }
     case "command":
-      return `CommandDecl<${named}, ${fieldsOf(data.fields)}>`
+      return `Command<${named}, ${fieldsOf(data.fields)}>`
     case "view":
-      return `ViewDecl<${named}, ${fieldsOf(data.fields)}, ${data.list === true}${context ? `, ${fieldsOf(context)}` : ""}>`
+      return `View<${named}, ${fieldsOf(data.fields)}, ${data.list === true}${context ? `, ${fieldsOf(context)}` : ""}>`
     case "actor":
       return data.icon === "system" ? "SystemActor" : "Actor"
     case "model":
