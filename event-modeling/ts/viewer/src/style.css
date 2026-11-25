@@ -121,8 +121,7 @@ svg .slice-head:focus-visible > rect {
 .facts h3,
 .specs-title,
 .hstep .word,
-.slice-body .lane-tag,
-.top .swatch {
+.slice-body .lane-tag {
   font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: var(--tracking);
@@ -217,17 +216,43 @@ body,
   text-overflow: ellipsis;
 }
 
+/* The legend and the shortcuts: each a header panel that opens and closes, by click or key. */
 .top .legend {
   margin-left: auto;
-  display: flex;
-  gap: 14px;
+}
+
+.top .legend,
+.top .keys {
   color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+/* Open, the legend reads on one line with its label. */
+.top .legend[open]::details-content {
+  display: contents;
+}
+
+.top .legend > *:not(:last-child) {
+  margin-right: 14px;
+}
+
+.top .legend summary,
+.top .keys summary {
+  display: inline;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 500;
+}
+
+.top summary::-webkit-details-marker {
+  display: none;
+}
+
+.top .legend {
+  white-space: nowrap;
 }
 
 .top .swatch {
-  text-transform: none;
-  letter-spacing: 0;
-  font-size: var(--text-sm);
   font-weight: 500;
 }
 
@@ -348,18 +373,6 @@ body,
 
 .top .keys {
   position: relative;
-  color: var(--muted);
-  font-size: var(--text-sm);
-}
-
-.top .keys summary {
-  cursor: pointer;
-  list-style: none;
-  font-weight: 500;
-}
-
-.top .keys summary::-webkit-details-marker {
-  display: none;
 }
 
 .top .keys dl {

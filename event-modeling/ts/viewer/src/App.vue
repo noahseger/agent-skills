@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue"
+import { computed, onMounted, onUnmounted, ref, watch } from "vue"
 import type { Feed } from "../../src/spec.ts"
 import type { Board } from "./board.ts"
 import Canvas from "./Canvas.vue"
@@ -41,6 +41,16 @@ const hovered = ref<string | null>(null)
 const keyed = ref(false)
 /** Bumping `seq` fits the slice or chapter. */
 const focus = ref<{ scope: Scope | null; seq: number }>({ scope: null, seq: 0 })
+
+/** A header panel that opens and closes (click or key), open or closed as it was left. */
+function remembered(key: string, open: boolean) {
+  const stored = localStorage.getItem(key)
+  const state = ref(stored === null ? open : stored === "open")
+  watch(state, (now) => localStorage.setItem(key, now ? "open" : "closed"))
+  return state
+}
+const legend = remembered("em.legend", true)
+const shortcuts = remembered("em.shortcuts", false)
 
 const drawn = computed(() => (model.value ? layout(model.value, measure) : null))
 const selectedBox = computed(() => (drawn.value && boxOf(drawn.value, picked.value)) ?? null)
@@ -141,6 +151,8 @@ function onKey(e: KeyboardEvent) {
   if (e.key === "ArrowRight") step(1)
   else if (e.key === "ArrowLeft") step(-1)
   else if (letter === "e") stepError(e.shiftKey ? -1 : 1)
+  else if (letter === "s") shortcuts.value = !shortcuts.value
+  else if (letter === "k") legend.value = !legend.value
   else if (e.key === "Enter" && picked.value && !sliceOpen.value) {
     openSlice(picked.value.column)
   } else if (e.key === "Escape") {
@@ -202,17 +214,20 @@ onUnmounted(() => {
         </template>
       </h1>
       <span v-if="model?.description" class="description" :title="model.description">{{ model.description }}</span>
-      <span class="legend">
+      <details class="legend" :open="legend" @toggle="legend = ($event.target as HTMLDetailsElement).open">
+        <summary>Legend</summary>
         <span v-for="[kind, label] in LEGEND" :key="kind" class="swatch" :class="kind">{{ label }}</span>
         <span v-for="(icon, kind) in ICON" :key="kind" class="swatch note" :class="kind" :data-icon="icon">{{ kind }}</span>
-      </span>
-      <details class="keys">
+      </details>
+      <details class="keys" :open="shortcuts" @toggle="shortcuts = ($event.target as HTMLDetailsElement).open">
         <summary>Shortcuts</summary>
         <dl>
           <dt>← →</dt><dd>move between slices</dd>
           <dt>Enter</dt><dd>open a slice</dd>
           <dt>Esc</dt><dd>go back</dd>
           <dt>E</dt><dd>next error (Shift-E: previous)</dd>
+          <dt>S</dt><dd>show or hide these shortcuts</dd>
+          <dt>K</dt><dd>show or hide the legend</dd>
         </dl>
       </details>
       <span class="status" role="status">
