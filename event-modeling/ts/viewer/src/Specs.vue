@@ -12,7 +12,8 @@ defineEmits<{ hover: [name: string | null] }>()
 
 // A line is `field = value`, the value in its own column so it wraps under itself, a list of records
 // one per line, a UUID by its first group with the whole as a tooltip; a rejection's is words. A
-// described outcome is no element, so no card: its words stand in the clause.
+// described outcome, or the "no rows" or "nothing happens" of an empty then, is no element: a card's
+// box with no name, in neutral colours, its sentence the content.
 const field = (line: string) => line.split(" = ")[0] ?? line
 const value = (line: string) => line.slice(field(line).length + 3)
 </script>
@@ -25,7 +26,7 @@ const value = (line: string) => line.slice(field(line).length + 3)
         <span class="word">{{ step.word }}</span>
         <div class="hcards">
           <template v-for="(card, i) in step.cards" :key="i">
-            <p v-if="card.kind === 'description'" class="outcome">{{ card.lines.join(" ") }}</p>
+            <div v-if="card.kind === 'description'" class="hcard outcome">{{ card.lines.join(" ") }}</div>
             <div
               v-else
               class="hcard"

@@ -1159,12 +1159,8 @@ svg .chapter {
 /* The selected element's cards in the detail's specifications. */
 .hcard.mark { box-shadow: 0 0 0 2px var(--accent); }
 
-/* A described outcome: words in the clause, level with a card's name, no card. */
-.hcards .outcome {
-  margin: 0;
-  padding: calc(var(--s2) + 1px) 0;
-  font-size: var(--text-sm);
-}
+/* A described outcome: an example's box with no name, neutral and solid (dashed is external). */
+.hcard.outcome { background: var(--bg); border-color: var(--line); color: var(--ink); }
 
 .hcard .hsaid {
   font-size: 12px;
