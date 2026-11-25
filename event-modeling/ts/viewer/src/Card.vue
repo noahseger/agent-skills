@@ -2,7 +2,17 @@
 import { computed } from "vue"
 import { words } from "../../src/types.ts"
 import Fit from "./Fit.vue"
-import { type Box, BUTTON_H, face, INPUT_H, KIND, markAt, TABLE_PAD, TITLE_LINE } from "./layout.ts"
+import {
+  type Box,
+  BUTTON_H,
+  face,
+  INPUT_H,
+  KIND,
+  markAt,
+  PAD,
+  TABLE_PAD,
+  TITLE_LINE,
+} from "./layout.ts"
 import Mark from "./Mark.vue"
 import { measure } from "./measure.ts"
 
@@ -28,21 +38,21 @@ const keyW = measure("KEY", "tag") + 6
     <title v-if="box.canonical">Full details are on its first card</title>
     <rect class="shape" :width="box.w" :height="box.h" rx="8" />
     <text class="title" :y="at.title">
-      <tspan v-for="(line, i) in box.title" :key="i" :x="12" :dy="i === 0 ? 0 : TITLE_LINE">{{ line }}</tspan>
+      <tspan v-for="(line, i) in box.title" :key="i" :x="PAD" :dy="i === 0 ? 0 : TITLE_LINE">{{ line }}</tspan>
     </text>
-    <Fit v-if="at.detail !== undefined" class="detail" :text="box.detail ?? ''" :room="box.w - 24" font="detail" :x="12" :y="at.detail" />
+    <Fit v-if="at.detail !== undefined" class="detail" :text="box.detail ?? ''" :room="box.w - 2 * PAD" font="detail" :x="PAD" :y="at.detail" />
 
     <!-- A screen is a wireframe: inputs, a button, a table. -->
-    <g v-for="input in at.inputs" :key="input.y" class="input" :transform="`translate(12 ${input.y})`">
-      <rect :width="box.w - 24" :height="INPUT_H - 5" rx="4" />
+    <g v-for="input in at.inputs" :key="input.y" class="input" :transform="`translate(${PAD} ${input.y})`">
+      <rect :width="box.w - 2 * PAD" :height="INPUT_H - 5" rx="4" />
       <Fit :text="input.text" :room="box.w - 38" font="input" :x="7" :y="12" />
     </g>
-    <g v-if="at.button !== undefined" class="button" :transform="`translate(12 ${at.button})`">
-      <rect :width="box.w - 24" :height="BUTTON_H - 8" rx="4" />
-      <Fit text-anchor="middle" :text="box.button ?? ''" :room="box.w - 36" font="button" :x="(box.w - 24) / 2" :y="14" />
+    <g v-if="at.button !== undefined" class="button" :transform="`translate(${PAD} ${at.button})`">
+      <rect :width="box.w - 2 * PAD" :height="BUTTON_H - 8" rx="4" />
+      <Fit text-anchor="middle" :text="box.button ?? ''" :room="box.w - 36" font="button" :x="(box.w - 2 * PAD) / 2" :y="14" />
     </g>
-    <g v-if="at.table !== undefined" class="table" :transform="`translate(12 ${at.table})`">
-      <rect class="head" :width="box.w - 24" :height="16" rx="3" />
+    <g v-if="at.table !== undefined" class="table" :transform="`translate(${PAD} ${at.table})`">
+      <rect class="head" :width="box.w - 2 * PAD" :height="16" rx="3" />
       <Fit
         v-for="col in box.tableColumns ?? []"
         :key="col.name"
@@ -54,7 +64,7 @@ const keyW = measure("KEY", "tag") + 6
         :y="11"
       />
       <template v-for="r in box.tableRows ?? 2" :key="r">
-        <line :x1="0" :x2="box.w - 24" :y1="16 + r * 14" :y2="16 + r * 14" />
+        <line :x1="0" :x2="box.w - 2 * PAD" :y1="16 + r * 14" :y2="16 + r * 14" />
         <rect
           v-for="col in box.tableColumns ?? []"
           :key="col.name"
@@ -76,12 +86,12 @@ const keyW = measure("KEY", "tag") + 6
         class="field"
         :class="{ key: box.keys.includes(f.text) }"
         :text="f.text"
-        :room="box.w - 24 - (box.keys.includes(f.text) ? keyW : 0)"
+        :room="box.w - 2 * PAD - (box.keys.includes(f.text) ? keyW : 0)"
         :font="box.keys.includes(f.text) ? 'key' : 'field'"
-        :x="12"
+        :x="PAD"
         :y="f.y"
       />
-      <text v-if="box.keys.includes(f.text)" class="key-mark" text-anchor="end" :x="box.w - 12" :y="f.y">KEY</text>
+      <text v-if="box.keys.includes(f.text)" class="key-mark" text-anchor="end" :x="box.w - PAD" :y="f.y">KEY</text>
     </template>
 
     <g
@@ -97,6 +107,6 @@ const keyW = measure("KEY", "tag") + 6
       <rect :x="box.w - 26" :y="box.h / 2 - 9" width="18" height="18" rx="4" />
       <text text-anchor="middle" :x="box.w - 17" :y="box.h / 2 + 4">↗</text>
     </g>
-    <Mark :mark="box.mark" :at="markAt(12 + measure(box.title[0] ?? '', 'title'), at.title)" />
+    <Mark :mark="box.mark" :at="markAt(PAD + measure(box.title[0] ?? '', 'title'), at.title)" />
   </g>
 </template>

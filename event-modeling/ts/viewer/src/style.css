@@ -717,10 +717,11 @@ svg .chapter {
 }
 
 /* A note is square paper in its kind's colour, lighter than the card it is about: thinner line,
-   smaller type. Critical red, a question amber, info neutral. */
-.sticky { --fill: var(--panel); --stroke: var(--line); color: var(--muted); }
-.sticky.critical { --fill: var(--danger-fill); --stroke: color-mix(in oklab, var(--danger-stroke) 45%, transparent); color: var(--danger-ink); }
-.sticky.question { --fill: var(--question-fill); --stroke: color-mix(in oklab, var(--question-stroke) 45%, transparent); color: var(--question-ink); }
+   smaller type. Critical red, a question amber, info neutral. Its line is its ink at 75% over its
+   fill, so every kind stands 3:1 off the canvas. */
+.sticky { --fill: var(--panel); --stroke: color-mix(in srgb, currentColor 75%, var(--fill)); color: var(--muted); }
+.sticky.critical { --fill: var(--danger-fill); color: var(--danger-ink); }
+.sticky.question { --fill: var(--question-fill); color: var(--question-ink); }
 .sticky .paper { fill: var(--fill); stroke: var(--stroke); stroke-width: 1; }
 .sticky text { font: var(--font-note); fill: currentColor; }
 

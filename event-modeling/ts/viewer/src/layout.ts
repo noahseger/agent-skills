@@ -215,7 +215,8 @@ export const TABLE_PAD = 12
 export const TABLE_MORE_W = 26
 export const STICKY_LINES = 3
 export const STICKY_LINE = 11
-export const STICKY_PAD = 6
+/** A card's and a note's inner padding: its text stands this far from its edge. */
+export const PAD = 12
 export const STICKY_GAP = 6
 export const NOTE_W = 128
 export const NOTE_GAP = 12
@@ -391,12 +392,12 @@ export function stickies(
   subject: string,
   measure: Measure,
 ): Sticky[] {
-  const room = NOTE_W - 2 * STICKY_PAD
+  const room = NOTE_W - 2 * PAD
   const note = (s: string) => measure(s, "note")
   let y = top
   return notes.map(({ text, kind }) => {
     const lines = fitLines(`${ICON[kind]} ${text}`, room, STICKY_LINES, note)
-    const h = lines.length * STICKY_LINE + 2 * STICKY_PAD
+    const h = lines.length * STICKY_LINE + 2 * PAD
     const sticky = { kind, subject, text, lines, x: 0, y, h }
     y += sticky.h + STICKY_GAP
     return sticky
@@ -442,7 +443,7 @@ export function titled(
   linked: boolean,
   measure: Measure,
 ): string[] {
-  const room = w - 24 - (linked ? 26 : 0)
+  const room = w - 2 * PAD - (linked ? 26 : 0)
   return wrap(`${words(el.name)}${el.list ? "[]" : ""}`, room, (s) => measure(s, "title"))
 }
 
@@ -834,8 +835,8 @@ export function layout(model: Board, measure: Measure): Layout {
         : {
             table: extra.table,
             ...(extra.tableRows && { tableRows: extra.tableRows }),
-            tableColumns: fitColumns(extra.table, CARD_W - 24, measure).columns,
-            tableMore: fitColumns(extra.table, CARD_W - 24, measure).more,
+            tableColumns: fitColumns(extra.table, CARD_W - 2 * PAD, measure).columns,
+            tableMore: fitColumns(extra.table, CARD_W - 2 * PAD, measure).more,
           }),
       ...(extra.compact || earlier ? { compact: true } : {}),
       ...(earlier ? { canonical: earlier.id } : {}),
