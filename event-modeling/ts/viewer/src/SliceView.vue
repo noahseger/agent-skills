@@ -59,6 +59,7 @@ const local = computed(() => {
     mine.find((b) => b.kind === "automation") ?? mine.find((b) => b.kind === "command")
   const refs: Box[] = []
   const extra: Link[] = []
+  // A view a slice reads stands beside what reads it, in the same lane, as on the canvas.
   let below = 0
   for (const name of [...(s.reads ?? []), ...(s.polls ? [s.polls] : [])]) {
     const full = props.layout.boxes.find(
@@ -74,8 +75,8 @@ const local = computed(() => {
       compact: true,
       canonical: full.id,
       column: index,
-      x: props.column.x + (width.value - CARD_W) / 2,
-      y: below,
+      x: consumer.x + CARD_W + BESIDE,
+      y: consumer.y + below,
       w: CARD_W,
       h: face({ ...bare, title, compact: true }).h,
     }
@@ -83,10 +84,8 @@ const local = computed(() => {
     refs.push(ref)
     extra.push({ from: ref.id, to: consumer.id, dashed: true })
   }
-  if (refs.length > 0) {
-    const at = blocks.findIndex((b) => b.boxes.some((b) => b.id === consumer?.id))
-    blocks.splice(Math.max(0, at), 0, { label: "Reads", boxes: refs })
-  }
+  if (refs.length > 0)
+    blocks.find((b) => b.boxes.some((x) => x.id === consumer?.id))?.boxes.push(...refs)
 
   // What starts the slice and is drawn in another, the events a view is built from or the event an
   // automation hears, stands below as a reference, as the canvas's streams stand below, its arrow in.
@@ -110,7 +109,7 @@ const local = computed(() => {
       compact: true,
       canonical: full.id,
       column: index,
-      x: props.column.x + (width.value - CARD_W) / 2,
+      x: started.x,
       y: under,
       w: CARD_W,
       h: face({ ...bare, title, compact: true }).h,
@@ -119,7 +118,7 @@ const local = computed(() => {
     sources.push(ref)
     extra.push({ from: ref.id, to: started.id })
   }
-  if (sources.length > 0) blocks.push({ label: "From", boxes: sources })
+  if (sources.length > 0) blocks.push({ label: "On", boxes: sources })
 
   const boxes: Box[] = []
   const lanes: { label: string; y: number; h: number }[] = []
@@ -131,7 +130,7 @@ const local = computed(() => {
     lanes.push({ label: block.label, y, h: bottom - top })
     y += bottom - top
   }
-  return { boxes, lanes, height: y, extra }
+  return { boxes, lanes, height: y, extra, beside: refs.length > 0 }
 })
 const byId = computed(() => new Map(local.value.boxes.map((b) => [b.id, b])))
 const edges = computed(() => [
@@ -150,16 +149,21 @@ const specs = computed(() => props.layout.specs.filter((s) => s.column === props
 const selectedName = computed(() => local.value.boxes.find((b) => b.id === props.selectedBox)?.name)
 // The slice's own width: on the canvas a column with notes is wider by their rail, which the opened
 // slice lists in its panel instead, so it draws without it.
-const width = computed(() => props.column.w - (props.column.notes ? NOTE_W + NOTE_GAP : 0))
+const width = computed(
+  () =>
+    props.column.w -
+    (props.column.notes ? NOTE_W + NOTE_GAP : 0) +
+    (local.value.beside ? CARD_W + BESIDE : 0),
+)
 const viewBox = computed(() => `${props.column.x} 0 ${width.value} ${local.value.height}`)
 // One scale for every opened slice, the canvas's fitted zoom, so cards match from slice to slice.
 const SCALE = MAX_ZOOM
 // A lane's tag stands clear of the drawing's rounded corner.
 const TAG_INSET = 12
+// The gap between a card and a view read beside it.
+const BESIDE = 24
 
 const slice = computed(() => props.column.slice)
-const first = props.layout.columns.length > 0 ? 0 : -1
-const last = props.layout.columns.length - 1
 
 function cardClass(b: Box) {
   return { selected: b.id === props.selectedBox, lit: props.hovered === b.name }
@@ -168,18 +172,10 @@ function cardClass(b: Box) {
 
 <template>
   <section class="slice-view" aria-label="Slice">
-    <header class="slice-header">
-      <div class="controls">
-        <button type="button" aria-label="Previous slice" :disabled="column.index <= first" @click="emit('step', -1)">←</button>
-        <button type="button" aria-label="Next slice" :disabled="column.index >= last" @click="emit('step', 1)">→</button>
-        <button type="button" class="canvas-btn" @click="emit('close')">Canvas</button>
-      </div>
-    </header>
-
     <div class="slice-body">
       <svg class="column" :viewBox="viewBox" :width="width * SCALE" :height="local.height * SCALE">
         <g v-for="lane in local.lanes" :key="lane.label + lane.y">
-          <line class="lane-line" :x1="column.x" :x2="column.x + width" :y1="lane.y" :y2="lane.y" />
+          <line v-if="lane.y > 0" class="lane-line" :x1="column.x" :x2="column.x + width" :y1="lane.y" :y2="lane.y" />
           <Fit v-if="lane.label" class="lane-tag" :text="lane.label" :room="width - 2 * TAG_INSET" font="laneTag" :x="column.x + TAG_INSET" :y="lane.y + 14" />
         </g>
         <path
@@ -204,7 +200,7 @@ function cardClass(b: Box) {
       </svg>
 
       <div class="slice-right">
-        <SliceFacts :model="model" :layout="layout" :column="column" @link="emit('link', $event)" />
+        <SliceFacts :layout="layout" :column="column" />
 
         <h3 v-if="specs.length" class="specs-title">Specifications</h3>
         <Specs :specs="specs" :mark="selectedName" @hover="emit('hover', $event)" />

@@ -82,7 +82,7 @@ const groups = computed(() => {
       <button class="close" type="button" title="Close (Esc)" @click="$emit('close')">×</button>
     </header>
 
-    <SliceFacts v-if="!open && !box" :model="model" :layout="layout" :column="column" @link="emit('link', $event)" />
+    <SliceFacts v-if="!open && !box" :layout="layout" :column="column" />
 
     <template v-if="fields.fields.length">
       <h3>{{ box?.kind === "ui" ? "Query" : "Fields" }}</h3>

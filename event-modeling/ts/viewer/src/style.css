@@ -847,16 +847,17 @@ svg .chapter {
 }
 
 /* What is wrong or unfinished in the slice, under the element each is about. */
-.messages .about {
+:is(.messages, .facts) .about {
   padding: 8px 0;
   border-bottom: 1px solid var(--line);
 }
 
-.messages .about:first-child {
+:is(.messages, .facts) .about:first-child,
+.facts h3 + .about {
   padding-top: 0;
 }
 
-.messages .element {
+:is(.messages, .facts) .element {
   display: flex;
   align-items: center;
   gap: 8px;

@@ -1,45 +1,29 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import type { Board } from "./board.ts"
-import { actorOf, type Column, firstCard, type Layout, parse, served, source } from "./layout.ts"
+import type { Note } from "../../src/types.ts"
+import { type Column, KIND, type Kind, type Layout, source } from "./layout.ts"
 import Messages from "./Messages.vue"
 import Name from "./Name.vue"
 import Notes from "./Notes.vue"
 
-// What a slice is, the same wherever it shows, the opened slice and the detail: who and what
-// it reads, its mapping, its validation (errors and warnings), then its notes, above its specifications.
-const props = defineProps<{ model: Board; layout: Layout; column: Column }>()
-const emit = defineEmits<{ link: [canonical: string] }>()
+// What a slice says beyond its drawing, the same in the opened slice and the detail: its context,
+// its mapping, its validation, then its notes and its elements', each under the element, as validation is.
+const props = defineProps<{ layout: Layout; column: Column }>()
 
 const slice = computed(() => props.column.slice)
-const who = computed(() => actorOf(props.model, slice.value))
-const triggers = computed(() => {
-  const t = slice.value.trigger
-  return t ? (Array.isArray(t) ? t : [t]).map((x) => parse(x).name) : []
+const notes = computed(() => {
+  const groups: { element: string; kind?: Kind; notes: Note[] }[] = []
+  if (slice.value.notes?.length) groups.push({ element: "", notes: slice.value.notes })
+  for (const b of props.layout.boxes)
+    if (b.column === props.column.index && !b.compact && b.notes?.length)
+      groups.push({ element: b.name, kind: b.kind, notes: b.notes })
+  return groups
 })
-function follow(name: string) {
-  const id = firstCard(props.layout, name)?.id
-  if (id) emit("link", id)
-}
 </script>
 
 <template>
   <div class="facts">
-    <dl>
-      <template v-if="who.actor"><dt>Actor</dt><dd>{{ who.actor }}</dd></template>
-      <template v-if="who.from"><dt>From</dt><dd>{{ who.from }}</dd></template>
-      <template v-if="served(slice)"><dt>Service</dt><dd>{{ slice.ui }}</dd></template>
-      <template v-if="slice.context?.length"><dt>Context</dt><dd>{{ slice.context.join(", ") }}</dd></template>
-      <template v-if="slice.polls"><dt>Polls</dt><dd><Name :name="slice.polls" link @click="follow(slice.polls)" /></dd></template>
-      <template v-if="slice.reads?.length">
-        <dt>Reads</dt>
-        <dd><Name v-for="r in slice.reads" :key="r" :name="r" link @click="follow(r)" /></dd>
-      </template>
-      <template v-if="triggers.length">
-        <dt>On</dt>
-        <dd><Name v-for="t in triggers" :key="t" :name="t" link @click="follow(t)" /></dd>
-      </template>
-    </dl>
+    <dl v-if="slice.context?.length"><dt>Context</dt><dd>{{ slice.context.join(", ") }}</dd></dl>
     <template v-if="slice.mapping">
       <h3>Mapping</h3>
       <dl v-for="(fields, event) in slice.mapping" :key="event">
@@ -53,9 +37,15 @@ function follow(name: string) {
       <h3>Validation</h3>
       <Messages :messages="column.messages" :boxes="layout.boxes" />
     </template>
-    <template v-if="slice.notes">
+    <template v-if="notes.length">
       <h3>Notes</h3>
-      <Notes :notes="slice.notes" />
+      <div v-for="g in notes" :key="g.element" class="about">
+        <div v-if="g.element" class="element">
+          <span v-if="g.kind" class="kind" :class="g.kind">{{ KIND[g.kind] }}</span>
+          <Name :name="g.element" :kind="g.kind" />
+        </div>
+        <Notes :notes="g.notes" />
+      </div>
     </template>
   </div>
 </template>
