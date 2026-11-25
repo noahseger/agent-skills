@@ -1174,10 +1174,16 @@ svg .chapter {
 .hcard.automation { background: var(--automation-fill); border-color: var(--automation-stroke); color: var(--automation-ink); }
 .hcard.ui { background: var(--ui-fill); border-color: var(--ui-stroke); color: var(--ui-ink); }
 .hcard.error { background: var(--danger-fill); border-color: var(--danger-stroke); color: var(--danger-ink); }
-.hcard.description { background: var(--panel); border-color: var(--faint); border-style: dashed; color: var(--ink); }
 
 /* The selected element's cards in the detail's specifications. */
 .hcard.mark { box-shadow: 0 0 0 2px var(--accent); }
+
+/* A described outcome: words in the clause, level with a card's name, no card. */
+.hcards .outcome {
+  margin: 0;
+  padding: calc(var(--s2) + 1px) 0;
+  font-size: var(--text-sm);
+}
 
 .hcard .hsaid {
   font-size: 12px;

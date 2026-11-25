@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { type Spec, type SpecCard, shortIds, valueLines } from "./layout.ts"
+import { type Spec, shortIds, valueLines } from "./layout.ts"
 import Name from "./Name.vue"
 
 // Specifications as cards, the same in the slice's detail and in the opened slice.
@@ -11,11 +11,10 @@ defineProps<{
 defineEmits<{ hover: [name: string | null] }>()
 
 // A line is `field = value`, the value in its own column so it wraps under itself, a list of records
-// one per line, a UUID by its first group with the whole as a tooltip; a rejection's or a described
-// outcome's is words.
+// one per line, a UUID by its first group with the whole as a tooltip; a rejection's is words. A
+// described outcome is no element, so no card: its words stand in the clause.
 const field = (line: string) => line.split(" = ")[0] ?? line
 const value = (line: string) => line.slice(field(line).length + 3)
-const said = (kind: SpecCard["kind"]) => kind === "error" || kind === "description"
 </script>
 
 <template>
@@ -25,23 +24,25 @@ const said = (kind: SpecCard["kind"]) => kind === "error" || kind === "descripti
       <div v-for="step in spec.steps" :key="step.word" class="hstep">
         <span class="word">{{ step.word }}</span>
         <div class="hcards">
-          <div
-            v-for="(card, i) in step.cards"
-            :key="i"
-            class="hcard"
-            :class="[card.kind, { mark: card.name === mark }]"
-            @pointerenter="$emit('hover', card.name)"
-            @pointerleave="$emit('hover', null)"
-          >
-            <div class="hname"><Name :name="card.name" :kind="card.kind" /></div>
-            <template v-for="(line, li) in card.lines" :key="li">
-              <div v-if="said(card.kind)" class="hsaid">{{ line }}</div>
-              <div v-else class="hline">
-                <span class="k">{{ field(line) }}</span>
-                <span class="v"><span v-for="(item, ii) in valueLines(value(line))" :key="ii" :title="shortIds(item) === item ? undefined : item">{{ shortIds(item) }}</span></span>
-              </div>
-            </template>
-          </div>
+          <template v-for="(card, i) in step.cards" :key="i">
+            <p v-if="card.kind === 'description'" class="outcome">{{ card.lines.join(" ") }}</p>
+            <div
+              v-else
+              class="hcard"
+              :class="[card.kind, { mark: card.name === mark }]"
+              @pointerenter="$emit('hover', card.name)"
+              @pointerleave="$emit('hover', null)"
+            >
+              <div class="hname"><Name :name="card.name" :kind="card.kind" /></div>
+              <template v-for="(line, li) in card.lines" :key="li">
+                <div v-if="card.kind === 'error'" class="hsaid">{{ line }}</div>
+                <div v-else class="hline">
+                  <span class="k">{{ field(line) }}</span>
+                  <span class="v"><span v-for="(item, ii) in valueLines(value(line))" :key="ii" :title="shortIds(item) === item ? undefined : item">{{ shortIds(item) }}</span></span>
+                </div>
+              </template>
+            </div>
+          </template>
         </div>
       </div>
     </article>
