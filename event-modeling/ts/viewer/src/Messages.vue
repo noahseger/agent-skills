@@ -6,14 +6,15 @@ import Mark from "./Mark.vue"
 import Name from "./Name.vue"
 
 // What is wrong or unfinished, under the element each message is about.
-const props = defineProps<{ messages: Message[]; boxes: Box[] }>()
+// `self`, the element whose panel this is, needs no heading of its own.
+const props = defineProps<{ messages: Message[]; boxes: Box[]; self?: string }>()
 const groups = computed(() => grouped(props.messages, props.boxes))
 </script>
 
 <template>
   <section v-if="groups.length" class="messages" aria-label="What is left to do">
     <div v-for="g in groups" :key="g.element" class="about">
-      <div v-if="g.element" class="element">
+      <div v-if="g.element && g.element !== self" class="element">
         <span v-if="g.kind" class="kind" :class="g.kind">{{ KIND[g.kind] }}</span>
         <Name :name="g.element" :kind="g.kind" />
       </div>

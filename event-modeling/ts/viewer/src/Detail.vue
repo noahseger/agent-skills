@@ -2,6 +2,7 @@
 import { computed } from "vue"
 import type { Board, BoardField } from "./board.ts"
 import { type Box, type Column, firstCard, KIND, type Layout, type Spec, source } from "./layout.ts"
+import Messages from "./Messages.vue"
 import Name from "./Name.vue"
 import Notes from "./Notes.vue"
 import SliceFacts from "./SliceFacts.vue"
@@ -22,6 +23,13 @@ const emit = defineEmits<{
   link: [canonical: string]
 }>()
 const slice = computed(() => props.column.slice)
+// Everything said about the selected element, in whichever slice says it; a slice's own are in its facts.
+const said = computed(() => {
+  const name = props.box?.name
+  if (!name) return []
+  const all = [...props.layout.columns.flatMap((c) => c.messages), ...props.layout.model.messages]
+  return [...new Set(all)].filter((m) => m.element === name)
+})
 
 // A compact card is a reference; its fields and notes are where the element is drawn in full.
 const full = computed(() => {
@@ -99,9 +107,15 @@ const groups = computed(() => {
       </table>
     </template>
 
-    <template v-if="!open && box">
+    <!-- A declaration in no slice has no slice to name. -->
+    <template v-if="!open && box && layout.boxes.some((b) => b.column === column.index && b.id !== box?.id)">
       <h3>Slice</h3>
       <dl><dt>Name</dt><dd><Name :name="column.label" link @click="$emit('open')" /></dd></dl>
+    </template>
+
+    <template v-if="said.length">
+      <h3>Validation</h3>
+      <Messages :messages="said" :boxes="layout.boxes" :self="box?.name" />
     </template>
 
     <template v-if="full?.notes">
