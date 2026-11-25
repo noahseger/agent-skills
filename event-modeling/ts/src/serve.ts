@@ -1,7 +1,7 @@
 // `em view`: serves the viewer and the model, and tells the browser when to reload.
 import { existsSync, type FSWatcher, readdirSync, readFileSync, statSync, watch } from "node:fs"
 import { createServer, type ServerResponse } from "node:http"
-import { basename, extname, join, normalize, relative } from "node:path"
+import { basename, extname, join, normalize, relative, sep } from "node:path"
 
 import { GENERATED } from "./registry.ts"
 
@@ -98,8 +98,8 @@ export async function serve(options: ServeOptions): Promise<Server> {
   const saw = (file: string) => {
     // A hidden file is an editor's temporary copy; the rename onto the model file follows it.
     if (basename(file).startsWith(".")) return
-    // A load writes d.d.ts, and type-checks again itself when it changed.
-    if (basename(file).startsWith(GENERATED)) return
+    // A load writes what is generated, and type-checks again itself when it changed.
+    if (file.split(sep)[0] === GENERATED) return
     changed.push(file)
     if (changed.length > 1) return
     setTimeout(() => {

@@ -9,7 +9,7 @@
       "!viewer/dist",
       "!dist",
       "!test/*.json",
-      "!**/d.d.ts"
+      "!**/generated"
     ]
   },
   "formatter": {

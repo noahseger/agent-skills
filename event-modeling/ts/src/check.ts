@@ -3,7 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs"
 import { dirname, join, relative, resolve } from "node:path"
 import { API, type Diagnostic, DiagnosticCategory, type Snapshot } from "typescript/unstable/async"
 
-import { GENERATED } from "./registry.ts"
+import { typesOf } from "./registry.ts"
 import { type Message, words } from "./types.ts"
 
 export interface Checker {
@@ -52,7 +52,7 @@ export function checker(path: string): Checker {
     async check() {
       const files = single ? [resolve(path)] : modelFiles(root)
       // d.d.ts types d; it is no model module, but the program reads it.
-      const generated = join(root, GENERATED)
+      const generated = typesOf(root)
       const read = existsSync(generated) ? [...files, generated] : files
       const now = new Map(read.map((f) => [f, statSync(f).mtimeMs]))
       const previous = snapshot

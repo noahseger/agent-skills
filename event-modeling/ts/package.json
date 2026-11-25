@@ -34,7 +34,7 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p viewer && for c in examples/*/tsconfig.json test/fixtures/*/tsconfig.json; do tsc --noEmit -p $c || exit 1; done",
-    "types:check": "for f in examples/*/d.d.ts test/*/d.d.ts test/fixtures/*/d.d.ts; do node --experimental-strip-types --disable-warning=ExperimentalWarning bin/em.ts types --check $(dirname $f) || exit 1; done",
+    "types:check": "for g in examples/*/generated test/*/generated test/fixtures/*/generated; do node --experimental-strip-types --disable-warning=ExperimentalWarning bin/em.ts types --check $(dirname $g) || exit 1; done",
     "lint": "biome check .",
     "lint:proto": "buf lint examples/proto",
     "types": "node --experimental-strip-types --disable-warning=ExperimentalWarning bin/em.ts types",

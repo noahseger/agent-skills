@@ -45,7 +45,7 @@ Two kinds:
 
 1. **TypeScript tests** (`ts/test/`) — `typecheck.ts` holds one `@ts-expect-error` per compiler check, so
    `tsc` fails if a check stops firing; the declarations it checks against are in `typecheck/model.ts`,
-   whose `d.d.ts` types `d`; the rest cover assembly and the spec JSON it emits, the proto generator,
+   whose `generated/d.d.ts` types `d`; the rest cover assembly and the spec JSON it emits, the proto generator,
    the viewer's reading of that JSON and its layout (pure, no browser), and the CLI, including the `view` server.
    Biome does not format `typecheck.ts`: the directive binds to the next line, so reformatting a
    chain moves the error off it and silently disarms the check

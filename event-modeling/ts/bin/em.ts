@@ -2,7 +2,7 @@
 // em <command> <path> [options]
 //
 //   init   <dir>                  scaffold a model directory
-//   types  <path> [--check]       write d.d.ts beside the model, so d is typed; --check
+//   types  <path> [--check]       write generated/d.d.ts in the model, so d is typed; --check
 //                                 exits 1 if it is out of date
 //   json   <path> [--partial]     print the model as event-modeling-spec JSON; --partial keeps
 //                                 going past errors and prints what the viewer reads
@@ -31,7 +31,14 @@ import {
 import { type Checker, COMPILER_OPTIONS, checker } from "../src/check.ts"
 import { exportHtml } from "../src/export.ts"
 import { generateProto } from "../src/proto.ts"
-import { current, GENERATED, registry, specifierOf, writeRegistry } from "../src/registry.ts"
+import {
+  current,
+  GENERATED,
+  registry,
+  specifierOf,
+  typesOf,
+  writeRegistry,
+} from "../src/registry.ts"
 import { type Snapshot, serve } from "../src/serve.ts"
 import { kinds, type SpecModel, toFeed } from "../src/spec.ts"
 import { counted } from "../src/types.ts"
@@ -93,15 +100,12 @@ const { values, positionals } = parseArgs({
 const [command, path] = positionals
 
 function init(dir: string): void {
-  const { text, map } = registry(dir, "@noahseger/event-modeling")
   const files = {
     "index.ts": INDEX_TS,
     "tsconfig.json": TSCONFIG,
     "package.json": PACKAGE_JSON,
-    [GENERATED]: text,
-    [`${GENERATED}.map`]: map,
   }
-  for (const name of Object.keys(files)) {
+  for (const name of [...Object.keys(files), GENERATED]) {
     if (existsSync(join(dir, name)))
       throw new Error(
         `${join(dir, name)} already exists, so init stopped. Run it in an empty directory.`,
@@ -112,13 +116,15 @@ function init(dir: string): void {
     writeFileSync(join(dir, name), text)
     console.log(`Wrote ${join(dir, name)}`)
   }
+  writeRegistry(dir, registry(dir, "@noahseger/event-modeling"))
+  console.log(`Wrote ${typesOf(dir)}`)
 }
 
-/** The model's declarations, written beside it as the types of `d`; `--check` only compares. */
+/** The model's declarations, written into its `generated` as the types of `d`; `--check` only compares. */
 async function types(path: string): Promise<void> {
   const { files, dir } = await importModel(path)
   const made = registry(dir, specifierOf(files))
-  const file = join(dir, GENERATED)
+  const file = typesOf(dir)
   if (!values.check)
     console.log(writeRegistry(dir, made) ? `Wrote ${file}` : `${file} is up to date.`)
   else if (!current(dir, made)) {
@@ -193,7 +199,7 @@ async function reload(path: string, types: Checker, cause = "Started"): Promise<
         element: "",
       },
     ])
-  const generated = join(statSync(path).isDirectory() ? path : dirname(path), GENERATED)
+  const generated = typesOf(statSync(path).isDirectory() ? path : dirname(path))
   const read = () => (existsSync(generated) ? readFileSync(generated, "utf8") : undefined)
   const before = read()
   const [run, first] = await Promise.all([assembleFresh(path), check()])

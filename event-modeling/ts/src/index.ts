@@ -169,8 +169,8 @@ export interface Chapter {
 }
 
 /**
- * Every declaration by name. `em types` writes its members into `d.d.ts`, beside the
- * model, from what the model declares.
+ * Every declaration by name. `em types` writes its members into the model's `generated/d.d.ts`,
+ * from what the model declares.
  */
 // biome-ignore lint/suspicious/noEmptyInterface: em types writes the members
 export interface Registry {}

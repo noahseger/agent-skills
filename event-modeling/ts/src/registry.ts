@@ -1,6 +1,6 @@
-// `em types`: what the model declares, written as the types of `d`, beside the model. A declaration
+// `em types`: what the model declares, written as the types of `d`, in the model's `generated`. A declaration
 // map takes go-to-definition and rename from `d.Name` to the string that names it.
-import { existsSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join, relative } from "node:path"
 import { fileURLToPath } from "node:url"
 import type { z } from "zod"
@@ -8,7 +8,12 @@ import type { z } from "zod"
 import { isKey } from "./t.ts"
 import { type Exported, type Fields, REGISTRY, type Registered, WRITTEN } from "./types.ts"
 
-export const GENERATED = "d.d.ts"
+/** The folder in a model that holds what `em types` writes, which no model module is read from. */
+export const GENERATED = "generated"
+const FILE = "d.d.ts"
+
+/** The generated file of the model in `dir`. */
+export const typesOf = (dir: string) => join(dir, GENERATED, FILE)
 
 type Def = {
   type: string
@@ -172,7 +177,7 @@ function declarations(specifier: string): string {
     ...all.map(([name, type]) => `${MEMBER}${key(name)}: ${type}`),
     "  }",
     "}",
-    `//# sourceMappingURL=${GENERATED}.map`,
+    `//# sourceMappingURL=${FILE}.map`,
     "",
   ].join("\n")
 }
@@ -208,7 +213,7 @@ function sourceMap(dir: string, text: string): string {
       /^(file:.*):(\d+):(\d+)$/.exec(member?.where ?? "") ?? []
     if (!member || !url) return ""
     const file = fileURLToPath(url)
-    const source = relative(dir, file)
+    const source = relative(join(dir, GENERATED), file)
     if (!sources.includes(source)) sources.push(source)
     const lines = read.get(file) ?? readFileSync(file, "utf8").split("\n")
     read.set(file, lines)
@@ -232,7 +237,7 @@ function sourceMap(dir: string, text: string): string {
     }
     return `${vlq(MEMBER.length)}${step(start)},${vlq(member.name.length)}${step(end)}`
   })
-  const map = { version: 3, file: GENERATED, sources, names: [], mappings: mappings.join(";") }
+  const map = { version: 3, file: FILE, sources, names: [], mappings: mappings.join(";") }
   return `${JSON.stringify(map)}\n`
 }
 
@@ -254,16 +259,16 @@ export function specifierOf(files: string[]): string {
 /** Writes both files where either differs, so a watcher sees no save when nothing changed. */
 export function writeRegistry(dir: string, made: { text: string; map: string }): boolean {
   const stale = [
-    [join(dir, GENERATED), made.text],
-    [join(dir, `${GENERATED}.map`), made.map],
+    [typesOf(dir), made.text],
+    [`${typesOf(dir)}.map`, made.map],
   ].filter(([path = "", text]) => !existsSync(path) || readFileSync(path, "utf8") !== text)
+  mkdirSync(join(dir, GENERATED), { recursive: true })
   for (const [path = "", text = ""] of stale) writeFileSync(path, text)
   return stale.length > 0
 }
 
 /** Whether both files are what `em types` would write. */
 export function current(dir: string, made: { text: string; map: string }): boolean {
-  const read = (name: string) =>
-    existsSync(join(dir, name)) ? readFileSync(join(dir, name), "utf8") : undefined
-  return read(GENERATED) === made.text && read(`${GENERATED}.map`) === made.map
+  const read = (path: string) => (existsSync(path) ? readFileSync(path, "utf8") : undefined)
+  return read(typesOf(dir)) === made.text && read(`${typesOf(dir)}.map`) === made.map
 }
