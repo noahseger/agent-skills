@@ -515,8 +515,12 @@ test("an element's notes stand in a rail beside its slice, level with its first 
   assert.ok(info.lines[0]?.startsWith("ⓘ "), "its kind's icon starts its text")
   assert.equal(info.y, full.y)
   assert.equal(question.y, info.y + info.h + STICKY_GAP)
-  assert.equal(info.x, col.x + (out.columns[full.column]?.w ?? 0))
-  assert.ok(info.x >= full.x + full.w, "the rail is right of the card")
+  assert.equal(info.x, full.x + full.w + NOTE_GAP, "a note stands NOTE_GAP right of the card")
+  assert.equal(
+    col.x + col.w - (info.x + NOTE_W),
+    full.x - col.x,
+    "the column ends as far after the note as it begins before the card",
+  )
   assert.equal(col.w, (out.columns[full.column]?.w ?? 0) + NOTE_W + NOTE_GAP)
   assert.equal(question.lines.length, STICKY_LINES)
   assert.ok(question.lines.at(-1)?.endsWith("…"), "a long note is cut; the detail has it whole")

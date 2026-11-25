@@ -29,7 +29,7 @@
   --danger-fill: #fee2e2;
   --danger-stroke: #ef4444;
   --danger-ink: #7f1d1d;
-  --warning: #a16207;
+  --warning: #eab308;
   --question-fill: #fef3c7;
   --question-stroke: #d97706;
   --question-ink: #78350f;
@@ -572,7 +572,13 @@ svg .chapter {
    its own ink over its fill at 8%. Each sets `--fill` and its ink as `color`; one rule for every kind. */
 .app:not(.keyed) :is(.card, .sticky, .lane-name, .chapter, .slice-head):hover > :is(.shape, .paper, rect, path),
 .app:not(.keyed) .slice-head.hover > path {
-  fill: color-mix(in srgb, currentColor 8%, var(--fill));
+  fill: color-mix(in srgb, var(--layer, currentColor) 8%, var(--fill));
+}
+
+/* The board's own chrome, lane names and slice headers, lays one layer: the ink's. */
+.lane-name,
+.slice-head {
+  --layer: var(--ink);
 }
 
 .slice-head {
@@ -716,12 +722,11 @@ svg .chapter {
   stroke: var(--accent);
 }
 
-/* A note is square paper in its kind's colour, lighter than the card it is about: thinner line,
-   smaller type. Critical red, a question amber, info neutral. Its line is its ink at 75% over its
-   fill, so every kind stands 3:1 off the canvas. */
-.sticky { --fill: var(--panel); --stroke: color-mix(in srgb, currentColor 75%, var(--fill)); color: var(--muted); }
-.sticky.critical { --fill: var(--danger-fill); color: var(--danger-ink); }
-.sticky.question { --fill: var(--question-fill); color: var(--question-ink); }
+/* A note is square paper in its kind's colour, lighter than the card it is about: smaller type.
+   Critical red, a question amber, info neutral. Its line is its kind's stroke token, as a card's is. */
+.sticky { --fill: var(--panel); --stroke: var(--ui-stroke); color: var(--muted); }
+.sticky.critical { --fill: var(--danger-fill); --stroke: var(--danger-stroke); color: var(--danger-ink); }
+.sticky.question { --fill: var(--question-fill); --stroke: var(--question-stroke); color: var(--question-ink); }
 .sticky .paper { fill: var(--fill); stroke: var(--stroke); stroke-width: 1; }
 .sticky text { font: var(--font-note); fill: currentColor; }
 

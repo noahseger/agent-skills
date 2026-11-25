@@ -1070,7 +1070,8 @@ export function layout(model: Board, measure: Measure): Layout {
   for (const col of columns) {
     col.x += shiftAt(before[col.index] ?? 0)
     if (!rails.includes(col)) continue
-    railX.set(col, col.x + col.w)
+    // A note stands NOTE_GAP right of the cards, and the column ends PAD_X after it, as it begins.
+    railX.set(col, col.x + col.w - PAD_X + NOTE_GAP)
     col.w += NOTE_W + NOTE_GAP
   }
   const width =
