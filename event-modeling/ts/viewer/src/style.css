@@ -237,7 +237,7 @@ body,
 }
 
 /* Open, the legend's items join its flex line beside its label. */
-.top .legend::details-content {
+.top .legend[open]::details-content {
   display: contents;
 }
 
