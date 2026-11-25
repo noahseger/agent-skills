@@ -692,11 +692,11 @@ test("export writes one self-contained page carrying the model", () => {
   }
 })
 
-test("json prints a storm of events as the timeline, each in a slice of its own, with nothing left to do", () => {
+test("json prints a storm of events as the timeline, each in a slice of its own, warning that nothing records them yet", () => {
   const storm = here("./fixtures/storm")
   const strict = em("json", storm)
   assert.equal(strict.status, 0, strict.stderr)
-  assert.equal(strict.stderr, "")
+  assert.match(strict.stderr, /GameStarted: nothing records it\./)
   const { slices } = JSON.parse(strict.stdout) as {
     slices: { title: string; events: { title: string }[] }[]
   }

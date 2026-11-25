@@ -164,6 +164,30 @@ function assembled(modules: readonly object[], options: Options, dir: string): A
           element: d.name ?? "",
         }),
       )
+  // A declaration no slice uses yet is storming, drawn in declaration order: unfinished, not wrong.
+  for (const d of loose) {
+    const name = d.name ?? ""
+    // A slice that assumes or reacts to it has already said what is missing.
+    if (messages.some((m) => m.element === name)) continue
+    const gap =
+      d.kind === "event" && d.external
+        ? ["nothing translates it", `Add m.slice().translation(d.${name}).`]
+        : d.kind === "event"
+          ? ["nothing records it", `Add .event(d.${name}) to the slice that causes it.`]
+          : d.kind === "command"
+            ? ["nothing sends it", `Add m.slice().command(d.${name}) with the event it records.`]
+            : d.kind === "view"
+              ? ["nothing builds it", `Add m.slice().view(d.${name}).event(d.Event).`]
+              : undefined
+    if (gap)
+      fail(
+        warning({
+          message: `${name}: ${gap[0]}. ${gap[1]}`,
+          ui: `${words(name)}: ${gap[0]}`,
+          element: name,
+        }),
+      )
+  }
   // Every error at once, so one run shows all there is to fix.
   const wrong = messages.filter((m) => m.kind === "error")
   if (!options.partial && wrong.length > 0) throw new Error(wrong.map((m) => m.message).join("\n"))

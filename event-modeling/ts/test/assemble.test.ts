@@ -644,6 +644,12 @@ test("an event nothing consumes is unused: a warning, which a strict assembly do
       element: "Created",
       slice: "create",
     },
+    {
+      kind: "warning",
+      message: "Table: nothing builds it. Add m.slice().view(d.Table).event(d.Event).",
+      ui: "Table: nothing builds it",
+      element: "Table",
+    },
   ])
 })
 
@@ -1599,13 +1605,29 @@ test("a view in given is named as one", () => {
   )
 })
 
-test("a declaration in no slice is storming, with nothing to do", () => {
+test("a declaration in no slice is storming: unfinished, so a warning says what it needs, and a strict assembly lets it through", () => {
   fixture()
   m.event("Loose", { id: t.string() })
   m.command("Idle", { id: t.string() })
   chapters({ Ch: [create(), view()] })
   const json = assembleModules([{ default: m.model("x") }], { partial: true })
-  assert.equal(json.messages, undefined)
+  assert.deepEqual(
+    json.messages?.map((m) => [m.kind, m.message, m.element, m.slice]),
+    [
+      [
+        "warning",
+        "Loose: nothing records it. Add .event(d.Loose) to the slice that causes it.",
+        "Loose",
+        undefined,
+      ],
+      [
+        "warning",
+        "Idle: nothing sends it. Add m.slice().command(d.Idle) with the event it records.",
+        "Idle",
+        undefined,
+      ],
+    ],
+  )
 })
 
 test("everything is on the timeline in declaration order until organized into slices and chapters", () => {
@@ -1628,7 +1650,12 @@ test("everything is on the timeline in declaration order until organized into sl
   )
   assert.deepEqual(
     feed.warnings?.map((w) => w.ui),
-    ["Note Filed: missing specification", "Note Filed: unused"],
+    [
+      "Note Filed: missing specification",
+      "Note Filed: unused",
+      "Note Captured: nothing records it",
+      "Note Archived: nothing records it",
+    ],
   )
   const drawing = layout(drawn(feed))
   assert.deepEqual(
@@ -1717,6 +1744,21 @@ test("a partial assembly lists the warnings and draws each declaration in no sli
         "warning",
         "Created: no stream. Add .stream() where it's declared, with the stream it belongs to.",
         "Created: no stream",
+      ],
+      [
+        "warning",
+        "Table: nothing builds it. Add m.slice().view(d.Table).event(d.Event).",
+        "Table: nothing builds it",
+      ],
+      [
+        "warning",
+        "Started: nothing records it. Add .event(d.Started) to the slice that causes it.",
+        "Started: nothing records it",
+      ],
+      [
+        "warning",
+        "Ended: nothing records it. Add .event(d.Ended) to the slice that causes it.",
+        "Ended: nothing records it",
       ],
     ],
   )
@@ -2135,7 +2177,10 @@ test("a stream and a view of one name are declared twice, and that is all: the e
   const json = assembleModules([{ default: m.model("x") }], { partial: true })
   assert.deepEqual(
     json.messages
-      ?.filter((m) => m.element === "Lists" || m.element === "Named")
+      ?.filter(
+        (m) =>
+          (m.element === "Lists" || m.element === "Named") && !/nothing records/.test(m.message),
+      )
       .map((m) => m.message.replace(/, at \S+ and \S+\./, ".")),
     ["Lists: declared twice. Keep one."],
   )

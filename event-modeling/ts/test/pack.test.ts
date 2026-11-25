@@ -51,8 +51,11 @@ test("the packed tarball installs into a project and em runs there", () => {
       out.model.slices.map((s) => s.title),
       ["Started"],
     )
-    // A lone event is storming, with nothing left to do, so stderr is empty: no node warning.
-    assert.equal(json.stderr, "")
+    // A lone event is storming: stderr holds its warning and nothing else, no node warning.
+    assert.equal(
+      json.stderr,
+      "Started: nothing records it. Add .event(d.Started) to the slice that causes it.\n",
+    )
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

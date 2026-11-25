@@ -315,8 +315,8 @@ message ListTodoListsResponse {
 and more slices, is `examples/todo-app/`.
 
 You do not have to finish first. `view` draws a model as far as it goes: an event in no slice
-stands on its own in its lane, where you declare it, and `view` marks what is left to do on the
-slice it belongs to. So write the events first, each in its stream, in the order they happen.
+stands on its own in its lane, where you declare it, with a warning that nothing records it yet,
+and `view` marks what is left to do on the slice it belongs to. So write the events first, each in its stream, in the order they happen.
 
 ## Writing a model
 
