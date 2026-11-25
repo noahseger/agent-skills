@@ -208,6 +208,13 @@ function hoverCard(b: Box | null) {
   emit("hover", b?.name ?? null)
 }
 
+// A slice's header: the top of its outline, rounded above and square below, where the column goes on.
+const SLICE_R = 10
+function head(x: number, y: number, w: number) {
+  const r = SLICE_R
+  return `M${x} ${y + NAME_H} V${y + r} A${r} ${r} 0 0 1 ${x + r} ${y} H${x + w - r} A${r} ${r} 0 0 1 ${x + w} ${y + r} V${y + NAME_H} Z`
+}
+
 // A chapter is an arrow along the time line; the first has a flat start.
 function arrow(x: number, w: number, first: boolean) {
   const y = props.layout.nameY - ARROW_H - 12
@@ -263,15 +270,6 @@ const transform = computed(
         <line class="lane-line" :x1="0" :x2="layout.width" :y1="layout.height" :y2="layout.height" />
 
         <g v-for="col in layout.columns" :key="col.index">
-          <rect
-            class="slice-outline"
-            :class="{ hover: hoverColumn === col.index, selected: selectedColumn === col.index }"
-            :x="col.x + 4"
-            :y="layout.nameY"
-            :width="col.w - 8"
-            :height="layout.height - layout.nameY - 4"
-            rx="10"
-          />
           <g
             class="slice-head"
             :class="{ selected: selectedColumn === col.index, hover: hoverColumn === col.index }"
@@ -280,7 +278,7 @@ const transform = computed(
             :aria-label="`Slice ${col.title}`"
             @keydown.enter.stop="emit('openSlice', col.index)"
           >
-            <rect :x="col.x + 4" :y="layout.nameY" :width="col.w - 8" :height="NAME_H" rx="10" />
+            <path :d="head(col.x + 4, layout.nameY, col.w - 8)" />
             <Fit
               text-anchor="middle"
               :text="col.title"
@@ -291,6 +289,16 @@ const transform = computed(
             />
             <Mark :mark="col.mark" :at="[col.x + 20, layout.nameY + NAME_H / 2]" />
           </g>
+          <!-- Above the header, so the header never cuts it. -->
+          <rect
+            class="slice-outline"
+            :class="{ hover: hoverColumn === col.index, selected: selectedColumn === col.index }"
+            :x="col.x + 4"
+            :y="layout.nameY"
+            :width="col.w - 8"
+            :height="layout.height - layout.nameY - 4"
+            :rx="SLICE_R"
+          />
         </g>
 
         <Sticky v-for="(note, i) in notes" :key="i" :sticky="note" />

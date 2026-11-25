@@ -98,7 +98,7 @@ svg [tabindex]:focus-visible {
 }
 
 svg [tabindex]:focus-visible > .shape,
-svg .slice-head:focus-visible > rect {
+svg .slice-head:focus-visible > path {
   stroke: var(--accent);
   stroke-width: 2.5;
 }
@@ -563,6 +563,9 @@ svg .chapter {
 }
 
 /* slices */
+/* A slice: its outline, drawn above its name's header so nothing cuts it, and the header's fill.
+   At rest neither shows; hovered, the outline is grey; selected, accent, the header accent-filled.
+   Hovering a selected slice keeps its accent and lays the state layer on the header like any hover. */
 .slice-outline {
   fill: transparent;
   stroke: transparent;
@@ -573,7 +576,7 @@ svg .chapter {
 
 /* Hover shows on the canvas only while the mouse leads: a key press hands the lead to the keyboard
    (`.keyed`) until the mouse next moves. */
-.app:not(.keyed) .slice-outline.hover {
+.app:not(.keyed) .slice-outline.hover:not(.selected) {
   stroke: #cbd5e1;
 }
 
@@ -588,38 +591,29 @@ svg .chapter {
 
 /* Hover is a state layer: whatever the pointer is over, a card, a note, a lane name or a chapter, lays
    its own ink over its fill at 8%. Each sets `--fill` and its ink as `color`; one rule for every kind. */
-.app:not(.keyed) :is(.card, .sticky, .lane-name, .chapter):hover > :is(.shape, .paper, rect, path) {
+.app:not(.keyed) :is(.card, .sticky, .lane-name, .chapter, .slice-head):hover > :is(.shape, .paper, rect, path),
+.app:not(.keyed) .slice-head.hover > path {
   fill: color-mix(in srgb, currentColor 8%, var(--fill));
 }
 
 .slice-head {
+  --fill: transparent;
+  color: var(--muted);
   cursor: pointer;
 }
 
-.slice-head rect {
-  fill: transparent;
+.slice-head.selected {
+  --fill: #dbeafe;
+  color: var(--command-ink);
 }
 
-.app:not(.keyed) .slice-head:hover rect,
-.app:not(.keyed) .slice-head.hover rect {
-  fill: #eef2f7;
-}
-
-.app:not(.keyed) .slice-head.hover text {
-  fill: var(--ink);
-}
-
-.slice-head.selected rect {
-  fill: #dbeafe;
+.slice-head path {
+  fill: var(--fill);
 }
 
 .slice-head text {
   font: var(--font-slice);
-  fill: var(--muted);
-}
-
-.slice-head.selected text {
-  fill: var(--command-ink);
+  fill: currentColor;
 }
 
 /* edges; their arrowheads are defined once, in a drawing of no size */
