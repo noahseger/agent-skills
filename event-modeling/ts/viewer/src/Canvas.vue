@@ -177,12 +177,18 @@ const lit = computed(() => {
   return { named: ids, cards, edges }
 })
 
-// Selecting a chapter, or a slice in it, dims the arrows from and to other chapters.
+// Selecting a chapter dims the arrows from and to other chapters; selecting a slice, every arrow
+// that neither starts nor ends in it.
 const away = computed(() => {
   const sel = props.selected
-  const chapter =
-    sel && ("chapter" in sel ? sel.chapter : props.layout.columns[sel.column]?.chapter)
-  return typeof chapter === "number" ? outside(props.layout, chapter) : new Set<number>()
+  if (!sel) return new Set<number>()
+  if ("chapter" in sel) return outside(props.layout, sel.chapter)
+  const inSlice = new Set(
+    props.layout.boxes.filter((b) => b.column === sel.column).map((b) => b.id),
+  )
+  return new Set(
+    props.layout.edges.flatMap((e, i) => (inSlice.has(e.from) || inSlice.has(e.to) ? [] : [i])),
+  )
 })
 
 // A selection dims the lanes it has no card in.

@@ -201,6 +201,14 @@ body,
   cursor: pointer;
 }
 
+/* The model's name opens its to-do list, its badge after it as after any name. */
+.top .crumbs button:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+}
+
 .top .crumbs button:hover {
   color: var(--accent);
 }

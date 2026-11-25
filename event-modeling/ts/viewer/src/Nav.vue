@@ -11,21 +11,11 @@ const selectedColumn = computed(() =>
 const selectedChapter = computed(() =>
   sel.value && "chapter" in sel.value ? sel.value.chapter : null,
 )
-defineEmits<{ select: [column: number]; chapter: [chapter: number]; model: [] }>()
+defineEmits<{ select: [column: number]; chapter: [chapter: number] }>()
 </script>
 
 <template>
   <nav class="nav" aria-label="Chapters and slices">
-    <button
-      type="button"
-      class="slice"
-      :class="{ selected: selected === 'model' }"
-      :aria-current="selected === 'model' ? 'true' : undefined"
-      @click="$emit('model')"
-    >
-      Model
-      <Mark :mark="layout.model.mark" />
-    </button>
     <template v-for="(chapter, ci) in layout.chapters" :key="chapter.name + ci">
       <button
         v-if="chapter.title"

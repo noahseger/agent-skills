@@ -208,7 +208,8 @@ onUnmounted(() => {
       <h1 class="crumbs">
         <template v-for="(crumb, i) in path" :key="crumb.level">
           <span v-if="i > 0" class="sep" aria-hidden="true">›</span>
-          <button v-if="i < path.length - 1" type="button" :title="crumb.text" @click="go(crumb.to, { zoom: true })">{{ crumb.text }}</button>
+          <button v-if="i === 0" type="button" :title="`${crumb.text}: everything left to do`" @click="go('model')">{{ crumb.text }}<Mark :mark="drawn?.model.mark" /></button>
+          <button v-else-if="i < path.length - 1" type="button" :title="crumb.text" @click="go(crumb.to, { zoom: true })">{{ crumb.text }}</button>
           <span v-else :title="crumb.text">{{ crumb.text }}</span>
         </template>
       </h1>
@@ -240,7 +241,7 @@ onUnmounted(() => {
     </header>
     <pre v-if="error !== null" class="error" role="alert">{{ error }}</pre>
     <main class="body">
-      <Nav v-if="drawn" :layout="drawn" :selected="selection" @select="(column: number) => go({ column }, { zoom: true })" @chapter="selectChapter" @model="go('model')" />
+      <Nav v-if="drawn" :layout="drawn" :selected="selection" @select="(column: number) => go({ column, ...(sliceOpen ? { view: 'slice' as const } : {}) }, { zoom: true })" @chapter="selectChapter" />
       <SliceView
         v-if="drawn && model && sliceOpen && selectedColumn"
         :layout="drawn"
