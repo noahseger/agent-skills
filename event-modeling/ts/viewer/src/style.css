@@ -641,7 +641,13 @@ svg .chapter {
   fill: var(--command-ink);
 }
 
-/* edges */
+/* edges; their arrowheads are defined once, in a drawing of no size */
+.markers {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
 .edge {
   fill: none;
   stroke: #94a3b8;

@@ -237,12 +237,6 @@ const transform = computed(
   >
     <svg role="img" :aria-label="`Event model canvas, ${layout.columns.length} slices`" @click="click">
       <defs>
-        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
-        </marker>
-        <marker id="arrow-lit" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="#2563eb" />
-        </marker>
         <!-- A lane name's backing ends in a fade, so the cards it cuts read as passing under it. -->
         <linearGradient id="pin-fade">
           <stop :offset="(LABEL_W - 8) / (LABEL_W + 16)" stop-color="white" />
