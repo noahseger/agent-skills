@@ -216,29 +216,33 @@ body,
   text-overflow: ellipsis;
 }
 
-/* The legend and the shortcuts: each a header panel that opens and closes, by click or key. */
-.top .legend {
+/* The header's right group: every item sits on one centre line, so none needs a nudge. */
+.top .tools {
   margin-left: auto;
-}
-
-.top .legend,
-.top .keys {
+  display: flex;
+  align-items: center;
+  gap: 14px;
   color: var(--muted);
   font-size: var(--text-sm);
+  line-height: 16px;
+  white-space: nowrap;
 }
 
-/* Open, the legend reads on one line with its label. */
-.top .legend[open]::details-content {
+/* The legend and the shortcuts: each a header panel that opens and closes, by click or key. */
+.top .legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-weight: 500;
+}
+
+/* Open, the legend's items join its flex line beside its label. */
+.top .legend::details-content {
   display: contents;
-}
-
-.top .legend > *:not(:last-child) {
-  margin-right: 14px;
 }
 
 .top .legend summary,
 .top .keys summary {
-  display: inline;
   cursor: pointer;
   list-style: none;
   font-weight: 500;
@@ -248,19 +252,17 @@ body,
   display: none;
 }
 
-.top .legend {
-  white-space: nowrap;
-  font-weight: 500;
+.top .swatch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .top .swatch::before {
   content: "";
-  display: inline-block;
   width: 10px;
   height: 10px;
   border-radius: 3px;
-  margin-right: 6px;
-  vertical-align: -1px;
   border: 1px solid;
 }
 
@@ -278,12 +280,9 @@ body,
 .nav .note-icon { margin: 0 6px 0 auto; line-height: 1; }
 
 .top .status {
-  margin-left: 20px;
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--muted);
-  font-size: 12px;
 }
 
 .top .dot {

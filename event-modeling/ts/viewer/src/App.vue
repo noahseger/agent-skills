@@ -215,6 +215,7 @@ onUnmounted(() => {
         </template>
       </h1>
       <span v-if="model?.description" class="description" :title="model.description">{{ model.description }}</span>
+      <div class="tools">
       <details class="legend" :open="legend" @toggle="legend = ($event.target as HTMLDetailsElement).open">
         <summary>Legend</summary>
         <span v-for="[kind, label] in LEGEND" :key="kind" class="swatch" :class="kind">{{ label }}</span>
@@ -235,6 +236,7 @@ onUnmounted(() => {
         <span class="dot" :class="{ off: !live && !snapshot, error: error !== null }" aria-hidden="true"></span>
         {{ error !== null ? "Model didn't load" : snapshot ? "Exported copy" : live ? "Live" : "Disconnected" }}
       </span>
+      </div>
     </header>
     <pre v-if="error !== null" class="error" role="alert">{{ error }}</pre>
     <main class="body">
