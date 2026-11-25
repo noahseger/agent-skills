@@ -219,7 +219,7 @@ export const STICKY_LINE = 11
 export const PAD = 12
 /** A note's inner padding: lighter than a card's, as the note is. */
 export const NOTE_PAD = 8
-export const STICKY_GAP = 6
+export const STICKY_GAP = 12
 export const NOTE_W = 128
 export const NOTE_GAP = 12
 
@@ -394,12 +394,11 @@ export function stickies(
   subject: string,
   measure: Measure,
 ): Sticky[] {
-  // Less the room the icon's larger glyph takes over the note's own font.
-  const room = NOTE_W - 2 * NOTE_PAD - 6
+  const room = NOTE_W - 2 * NOTE_PAD
   const note = (s: string) => measure(s, "note")
   let y = top
   return notes.map(({ text, kind }) => {
-    const lines = fitLines(`${ICON[kind]} ${text}`, room, STICKY_LINES, note)
+    const lines = fitLines(text, room, STICKY_LINES, note)
     const h = lines.length * STICKY_LINE + 2 * NOTE_PAD
     const sticky = { kind, subject, text, lines, x: 0, y, h }
     y += sticky.h + STICKY_GAP
@@ -432,8 +431,10 @@ export function fitColumns(
 }
 
 /** A mark follows what it marks: `MARK_GAP` after its end, centred on its first line (`baseline`). */
-export const MARK_R = 4
+export const MARK_R = 6
 export const MARK_GAP = 6
+/** A note's badge sits on its top-left corner, level with the title of the card it is about. */
+export const NOTE_DROP = 20 - 4.5
 export const markAt = (end: number, baseline: number): Pt => [
   end + MARK_GAP + MARK_R,
   baseline - 4.5,
@@ -1118,9 +1119,10 @@ export function layout(model: Board, measure: Measure): Layout {
       if (!col || !railX.has(col)) continue
       if (!railEnd.has(col)) {
         railEnd.set(col, b.y)
-        if (col.slice.notes) stack(col, stickies(col.slice.notes, 0, col.title, measure), b.y)
+        if (col.slice.notes)
+          stack(col, stickies(col.slice.notes, 0, col.title, measure), b.y + NOTE_DROP)
       }
-      if (b.notes) stack(col, b.notes, b.y)
+      if (b.notes) stack(col, b.notes, b.y + NOTE_DROP)
       end = Math.max(end, (railEnd.get(col) ?? 0) - STICKY_GAP)
     }
     return end

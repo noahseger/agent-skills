@@ -898,6 +898,18 @@ function checkCovered(at: Located, fail: Fail): void {
     unshown(slice.view, "then")
     return
   }
+  // A command that records nothing yet still needs a specification; its events will name the clause.
+  if (slice.command && recorded(slice).length === 0 && slice.tests.length === 0) {
+    fail(
+      warning({
+        message: `${lead(slice.command.decl.name, at)}: missing specification. Add a .spec whose when is ${slice.command.decl.name}(…).`,
+        ui: `${words(slice.command.decl.name ?? "")}: missing specification`,
+        element: slice.command.decl.name ?? "",
+        slice: slice.id ?? "",
+      }),
+    )
+    return
+  }
   const inClause = (clause: "given" | "then") =>
     new Set(slice.tests.flatMap((t) => t[clause].flatMap((c) => ("decl" in c ? [c.decl] : []))))
   const given = inClause("given")

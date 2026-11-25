@@ -2025,6 +2025,13 @@ test("a slice missing part of its core is drawn with the rest; no event is an er
       },
     ],
   )
+  assert.ok(
+    json.messages?.some(
+      (m) =>
+        m.kind === "warning" && m.slice === "create-2" && m.ui === "Create: missing specification",
+    ),
+    "a command that records nothing yet still asks for a specification",
+  )
   assert.ok(layout(json).boxes.length > 0)
   assert.throws(() => assembled(slices()), /Create: no event\./)
 })

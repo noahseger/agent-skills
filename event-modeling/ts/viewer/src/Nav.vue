@@ -2,7 +2,6 @@
 import { computed } from "vue"
 import type { Layout, Selection } from "./layout.ts"
 import Mark from "./Mark.vue"
-import NoteIcon from "./NoteIcon.vue"
 
 const props = defineProps<{ layout: Layout; selected: Selection | null }>()
 const sel = computed(() => (typeof props.selected === "object" ? props.selected : null))
@@ -48,8 +47,8 @@ defineEmits<{ select: [column: number]; chapter: [chapter: number]; model: [] }>
         @click="$emit('select', col.index)"
       >
         {{ col.title }}
-        <NoteIcon v-if="col.note" :kind="col.note" />
-        <Mark :mark="col.mark" />
+        <span class="said-slot"><Mark :mark="col.note" /></span>
+        <span class="mark-slot"><Mark :mark="col.mark" /></span>
       </button>
     </template>
   </nav>

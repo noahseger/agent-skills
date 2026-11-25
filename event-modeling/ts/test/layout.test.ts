@@ -27,6 +27,7 @@ import {
   type Kind,
   LANE_PAD,
   MAX_ZOOM,
+  NOTE_DROP,
   NOTE_GAP,
   NOTE_W,
   nextMark,
@@ -512,8 +513,12 @@ test("an element's notes stand in a rail beside its slice, level with its first 
   assert.ok(col && info && question)
   assert.deepEqual([info.kind, question.kind], ["info", "question"])
   assert.equal(info.subject, "Item Added", "its tooltip names what it is about")
-  assert.ok(info.lines[0]?.startsWith("ⓘ "), "its kind's icon starts its text")
-  assert.equal(info.y, full.y)
+  assert.equal(info.lines[0], "Titles are trimmed.", "its text alone: its kind is its badge's")
+  assert.equal(
+    info.y,
+    full.y + NOTE_DROP,
+    "its badge, on its top-left corner, is level with the card's title",
+  )
   assert.equal(question.y, info.y + info.h + STICKY_GAP)
   assert.equal(info.x, full.x + full.w + NOTE_GAP, "a note stands NOTE_GAP right of the card")
   assert.equal(
@@ -548,7 +553,7 @@ test("a long name wraps inside its card, which grows to hold it; a note is as ta
   const note = { text: "Rate limited.", kind: "critical" } as const
   const [wide] = stickies([note], 0, "Complete Vendor Connection", measure)
   const [narrow] = stickies([note], 0, "Create List", measure)
-  assert.deepEqual(wide?.lines, ["⚠ Rate limited."])
+  assert.deepEqual(wide?.lines, ["Rate limited."])
   assert.equal(wide?.h, narrow?.h, "the subject takes no room")
 })
 
@@ -561,9 +566,8 @@ test("a slice's note lines up with its first card and names the slice; the lanes
   const [sticky] = drawn.columns[2]?.notes ?? []
   assert.ok(sticky)
   const top = Math.min(...drawn.boxes.filter((b) => b.column === 2).map((b) => b.y))
-  assert.equal(sticky.y, top)
+  assert.equal(sticky.y, top + NOTE_DROP)
   assert.equal(sticky.subject, drawn.columns[2]?.title)
-  assert.ok(sticky.lines[0]?.startsWith("? "))
   assert.equal(drawn.rows[0]?.y, out.rows[0]?.y)
   assert.equal(drawn.columns[3]?.x, (out.columns[3]?.x ?? 0) + NOTE_W + NOTE_GAP)
   assert.equal(drawn.width, out.width + NOTE_W + NOTE_GAP)
@@ -586,7 +590,6 @@ test("a chapter's notes stand above its band from its left edge, in a row as tal
   assert.deepEqual([critical.x, question.x], [band.x, band.x + NOTE_W + STICKY_GAP])
   assert.equal(critical.y, question.y)
   assert.equal(critical.subject, words(chapter.name))
-  assert.ok(critical.lines[0]?.startsWith("⚠ "))
   const row = Math.max(critical.h, question.h) + NOTE_GAP
   assert.equal(drawn.nameY, out.nameY + row, "the band moves down under the row")
   assert.equal(drawn.rows[0]?.y, (out.rows[0]?.y ?? 0) + row)

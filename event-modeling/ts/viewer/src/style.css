@@ -75,12 +75,8 @@
   --font-table: 600 8.5px var(--sans);
   --font-note: 9px var(--sans);
   --note-tracking: 0.02em;
-  /* A mark (error or warning dot) and a note's icon are one size. Each glyph's font size makes its
-     drawn height that size: ⚠ draws 0.76 of its em, ? 0.72, ⓘ 0.92 (measured, 800 weight). */
+  /* The status dot's size; a badge's is MARK_R in layout.ts. */
   --mark-size: 10px;
-  --icon-critical: calc(var(--mark-size) / 0.76);
-  --icon-question: calc(var(--mark-size) / 0.72);
-  --icon-info: calc(var(--mark-size) / 0.92);
   --font-lane: 700 13px var(--sans);
   --font-chapter: 600 13px var(--sans);
   --font-slice: 700 12px var(--sans);
@@ -287,22 +283,10 @@ body,
 .top .swatch.automation::before { background: var(--automation-fill); border-color: var(--automation-stroke); }
 .top .swatch.external::before { background: var(--external-fill); border-color: var(--external-stroke); border-style: dashed; }
 
-/* A kind of note as its icon, in the kind's colour: the legend's, and a navigation row's. */
-.note-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--mark-size);
-  height: var(--mark-size);
-  line-height: 1;
-  font-weight: 800;
-  color: var(--muted);
-}
-.note-icon.critical { color: var(--danger); }
-.note-icon.question { color: var(--question-stroke); }
-/* A navigation row's marks stand in two fixed slots at its right, note icon then dot, so every row's line up. */
-.nav .note-icon { grid-column: 2; justify-self: center; }
-.nav :is(.mark-error, .mark-warning) { grid-column: 3; }
+/* A navigation row's badges stand in two fixed slots at its right, note then issue, so every row's line up. */
+.nav .said-slot { grid-column: 2; }
+.nav .mark-slot { grid-column: 3; }
+.nav :is(.said-slot, .mark-slot) { display: flex; }
 
 .top .status {
   display: flex;
@@ -365,7 +349,7 @@ body,
 
 .nav .slice {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 14px 8px;
+  grid-template-columns: minmax(0, 1fr) 12px 12px;
   column-gap: 6px;
   align-items: center;
   width: 100%;
@@ -419,29 +403,18 @@ body,
   margin: 0;
 }
 
-/* Marks: an error is a red dot, a warning a yellow one, 8px across. One placement rule: it follows
-   what it marks, 6px after (its container's gap; `MARK_GAP` in a drawing), centred on its first line. */
-.mark-error { --mark: var(--danger); }
-.mark-warning { --mark: var(--warning); }
-
-span:is(.mark-error, .mark-warning) {
-  display: inline-flex;
-  align-items: center;
-  flex: none;
-  height: 1lh;
-}
-
-span:is(.mark-error, .mark-warning)::before {
-  content: "";
-  width: var(--mark-size);
-  height: var(--mark-size);
-  border-radius: 50%;
-  background: var(--mark);
-}
-
-circle:is(.mark-error, .mark-warning) {
-  fill: var(--mark);
-}
+/* A badge: whatever is said about an element, one circle, 12px across (MARK_R). Its fill and line are
+   its note's: critical and an error red, a question and a warning amber, info neutral. A note's
+   carries its letter, bold, in the note's ink; an issue's none. It follows what it marks, 6px after
+   (MARK_GAP), centred on its first line; on a note, centred on the note's top-left corner. */
+.badge { flex: none; overflow: visible; }
+.badge circle { fill: var(--panel); stroke: var(--ui-stroke); stroke-width: 1; }
+.badge text { font: 800 8px var(--sans); fill: var(--muted); }
+.badge:is(.error, .critical) circle { fill: var(--danger-fill); stroke: var(--danger-stroke); }
+.badge:is(.error, .critical) text { fill: var(--danger-ink); }
+.badge:is(.warning, .question) circle { fill: var(--question-fill); stroke: var(--question-stroke); }
+.badge:is(.warning, .question) text { fill: var(--question-ink); }
+svg.badge { align-self: center; }
 
 .canvas {
   min-width: 0;
@@ -744,10 +717,7 @@ svg .chapter {
 .sticky.question { --fill: var(--question-fill); --stroke: var(--question-stroke); color: var(--question-ink); }
 .sticky .paper { fill: var(--fill); stroke: var(--stroke); stroke-width: 1; }
 .sticky text { font: var(--font-note); letter-spacing: var(--note-tracking); fill: currentColor; }
-.sticky .icon { font-weight: 800; }
-:is(.note-icon, .sticky .icon) { font-size: var(--icon-info); }
-:is(.note-icon.critical, .sticky.critical .icon) { font-size: var(--icon-critical); }
-:is(.note-icon.question, .sticky.question .icon) { font-size: var(--icon-question); }
+
 
 .notes {
   display: grid;
@@ -757,8 +727,7 @@ svg .chapter {
   list-style: none;
 }
 
-/* Something said about the model, in a panel: a note, an error or a warning. One box: its mark or
-   icon first, centred on the first line, then the words; its line in its kind's stroke, as on the canvas. */
+/* A note in a panel: its badge first, centred on the first line, then its words, in its kind's box. */
 .said {
   display: flex;
   align-items: flex-start;
@@ -770,11 +739,9 @@ svg .chapter {
   background: var(--panel);
   line-height: 1.45;
 }
-.said > :first-child { line-height: inherit; height: 1lh; }
+.said > .badge { margin-top: calc((1lh - 12px) / 2); }
 .said.critical { background: var(--danger-fill); border-color: var(--danger-stroke); color: var(--danger-ink); }
 .said.question { background: var(--question-fill); border-color: var(--question-stroke); color: var(--question-ink); }
-.said.error { border-color: var(--danger-stroke); }
-.said.warning { border-color: var(--warning); }
 .said b { font-weight: 600; }
 
 .card.compact .title {
@@ -895,9 +862,16 @@ svg .chapter {
   margin-bottom: 4px;
 }
 
-.messages .said + .said {
-  margin-top: 6px;
+.messages .message {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 4px 0 0;
+  line-height: 1.45;
 }
+
+.messages .message > .badge { margin-top: calc((1lh - 12px) / 2); }
+.messages .message b { font-weight: 600; }
 
 .detail table {
   border-collapse: collapse;

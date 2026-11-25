@@ -17,7 +17,7 @@ const groups = computed(() => grouped(props.messages, props.boxes))
         <span v-if="g.kind" class="kind" :class="g.kind">{{ KIND[g.kind] }}</span>
         <Name :name="g.element" :kind="g.kind" />
       </div>
-      <p v-for="m in g.messages" :key="m.message" class="said" :class="m.kind">
+      <p v-for="m in g.messages" :key="m.message" class="message">
         <Mark :mark="m.kind" />
         <span><template v-for="(part, i) in wording(m)" :key="i"><b v-if="part.field">{{ part.text }}</b><template v-else>{{ part.text }}</template></template></span>
       </p>

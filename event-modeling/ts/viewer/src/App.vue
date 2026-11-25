@@ -21,7 +21,6 @@ import Mark from "./Mark.vue"
 import Messages from "./Messages.vue"
 import { measure } from "./measure.ts"
 import Nav from "./Nav.vue"
-import NoteIcon from "./NoteIcon.vue"
 import { read } from "./read.ts"
 import SliceView from "./SliceView.vue"
 
@@ -219,7 +218,7 @@ onUnmounted(() => {
         <summary><u>L</u>egend</summary>
         <span v-for="[kind, label] in LEGEND" :key="kind" class="swatch" :class="kind">{{ label }}</span>
         <span v-for="mark in MARKS" :key="mark"><Mark :mark="mark" />{{ mark }}</span>
-        <span v-for="(_, kind) in ICON" :key="kind"><NoteIcon :kind="kind" />{{ kind }}</span>
+        <span v-for="(_, kind) in ICON" :key="kind"><Mark :mark="kind" />{{ kind }}</span>
       </details>
       <details class="keys" :open="shortcuts" @toggle="shortcuts = ($event.target as HTMLDetailsElement).open">
         <summary><u>S</u>hortcuts</summary>
