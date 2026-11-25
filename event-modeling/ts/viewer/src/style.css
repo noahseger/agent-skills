@@ -403,18 +403,16 @@ body,
   margin: 0;
 }
 
-/* A badge: whatever is said about an element, one circle, 12px across (MARK_R). Its fill and line are
-   its note's: critical and an error red, a question and a warning amber, info neutral. A note's
-   carries its letter, bold, in the note's ink; an issue's none. It follows what it marks, 6px after
-   (MARK_GAP), centred on its first line; on a note, centred on the note's top-left corner. */
+/* A badge: whatever is said about an element, one solid circle, 12px across (MARK_R), in its note's
+   colour: critical and an error red, a question and a warning amber, info slate. A note's carries its
+   letter in white, bold; an issue's none. It follows what it marks, 6px after (MARK_GAP); in a page it
+   stands in a box one line tall (`.badge-line`), so it centres on the first line of what it starts. */
 .badge { flex: none; overflow: visible; }
-.badge circle { fill: var(--panel); stroke: var(--ui-stroke); stroke-width: 1; }
-.badge text { font: 800 8px var(--sans); fill: var(--muted); }
-.badge:is(.error, .critical) circle { fill: var(--danger-fill); stroke: var(--danger-stroke); }
-.badge:is(.error, .critical) text { fill: var(--danger-ink); }
-.badge:is(.warning, .question) circle { fill: var(--question-fill); stroke: var(--question-stroke); }
-.badge:is(.warning, .question) text { fill: var(--question-ink); }
-svg.badge { align-self: center; }
+.badge circle { fill: var(--external-stroke); }
+.badge text { font: 800 8px var(--sans); fill: #ffffff; }
+.badge:is(.error, .critical) circle { fill: var(--danger-stroke); }
+.badge:is(.warning, .question) circle { fill: var(--question-stroke); }
+.badge-line { display: inline-flex; align-items: center; flex: none; height: 1lh; }
 
 .canvas {
   min-width: 0;
@@ -716,7 +714,7 @@ svg .chapter {
 .sticky.critical { --fill: var(--danger-fill); --stroke: var(--danger-stroke); color: var(--danger-ink); }
 .sticky.question { --fill: var(--question-fill); --stroke: var(--question-stroke); color: var(--question-ink); }
 .sticky .paper { fill: var(--fill); stroke: var(--stroke); stroke-width: 1; }
-.sticky text { font: var(--font-note); letter-spacing: var(--note-tracking); fill: currentColor; }
+.sticky > text { font: var(--font-note); letter-spacing: var(--note-tracking); fill: currentColor; }
 
 
 .notes {
@@ -739,7 +737,6 @@ svg .chapter {
   background: var(--panel);
   line-height: 1.45;
 }
-.said > .badge { margin-top: calc((1lh - 12px) / 2); }
 .said.critical { background: var(--danger-fill); border-color: var(--danger-stroke); color: var(--danger-ink); }
 .said.question { background: var(--question-fill); border-color: var(--question-stroke); color: var(--question-ink); }
 .said b { font-weight: 600; }
@@ -870,7 +867,6 @@ svg .chapter {
   line-height: 1.45;
 }
 
-.messages .message > .badge { margin-top: calc((1lh - 12px) / 2); }
 .messages .message b { font-weight: 600; }
 
 .detail table {
