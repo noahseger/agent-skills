@@ -83,7 +83,6 @@ const groups = computed(() => {
     </header>
 
     <SliceFacts v-if="!open && !box" :model="model" :layout="layout" :column="column" @link="emit('link', $event)" />
-    <Notes v-if="full?.notes" :notes="full.notes" />
 
     <template v-if="fields.fields.length">
       <h3>{{ box?.kind === "ui" ? "Query" : "Fields" }}</h3>
@@ -103,6 +102,11 @@ const groups = computed(() => {
     <template v-if="!open && box">
       <h3>Slice</h3>
       <dl><dt>Name</dt><dd><Name :name="column.label" link @click="$emit('open')" /></dd></dl>
+    </template>
+
+    <template v-if="full?.notes">
+      <h3>Notes</h3>
+      <Notes :notes="full.notes" />
     </template>
 
     <template v-if="groups.length">

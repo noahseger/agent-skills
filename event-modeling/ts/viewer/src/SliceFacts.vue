@@ -6,8 +6,8 @@ import Messages from "./Messages.vue"
 import Name from "./Name.vue"
 import Notes from "./Notes.vue"
 
-// What a slice is, the same wherever it shows, the opened slice and the detail: its notes, what is
-// left to do, who and what it reads, and its mapping.
+// What a slice is, the same wherever it shows, the opened slice and the detail: what is left to do,
+// who and what it reads, its mapping, then its notes, just above its specifications.
 const props = defineProps<{ model: Board; layout: Layout; column: Column }>()
 const emit = defineEmits<{ link: [canonical: string] }>()
 
@@ -25,7 +25,6 @@ function follow(name: string) {
 
 <template>
   <div class="facts">
-    <Notes v-if="slice.notes" :notes="slice.notes" />
     <Messages :messages="column.messages" :boxes="layout.boxes" />
     <dl>
       <template v-if="who.actor"><dt>Actor</dt><dd>{{ who.actor }}</dd></template>
@@ -50,6 +49,10 @@ function follow(name: string) {
           <dd>{{ source(src) }}</dd>
         </template>
       </dl>
+    </template>
+    <template v-if="slice.notes">
+      <h3>Notes</h3>
+      <Notes :notes="slice.notes" />
     </template>
   </div>
 </template>
