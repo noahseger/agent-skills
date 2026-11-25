@@ -1154,6 +1154,20 @@ test("a chapter's bounds take in all its slices and the notes above its band", (
   }
 })
 
+test("a slice's navigation row shows the kind of its most serious note", () => {
+  const notes = [
+    { text: "Why?", kind: "info" as const },
+    { text: "Who may?", kind: "question" as const },
+  ]
+  const chapters = model.chapters.map((c) => ({
+    ...c,
+    slices: c.slices.map((s) => (s.name === "AddItem" ? { ...s, notes } : s)),
+  }))
+  const noted = layout({ ...model, chapters })
+  assert.equal(noted.columns.find((c) => c.label === "AddItem")?.note, "question")
+  assert.equal(out.columns.find((c) => c.label === "AddItem")?.note, undefined)
+})
+
 test("a fitted slice fills the viewport top to bottom, centred, no closer than MAX_ZOOM", () => {
   const scope = { column: out.columns.findIndex((c) => c.label === "AddItem") }
   const b = bounds(out, scope)

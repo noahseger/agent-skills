@@ -19,6 +19,7 @@ import {
 import Messages from "./Messages.vue"
 import { measure } from "./measure.ts"
 import Nav from "./Nav.vue"
+import NoteIcon from "./NoteIcon.vue"
 import { read } from "./read.ts"
 import SliceView from "./SliceView.vue"
 
@@ -217,7 +218,7 @@ onUnmounted(() => {
       <details class="legend" :open="legend" @toggle="legend = ($event.target as HTMLDetailsElement).open">
         <summary>Legend</summary>
         <span v-for="[kind, label] in LEGEND" :key="kind" class="swatch" :class="kind">{{ label }}</span>
-        <span v-for="(icon, kind) in ICON" :key="kind" class="swatch note" :class="kind" :data-icon="icon">{{ kind }}</span>
+        <span v-for="(_, kind) in ICON" :key="kind" ><NoteIcon :kind="kind" /> {{ kind }}</span>
       </details>
       <details class="keys" :open="shortcuts" @toggle="shortcuts = ($event.target as HTMLDetailsElement).open">
         <summary>Shortcuts</summary>

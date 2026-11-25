@@ -250,9 +250,6 @@ body,
 
 .top .legend {
   white-space: nowrap;
-}
-
-.top .swatch {
   font-weight: 500;
 }
 
@@ -273,10 +270,12 @@ body,
 .top .swatch.readModel::before { background: var(--view-fill); border-color: var(--view-stroke); }
 .top .swatch.automation::before { background: var(--automation-fill); border-color: var(--automation-stroke); }
 .top .swatch.external::before { background: var(--external-fill); border-color: var(--external-stroke); border-style: dashed; }
-.top .swatch.note::before { content: attr(data-icon); width: auto; height: auto; border: 0; font-weight: 700; }
-.top .swatch.critical::before { color: var(--danger); }
-.top .swatch.question::before { color: var(--question-stroke); }
-.top .swatch.info::before { color: var(--muted); }
+
+/* A kind of note as its icon, in the kind's colour: the legend's, and a navigation row's. */
+.note-icon { font-weight: 700; color: var(--muted); }
+.note-icon.critical { color: var(--danger); }
+.note-icon.question { color: var(--question-stroke); }
+.nav .note-icon { margin: 0 6px 0 auto; line-height: 1; }
 
 .top .status {
   margin-left: 20px;
@@ -398,14 +397,6 @@ body,
 
 .top .keys dd {
   margin: 0;
-}
-
-.note-dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
 }
 
 /* Marks: an error is a red disc with "!", a warning a grey ring. */

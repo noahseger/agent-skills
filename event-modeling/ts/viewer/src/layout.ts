@@ -122,7 +122,8 @@ export interface Column {
   label: string
   /** `label` as words, for the picture. */
   title: string
-  noted: boolean
+  /** The kind of its most serious note, which its navigation row shows as the kind's icon. */
+  note: NoteKind | undefined
   /** The notes in the rail beside the slice: its own at the top, then each card's level with it. */
   notes?: Sticky[]
   /** The slice's messages: its own, or, for a declaration in no slice, those about it. */
@@ -366,12 +367,19 @@ export function fitLines(
   ]
 }
 
-/** Each kind of note as an icon, so a note says its kind without colour and its subject in words. */
+/**
+ * Each kind of note as an icon, so a note says its kind without colour and its subject in words;
+ * the most serious first.
+ */
 export const ICON: Record<NoteKind, string> = {
   critical: "⚠",
   question: "?",
   info: "ⓘ",
 }
+
+/** The most serious kind among `notes`, if any. */
+export const gravest = (notes: readonly Note[] | undefined): NoteKind | undefined =>
+  (Object.keys(ICON) as NoteKind[]).find((kind) => notes?.some((n) => n.kind === kind))
 
 /**
  * Notes on `subject` stacked from `top`, each its kind's icon then its text, cut to `STICKY_LINES`
@@ -693,7 +701,7 @@ export function layout(model: Board, measure: Measure): Layout {
         slice,
         label: labelOf(slice),
         title: words(labelOf(slice)),
-        noted: slice.notes !== undefined,
+        note: gravest(slice.notes),
         ...marked(messages.filter((m) => m.slice === slice.id)),
         x,
         w,
@@ -736,7 +744,7 @@ export function layout(model: Board, measure: Measure): Layout {
         slice,
         label: el.name,
         title: words(el.name),
-        noted: model.notes[el.name] !== undefined,
+        note: gravest(model.notes[el.name]),
         ...marked(messages.filter((m) => m.slice === undefined && m.element === el.name)),
         x,
         w: COL_W,
