@@ -5,6 +5,7 @@ import Card from "./Card.vue"
 import Fit from "./Fit.vue"
 import {
   actorOf,
+  apart,
   around,
   type Box,
   CARD_W,
@@ -108,10 +109,12 @@ const edges = computed(() => [
   ...local.value.extra,
 ])
 // The same rule as the canvas, over the slice's own cards: direct, else round what stands between.
+const entering = computed(() => apart(edges.value, byId.value))
 function route(e: Link) {
   const [a, b] = [byId.value.get(e.from), byId.value.get(e.to)]
   if (!a || !b) return ""
-  return polyline(direct(a, b, local.value.boxes) ?? around(a, b, local.value.boxes))
+  const into = entering.value(e)
+  return polyline(direct(a, b, local.value.boxes, [], 0, into) ?? around(a, b, local.value.boxes))
 }
 const specs = computed(() => props.layout.specs.filter((s) => s.column === props.column.index))
 const selectedName = computed(() => local.value.boxes.find((b) => b.id === props.selectedBox)?.name)

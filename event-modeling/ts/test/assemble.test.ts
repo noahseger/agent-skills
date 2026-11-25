@@ -791,6 +791,30 @@ test("an event of ours that maps a field the command shares from the external ev
   )
 })
 
+test("an event of ours is drawn only from the external event whose fields it keeps, not one before it whose timestamp it shares", () => {
+  fixture()
+  m.external("Remote")
+  m.event("Answered", { page: t.string() }).external(d.Remote)
+  m.event("Refused", { reason: t.string() }).external(d.Remote)
+  m.event("Failed", { id: t.string(), reason: t.string() })
+  const ask = m
+    .slice()
+    .command(d.Create)
+    .event(d.Answered)
+    .event(d.Refused)
+    .event(d.Failed, (c: C) => ({ reason: c.Refused.reason }))
+  chapters({ Ch: [ask] })
+  const feed = feedOf([{ default: m.model("x") }], { partial: true })
+  const failed = feed.model.slices[0]?.events.find((e) => e.title === "Failed")
+  assert.deepEqual(
+    failed?.dependencies.map((d) => [d.type, d.title]),
+    [
+      ["INBOUND", "Create"],
+      ["INBOUND", "Refused"],
+    ],
+  )
+})
+
 test("the external event a call gets back fills an event of ours after it, in the same slice", () => {
   fixture()
   m.external("Remote")

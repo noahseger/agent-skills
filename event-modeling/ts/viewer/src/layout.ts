@@ -595,6 +595,36 @@ export function direct(
   return undefined
 }
 
+/** The side of `a` that faces `b`, as `direct` takes it: across when one stands wholly beside the other. */
+const facing = (a: Rect, b: Rect) =>
+  b.x >= a.x + a.w ? "right" : b.x + b.w <= a.x ? "left" : b.y > a.y ? "bottom" : "top"
+
+/**
+ * How far along its target's side an arrow enters: off centre by `FAN`, towards its source, where
+ * another arrow leaves that side (a call into the external event whose answer leaves it), else at
+ * centre, so the two never meet in one point and read as one line.
+ */
+export function apart(links: readonly Link[], byId: ReadonlyMap<string, Rect>) {
+  const ends = (e: Link) => [byId.get(e.from), byId.get(e.to)] as const
+  const leaving = new Set(
+    links.flatMap((e) => {
+      const [a, b] = ends(e)
+      return a && b ? [`${e.from} ${facing(a, b)}`] : []
+    }),
+  )
+  return (e: Link): number => {
+    const [a, b] = ends(e)
+    if (!a || !b) return 0
+    const side = facing(b, a)
+    if (!leaving.has(`${e.to} ${side}`)) return 0
+    const along =
+      side === "left" || side === "right"
+        ? a.y + a.h / 2 - (b.y + b.h / 2)
+        : a.x + a.w / 2 - (b.x + b.w / 2)
+    return along < 0 ? -FAN : FAN
+  }
+}
+
 /** Round the right side of the cards standing between `a` and `b`, one above the other. */
 export function around(a: Box, b: Box, cards: readonly Rect[]): Pt[] {
   const [top, bottom] = a.y < b.y ? [a, b] : [b, a]
@@ -943,7 +973,10 @@ export function layout(model: Board, measure: Measure): Layout {
     }
     if (!command) for (const ui of uis) for (const rm of readModels) edge(rm, ui)
     if (gear && command) edge(gear, command)
-    if (command) for (const ev of events) edge(command, ev)
+    // A call reads command → external event → the event of ours that keeps its answer, so the
+    // command points only at the events that keep none.
+    const answered = new Set((s.calls ?? []).flatMap((c) => c.kept ?? []))
+    if (command) for (const ev of events) if (!answered.has(ev.name)) edge(command, ev)
     if (command) for (const call of calls) edge(command, call)
     for (const c of s.calls ?? [])
       for (const reply of calls.filter((b) => b.name === parse(c.event).name))
@@ -1150,7 +1183,9 @@ export function layout(model: Board, measure: Measure): Layout {
       groups.has(e[key]) ? direction * (FAN + (groups.get(e[key])?.indexOf(e) ?? 0) * FAN) : 0
   }
   const fanFrom = fan("from", 1)
-  const fanTo = fan("to", -1)
+  const shared = fan("to", -1)
+  const entering = apart(edges, byId)
+  const fanTo = (e: Edge) => shared(e) || entering(e)
   const cards = (): Rect[] => [
     ...boxes,
     ...columns.flatMap((c) => (c.notes ?? []).map((n) => ({ ...n, w: NOTE_W }))),

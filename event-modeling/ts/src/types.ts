@@ -321,7 +321,11 @@ export function recorded(slice: SliceData): DeclData[] {
 /** The fields of `from` a flow takes: by name, by a mapping, or as what a generated value is made from. */
 export function taken(flow: Flow, from: DeclData): string[] {
   const { decl, mapping, context } = flow
-  const named = Object.keys(decl.fields).filter((f) => !(f in mapping) && context[f] === from)
+  // Recording sets an event's timestamp, so it never takes one by name.
+  const own = (f: string) => decl.kind === "event" && f === "timestamp"
+  const named = Object.keys(decl.fields).filter(
+    (f) => !own(f) && !(f in mapping) && context[f] === from,
+  )
   // A whole declaration, returned or spread, also sets fields `decl` does not have.
   const sets = Object.entries(mapping).filter(([f]) => f in decl.fields)
   const mapped = sets.flatMap(([, s]) => {

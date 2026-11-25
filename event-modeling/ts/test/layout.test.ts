@@ -769,7 +769,7 @@ test("a call's external event is drawn in the system's lane, and a later trigger
   assert.ok(called.edges.some((e) => e.from === first.id && e.to === gear.id))
 })
 
-test("a call's arrow goes around the event of ours that keeps what it got back, so each arrow shows", () => {
+test("a call reads command, external event, the event of ours that keeps its answer, so the command draws no arrow to that event", () => {
   const out = layout({
     name: "x",
     description: "",
@@ -788,7 +788,7 @@ test("a call's arrow goes around the event of ours that keeps what it got back, 
             aggregate: "events",
             ui: "Ask",
             command: "Ask(id)",
-            events: ["Kept(id, detail)"],
+            events: ["Kept(id, detail)", "Logged(id)"],
             calls: [{ actor: "remote", event: "Answered(id, detail)", kept: ["Kept"] }],
             tests: [],
           },
@@ -798,11 +798,17 @@ test("a call's arrow goes around the event of ours that keeps what it got back, 
     notes: {},
   })
   const box = (name: string) => out.boxes.find((b) => b.name === name && b.kind !== "ui")
-  const [command, kept, answered] = [box("Ask"), box("Kept"), box("Answered")]
-  assert.ok(command && kept && answered)
+  const [command, kept, logged, answered] = [
+    box("Ask"),
+    box("Kept"),
+    box("Logged"),
+    box("Answered"),
+  ]
+  assert.ok(command && kept && logged && answered)
   const edge = (from: string, to: string) => out.edges.find((e) => e.from === from && e.to === to)
-  assert.ok(edge(command.id, kept.id))
+  assert.equal(edge(command.id, kept.id), undefined, "the answer reaches it through the call")
   assert.ok(edge(answered.id, kept.id))
+  assert.ok(edge(command.id, logged.id), "an event that keeps no answer is the command's own")
   const call = edge(command.id, answered.id)
   assert.ok(call?.points?.every(([x]) => x >= kept.x + kept.w))
 })
