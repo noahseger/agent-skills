@@ -17,6 +17,7 @@ import {
   MAX_ZOOM,
   NOTE_GAP,
   NOTE_W,
+  parse,
   polyline,
   STACK_GAP,
   titled,
@@ -86,6 +87,39 @@ const local = computed(() => {
     const at = blocks.findIndex((b) => b.boxes.some((b) => b.id === consumer?.id))
     blocks.splice(Math.max(0, at), 0, { label: "Reads", boxes: refs })
   }
+
+  // What starts the slice and is drawn in another, the events a view is built from or the event an
+  // automation hears, stands below as a reference, as the canvas's streams stand below, its arrow in.
+  const started =
+    mine.find((b) => b.kind === "readModel") ?? mine.find((b) => b.kind === "automation")
+  const trigger = s.trigger ? (Array.isArray(s.trigger) ? s.trigger : [s.trigger]) : []
+  const sources: Box[] = []
+  let under = 0
+  for (const name of trigger.map((t) => parse(t).name)) {
+    if (!started || mine.some((b) => b.name === name)) continue
+    const full = props.layout.boxes.find(
+      (b) => b.name === name && (b.kind === "event" || b.kind === "external") && !b.compact,
+    )
+    if (!full) continue
+    const { mark: _, notes: __, ...bare } = full
+    const title = titled(full, CARD_W, true, measure)
+    const ref: Box = {
+      ...bare,
+      id: `from:${name}`,
+      title,
+      compact: true,
+      canonical: full.id,
+      column: index,
+      x: props.column.x + (width.value - CARD_W) / 2,
+      y: under,
+      w: CARD_W,
+      h: face({ ...bare, title, compact: true }).h,
+    }
+    under += ref.h + STACK_GAP
+    sources.push(ref)
+    extra.push({ from: ref.id, to: started.id })
+  }
+  if (sources.length > 0) blocks.push({ label: "From", boxes: sources })
 
   const boxes: Box[] = []
   const lanes: { label: string; y: number; h: number }[] = []
