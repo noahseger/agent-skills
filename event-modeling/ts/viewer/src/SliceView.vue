@@ -9,8 +9,8 @@ import {
   type Box,
   CARD_W,
   type Column,
-  cardHeight,
   direct,
+  face,
   LANE_PAD,
   type Layout,
   type Link,
@@ -78,7 +78,7 @@ const local = computed(() => {
       x: props.column.x + (props.column.w - CARD_W) / 2,
       y: below,
       w: CARD_W,
-      h: cardHeight({ ...bare, title, compact: true }),
+      h: face({ ...bare, title, compact: true }).h,
     }
     below += ref.h + STACK_GAP
     refs.push(ref)

@@ -16,12 +16,15 @@ import {
   type Column,
   crumbs,
   direct,
+  face,
   fitColumns,
   fitLines,
   fitTo,
   fromHash,
   grouped,
   hashOf,
+  KIND,
+  type Kind,
   LANE_PAD,
   MAX_ZOOM,
   NOTE_GAP,
@@ -433,6 +436,50 @@ test("a view feeding an automation in the next column goes straight across, and 
     fed?.points.some(([, y]) => y > middle.y + middle.h && y < stream.y),
     "runs in the channel",
   )
+})
+
+test("every line a card draws stands inside it, top to bottom, compact and full, for every kind", () => {
+  const TEXT_DROP = 4
+  for (const kind of Object.keys(KIND) as Kind[]) {
+    for (const compact of [false, true]) {
+      for (const title of [["One"], ["Two", "Lines"]]) {
+        const box = {
+          kind,
+          title,
+          fields: ["id", "name"],
+          detail: "SomeService",
+          compact,
+          form: ["name"],
+          button: "Add",
+          table: ["id", "name"],
+        }
+        const at = face(box)
+        const titleEnd = at.title + (title.length - 1) * TITLE_LINE + TEXT_DROP
+        const tops = [
+          titleEnd,
+          ...(at.detail === undefined ? [] : [at.detail + TEXT_DROP]),
+          ...at.inputs.map((i) => i.y + 17),
+          ...(at.button === undefined ? [] : [at.button + 20]),
+          ...(at.table === undefined ? [] : [at.table + 44]),
+          ...at.fields.map((f) => f.y + TEXT_DROP),
+        ]
+        const where = `${kind}${compact ? " compact" : ""}, ${title.length} title lines`
+        assert.deepEqual(
+          tops,
+          [...tops].sort((a, b) => a - b),
+          `${where}: lines in order`,
+        )
+        assert.ok(Math.max(...tops) <= at.h, `${where}: ${Math.max(...tops)} > ${at.h}`)
+        if (compact) {
+          assert.equal(at.detail, undefined, `${where}: a name-only card has no service line`)
+          assert.equal(at.fields.length + at.inputs.length, 0, where)
+        } else {
+          assert.notEqual(at.detail, undefined, `${where}: draws its service line`)
+          assert.equal(at.fields.length + at.inputs.length, kind === "ui" ? 1 : 2, where)
+        }
+      }
+    }
+  }
 })
 
 test("a later appearance of an element is collapsed and points at the first", () => {

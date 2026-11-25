@@ -433,19 +433,67 @@ export function titled(
 /** How far a card's title reaches below one line's. */
 export const titleDrop = (box: Pick<Box, "title">) => (box.title.length - 1) * TITLE_LINE
 
-export function cardHeight(
-  box: Pick<Box, "kind" | "title" | "fields" | "detail" | "compact" | "form" | "button" | "table">,
-): number {
-  const top = TITLE_H + titleDrop(box)
-  if (box.compact) return COMPACT_H + titleDrop(box)
-  const detail = box.detail === undefined ? 0 : 14
-  if (box.kind === "ui") {
-    const form = (box.form?.length ?? 0) * INPUT_H
-    const button = box.button === undefined ? 0 : BUTTON_H
-    const table = box.table === undefined ? 0 : TABLE_H
-    return top + detail + form + button + table + 10
+/** Where each line a card draws stands, from the card's top, and the height that holds them all. */
+export interface Face {
+  /** The title's first baseline. */
+  title: number
+  /** The service line's baseline. */
+  detail?: number
+  /** Each field and its baseline. */
+  fields: { text: string; y: number }[]
+  /** A screen's wireframe: each input and its top, its button's top, its table's. */
+  inputs: { text: string; y: number }[]
+  button?: number
+  table?: number
+  h: number
+}
+
+/**
+ * Every line a card draws, and how tall it is to hold them: its title's lines, the service line, then
+ * its fields or its screen's wireframe. A name-only card draws its title alone, centred, and no service
+ * line. `Card.vue` draws by this and every card is sized by it, so no line goes uncounted.
+ */
+export function face(
+  box: Pick<
+    Box,
+    "kind" | "title" | "fields" | "detail" | "compact" | "form" | "button" | "table" | "tableRows"
+  >,
+): Face {
+  const drop = titleDrop(box)
+  const ui = !box.compact && box.kind === "ui"
+  const detail = box.compact ? undefined : box.detail
+  const fields = box.compact || ui ? [] : box.fields
+  if (!ui && fields.length === 0 && detail === undefined) {
+    const h = (box.compact ? COMPACT_H : TITLE_H + 6) + drop
+    return { title: (h - drop) / 2 + 4.5, fields: [], inputs: [], h }
   }
-  return top + detail + box.fields.length * FIELD_H + (box.fields.length > 0 ? 10 : 6)
+  const top = TITLE_H + drop
+  const body = top + (detail === undefined ? 0 : 14)
+  const lines = { title: 20, ...(detail !== undefined && { detail: top + 4 }) }
+  if (!ui) {
+    const at = fields.map((text, i) => ({ text, y: body + 6 + i * FIELD_H }))
+    return {
+      ...lines,
+      fields: at,
+      inputs: [],
+      h: body + fields.length * FIELD_H + (fields.length > 0 ? 10 : 6),
+    }
+  }
+  const form = box.form ?? []
+  const inputs = form.map((text, i) => ({ text, y: body + 2 + i * INPUT_H }))
+  let y = body + 4 + form.length * INPUT_H
+  const button = box.button === undefined ? undefined : y
+  if (button !== undefined) y += BUTTON_H
+  const table = box.table === undefined ? undefined : y
+  if (table !== undefined) y += TABLE_H
+  return {
+    ...lines,
+    fields: [],
+    inputs,
+    ...(button !== undefined && { button }),
+    ...(table !== undefined && { table }),
+    h: y + 6,
+  }
 }
 
 type Rect = Pick<Box, "x" | "y" | "w" | "h">
@@ -747,7 +795,7 @@ export function layout(model: Board, measure: Measure): Layout {
       w,
       h: 0,
     }
-    box.h = cardHeight(box)
+    box.h = face(box).h
     // An element's notes go on its first card; a gear is the slice's, not an element.
     const own =
       box.compact || kind === "automation"
