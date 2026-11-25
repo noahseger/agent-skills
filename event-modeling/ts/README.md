@@ -130,7 +130,7 @@ writes `model/index.ts`; a `tsconfig.json` that lets node run the model with no 
 type-checks the directory, `generated/` included; `generated/d.d.ts`, which types `d`; and a
 `package.json` that marks the directory as ES modules. Leave `view` running in its own terminal: on
 every save it rewrites `generated/d.d.ts`, redraws, and logs its errors, then its warnings. The
-picture marks a slice with an error with a red "!" and an unfinished one with a grey ring.
+picture marks a slice with an error with a red dot and an unfinished one with a yellow dot.
 
 ### 3. Write the model
 
@@ -836,10 +836,10 @@ left to do.` An example used above its declaration is one line per file, listing
 When a module throws, the model doesn't load and `generated/d.d.ts` lacks what the modules declare
 after it, so the log leaves out the names it lacks.
 
-The picture marks the same: a red disc with "!" for an error, a grey ring for a warning, on the
+The picture marks the same: a red dot for an error, a yellow dot for a warning, on the
 slice in the navigation, its column heading and the card it is about. A selected or opened slice
 lists its own in plain words, under the element each is about; the navigation's Model row lists
-those about no slice. `E` steps to the next slice with an error, `Shift-E` back.
+those about no slice. `E` steps to the next slice with a red dot, `Shift-E` back.
 
 `view` and `export` also draw a model written as spec JSON, by hand or extracted from a running
 system. They draw it as far as it goes, and list each place it breaks the schema as an error, as

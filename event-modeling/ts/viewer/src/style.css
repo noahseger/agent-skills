@@ -29,7 +29,7 @@
   --danger-fill: #fee2e2;
   --danger-stroke: #ef4444;
   --danger-ink: #7f1d1d;
-  --warn-mark: #64748b;
+  --warning: #a16207;
   --question-fill: #fef3c7;
   --question-stroke: #d97706;
   --question-ink: #78350f;
@@ -399,53 +399,21 @@ body,
   margin: 0;
 }
 
-/* Marks: an error is a red disc with "!", a warning a grey ring. */
-.mark-error,
-.mark-warning {
-  display: inline-grid;
-  place-items: center;
+/* Marks: an error is a red dot, a warning a yellow one, 8px across. */
+.mark-error { --mark: var(--danger); }
+.mark-warning { --mark: var(--warning); }
+
+span:is(.mark-error, .mark-warning) {
+  display: inline-block;
   flex: none;
-  width: 14px;
-  height: 14px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
+  background: var(--mark);
 }
 
-.mark-error {
-  background: var(--danger);
-}
-
-.mark-error::after {
-  content: "!";
-  color: #ffffff;
-  font-size: 10px;
-  font-weight: 800;
-  line-height: 1;
-}
-
-.mark-warning {
-  width: 12px;
-  height: 12px;
-  margin: 1px;
-  border: 2px solid var(--warn-mark);
-  background: var(--panel);
-}
-
-svg .mark-error circle {
-  fill: var(--danger);
-  stroke: #ffffff;
-  stroke-width: 1.5;
-}
-
-svg .mark-warning circle {
-  fill: #ffffff;
-  stroke: var(--warn-mark);
-  stroke-width: 2;
-}
-
-svg .mark-error text {
-  fill: #ffffff;
-  font-size: 10px;
-  font-weight: 800;
+circle:is(.mark-error, .mark-warning) {
+  fill: var(--mark);
 }
 
 .canvas {
