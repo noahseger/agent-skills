@@ -45,15 +45,10 @@ const keyed = ref(false)
 /** Bumping `seq` fits the slice or chapter. */
 const focus = ref<{ scope: Scope | null; seq: number }>({ scope: null, seq: 0 })
 
-/** A header panel that opens and closes (click or key), open or closed as it was left. */
-function remembered(key: string, open: boolean) {
-  const stored = localStorage.getItem(key)
-  const state = ref(stored === null ? open : stored === "open")
-  watch(state, (now) => localStorage.setItem(key, now ? "open" : "closed"))
-  return state
-}
-const legend = remembered("em.legend", true)
-const shortcuts = remembered("em.shortcuts", false)
+/** The header's panels (click or key): the legend open or closed as it was left, open at first; the shortcuts closed. */
+const legend = ref(localStorage.getItem("em.legend") !== "closed")
+watch(legend, (open) => localStorage.setItem("em.legend", open ? "open" : "closed"))
+const shortcuts = ref(false)
 
 const drawn = computed(() => (model.value ? layout(model.value, measure) : null))
 const selectedBox = computed(() => (drawn.value && boxOf(drawn.value, picked.value)) ?? null)
