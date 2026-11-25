@@ -1,0 +1,274 @@
+// `em types`: what the model declares, written as the types of `d`, in the model's `generated`. A declaration
+// map takes go-to-definition and rename from `d.Name` to the string that names it.
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { join, relative } from "node:path"
+import { fileURLToPath } from "node:url"
+import type { z } from "zod"
+
+import { isKey } from "./t.ts"
+import { type Exported, type Fields, REGISTRY, type Registered, WRITTEN } from "./types.ts"
+
+/** The folder in a model that holds what `em types` writes, which no model module is read from. */
+export const GENERATED = "generated"
+const FILE = "d.d.ts"
+
+/** The generated file of the model in `dir`. */
+export const typesOf = (dir: string) => join(dir, GENERATED, FILE)
+
+type Def = {
+  type: string
+  format?: string
+  innerType?: z.ZodType
+  element?: z.ZodType
+  shape?: Record<string, z.ZodType>
+  entries?: Record<string, string>
+  values?: unknown[]
+  valueType?: z.ZodType
+  options?: z.ZodType[]
+}
+
+const def = (schema: z.ZodType) => schema._zod.def as unknown as Def
+const key = (name: string) => (/^[A-Za-z_$][\w$]*$/.test(name) ? name : JSON.stringify(name))
+const one = (types: string[]) => (types.length > 0 ? types.join(" | ") : "never")
+
+/** The values of a field `t` built, as the compiler writes them. */
+function values(schema: z.ZodType): string {
+  const d = def(schema)
+  switch (d.type) {
+    case "optional":
+      return `${values(d.innerType as z.ZodType)} | undefined`
+    case "string":
+      return "string"
+    case "number":
+      return "number"
+    case "boolean":
+      return "boolean"
+    case "enum":
+      return one(Object.values(d.entries ?? {}).map((v) => JSON.stringify(v)))
+    case "literal":
+      return d.values?.length === 0
+        ? "never[]"
+        : one((d.values ?? []).map((v) => JSON.stringify(v)))
+    case "array": {
+      const item = values(d.element as z.ZodType)
+      return item.includes(" ") ? `(${item})[]` : `${item}[]`
+    }
+    case "object":
+      return row(d.shape ?? {})
+    case "record":
+      return `Record<string, ${values(d.valueType as z.ZodType)}>`
+    case "union": {
+      // A oneOf: each case an object of one field, with none of the others.
+      const cases = (d.options ?? []).map((o) => Object.entries(def(o).shape ?? {})[0])
+      const names = cases.flatMap((c) => (c ? [c[0]] : []))
+      return one(
+        cases.flatMap((c) =>
+          c
+            ? [
+                `{ ${[
+                  `${key(c[0])}: ${values(c[1])}`,
+                  ...names.filter((n) => n !== c[0]).map((n) => `${key(n)}?: never`),
+                ].join("; ")} }`,
+              ]
+            : [],
+        ),
+      )
+    }
+    default:
+      return "unknown"
+  }
+}
+
+/** An object's value: a field that may go without a value is an optional property. */
+function row(fields: Record<string, z.ZodType>): string {
+  const props = Object.entries(fields).map(([name, f]) => {
+    const value = values(f)
+    return `${key(name)}${value.endsWith("| undefined") ? "?" : ""}: ${value}`
+  })
+  return props.length > 0 ? `{ ${props.join("; ")} }` : "{}"
+}
+
+/** A field as `t` types it: `Field<values, format, key>`. */
+function fieldOf(schema: z.ZodType): string {
+  let inner = schema
+  while (def(inner).type === "optional") inner = def(inner).innerType as z.ZodType
+  const { type, format } = def(inner)
+  const string = type === "string" && format !== undefined ? JSON.stringify(format) : undefined
+  const keyed = isKey(schema)
+  const rest = keyed ? `, ${string ?? "string"}, true` : string ? `, ${string}` : ""
+  return `Field<${values(schema)}${rest}>`
+}
+
+function fieldsOf(fields: Fields): string {
+  const all = Object.entries(fields).map(([name, f]) => `${key(name)}: ${fieldOf(f)}`)
+  return all.length > 0 ? `{ ${all.join("; ")} }` : "{}"
+}
+
+/**
+ * Each view's context, which the first state view of it gives with `.context()`, so a later one's
+ * specifications are typed by it too.
+ */
+function contexts(): Map<string, Fields> {
+  const first = new Map<string, Fields | undefined>()
+  for (const { calls } of WRITTEN) {
+    const [start, ...rest] = calls
+    const view = start?.[0] === "view" ? (start[1][0] as { name?: string } | undefined)?.name : ""
+    if (!view || first.has(view)) continue
+    first.set(view, rest.find(([method]) => method === "context")?.[1][0] as Fields | undefined)
+  }
+  return new Map([...first].flatMap(([view, fields]) => (fields ? [[view, fields]] : [])))
+}
+
+/** The type `d.Name` has, a view's with the context it is read with. */
+function typeOf(name: string, data: Exported, context: Fields | undefined): string {
+  const named = JSON.stringify(name)
+  switch (data.kind) {
+    case "event": {
+      // Event adds the timestamp every event has.
+      const { timestamp: _, ...declared } = data.fields
+      return `${data.system ? "ExternalEvent" : "Event"}<${named}, ${fieldsOf(declared)}>`
+    }
+    case "command":
+      return `Command<${named}, ${fieldsOf(data.fields)}>`
+    case "view":
+      return `View<${named}, ${fieldsOf(data.fields)}, ${data.list === true}${context ? `, ${fieldsOf(context)}` : ""}>`
+    case "actor":
+      return data.icon === "system" ? "SystemActor" : "Actor"
+    case "model":
+      return "never"
+    default:
+      return `${data.kind[0]?.toUpperCase()}${data.kind.slice(1)}`
+  }
+}
+
+/**
+ * The members of `Registry`, in name order, each with where it is declared. A name declared twice is
+ * each of its declarations, so every use compiles and assembly's "declared twice" is the one error
+ * about it.
+ */
+function members(): [name: string, type: string, at: Registered][] {
+  const read = contexts()
+  return [...REGISTRY]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([name, at]) => [
+      name,
+      [at, ...at.also].map(({ data }) => typeOf(name, data, read.get(name))).join(" & "),
+      at,
+    ])
+}
+
+const MEMBER = "    "
+
+/** The generated file: `Registry`'s members, for the package as the model imports it. */
+function declarations(specifier: string): string {
+  const all = members()
+  // Each type's own names, and Field for the fields in them.
+  const types = all.flatMap(([, type]) => [
+    ...[...type.matchAll(/(?:^|& )([A-Z]\w*)/g)].map((m) => m[1] ?? ""),
+    ...(type.includes("Field<") ? ["Field"] : []),
+  ])
+  const names = [...new Set(types)].sort()
+  return [
+    "// Written by em types from what the model declares, so d is typed. Do not edit.",
+    names.length > 0 ? `import type { ${names.join(", ")} } from "${specifier}"` : "export {}",
+    "",
+    `declare module "${specifier}" {`,
+    "  interface Registry {",
+    ...all.map(([name, type]) => `${MEMBER}${key(name)}: ${type}`),
+    "  }",
+    "}",
+    `//# sourceMappingURL=${FILE}.map`,
+    "",
+  ].join("\n")
+}
+
+const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
+function vlq(n: number): string {
+  let v = n < 0 ? (-n << 1) | 1 : n << 1
+  let out = ""
+  do {
+    let digit = v & 31
+    v >>>= 5
+    if (v > 0) digit |= 32
+    out += B64[digit]
+  } while (v > 0)
+  return out
+}
+
+/**
+ * Where each name in the generated file is declared: the name inside its string, so a rename that
+ * goes through the map edits the string.
+ */
+function sourceMap(dir: string, text: string): string {
+  const byKey = new Map(members().map(([name, , at]) => [key(name), { name, where: at.where }]))
+  const sources: string[] = []
+  const read = new Map<string, string[]>()
+  let last = [0, 0, 0]
+  const mappings = text.split("\n").map((line) => {
+    const member = line.startsWith(MEMBER)
+      ? byKey.get(line.slice(MEMBER.length).split(":")[0] ?? "")
+      : undefined
+    const [, url = "", row = "1", col = "1"] =
+      /^(file:.*):(\d+):(\d+)$/.exec(member?.where ?? "") ?? []
+    if (!member || !url) return ""
+    const file = fileURLToPath(url)
+    const source = relative(join(dir, GENERATED), file)
+    if (!sources.includes(source)) sources.push(source)
+    const lines = read.get(file) ?? readFileSync(file, "utf8").split("\n")
+    read.set(file, lines)
+    // The string is on the call's line, or a later one when the call is broken across lines.
+    let at = [Number(row) - 1, Number(col) - 1]
+    const quoted = JSON.stringify(member.name)
+    for (let l = at[0] ?? 0; l < lines.length; l++) {
+      const found = (lines[l] ?? "").indexOf(quoted, l === at[0] ? at[1] : 0)
+      if (found >= 0) {
+        at = [l, found + 1]
+        break
+      }
+    }
+    // The name's start and its end, so the span a definition reports is the name and no more.
+    const start = [sources.indexOf(source), at[0] ?? 0, at[1] ?? 0]
+    const end = [start[0] ?? 0, start[1] ?? 0, (start[2] ?? 0) + member.name.length]
+    const step = (segment: number[]) => {
+      const out = segment.map((v, i) => vlq(v - (last[i] ?? 0))).join("")
+      last = segment
+      return out
+    }
+    return `${vlq(MEMBER.length)}${step(start)},${vlq(member.name.length)}${step(end)}`
+  })
+  const map = { version: 3, file: FILE, sources, names: [], mappings: mappings.join(";") }
+  return `${JSON.stringify(map)}\n`
+}
+
+/** What the generated file and its map would be, for what `REGISTRY` holds now. */
+export function registry(dir: string, specifier: string): { text: string; map: string } {
+  const text = declarations(specifier)
+  return { text, map: sourceMap(dir, text) }
+}
+
+/** The package the model imports `m` from, which the generated file adds `Registry`'s members to. */
+export function specifierOf(files: string[]): string {
+  for (const f of files) {
+    const found = /from "(#em|@noahseger\/event-modeling)"/.exec(readFileSync(f, "utf8"))
+    if (found?.[1]) return found[1]
+  }
+  return "@noahseger/event-modeling"
+}
+
+/** Writes both files where either differs, so a watcher sees no save when nothing changed. */
+export function writeRegistry(dir: string, made: { text: string; map: string }): boolean {
+  const stale = [
+    [typesOf(dir), made.text],
+    [`${typesOf(dir)}.map`, made.map],
+  ].filter(([path = "", text]) => !existsSync(path) || readFileSync(path, "utf8") !== text)
+  mkdirSync(join(dir, GENERATED), { recursive: true })
+  for (const [path = "", text = ""] of stale) writeFileSync(path, text)
+  return stale.length > 0
+}
+
+/** Whether both files are what `em types` would write. */
+export function current(dir: string, made: { text: string; map: string }): boolean {
+  const read = (path: string) => (existsSync(path) ? readFileSync(path, "utf8") : undefined)
+  return read(typesOf(dir)) === made.text && read(`${typesOf(dir)}.map`) === made.map
+}

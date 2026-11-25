@@ -5,22 +5,58 @@ import { readFileSync } from "node:fs"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
 
-import type { ModelJson } from "../src/json.ts"
+import type { Message, Source } from "../src/types.ts"
+import { words } from "../src/types.ts"
+import type { Board } from "../viewer/src/board.ts"
 import {
+  actorOf,
   type Box,
+  bounds,
+  CARD_W,
+  type Column,
+  crumbs,
+  direct,
+  face,
   fitColumns,
-  layout,
+  fitLines,
+  fitTo,
+  fromHash,
+  grouped,
+  hashOf,
+  KIND,
+  type Kind,
+  LANE_PAD,
+  MAX_ZOOM,
+  NOTE_GAP,
+  NOTE_W,
+  nextMark,
+  outside,
   parse,
   parseClause,
-  path,
   polyline,
-  words,
+  STICKY_GAP,
+  STICKY_LINES,
+  served,
+  shortIds,
+  source,
+  stickies,
+  TITLE_LINE,
+  titled,
+  usedLanes,
+  valueLines,
+  wording,
   wrap,
 } from "../viewer/src/layout.ts"
+import { read } from "../viewer/src/read.ts"
+import { layout, measure } from "./measure.ts"
 
-const model: ModelJson = JSON.parse(
-  readFileSync(fileURLToPath(new URL("./todo-app.json", import.meta.url)), "utf8"),
-)
+// A model read from its spec JSON alone, as a hand-written one is.
+const model = read({
+  name: "Todo List Application",
+  model: JSON.parse(
+    readFileSync(fileURLToPath(new URL("./todo-app.json", import.meta.url)), "utf8"),
+  ),
+})
 const out = layout(model)
 const byId = new Map(out.boxes.map((b) => [b.id, b]))
 const rowOf = (b: { y: number; h: number }) =>
@@ -41,14 +77,41 @@ test("parseClause gives one line per field, and a rejection its message", () => 
     lines: ["listId = list-1", "tags = [a, b]"],
     error: false,
   })
+  assert.deepEqual(parseClause("Ordered(items=[{name: a, qty: 2}], to={city: b, zip: c})").lines, [
+    "items = [{name: a, qty: 2}]",
+    "to = {city: b, zip: c}",
+  ])
+  assert.deepEqual(valueLines("[{name: a, qty: 2}, {name: b, qty: 1}]"), [
+    "[{name: a, qty: 2},",
+    " {name: b, qty: 1}]",
+  ])
+  assert.deepEqual(valueLines("[a, b]"), ["[a, b]"])
+  assert.deepEqual(valueLines("{city: b, zip: c}"), ["{city: b, zip: c}"])
   assert.deepEqual(parseClause("Error: maximum 3 items per list"), {
     name: "Rejected",
     lines: ["maximum 3 items per list"],
     error: true,
   })
-  assert.deepEqual(wrap("Adding a fourth item is rejected", 20), [
-    "Adding a fourth item",
-    "is rejected",
+  assert.deepEqual(parseClause("Described: The list is gone"), {
+    name: "Described",
+    lines: ["The list is gone"],
+    error: false,
+    described: true,
+  })
+})
+
+test("a mapped field shows where its value came from", () => {
+  const sources: Source[] = [
+    { from: "text" },
+    { generate: [] },
+    { generate: ["pageId", "Pages"] },
+    { value: 0 },
+  ]
+  assert.deepEqual(sources.map(source), [
+    "← text",
+    "generated",
+    "generated from pageId, Pages",
+    "= 0",
   ])
 })
 
@@ -82,16 +145,12 @@ test("every card sits inside its column and inside one row", () => {
   }
 })
 
-test("no two cards overlap, specifications included", () => {
-  const all = [...out.boxes, ...out.specs]
-  for (const a of all) {
-    for (const b of all) {
+test("no two cards overlap", () => {
+  for (const a of out.boxes) {
+    for (const b of out.boxes) {
       if (a === b) continue
       const apart = a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y
-      assert.ok(
-        apart,
-        `${"name" in a ? a.name : "spec"} and ${"name" in b ? b.name : "spec"} overlap`,
-      )
+      assert.ok(apart, `${a.name} and ${b.name} overlap`)
     }
   }
 })
@@ -129,12 +188,12 @@ test("every edge joins two cards, and a projection is fed by each of its events"
   )
   for (const s of sources) assert.equal(s.kind, "event")
   for (const e of feeding) {
-    assert.ok(e.points && e.points.length >= 4, "a crossing edge is routed corner by corner")
+    assert.ok(e.points.length >= 2, "a crossing edge is routed corner by corner")
     for (const [x, y] of e.points) assert.ok(x >= 0 && x <= out.width && y >= 0 && y <= out.height)
   }
 })
 
-test("an automation is in its actor's lane, and reads are drawn back from the read model", () => {
+test("an automation is in its actor's lane, and reads are drawn back from the view", () => {
   const column = out.columns.find((c) => c.slice.automation)
   assert.ok(column)
   const gear = out.boxes.find((b) => b.column === column.index && b.kind === "automation")
@@ -144,48 +203,45 @@ test("an automation is in its actor's lane, and reads are drawn back from the re
   assert.equal(
     out.boxes.filter((b) => b.column === column.index && b.compact).length,
     0,
-    "no reference card when the read model is drawn in full",
+    "no reference card when the view is drawn in full",
   )
   const search = out.boxes.find(
-    (b) => b.name === "ItemSearch" && b.kind === "readModel" && !b.compact,
+    (b) => b.name === "TodoList" && b.kind === "readModel" && !b.compact,
   )
   assert.ok(search)
   const reads = out.edges.find((e) => e.from === search.id && e.to === gear.id)
-  assert.ok(
-    reads?.dashed && reads.points,
-    "a dashed, routed edge from the read model to the automation",
-  )
+  assert.ok(reads?.dashed, "a dashed edge from the view to the automation")
   const start = reads.points[0]
-  assert.ok(start && start[0] > search.x + search.w / 2, "leaves the read model right of centre")
-  assert.equal(start?.[1], search.y + search.h)
+  assert.equal(start?.[0], search.x + search.w, "leaves the view's right side, which faces it")
   const end = reads.points.at(-1)
   assert.ok(end && end[0] === gear.x && end[1] > gear.y && end[1] < gear.y + gear.h)
-  const trigger = out.edges.find((e) => e.to === gear.id && e.points)
-  assert.ok(trigger?.points)
+  const trigger = out.edges.find((e) => e.to === gear.id && e !== reads)
+  assert.ok(trigger)
   const into = trigger.points.at(-1)
   assert.ok(into && into[0] === gear.x && into[1] > gear.y && into[1] < gear.y + gear.h)
 })
 
-test("a read model nothing draws in full still gets a reference card", () => {
-  const copy: ModelJson = JSON.parse(JSON.stringify(model))
+test("a view nothing draws in full still gets a reference card", () => {
+  const copy: Board = JSON.parse(JSON.stringify(model))
   for (const c of copy.chapters)
-    c.slices = c.slices.filter((s) => !s.read_models?.some((r) => r.startsWith("ItemSearch")))
-  const ref = layout(copy).boxes.find((b) => b.name === "ItemSearch")
+    c.slices = c.slices.filter((s) => !s.read_models?.some((r) => r.startsWith("TodoList")))
+  const ref = layout(copy).boxes.find((b) => b.name === "TodoList")
   assert.ok(ref?.compact && ref.canonical === undefined)
 })
 
-test("lanes say what they are, and the system lane is the automations", () => {
+test("lanes say what they are: the system lane is the automations, and an External System's is External", () => {
   const labels = out.rows.filter((r) => r.sub).map((r) => `${r.label} (${r.sub})`)
   assert.deepEqual(labels, [
     "User (Actor)",
     "Automations (System)",
-    "Calendar (System)",
-    "Items (Stream)",
+    // From the JSON alone, lanes come in the order the slices first name them.
     "Lists (Stream)",
+    "Items (Stream)",
+    "Calendar (External)",
   ])
 })
 
-test("a screen is a wireframe of its command or its read model", () => {
+test("a screen is a wireframe of its command or its view", () => {
   const create = out.boxes.find((b) => b.kind === "ui" && b.name === "CreateList")
   assert.deepEqual(create?.form, ["userId", "listId", "name"])
   assert.equal(create?.button, "CreateList")
@@ -197,36 +253,82 @@ test("a screen is a wireframe of its command or its read model", () => {
   assert.ok(list?.tableColumns && list.tableColumns.length < 5 && list.tableMore)
 })
 
+test("a screen's table shows one row for a view with no key column, and two for any other", () => {
+  const revenue = layout({
+    ...model,
+    chapters: [
+      {
+        name: "Sales",
+        slices: [
+          {
+            name: "Revenue",
+            actor: "user",
+            aggregate: "lists",
+            ui: "Revenue",
+            read_models: ["Revenue(total)"],
+            trigger: ["ItemAdded(listId)"],
+            tests: [],
+          },
+        ],
+      },
+    ],
+  })
+  const ui = (board: ReturnType<typeof layout>, name: string) =>
+    board.boxes.find((b) => b.kind === "ui" && b.name === name)
+  assert.equal(ui(revenue, "Revenue")?.tableRows, 1)
+  assert.equal(ui(out, "ListTodoLists")?.tableRows, undefined)
+})
+
 test("a table shows the columns that fit and counts the rest", () => {
-  const { columns, more } = fitColumns(["userId", "listId", "name", "itemCount", "status"], 144)
+  const { columns, more } = fitColumns(
+    ["userId", "listId", "name", "itemCount", "status"],
+    144,
+    measure,
+  )
   assert.ok(columns.length >= 2 && columns.length < 5)
   assert.equal(more, 5 - columns.length)
   const last = columns.at(-1)
   assert.ok(last && last.x + last.w <= 144 - 26, "room is left for the +n")
-  assert.deepEqual(fitColumns(["a"], 144), { columns: [{ name: "a", x: 0, w: 5.2 + 12 }], more: 0 })
+  assert.deepEqual(fitColumns(["a"], 144, measure), {
+    columns: [{ name: "a", x: 0, w: 5.2 + 12 }],
+    more: 0,
+  })
 })
 
-test("an edge leaving an element sits right of centre, an edge entering sits left", () => {
+test("an edge leaving an element sits right of or below its centre, an edge entering left of or above it", () => {
   const created = out.boxes.find((b) => b.kind === "event" && b.name === "ListCreated")
   const target = out.boxes.find(
     (b) => b.kind === "readModel" && b.name === "TodoList" && !b.compact,
   )
   assert.ok(created && target)
-  for (const e of out.edges.filter((e) => e.from === created.id && e.points)) {
-    assert.ok((e.points?.[0]?.[0] ?? 0) > created.x + created.w / 2, "leaves right of centre")
+  for (const e of out.edges.filter((e) => e.from === created.id)) {
+    const [x, y] = e.points[0] ?? ([0, 0] as const)
+    assert.ok(
+      x > created.x + created.w / 2 || y > created.y + created.h / 2,
+      "leaves right of or below centre",
+    )
   }
   const ends = out.edges
-    .filter((e) => e.to === target.id && e.points)
-    .map((e) => e.points?.at(-1)?.[0] ?? 0)
-  for (const x of ends) assert.ok(x < target.x + target.w / 2, "enters left of centre")
-  assert.equal(new Set(ends).size, ends.length, "each edge into TodoList has its own x")
+    .filter((e) => e.to === target.id)
+    .map((e) => e.points.at(-1) ?? ([0, 0] as const))
+  for (const [x, y] of ends)
+    assert.ok(
+      x < target.x + target.w / 2 || y < target.y + target.h / 2,
+      "enters left of or above centre",
+    )
+  assert.equal(
+    new Set(ends.map(String)).size,
+    ends.length,
+    "each edge into TodoList has its own point",
+  )
 })
 
-test("a path starts at one box's edge and ends at the other's", () => {
+test("a direct route leaves the side facing its target and enters the side facing its source", () => {
   const a: Box = {
     id: "a",
     kind: "command",
     name: "",
+    title: [""],
     fields: [],
     keys: [],
     column: 0,
@@ -236,8 +338,16 @@ test("a path starts at one box's edge and ends at the other's", () => {
     h: 40,
   }
   const b: Box = { ...a, id: "b", y: 100 }
-  assert.equal(path(a, b), "M50 40 L50 100")
-  assert.match(path(b, { ...a, x: 300 }), /^M50 100 C.* 350 40$/)
+  assert.deepEqual(direct(a, b), [
+    [50, 40],
+    [50, 100],
+  ])
+  assert.deepEqual(direct(b, { ...a, x: 300 }), [
+    [100, 120],
+    [200, 120],
+    [200, 20],
+    [300, 20],
+  ])
   assert.equal(
     polyline([
       [0, 0],
@@ -248,35 +358,259 @@ test("a path starts at one box's edge and ends at the other's", () => {
   )
 })
 
+test("a view feeding an automation in the next column goes straight across, and an arrow whose every direct route crosses a card takes the channel", () => {
+  const next = layout({
+    name: "x",
+    description: "",
+    actors: [
+      { id: "user", name: "User", type: "user" },
+      { id: "system", name: "System", type: "system" },
+    ],
+    aggregates: [{ id: "notes", name: "Notes" }],
+    chapters: [
+      {
+        name: "Ch",
+        slices: [
+          {
+            name: "Capture",
+            actor: "user",
+            aggregate: "notes",
+            ui: "Notes/Capture",
+            command: "Capture(noteId)",
+            events: ["Captured(noteId, destination)"],
+            tests: [],
+          },
+          {
+            name: "ToSync",
+            actor: "user",
+            aggregate: "notes",
+            read_models: ["ToSync(*noteId, destination)"],
+            trigger: ["Captured(noteId)"],
+            tests: [],
+          },
+          {
+            name: "Sync",
+            actor: "system",
+            aggregate: "notes",
+            automation: "Syncer",
+            reads: ["ToSync"],
+            command: "SyncNote(noteId)",
+            events: ["Synced(noteId)"],
+            tests: [],
+          },
+        ],
+      },
+    ],
+    notes: {},
+  })
+  const view = next.boxes.find((b) => b.kind === "readModel")
+  const gear = next.boxes.find((b) => b.kind === "automation")
+  assert.ok(view && gear && gear.column === view.column + 1)
+  const reads = next.edges.find((e) => e.from === view.id && e.to === gear.id)
+  assert.ok(reads)
+  assert.equal(reads.points[0]?.[0], view.x + view.w, "leaves the view's right side")
+  assert.equal(reads.points.at(-1)?.[0], gear.x, "enters the automation's left side")
+  for (const [x, y] of reads.points) {
+    assert.ok(x >= view.x + view.w && x <= gear.x, "never doubles back")
+    assert.ok(y <= view.y + view.h, "never drops below the view")
+  }
+  const [lane, below] = [
+    next.rows.find((r) => r.id === "middle"),
+    next.rows.find((r) => r.kind === "stream"),
+  ]
+  assert.equal(
+    below?.y,
+    (lane?.y ?? 0) + (lane?.h ?? 0),
+    "no arrow takes the channel, so there is none",
+  )
+
+  // ItemAdded feeds ListItems five columns on: every direct route crosses a card, so it takes the
+  // channel between the Interaction lane and the streams.
+  const added = out.boxes.find((b) => b.kind === "event" && b.name === "ItemAdded" && !b.compact)
+  const items = out.boxes.find((b) => b.kind === "readModel" && b.name === "ListItems")
+  const middle = out.rows.find((r) => r.id === "middle")
+  const stream = out.rows.find((r) => r.kind === "stream")
+  assert.ok(added && items && middle && stream)
+  const fed = out.edges.find((e) => e.from === added.id && e.to === items.id)
+  assert.ok(
+    fed?.points.some(([, y]) => y > middle.y + middle.h && y < stream.y),
+    "runs in the channel",
+  )
+})
+
+test("every line a card draws stands inside it, top to bottom, compact and full, for every kind", () => {
+  const TEXT_DROP = 4
+  for (const kind of Object.keys(KIND) as Kind[]) {
+    for (const compact of [false, true]) {
+      for (const title of [["One"], ["Two", "Lines"]]) {
+        const box = {
+          kind,
+          title,
+          fields: ["id", "name"],
+          detail: "SomeService",
+          compact,
+          form: ["name"],
+          button: "Add",
+          table: ["id", "name"],
+        }
+        const at = face(box)
+        const titleEnd = at.title + (title.length - 1) * TITLE_LINE + TEXT_DROP
+        const tops = [
+          titleEnd,
+          ...(at.detail === undefined ? [] : [at.detail + TEXT_DROP]),
+          ...at.inputs.map((i) => i.y + 17),
+          ...(at.button === undefined ? [] : [at.button + 20]),
+          ...(at.table === undefined ? [] : [at.table + 44]),
+          ...at.fields.map((f) => f.y + TEXT_DROP),
+        ]
+        const where = `${kind}${compact ? " compact" : ""}, ${title.length} title lines`
+        assert.deepEqual(
+          tops,
+          [...tops].sort((a, b) => a - b),
+          `${where}: lines in order`,
+        )
+        assert.ok(Math.max(...tops) <= at.h, `${where}: ${Math.max(...tops)} > ${at.h}`)
+        if (compact) {
+          assert.equal(at.detail, undefined, `${where}: a name-only card has no service line`)
+          assert.equal(at.fields.length + at.inputs.length, 0, where)
+        } else {
+          assert.notEqual(at.detail, undefined, `${where}: draws its service line`)
+          assert.equal(at.fields.length + at.inputs.length, kind === "ui" ? 1 : 2, where)
+        }
+      }
+    }
+  }
+})
+
 test("a later appearance of an element is collapsed and points at the first", () => {
-  const todoLists = out.boxes.filter((b) => b.name === "TodoList")
-  assert.ok(todoLists.length > 1)
-  const [full, ...later] = todoLists
+  const [full, ...later] = out.boxes.filter((b) => b.name === "ItemAdded" && b.kind === "event")
+  assert.equal(later.length, 1)
   assert.ok(full && !full.compact && full.canonical === undefined)
   for (const b of later) {
     assert.ok(b.compact)
     assert.equal(b.canonical, full.id)
   }
-  const added = out.boxes.filter((b) => b.name === "ItemAdded" && b.kind === "event")
-  assert.equal(added.length, 2)
-  assert.equal(added[1]?.canonical, added[0]?.id)
 })
 
-test("a note marks the card and the slice", () => {
-  const created = out.boxes.find((b) => b.name === "ListCreated")
-  assert.ok(created?.noted)
-  assert.ok(!out.boxes.find((b) => b.name === "ItemAdded")?.noted)
+test("an element's notes stand in a rail beside its slice, level with its first card, which keeps its height", () => {
+  const copy: Board = JSON.parse(JSON.stringify(model))
+  copy.notes.ItemAdded = [
+    { text: "Titles are trimmed.", kind: "info" },
+    {
+      text: "What if two devices add the same item at once, both offline, and sync it later on?",
+      kind: "question",
+    },
+  ]
+  copy.notes.CreateList = [{ text: "Rate limited.", kind: "critical" }]
+  const drawn = layout(copy)
+  const [full, ...later] = drawn.boxes.filter((b) => b.name === "ItemAdded")
+  const plain = out.boxes.find((b) => b.id === full?.id)
+  assert.ok(full && plain)
+  assert.equal(full.h, plain.h, "notes take width, not height")
+  const col = drawn.columns[full.column]
+  const [info, question] = col?.notes ?? []
+  assert.ok(col && info && question)
+  assert.deepEqual([info.kind, question.kind], ["info", "question"])
+  assert.equal(info.subject, "Item Added", "its tooltip names what it is about")
+  assert.equal(
+    info.lines.join(" "),
+    "Titles are trimmed.",
+    "its text alone: its kind is its badge's",
+  )
+  assert.equal(info.y, full.y, "level with the card it is about")
+  assert.equal(question.y, info.y + info.h + STICKY_GAP)
+  assert.equal(info.x, full.x + full.w + NOTE_GAP, "a note stands NOTE_GAP right of the card")
+  assert.equal(
+    col.x + col.w - (info.x + NOTE_W),
+    full.x - col.x,
+    "the column ends as far after the note as it begins before the card",
+  )
+  assert.equal(col.w, (out.columns[full.column]?.w ?? 0) + NOTE_W + NOTE_GAP)
+  assert.equal(question.lines.length, STICKY_LINES)
+  assert.ok(question.lines.at(-1)?.endsWith("…"), "a long note is cut; the detail has it whole")
+  for (const b of later) assert.equal(b.notes, undefined)
+  const [ui, command] = drawn.boxes.filter((b) => b.name === "CreateList")
+  assert.deepEqual([ui?.kind, ui?.notes], ["ui", undefined], "a screen named by its method")
+  assert.equal(command?.notes?.[0]?.kind, "critical")
 })
 
-test("specifications sit under their slice, one card per clause with a line per field", () => {
+test("a long name wraps inside its card, which grows to hold it; a note is as tall as its text", () => {
+  assert.deepEqual(titled({ name: "CompleteVendorConnection" }, CARD_W, false, measure), [
+    "Complete Vendor",
+    "Connection",
+  ])
+  const copy: Board = JSON.parse(JSON.stringify(model))
+  const slice = copy.chapters[0]?.slices[0]
+  assert.ok(slice?.command)
+  slice.command = slice.command.replace("CreateList(", "CreateListFromEveryHousehold(")
+  const long = layout(copy).boxes.find((b) => b.name === "CreateListFromEveryHousehold")
+  const short = out.boxes.find((b) => b.name === "CreateList" && b.kind === "command")
+  assert.ok(long && short)
+  assert.deepEqual(long.title, ["Create List From", "Every Household"])
+  for (const line of long.title) assert.ok(measure(line, "title") <= long.w - 24, line)
+  assert.equal(long.h, short.h + TITLE_LINE)
+  const note = { text: "Rate limited.", kind: "critical" } as const
+  const [wide] = stickies([note], 0, "Complete Vendor Connection", measure)
+  const [narrow] = stickies([note], 0, "Create List", measure)
+  assert.deepEqual(wide?.lines, ["Rate limited."])
+  assert.equal(wide?.h, narrow?.h, "the subject takes no room")
+})
+
+test("a slice's note lines up with its first card and names the slice; the lanes stay and later columns move right", () => {
+  const copy: Board = JSON.parse(JSON.stringify(model))
+  const slice = copy.chapters[0]?.slices[2]
+  assert.ok(slice)
+  slice.notes = [{ text: "Can a completed item be reopened?", kind: "question" }]
+  const drawn = layout(copy)
+  const [sticky] = drawn.columns[2]?.notes ?? []
+  assert.ok(sticky)
+  const top = Math.min(...drawn.boxes.filter((b) => b.column === 2).map((b) => b.y))
+  assert.equal(sticky.y, top)
+  assert.equal(sticky.subject, drawn.columns[2]?.title)
+  assert.equal(drawn.rows[0]?.y, out.rows[0]?.y)
+  assert.equal(drawn.columns[3]?.x, (out.columns[3]?.x ?? 0) + NOTE_W + NOTE_GAP)
+  assert.equal(drawn.width, out.width + NOTE_W + NOTE_GAP)
+})
+
+test("a chapter's notes stand above its band from its left edge, in a row as tall as the tallest, and name the chapter", () => {
+  assert.ok(out.chapters.every((c) => c.notes === undefined))
+  const copy: Board = JSON.parse(JSON.stringify(model))
+  const chapter = copy.chapters[1]
+  assert.ok(chapter)
+  copy.notes[chapter.name] = [
+    { text: "Retries with backoff.", kind: "critical" },
+    { text: "Who may see a list once it is shared with another household?", kind: "question" },
+  ]
+  const drawn = layout(copy)
+  const band = drawn.chapters[1]
+  const [critical, question] = band?.notes ?? []
+  assert.ok(band && critical && question)
+  assert.equal(band.x, out.chapters[1]?.x, "the slices keep their place")
+  assert.deepEqual([critical.x, question.x], [band.x, band.x + NOTE_W + STICKY_GAP])
+  assert.equal(critical.y, question.y)
+  assert.equal(critical.subject, words(chapter.name))
+  const row = Math.max(critical.h, question.h) + NOTE_GAP
+  assert.equal(drawn.nameY, out.nameY + row, "the band moves down under the row")
+  assert.equal(drawn.rows[0]?.y, (out.rows[0]?.y ?? 0) + row)
+  assert.equal(drawn.height, out.height + row)
+  for (const col of drawn.columns)
+    assert.deepEqual(
+      col.notes?.map((n) => n.y),
+      out.columns[col.index]?.notes?.map((n) => n.y + row),
+      "no rail holds the chapter's notes",
+    )
+})
+
+test("specifications are off the canvas, which ends at its last lane; each is its slice's, a card per clause with a line per field", () => {
+  const lanes = out.boxes.map((b) => rowOf(b) ?? { y: 0, h: 0 })
+  assert.equal(out.height, Math.max(...lanes.map((r) => r.y + r.h)) + LANE_PAD)
   const column = out.columns.find((c) => c.label === "AddItem")
   assert.ok(column)
   const specs = out.specs.filter((s) => s.column === column.index)
-  assert.equal(specs.length, column.slice.tests.length)
-  for (const s of specs) {
-    assert.equal(rowOf(s)?.id, "specs")
-    assert.ok(s.x >= column.x && s.x + s.w <= column.x + column.w)
-  }
+  assert.deepEqual(
+    specs.map((s) => s.title),
+    column.slice.tests.map((t) => t.name),
+  )
   const rejected = specs[1]
   assert.ok(rejected)
   const then = rejected.steps.find((st) => st.word === "then")
@@ -287,16 +621,76 @@ test("specifications sit under their slice, one card per clause with a line per 
   assert.equal(given?.cards[0]?.lines.length, 4)
 })
 
+test("a view's specification asks its screen in when, and shows rows in then", () => {
+  const column = out.columns.find((c) => c.label === "TodoList")
+  const spec = out.specs.filter((s) => s.column === column?.index).at(-1)
+  const kinds = spec?.steps.map((st) => [st.word, st.cards.map((c) => c.kind)])
+  assert.deepEqual(kinds, [
+    ["given", ["event", "event"]],
+    ["when", ["ui"]],
+    ["then", ["readModel"]],
+  ])
+  assert.deepEqual(spec?.steps[1]?.cards[0]?.lines, ["userId = u-1"])
+})
+
+test("a view's specification whose then is empty shows no rows", () => {
+  const copy: Board = JSON.parse(JSON.stringify(model))
+  const slice = copy.chapters.flatMap((c) => c.slices).find((s) => s.name === "TodoList")
+  const test = slice?.tests.at(-1)
+  assert.ok(test)
+  test.then = []
+  const drawn = layout(copy)
+  const column = drawn.columns.find((c) => c.label === "TodoList")
+  const spec = drawn.specs.filter((s) => s.column === column?.index).at(-1)
+  assert.deepEqual(spec?.steps.at(-1), {
+    word: "then",
+    cards: [{ kind: "description", name: "TodoList", lines: ["no rows"] }],
+  })
+})
+
+test("an automation's specification with no when and an empty then shows that nothing happens", () => {
+  const copy: Board = JSON.parse(JSON.stringify(model))
+  const test = copy.chapters.flatMap((c) => c.slices).find((s) => s.name === "ListCompleter")
+    ?.tests[0]
+  assert.ok(test)
+  const then = () => {
+    const drawn = layout(copy)
+    const column = drawn.columns.find((c) => c.label === "ListCompleter")
+    const spec = drawn.specs.find((s) => s.column === column?.index)
+    return spec?.steps.find((st) => st.word === "then")
+  }
+  test.then = []
+  assert.equal(then(), undefined, "with a when, the command is issued and records nothing")
+  test.when = ""
+  assert.deepEqual(then(), {
+    word: "then",
+    cards: [{ kind: "description", name: "ListCompleter", lines: ["nothing happens"] }],
+  })
+})
+
+test("focusing a chapter dims the edges that come from or go to another chapter, and only those", () => {
+  const chapterOf = (id: string) => out.columns[byId.get(id)?.column ?? -1]?.chapter
+  const views = out.chapters.findIndex((c) => c.name === "Views")
+  const dimmed = outside(out, views)
+  const crossing = out.edges.filter((e) => chapterOf(e.from) !== chapterOf(e.to))
+  assert.ok(crossing.length > 0 && dimmed.size < out.edges.length)
+  out.edges.forEach((e, i) => {
+    const within = chapterOf(e.from) === views && chapterOf(e.to) === views
+    assert.equal(dimmed.has(i), !within, `${byId.get(e.from)?.name} → ${byId.get(e.to)?.name}`)
+  })
+})
+
 test("the picture shows names as words", () => {
   assert.equal(words("DrawsAndResignation"), "Draws and Resignation")
   assert.equal(words("ItemAdded"), "Item Added")
   assert.equal(words("FIDEGame"), "FIDE Game")
+  assert.equal(words("ConnectOAuthCallback"), "Connect OAuth Callback")
   assert.equal(words("TodoService"), "Todo Service")
   assert.equal(out.chapters[0]?.title, "List Management")
-  assert.equal(out.columns.find((c) => c.label === "ListTodoLists")?.title, "List Todo Lists")
+  assert.equal(out.columns.find((c) => c.label === "ListItems")?.title, "List Items")
 })
 
-test("a translation gets an automation of ours between the outside event and the command", () => {
+test("a translation gets an automation of ours between the external event and the command", () => {
   const column = out.columns.find((c) => c.slice.external_event)
   assert.ok(column)
   const external = out.boxes.find((b) => b.column === column.index && b.kind === "external")
@@ -309,42 +703,221 @@ test("a translation gets an automation of ours between the outside event and the
   assert.ok(!out.edges.some((e) => e.from === external.id && e.to === command.id))
 })
 
-test("a long value wraps inside its specification card", () => {
-  const fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-  const copy: ModelJson = JSON.parse(JSON.stringify(model))
-  const slice = copy.chapters[0]?.slices[0]
-  assert.ok(slice?.tests[0])
-  slice.tests[0].then = [`ListCreated(listId=list-1, fen=${fen})`]
-  const spec = layout(copy).specs.find((s) => s.column === 0)
-  const card = spec?.steps.find((st) => st.word === "then")?.cards[0]
-  assert.ok(card && card.lines.length >= 3)
-  for (const line of card.lines) assert.ok(line.length <= 24, line)
-  assert.ok(card.lines[1]?.startsWith("fen = rnbq"), "the value starts on the field's own line")
-  for (const line of card.lines.slice(2)) assert.ok(line.startsWith("  "), "overflow is indented")
-  assert.equal(card.lines.slice(1).join("").replace(/\s/g, ""), `fen=${fen}`.replace(/\s/g, ""))
-  assert.equal(wrap("abcdefghijklmnopqrstuvwxyz", 10).join("|"), "abcdefghij|klmnopqrst|uvwxyz")
-  assert.deepEqual(wrap("Duplicate list name rejected", 26), ["Duplicate list name", "rejected"])
-  assert.deepEqual(wrap("a bbbbbbbbbb", 8, 2), ["a bbbbbb", "  bbbb"])
+test("a translation is run by a machine of ours, from its External System; a slice names a service only once it has one", () => {
+  const column = out.columns.find((c) => c.slice.external_event)
+  assert.ok(column)
+  assert.deepEqual(actorOf(model, column.slice), { actor: "System", from: "Calendar" })
+  const worker = { id: "list-worker", name: "ListWorker", type: "system" as const }
+  const run = { ...column.slice, runner: worker.id }
+  assert.deepEqual(actorOf({ ...model, actors: [...model.actors, worker] }, run), {
+    actor: "List Worker",
+    from: "Calendar",
+  })
+  const create = out.columns.find((c) => c.label === "CreateList")?.slice
+  assert.ok(create)
+  assert.deepEqual(actorOf(model, create), { actor: "User" })
+  assert.equal(served(create), "TodoService/CreateList")
+  assert.equal(served({ ...create, ui: "CreateList" }), undefined)
 })
 
-test("a loose declaration is a column after the story, its card in its lane", () => {
+test("a call's external event is drawn in the system's lane, and a later trigger links to it", () => {
+  const called = layout({
+    name: "x",
+    description: "",
+    actors: [
+      { id: "user", name: "User", type: "user" },
+      { id: "remote", name: "Remote", type: "external" },
+    ],
+    aggregates: [{ id: "events", name: "Events" }],
+    chapters: [
+      {
+        name: "Ch",
+        slices: [
+          {
+            name: "Ask",
+            actor: "user",
+            aggregate: "events",
+            ui: "Ask",
+            command: "Ask(id)",
+            calls: [{ actor: "remote", event: "Answered(id, detail)" }],
+            tests: [],
+          },
+          {
+            name: "Keep",
+            actor: "remote",
+            aggregate: "events",
+            external_event: "Answered(id, detail)",
+            command: "Keep(id, detail)",
+            events: ["Kept(id, detail)"],
+            tests: [],
+          },
+        ],
+      },
+    ],
+    notes: {},
+  })
+  const [first, ...later] = called.boxes.filter((b) => b.name === "Answered")
+  const command = called.boxes.find((b) => b.name === "Ask" && b.kind === "command")
+  const gear = called.boxes.find((b) => b.name === "Keep" && b.kind === "automation")
+  assert.ok(first && command && gear)
+  assert.equal(first.kind, "external")
+  assert.equal(first.column, 0)
+  assert.ok(!first.compact)
+  const lane = called.rows.find((r) => first.y >= r.y && first.y + first.h <= r.y + r.h)
+  assert.equal(lane?.id, "actor:remote")
+  assert.deepEqual(
+    called.rows.map((r) => r.id),
+    ["actor:user", "actor:system", "middle", "stream:events", "actor:remote"],
+    "an outside system's lane is beneath our streams",
+  )
+  assert.ok(called.edges.some((e) => e.from === command.id && e.to === first.id))
+  assert.deepEqual(later, [])
+  assert.ok(called.edges.some((e) => e.from === first.id && e.to === gear.id))
+})
+
+test("a call reads command, external event, the event of ours that keeps its answer, so the command draws no arrow to that event", () => {
+  const out = layout({
+    name: "x",
+    description: "",
+    actors: [
+      { id: "user", name: "User", type: "user" },
+      { id: "remote", name: "Remote", type: "external" },
+    ],
+    aggregates: [{ id: "events", name: "Events" }],
+    chapters: [
+      {
+        name: "Ch",
+        slices: [
+          {
+            name: "Ask",
+            actor: "user",
+            aggregate: "events",
+            ui: "Ask",
+            command: "Ask(id)",
+            events: ["Kept(id, detail)", "Logged(id)"],
+            calls: [{ actor: "remote", event: "Answered(id, detail)", kept: ["Kept"] }],
+            tests: [],
+          },
+        ],
+      },
+    ],
+    notes: {},
+  })
+  const box = (name: string) => out.boxes.find((b) => b.name === name && b.kind !== "ui")
+  const [command, kept, logged, answered] = [
+    box("Ask"),
+    box("Kept"),
+    box("Logged"),
+    box("Answered"),
+  ]
+  assert.ok(command && kept && logged && answered)
+  const edge = (from: string, to: string) => out.edges.find((e) => e.from === from && e.to === to)
+  assert.equal(edge(command.id, kept.id), undefined, "the answer reaches it through the call")
+  assert.ok(edge(answered.id, kept.id))
+  assert.ok(edge(command.id, logged.id), "an event that keeps no answer is the command's own")
+  const call = edge(command.id, answered.id)
+  assert.ok(call?.points?.every(([x]) => x >= kept.x + kept.w))
+})
+
+test("a command's outcomes stand side by side in their lane, each joined to the command", () => {
+  const both = layout({
+    name: "x",
+    description: "",
+    actors: [{ id: "user", name: "User", type: "user" }],
+    aggregates: [{ id: "notes", name: "Notes" }],
+    chapters: [
+      {
+        name: "Ch",
+        slices: [
+          {
+            name: "SyncNote",
+            actor: "user",
+            aggregate: "notes",
+            command: "SyncNote(noteId)",
+            events: ["NoteSynced(noteId)", "SyncFailed(noteId, reason)"],
+            tests: [],
+          },
+        ],
+      },
+    ],
+    notes: {},
+  })
+  const [synced, failed] = both.boxes.filter((b) => b.kind === "event")
+  const command = both.boxes.find((b) => b.kind === "command")
+  const column = both.columns[0]
+  assert.ok(synced && failed && command && column)
+  assert.equal(synced.y, failed.y)
+  assert.ok(synced.x + synced.w < failed.x, "apart, left to right")
+  assert.ok(synced.x >= column.x && failed.x + failed.w <= column.x + column.w)
+  assert.equal(command.x + command.w / 2, column.x + column.w / 2, "the command is centred above")
+  for (const outcome of [synced, failed])
+    assert.ok(both.edges.some((e) => e.from === command.id && e.to === outcome.id))
+})
+
+test("wrap breaks at words, and splits only a word wider than a line", () => {
+  const chars = (s: string) => s.length
+  assert.deepEqual(wrap("Adding a fourth item is rejected", 20, chars), [
+    "Adding a fourth item",
+    "is rejected",
+  ])
+  assert.equal(
+    wrap("abcdefghijklmnopqrstuvwxyz", 10, chars).join("|"),
+    "abcdefghij|klmnopqrst|uvwxyz",
+  )
+  assert.deepEqual(wrap("Duplicate list name rejected", 26, chars), [
+    "Duplicate list name",
+    "rejected",
+  ])
+})
+
+test("a title wraps by the width its font draws it, and a table header is cut to fit", () => {
+  // Wider than a guess of 6.6px a character: the browser draws "Move Member Workspace" 157.5px wide.
+  const wide = (text: string) => text.length * 7.5
+  for (const name of [
+    "LockScreenNotification",
+    "MoveMemberWorkspace",
+    "Supercalifragilisticexpialidocious",
+  ]) {
+    const title = titled({ name }, CARD_W, false, wide)
+    for (const line of title) assert.ok(wide(line) <= CARD_W - 24, line)
+    assert.equal(title.join("").replaceAll(" ", ""), name)
+  }
+  const [only] = fitColumns(["aVeryLongColumnNameThatCannotFit"], 60, measure).columns
+  assert.ok(only && only.w <= 60)
+})
+
+test("a name that cannot wrap far enough is cut to its lines, ending in an ellipsis", () => {
+  const chars = (s: string) => s.length
+  assert.deepEqual(fitLines("Create List From Every Household", 20, 1, chars), [
+    "Create List From…",
+  ])
+  assert.deepEqual(fitLines("Create List From Every Household", 20, 2, chars), [
+    "Create List From",
+    "Every Household",
+  ])
+  assert.deepEqual(fitLines("Supercalifragilistic", 10, 1, chars), ["Supercali…"])
+  assert.deepEqual(fitLines("Create List From Every", 16, 1, chars), ["Create List Fro…"])
+})
+
+test("a loose declaration is a column after the story, with no heading, its card in its lane", () => {
   const storm = layout({
     ...model,
     loose: [
       { kind: "event", element: "Started(id)", aggregate: "lists" },
       { kind: "command", element: "Start(id)", aggregate: "lists" },
     ],
-    warnings: [
-      { message: "Started is in no slice yet.", element: "Started" },
+    messages: [
+      { kind: "warning", message: "Started: nothing records it.", element: "Started" },
       {
-        message: "slice 'CreateList' emits ListCreated, which nothing uses yet.",
+        kind: "warning",
+        message: "ListCreated (CreateList): unused.",
         element: "ListCreated",
-        slice: "CreateList",
+        slice: "create-list",
       },
     ],
   })
   const last = storm.chapters.length - 1
-  assert.equal(storm.chapters[last]?.title, "Not yet in a slice")
+  assert.equal(storm.chapters[last]?.title, "")
   const cols = storm.columns.filter((c) => c.chapter === last)
   assert.deepEqual(
     cols.map((c) => c.title),
@@ -361,13 +934,141 @@ test("a loose declaration is a column after the story, its card in its lane", ()
   assert.ok(started && start)
   assert.ok(inRow(started, "stream:lists"))
   assert.ok(inRow(start, "middle"))
-  // A warning marks its element's card and its slice's column.
-  assert.equal(started.warned, true)
-  assert.equal(start.warned, undefined)
-  assert.equal(cols[0]?.warned, true)
-  assert.equal(cols[1]?.warned, false)
-  assert.equal(storm.columns[0]?.warned, true)
-  assert.ok(storm.boxes.filter((b) => b.name === "ListCreated").every((b) => b.warned))
+  // A warning marks its element's card and its slice's column; a loose one's is its own column.
+  assert.equal(started.mark, "warning")
+  assert.equal(start.mark, undefined)
+  assert.equal(cols[0]?.mark, "warning")
+  assert.equal(cols[1]?.mark, undefined)
+  assert.equal(storm.columns[0]?.mark, "warning")
+  assert.equal(storm.boxes.find((b) => b.name === "ListCreated")?.mark, "warning")
+  assert.equal(storm.model.mark, undefined)
+})
+
+// A message as the feed carries it, about an element in a slice.
+const said = (kind: Message["kind"], element: string, slice?: string, ui?: string): Message => ({
+  kind,
+  message: `${element}: ${kind}`,
+  element,
+  ...(slice !== undefined && { slice }),
+  ...(ui !== undefined && { ui }),
+})
+
+test("the strongest message marks its slice, and its card in that slice only; one in no slice is the model's", () => {
+  const marked = layout({
+    ...model,
+    messages: [
+      said("error", "ItemCompleted", "complete-item"),
+      said("warning", "ListScreen", "complete-item"),
+      said("warning", "ListDeleted", "delete-list"),
+      said("warning", "Lists"),
+    ],
+  })
+  const column = (name: string) => marked.columns.find((c) => c.slice.name === name)
+  assert.equal(column("CompleteItem")?.mark, "error", "an error over a warning")
+  assert.equal(column("DeleteList")?.mark, "warning")
+  assert.equal(column("CreateList")?.mark, undefined)
+  const screens = marked.boxes.filter((b) => b.name === "ListScreen")
+  assert.ok(screens.length > 1)
+  assert.deepEqual(
+    screens.map((b) => b.mark),
+    screens.map((b) => (b.column === column("CompleteItem")?.index ? "warning" : undefined)),
+  )
+  assert.deepEqual(
+    marked.model.messages.map((m) => m.element),
+    ["Lists"],
+  )
+  assert.equal(marked.model.mark, "warning")
+})
+
+test("a slice's messages group under their element with its kind, errors first", () => {
+  const screen = said("warning", "ListScreen", "complete-item")
+  const unsourced = said("error", "ItemCompleted", "complete-item")
+  const unspecified = said("warning", "ItemCompleted", "complete-item")
+  assert.deepEqual(grouped([screen, unspecified, unsourced], out.boxes), [
+    { element: "ItemCompleted", kind: "event", messages: [unsourced, unspecified] },
+    { element: "ListScreen", kind: "ui", messages: [screen] },
+  ])
+  // An automation is named after its slice; a command of that name is what is meant.
+  assert.equal(grouped([said("error", "AddItem", "add-item")], out.boxes)[0]?.kind, "command")
+  assert.deepEqual(grouped([said("warning", "Lists"), said("error", "")], out.boxes), [
+    { element: "", messages: [said("error", "")] },
+    { element: "Lists", messages: [said("warning", "Lists")] },
+  ])
+})
+
+test("a message reads without the name its group shows, its fields cut out", () => {
+  const unsourced = {
+    ...said("error", "ItemCompleted", "complete-item", "Item Completed: userId has no source"),
+    fields: ["userId"],
+  }
+  assert.deepEqual(wording(unsourced), [
+    { text: "userId", field: true },
+    { text: " has no source" },
+  ])
+  assert.deepEqual(
+    wording(said("warning", "ListDeleted", "delete-list", "List Deleted: missing specification")),
+    [{ text: "missing specification" }],
+  )
+  assert.deepEqual(wording(said("error", "", undefined, "A slice is empty")), [
+    { text: "A slice is empty" },
+  ])
+  // A feed from before the viewer's wording has only the terminal's.
+  const old = {
+    message: "Started: nothing records it.",
+    element: "Started",
+    kind: "warning" as const,
+  }
+  assert.deepEqual(wording(old), [{ text: "nothing records it." }])
+})
+
+test("E visits the model's errors, then each slice with an error in order, and wraps; Shift-E goes back; W does the same for warnings", () => {
+  const errors = layout({
+    ...model,
+    messages: [
+      said("error", "TodoList", "todo-list"),
+      said("error", "ItemCompleted", "complete-item"),
+      said("error", "ItemCompleted", "complete-item"),
+      said("warning", "ListDeleted", "delete-list"),
+      said("error", ""),
+    ],
+  })
+  const walk = (delta: 1 | -1) => {
+    const seen: (number | "model" | undefined)[] = []
+    let at: number | "model" | null = null
+    for (let i = 0; i < 4; i++) {
+      const next = nextMark(errors, "error", at, delta)
+      seen.push(next)
+      at = next ?? null
+    }
+    return seen
+  }
+  assert.deepEqual(walk(1), ["model", 2, 5, "model"])
+  assert.deepEqual(walk(-1), [5, 2, "model", 5])
+  assert.equal(nextMark(errors, "error", 3, 1), 5, "from a slice with none, the next one with one")
+  assert.equal(nextMark(out, "error", null, 1), undefined, "nowhere to go")
+  const warned = errors.columns.find((c) => c.messages.some((m) => m.kind === "warning"))?.index
+  assert.equal(nextMark(errors, "warning", null, 1), warned, "W goes to the slice with a warning")
+})
+
+test("a feed with only a warnings list, from before errors were split out, marks them as warnings", () => {
+  const old = read({
+    name: "x",
+    model: { slices: [] },
+    warnings: [{ message: "Started: nothing records it.", element: "Started" } as Message],
+  })
+  assert.deepEqual(
+    old.messages?.map((m) => m.kind),
+    ["warning"],
+  )
+  assert.equal(layout(old).model.mark, "warning")
+})
+
+test("the slices in no chapter are the nameless chapter, with no heading", () => {
+  const slice = model.chapters[0]?.slices[0]
+  assert.ok(slice)
+  const storm = layout({ ...model, chapters: [...model.chapters, { name: "", slices: [slice] }] })
+  assert.equal(storm.chapters.at(-1)?.title, "")
+  assert.equal(storm.columns.at(-1)?.chapter, storm.chapters.length - 1)
 })
 
 test("every actor gets a lane, and cards in one lane share a top edge", () => {
@@ -380,4 +1081,188 @@ test("every actor gets a lane, and cards in one lane share a top edge", () => {
     const tops = new Set(out.boxes.filter((b) => rowOf(b)?.id === row.id).map((b) => b.y))
     assert.ok(tops.size <= (row.kind === "middle" ? 2 : 1), `${row.id} has ${tops.size} top edges`)
   }
+})
+
+test("the header's path names the model, then the selected chapter, the slice and the card", () => {
+  const text = (path: ReturnType<typeof crumbs>) => path.map((c) => c.text).join(" › ")
+  assert.deepEqual(crumbs("Todo", out, null), [{ level: "model", text: "Todo", to: null }])
+  assert.deepEqual(crumbs("Todo", out, { chapter: 0 }), [
+    { level: "model", text: "Todo", to: null },
+    { level: "chapter", text: "List Management", to: { chapter: 0 } },
+  ])
+  assert.deepEqual(crumbs("Todo", out, { column: 1 }), [
+    { level: "model", text: "Todo", to: null },
+    { level: "chapter", text: "List Management", to: { chapter: 0 } },
+    { level: "slice", text: "Add Item", to: { column: 1 } },
+  ])
+  const added = out.boxes.find((b) => b.column === 1 && b.kind === "event")
+  assert.ok(added)
+  assert.equal(
+    text(crumbs("Todo", out, { column: 1, kind: added.kind, name: added.name })),
+    "Todo › List Management › Add Item › Item Added",
+  )
+  const loose = { ...(out.columns[1] as Column), index: 0, chapter: out.chapters.length }
+  const bare = {
+    ...out,
+    chapters: [...out.chapters, { name: "", title: "", x: 0, w: 0 }],
+    columns: [loose],
+  }
+  assert.equal(text(crumbs("Todo", bare, { column: 0 })), "Todo › Add Item")
+})
+
+test("the URL hash records a chapter, a slice, a card or the model, and reads back the same", () => {
+  const selections = [
+    null,
+    "model",
+    { chapter: 2 },
+    { column: 3 },
+    { column: 3, kind: "event", name: "Item Added" },
+  ] as const
+  for (const sel of selections) assert.deepEqual(fromHash(hashOf(sel)), sel)
+  assert.equal(hashOf({ chapter: 2 }), "#ch2")
+})
+
+test("a value shows each UUID in it by its first group, and anything else as it is", () => {
+  assert.equal(
+    shortIds(
+      "{id: 6F1C2D4E-0B9A-4C3D-8E7F-1A2B3C4D5E6F, by: 0b9a4c3d-6f1c-2d4e-8e7f-1a2b3c4d5e6f}",
+    ),
+    "{id: 6F1C2D4E, by: 0b9a4c3d}",
+  )
+  assert.equal(shortIds("list-1"), "list-1")
+  assert.equal(shortIds("6f1c2d4e-0b9a-4c3d-8e7f"), "6f1c2d4e-0b9a-4c3d-8e7f")
+})
+
+test("a slice's bounds run from its name down to its bottom-most card or rail note", () => {
+  const col = out.columns.find((c) => c.notes?.length)
+  assert.ok(col, "a slice with a rail")
+  const items = [...out.boxes.filter((b) => b.column === col.index), ...(col.notes ?? [])]
+  const b = bounds(out, { column: col.index })
+  assert.deepEqual(b, {
+    x: col.x,
+    y: out.nameY,
+    w: col.w,
+    h: Math.max(...items.map((i) => i.y + i.h)) - out.nameY,
+  })
+  const note = col.notes?.at(-1)
+  assert.ok(note && b && note.y + note.h <= b.y + b.h, "the rail's last note is inside")
+})
+
+test("a chapter's bounds take in all its slices and the notes above its band", () => {
+  const noted = layout({
+    ...model,
+    notes: { ...model.notes, ListManagement: [{ text: "Owned.", kind: "info" }] },
+  })
+  const ci = noted.chapters.findIndex((c) => c.name === "ListManagement")
+  const chapter = noted.chapters[ci]
+  const slices = noted.columns.filter((c) => c.chapter === ci)
+  const b = bounds(noted, { chapter: ci })
+  assert.ok(chapter?.notes?.[0] && b && slices.length > 1)
+  assert.equal(b.x, slices[0]?.x)
+  assert.equal(b.x + b.w, (slices.at(-1)?.x ?? 0) + (slices.at(-1)?.w ?? 0))
+  assert.equal(b.y, chapter.notes[0].y, "from the chapter's notes")
+  for (const s of slices) {
+    const slice = bounds(noted, { column: s.index })
+    assert.ok(slice && slice.y + slice.h <= b.y + b.h, `${s.label} is inside`)
+  }
+})
+
+test("a slice's navigation row shows the kind of its most serious note", () => {
+  const notes = [
+    { text: "Why?", kind: "info" as const },
+    { text: "Who may?", kind: "question" as const },
+  ]
+  const chapters = model.chapters.map((c) => ({
+    ...c,
+    slices: c.slices.map((s) => (s.name === "AddItem" ? { ...s, notes } : s)),
+  }))
+  const noted = layout({ ...model, chapters })
+  assert.equal(noted.columns.find((c) => c.label === "AddItem")?.note, "question")
+  assert.equal(out.columns.find((c) => c.label === "AddItem")?.note, undefined)
+})
+
+test("a fitted slice fills the viewport top to bottom, centred, no closer than MAX_ZOOM", () => {
+  const scope = { column: out.columns.findIndex((c) => c.label === "AddItem") }
+  const b = bounds(out, scope)
+  const v = fitTo(out, scope, { w: 1200, h: 800 })
+  assert.ok(b && v)
+  assert.ok(Math.abs(v.y + v.k * b.y - 24) < 1e-9, "slice name at the margin")
+  assert.ok(Math.abs(v.y + v.k * (b.y + b.h) - 776) < 1e-9, "bottom card at the margin")
+  assert.ok(Math.abs(v.x + v.k * (b.x + b.w / 2) - 600) < 1e-9, "column centred")
+  assert.equal(fitTo(out, scope, { w: 1e5, h: 1e5 })?.k, MAX_ZOOM)
+})
+
+test("a slice or a chapter uses the lanes it has a card in", () => {
+  const lanes = (scope: Parameters<typeof usedLanes>[1]) => {
+    const used = usedLanes(out, scope)
+    return out.rows.filter((r) => used.has(r.id)).map((r) => r.label)
+  }
+  const column = (label: string) => ({ column: out.columns.findIndex((c) => c.label === label) })
+  assert.deepEqual(lanes(column("AddItem")), ["User", "Interaction", "Items"])
+  assert.deepEqual(lanes(column("ListCompleter")), ["Automations", "Interaction", "Lists"])
+  const chapter = out.chapters.findIndex((c) => c.name === "ListManagement")
+  assert.deepEqual(lanes({ chapter }), ["User", "Interaction", "Lists", "Items"])
+})
+
+test("a lane grows to hold the notes beside its cards, so none overflows its lane", () => {
+  const said = (kind: "info" | "question" | "critical") => ({
+    text: "A note long enough to take more than one line.",
+    kind,
+  })
+  const noted = layout({
+    ...model,
+    notes: { ...model.notes, ItemAdded: [said("info"), said("question"), said("critical")] },
+  })
+  const items = noted.rows.find((r) => r.label === "Items")
+  const plain = out.rows.find((r) => r.label === "Items")
+  assert.ok(items && plain && items.h > plain.h, "the Items lane grew")
+  for (const col of noted.columns)
+    for (const n of col.notes ?? [])
+      assert.ok(
+        noted.rows.some((r) => r.y <= n.y && n.y + n.h <= r.y + r.h - LANE_PAD),
+        `a note in ${col.label} stays inside a lane`,
+      )
+})
+
+test("the lane of commands and views is Interaction, and their cards name the service, not the screen", () => {
+  const middle = out.rows.find((r) => r.id === "middle")
+  assert.equal(middle?.label, "Interaction")
+  const add = out.columns.findIndex((c) => c.label === "AddItem")
+  const card = (kind: Box["kind"]) => out.boxes.find((b) => b.column === add && b.kind === kind)
+  assert.equal(card("command")?.detail, "TodoService")
+  assert.equal(card("ui")?.detail, undefined)
+  const list = out.columns.findIndex((c) => c.label === "TodoList")
+  const view = out.boxes.find((b) => b.column === list && b.kind === "readModel" && !b.compact)
+  assert.equal(view?.detail, "TodoService")
+  assert.ok(
+    out.boxes.every((b) => !b.compact || b.detail === undefined),
+    "a name-only card has none",
+  )
+})
+
+test("what is said about a declaration in no slice stands on its column and its card, not the model", () => {
+  const copy: Board = JSON.parse(JSON.stringify(model))
+  copy.chapters.push({
+    name: "",
+    slices: [
+      {
+        id: "orphan",
+        name: "Orphan",
+        actor: "",
+        aggregate: copy.chapters[0]?.slices[0]?.aggregate ?? "",
+        tests: [],
+        events: ["Orphan(id)"],
+      },
+    ],
+  })
+  copy.messages = [said("error", "Orphan")]
+  const out = layout(copy)
+  const column = out.columns.find((c) => c.slice.id === "orphan")
+  assert.deepEqual(
+    column?.messages.map((m) => m.element),
+    ["Orphan"],
+  )
+  assert.equal(column?.mark, "error")
+  assert.equal(out.boxes.find((b) => b.name === "Orphan")?.mark, "error")
+  assert.deepEqual(out.model.messages, [])
 })

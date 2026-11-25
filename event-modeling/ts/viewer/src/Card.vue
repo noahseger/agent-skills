@@ -1,25 +1,28 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { type Box, BUTTON_H, FIELD_H, INPUT_H, TITLE_H, words } from "./layout.ts"
+import { words } from "../../src/types.ts"
+import Fit from "./Fit.vue"
+import {
+  type Box,
+  BUTTON_H,
+  face,
+  INPUT_H,
+  KIND,
+  markAt,
+  PAD,
+  TABLE_PAD,
+  TITLE_LINE,
+} from "./layout.ts"
+import Mark from "./Mark.vue"
+import { measure } from "./measure.ts"
 
 const props = defineProps<{ box: Box }>()
 defineEmits<{ link: [canonical: string]; pick: [] }>()
 
-const LABEL: Record<Box["kind"], string> = {
-  ui: "screen",
-  external: "external event",
-  command: "command",
-  event: "event",
-  readModel: "read model",
-  automation: "automation",
-}
-
-/** A card with nothing under its name centres the name. */
-const centred = computed(
-  () =>
-    props.box.compact ||
-    (props.box.kind !== "ui" && props.box.fields.length === 0 && props.box.detail === undefined),
-)
+/** Where each line stands: the one rule that also sizes the card. */
+const at = computed(() => face(props.box))
+/** The room a key field leaves its `KEY` tag, and a gap before it. */
+const keyW = measure("KEY", "tag") + 6
 </script>
 
 <template>
@@ -29,81 +32,66 @@ const centred = computed(
     :transform="`translate(${box.x} ${box.y})`"
     role="button"
     tabindex="0"
-    :aria-label="`${LABEL[box.kind]} ${box.name}${box.noted ? ', has a note' : ''}${box.warned ? ', not finished' : ''}`"
+    :aria-label="`${KIND[box.kind]} ${words(box.name)}${box.notes ? ', has notes' : ''}${box.mark === 'error' ? ', has an error' : box.mark ? ', unfinished' : ''}`"
     @keydown.enter.stop="$emit('pick')"
   >
-    <title v-if="box.canonical">Drawn in full where it first appears</title>
+    <title v-if="box.canonical">Full details are on its first card</title>
     <rect class="shape" :width="box.w" :height="box.h" rx="8" />
-    <text class="title" :x="12" :y="centred ? box.h / 2 + 4.5 : 20">{{ words(box.name) }}</text>
-    <text v-if="box.detail" class="detail" :x="12" :y="TITLE_H + 4">{{ box.detail }}</text>
+    <text class="title" :y="at.title">
+      <tspan v-for="(line, i) in box.title" :key="i" :x="PAD" :dy="i === 0 ? 0 : TITLE_LINE">{{ line }}</tspan>
+    </text>
+    <Fit v-if="at.detail !== undefined" class="detail" :text="box.detail ?? ''" :room="box.w - 2 * PAD" font="detail" :x="PAD" :y="at.detail" />
 
     <!-- A screen is a wireframe: inputs, a button, a table. -->
-    <template v-if="box.kind === 'ui' && !box.compact">
-      <g
-        v-for="(field, i) in box.form ?? []"
-        :key="field"
-        class="input"
-        :transform="`translate(12 ${TITLE_H + (box.detail ? 14 : 0) + 2 + i * INPUT_H})`"
-      >
-        <rect :width="box.w - 24" :height="INPUT_H - 5" rx="4" />
-        <text :x="7" :y="12">{{ field }}</text>
-      </g>
-      <g
-        v-if="box.button"
-        class="button"
-        :transform="`translate(12 ${TITLE_H + (box.detail ? 14 : 0) + 4 + (box.form?.length ?? 0) * INPUT_H})`"
-      >
-        <rect :width="box.w - 24" :height="BUTTON_H - 8" rx="4" />
-        <text text-anchor="middle" :x="(box.w - 24) / 2" :y="14">{{ box.button }}</text>
-      </g>
-      <g
-        v-if="box.table"
-        class="table"
-        :transform="`translate(12 ${TITLE_H + (box.detail ? 14 : 0) + 4 + (box.form?.length ?? 0) * INPUT_H})`"
-      >
-        <rect class="head" :width="box.w - 24" :height="16" rx="3" />
-        <text v-for="col in box.tableColumns ?? []" :key="col.name" class="col" :x="col.x + 6" :y="11">
-          {{ col.name }}
-        </text>
-        <template v-for="r in 2" :key="r">
-          <line :x1="0" :x2="box.w - 24" :y1="16 + r * 14" :y2="16 + r * 14" />
-          <rect
-            v-for="col in box.tableColumns ?? []"
-            :key="col.name"
-            class="cell"
-            :x="col.x + 6"
-            :y="16 + (r - 1) * 14 + 5"
-            :width="Math.max(8, col.w - 14)"
-            height="4"
-            rx="2"
-          />
-        </template>
-        <text v-if="box.tableMore" class="more" text-anchor="end" :x="box.w - 28" :y="11">
-          +{{ box.tableMore }}
-        </text>
-      </g>
-    </template>
-
-    <template v-else>
-      <template v-for="(field, i) in box.compact ? [] : box.fields" :key="field">
-        <text
-          class="field"
-          :class="{ key: box.keys.includes(field) }"
-          :x="12"
-          :y="TITLE_H + (box.detail ? 14 : 0) + 6 + i * FIELD_H"
-        >
-          {{ field }}
-        </text>
-        <text
-          v-if="box.keys.includes(field)"
-          class="key-mark"
-          text-anchor="end"
-          :x="box.w - 12"
-          :y="TITLE_H + (box.detail ? 14 : 0) + 6 + i * FIELD_H"
-        >
-          key
-        </text>
+    <g v-for="input in at.inputs" :key="input.y" class="input" :transform="`translate(${PAD} ${input.y})`">
+      <rect :width="box.w - 2 * PAD" :height="INPUT_H - 5" rx="4" />
+      <Fit :text="input.text" :room="box.w - 38" font="input" :x="7" :y="12" />
+    </g>
+    <g v-if="at.button !== undefined" class="button" :transform="`translate(${PAD} ${at.button})`">
+      <rect :width="box.w - 2 * PAD" :height="BUTTON_H - 8" rx="4" />
+      <Fit text-anchor="middle" :text="box.button ?? ''" :room="box.w - 36" font="button" :x="(box.w - 2 * PAD) / 2" :y="14" />
+    </g>
+    <g v-if="at.table !== undefined" class="table" :transform="`translate(${PAD} ${at.table})`">
+      <rect class="head" :width="box.w - 2 * PAD" :height="16" rx="3" />
+      <Fit
+        v-for="col in box.tableColumns ?? []"
+        :key="col.name"
+        class="col"
+        :text="col.name"
+        :room="col.w - TABLE_PAD"
+        font="table"
+        :x="col.x + 6"
+        :y="11"
+      />
+      <template v-for="r in box.tableRows ?? 2" :key="r">
+        <line :x1="0" :x2="box.w - 2 * PAD" :y1="16 + r * 14" :y2="16 + r * 14" />
+        <rect
+          v-for="col in box.tableColumns ?? []"
+          :key="col.name"
+          class="cell"
+          :x="col.x + 6"
+          :y="16 + (r - 1) * 14 + 5"
+          :width="Math.max(8, col.w - 14)"
+          height="4"
+          rx="2"
+        />
       </template>
+      <text v-if="box.tableMore" class="more" text-anchor="end" :x="box.w - 28" :y="11">
+        +{{ box.tableMore }}
+      </text>
+    </g>
+
+    <template v-for="f in at.fields" :key="f.y">
+      <Fit
+        class="field"
+        :class="{ key: box.keys.includes(f.text) }"
+        :text="f.text"
+        :room="box.w - 2 * PAD - (box.keys.includes(f.text) ? keyW : 0)"
+        :font="box.keys.includes(f.text) ? 'key' : 'field'"
+        :x="PAD"
+        :y="f.y"
+      />
+      <text v-if="box.keys.includes(f.text)" class="key-mark" text-anchor="end" :x="box.w - PAD" :y="f.y">KEY</text>
     </template>
 
     <g
@@ -111,23 +99,14 @@ const centred = computed(
       class="link"
       role="link"
       tabindex="0"
-      aria-label="Go to where it is drawn in full"
+      aria-label="Go to its first card"
       @click.stop="$emit('link', box.canonical)"
       @keydown.enter.stop="$emit('link', box.canonical)"
     >
-      <title>Go to where it is drawn in full</title>
+      <title>Go to its first card</title>
       <rect :x="box.w - 26" :y="box.h / 2 - 9" width="18" height="18" rx="4" />
       <text text-anchor="middle" :x="box.w - 17" :y="box.h / 2 + 4">↗</text>
     </g>
-    <g v-if="box.noted" class="note-badge">
-      <title>Has a note</title>
-      <circle :cx="box.w - 1" :cy="1" r="6.5" />
-      <text text-anchor="middle" :x="box.w - 1" :y="4">i</text>
-    </g>
-    <g v-if="box.warned" class="warn-badge">
-      <title>Not finished: select it to see what is left</title>
-      <circle :cx="1" :cy="1" r="6.5" />
-      <text text-anchor="middle" :x="1" :y="4">!</text>
-    </g>
+    <Mark :mark="box.mark" :at="markAt(PAD + measure(box.title[0] ?? '', 'title'), at.title, 12.5)" />
   </g>
 </template>

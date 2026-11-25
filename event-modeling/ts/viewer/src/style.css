@@ -29,10 +29,10 @@
   --danger-fill: #fee2e2;
   --danger-stroke: #ef4444;
   --danger-ink: #7f1d1d;
-  --warn: #92400e;
-  --warn-fill: #fffbeb;
-  --warn-stroke: #fde68a;
-  --warn-mark: #f59e0b;
+  --warning: #eab308;
+  --question-fill: #fef3c7;
+  --question-stroke: #d97706;
+  --question-ink: #78350f;
 
   --ui-fill: #ffffff;
   --ui-stroke: #94a3b8;
@@ -43,12 +43,15 @@
   --event-fill: #ffedd5;
   --event-stroke: #f97316;
   --event-ink: #7c2d12;
-  --readModel-fill: #dcfce7;
-  --readModel-stroke: #22c55e;
-  --readModel-ink: #14532d;
+  --view-fill: #dcfce7;
+  --view-stroke: #22c55e;
+  --view-ink: #14532d;
   --automation-fill: #f3e8ff;
   --automation-stroke: #a855f7;
   --automation-ink: #581c87;
+  --external-fill: #f1f5f9;
+  --external-stroke: #64748b;
+  --external-ink: #334155;
 
   --text-lg: 18px;
   --text-md: 14px;
@@ -66,6 +69,25 @@
 
   --sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* the fonts text is fitted in: layout.ts wraps and cuts by measuring them */
+  --font-title: 600 12.5px var(--sans);
+  --font-table: 600 8.5px var(--sans);
+  --font-note: 9px var(--sans);
+  --note-tracking: 0.02em;
+  /* The status dot's size; a badge's is MARK_R in layout.ts. */
+  --mark-size: 10px;
+  --font-lane: 700 13px var(--sans);
+  --font-chapter: 600 13px var(--sans);
+  --font-slice: 700 12px var(--sans);
+  --font-detail: 10.5px var(--sans);
+  --font-field: 10.5px var(--mono);
+  --font-key: 700 10.5px var(--mono);
+  --font-input: 9.5px var(--sans);
+  --font-button: 600 10px var(--sans);
+  /* tags are also set in capitals and tracked by --tracking */
+  --font-tag: 600 var(--text-xs) var(--sans);
+  --font-laneTag: 600 7px var(--sans);
 }
 
 /* keyboard focus is always visible; motion only for those who want it */
@@ -79,7 +101,7 @@ svg [tabindex]:focus-visible {
 }
 
 svg [tabindex]:focus-visible > .shape,
-svg .slice-head:focus-visible > rect {
+svg .slice-head:focus-visible > path {
   stroke: var(--accent);
   stroke-width: 2.5;
 }
@@ -95,16 +117,12 @@ svg .slice-head:focus-visible > rect {
 /* tags: the small uppercase labels used everywhere */
 .tag,
 .lane-kind,
-.spec-word,
 .card .key-mark,
 .detail h3,
-.detail .kind,
+.kind,
 .nav .chapter,
 .facts h3,
-.specs-title,
-.hstep .word,
-.slice-body .lane-tag,
-.top .swatch {
+.hstep .word {
   font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: var(--tracking);
@@ -126,9 +144,11 @@ body,
   background: var(--bg);
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
+  /* text never overflows: a word wider than its box breaks, and only then */
+  overflow-wrap: break-word;
 }
 
-/* Header, then any banners, then the body takes what is left. */
+/* Header, then a model that didn't load, then the body takes what is left. */
 .app {
   display: flex;
   flex-direction: column;
@@ -151,53 +171,138 @@ body,
   letter-spacing: -0.01em;
 }
 
+/* The path to what is selected; the middle crumbs give way first, each cut with "…". */
+.top .crumbs {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.top .crumbs > :not(.sep) {
+  min-width: 1.5em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.top .crumbs > :not(.sep):not(:first-child):not(:last-child) {
+  flex-shrink: 100;
+}
+
+.top .crumbs button {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+/* The model's name opens its to-do list, its badge after it as after any name. */
+.top .crumbs button:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+}
+
+.top .crumbs button:hover {
+  color: var(--accent);
+}
+
+.top .crumbs .sep {
+  color: var(--faint);
+}
+
+/* One line in the room the path leaves; what doesn't fit ends in "…", whole on hover. */
 .top .description {
   color: var(--muted);
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.top .legend {
+/* The header's right group: every item sits on one centre line, so none needs a nudge. */
+.top .tools {
   margin-left: auto;
   display: flex;
+  align-items: center;
   gap: 14px;
   color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 16px;
+  white-space: nowrap;
 }
 
-.top .swatch {
-  text-transform: none;
-  letter-spacing: 0;
-  font-size: var(--text-sm);
+/* The legend and the shortcuts: each a header panel that opens and closes, by click or key. */
+.top .legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
   font-weight: 500;
+}
+
+/* Open, the legend's items join its flex line beside its label. */
+.top .legend[open]::details-content {
+  display: contents;
+}
+
+/* A toggle reads like a shortcut's key, its key letter underlined; text a click can't select, so no highlight. */
+.top summary,
+.top .keys dt {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.top summary {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.top summary::-webkit-details-marker {
+  display: none;
+}
+
+/* A legend item: its sign, then its word. */
+.top .legend > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .top .swatch::before {
   content: "";
-  display: inline-block;
   width: 10px;
   height: 10px;
   border-radius: 3px;
-  margin-right: 6px;
-  vertical-align: -1px;
   border: 1px solid;
 }
 
 .top .swatch.ui::before { background: var(--ui-fill); border-color: var(--ui-stroke); }
 .top .swatch.command::before { background: var(--command-fill); border-color: var(--command-stroke); }
 .top .swatch.event::before { background: var(--event-fill); border-color: var(--event-stroke); }
-.top .swatch.readModel::before { background: var(--readModel-fill); border-color: var(--readModel-stroke); }
+.top .swatch.readModel::before { background: var(--view-fill); border-color: var(--view-stroke); }
 .top .swatch.automation::before { background: var(--automation-fill); border-color: var(--automation-stroke); }
+.top .swatch.external::before { background: var(--external-fill); border-color: var(--external-stroke); border-style: dashed; }
+
+/* A navigation row's badges stand in two fixed slots at its right, note then issue, so every row's line up. */
+.nav .said-slot { grid-column: 2; }
+.nav .mark-slot { grid-column: 3; }
+.nav :is(.said-slot, .mark-slot) { display: flex; }
 
 .top .status {
-  margin-left: 20px;
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--muted);
-  font-size: 12px;
 }
 
 .top .dot {
-  width: 8px;
-  height: 8px;
+  width: var(--mark-size);
+  height: var(--mark-size);
   border-radius: 50%;
   background: #22c55e;
 }
@@ -249,9 +354,10 @@ body,
 }
 
 .nav .slice {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 12px 12px;
+  column-gap: 6px;
   align-items: center;
-  justify-content: space-between;
   width: 100%;
   border: 0;
   background: transparent;
@@ -263,46 +369,62 @@ body,
   cursor: pointer;
 }
 
+/* A chapter's slices indent under its heading, so a column in no chapter after them reads as outside it. */
+.nav .slice.inside {
+  padding-left: 24px;
+}
+
 .nav .slice:hover {
   background: var(--bg);
 }
 
-.nav .slice.selected {
+.nav .slice.selected,
+.nav .chapter.selected {
   background: #dbeafe;
   color: var(--command-ink);
   font-weight: 600;
 }
 
-.nav .hint {
-  margin: 20px 8px 0;
-  color: var(--muted);
-  font-size: 11px;
+.top .keys {
+  position: relative;
 }
 
-.note-dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
+.top .keys dl {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 10;
+  margin: 0;
+  padding: 10px 14px;
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 4px 12px;
+  white-space: nowrap;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
 }
 
-svg .note-dot {
-  fill: var(--accent);
+.top .keys dd {
+  margin: 0;
 }
 
-/* The model is not finished here. */
-.warn-dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--warn-mark);
-}
-
-svg .warn-dot {
-  fill: var(--warn-mark);
-}
+/* A badge: whatever is said about an element, one circle, 12px across (MARK_R), in its note's
+   colour: critical and an error red, a question and a warning amber, info slate. A note's carries its
+   letter in white, bold, on a solid circle; an issue's is a ring. It follows what it marks, 6px after (MARK_GAP); in a page it
+   stands in a box one line tall (`.badge-line`), so it centres on the first line of what it starts. */
+.badge { flex: none; overflow: visible; }
+.badge circle { fill: var(--external-stroke); }
+.badge text { font: 800 8px var(--sans); fill: #ffffff; }
+.badge:is(.error, .critical) circle { fill: var(--danger-stroke); }
+.badge:is(.warning, .question) circle { fill: var(--question-stroke); }
+/* A model issue is a ring, white inside, so it never reads as a note. */
+.badge:is(.error, .warning) circle { fill: #ffffff; stroke-width: 2.5; }
+.badge.error circle { stroke: var(--danger-stroke); }
+.badge.warning circle { stroke: var(--question-stroke); }
+.badge-line { display: inline-flex; align-items: center; flex: none; height: 1lh; }
+/* Centred on the line a badge meets the capitals' middle; text reads on its x-height's, 0.09em lower. */
+.badge-line > .badge { transform: translateY(0.09em); }
 
 .canvas {
   min-width: 0;
@@ -334,7 +456,8 @@ svg .warn-dot {
   fill: transparent;
 }
 
-.error {
+/* The model that didn't load; `pre`, so a rejection's card, also `.error`, keeps its own look. */
+pre.error {
   margin: 0;
   padding: 12px 20px;
   border-bottom: 1px solid #fecaca;
@@ -343,22 +466,6 @@ svg .warn-dot {
   font-family: var(--mono);
   font-size: 12px;
   white-space: pre-wrap;
-}
-
-/* What a model still being written has left to do. */
-.warnings {
-  margin: 0;
-  padding: 8px 20px;
-  border-bottom: 1px solid var(--warn-stroke);
-  background: var(--warn-fill);
-  color: var(--warn);
-  font-family: var(--mono);
-  font-size: 12px;
-  list-style: none;
-}
-
-.warnings li {
-  padding: 2px 0;
 }
 
 .empty {
@@ -376,18 +483,13 @@ svg .warn-dot {
   fill: #fbfbfc;
 }
 
-.lane.specs {
-  fill: #f8fafc;
-}
-
 .lane-line {
   stroke: var(--line);
   stroke-width: 1;
 }
 
 .lane-label {
-  font-size: 13px;
-  font-weight: 700;
+  font: var(--font-lane);
   fill: var(--ink);
 }
 
@@ -395,18 +497,53 @@ svg .warn-dot {
   fill: var(--muted);
 }
 
+/* A lane's name stands at the viewport's left edge, on its lane's colour, above the cards it passes. */
+.lane-name {
+  --fill: var(--bg);
+  color: var(--ink);
+}
+
+.lane-name.stream {
+  --fill: #fbfbfc;
+}
+
+.lane-name rect {
+  fill: var(--fill);
+}
+
+.world.animate .lane-name {
+  transition: transform 300ms ease;
+}
+
+/* A selected slice fades the lanes it has no card in. */
+.lane.idle {
+  opacity: 0.4;
+}
+
+.lane-name.idle .lane-label,
+.lane-name.idle .lane-kind {
+  opacity: 0.3;
+}
+
 /* chapters are arrows along the time line */
+svg .chapter {
+  --fill: var(--accent);
+  color: #ffffff;
+}
+
 .chapter path {
-  fill: var(--accent);
+  fill: var(--fill);
 }
 
 .chapter text {
-  font-size: 13px;
-  font-weight: 600;
-  fill: #ffffff;
+  font: var(--font-chapter);
+  fill: currentColor;
 }
 
 /* slices */
+/* A slice: its outline, drawn above its name's header so nothing cuts it, and the header's fill.
+   At rest neither shows; hovered, the outline is grey; selected, accent, the header accent-filled.
+   Hovering a selected slice keeps its accent and lays the state layer on the header like any hover. */
 .slice-outline {
   fill: transparent;
   stroke: transparent;
@@ -415,7 +552,9 @@ svg .warn-dot {
   transition: fill 120ms ease, stroke 120ms ease;
 }
 
-.slice-outline.hover {
+/* Hover shows on the canvas only while the mouse leads: a key press hands the lead to the keyboard
+   (`.keyed`) until the mouse next moves. */
+.app:not(.keyed) .slice-outline.hover:not(.selected) {
   stroke: #cbd5e1;
 }
 
@@ -428,42 +567,45 @@ svg .warn-dot {
   cursor: pointer;
 }
 
-.chapter:hover path {
-  fill: #1d4ed8;
+/* Hover is a state layer: whatever the pointer is over that a click selects, a card, a note, a chapter or a slice header, lays
+   its own ink over its fill at 8%. Each sets `--fill` and its ink as `color`; one rule for every kind. */
+.app:not(.keyed) :is(.card, .sticky, .chapter, .slice-head):hover > :is(.shape, .paper, rect, path),
+.app:not(.keyed) .slice-head.hover > path {
+  fill: color-mix(in srgb, var(--layer, currentColor) 8%, var(--fill));
+}
+
+/* A slice header lays the ink's layer, as the board's own chrome. */
+.slice-head {
+  --layer: var(--ink);
 }
 
 .slice-head {
+  --fill: transparent;
+  color: var(--muted);
   cursor: pointer;
 }
 
-.slice-head rect {
-  fill: transparent;
+.slice-head.selected {
+  --fill: #dbeafe;
+  color: var(--command-ink);
 }
 
-.slice-head:hover rect,
-.slice-head.hover rect {
-  fill: #eef2f7;
-}
-
-.slice-head.hover text {
-  fill: var(--ink);
-}
-
-.slice-head.selected rect {
-  fill: #dbeafe;
+.slice-head path {
+  fill: var(--fill);
 }
 
 .slice-head text {
-  font-size: 12px;
-  font-weight: 700;
-  fill: var(--muted);
+  font: var(--font-slice);
+  fill: currentColor;
 }
 
-.slice-head.selected text {
-  fill: var(--command-ink);
+/* edges; their arrowheads are defined once, in a drawing of no size */
+.markers {
+  position: absolute;
+  width: 0;
+  height: 0;
 }
 
-/* edges */
 .edge {
   fill: none;
   stroke: #94a3b8;
@@ -494,8 +636,9 @@ svg .warn-dot {
 }
 
 .card .shape {
+  fill: var(--fill);
+  stroke: var(--stroke);
   stroke-width: 1.25;
-  filter: drop-shadow(0 1px 1px rgb(15 23 42 / 0.06));
 }
 
 .card.selected .shape {
@@ -507,29 +650,23 @@ svg .warn-dot {
 }
 
 .card .title {
-  font-size: 12.5px;
-  font-weight: 600;
+  font: var(--font-title);
+  fill: currentColor;
 }
 
 .card .detail {
-  font-size: 10.5px;
+  font: var(--font-detail);
   fill: var(--muted);
 }
 
 .card .field {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  fill: var(--ink);
+  font: var(--font-field);
+  fill: currentColor;
 }
 
 .card .field.key {
-  font-weight: 700;
+  font: var(--font-key);
 }
-
-.card.command .field { fill: var(--command-ink); }
-.card.event .field,
-.card.external .field { fill: var(--event-ink); }
-.card.readModel .field { fill: var(--readModel-ink); }
 
 /* a screen's wireframe */
 .card .input rect {
@@ -538,7 +675,7 @@ svg .warn-dot {
 }
 
 .card .input text {
-  font-size: 9.5px;
+  font: var(--font-input);
   fill: var(--muted);
 }
 
@@ -547,8 +684,7 @@ svg .warn-dot {
 }
 
 .card .button text {
-  font-size: 10px;
-  font-weight: 600;
+  font: var(--font-button);
   fill: #ffffff;
 }
 
@@ -558,8 +694,7 @@ svg .warn-dot {
 
 .card .table .col,
 .card .table .more {
-  font-size: 8.5px;
-  font-weight: 600;
+  font: var(--font-table);
   fill: var(--muted);
 }
 
@@ -581,86 +716,58 @@ svg .warn-dot {
   fill: var(--accent);
 }
 
-.card .link:hover rect {
+.app:not(.keyed) .card .link:hover rect {
   stroke: var(--accent);
 }
 
-.card .note-badge circle {
-  fill: var(--accent);
-  stroke: #ffffff;
-  stroke-width: 1.5;
+/* A note is square paper in its kind's colour, lighter than the card it is about: smaller type.
+   Critical red, a question amber, info neutral. Its line is its kind's stroke token, as a card's is. */
+.sticky { --fill: var(--panel); --stroke: var(--ui-stroke); color: var(--muted); }
+.sticky.critical { --fill: var(--danger-fill); --stroke: var(--danger-stroke); color: var(--danger-ink); }
+.sticky.question { --fill: var(--question-fill); --stroke: var(--question-stroke); color: var(--question-ink); }
+.sticky .paper { fill: var(--fill); stroke: var(--stroke); stroke-width: 1; }
+.sticky > text { font: var(--font-note); letter-spacing: var(--note-tracking); fill: currentColor; }
+
+
+.notes {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 14px;
+  padding: 0;
+  list-style: none;
 }
 
-.card .note-badge text {
-  font-size: 8px;
-  font-weight: 700;
-  fill: #ffffff;
+/* A note in a panel: its badge first, centred on the first line, then its words, in its kind's box. */
+.said {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--ui-stroke);
+  border-radius: 2px;
+  background: var(--panel);
+  line-height: 1.45;
 }
-
-.card .warn-badge circle {
-  fill: var(--warn-mark);
-  stroke: #ffffff;
-  stroke-width: 1.5;
-}
-
-.card .warn-badge text {
-  font-size: 8px;
-  font-weight: 700;
-  fill: #ffffff;
-}
+.said.critical { background: var(--danger-fill); border-color: var(--danger-stroke); color: var(--danger-ink); }
+.said.question { background: var(--question-fill); border-color: var(--question-stroke); color: var(--question-ink); }
+.said b { font-weight: 600; }
 
 .card.compact .title {
   font-weight: 500;
 }
 
-/* specifications drawn under the slice */
-.spec-title {
-  font-size: 12px;
-  font-weight: 700;
-  fill: var(--ink);
-}
-
-.spec-word {
-  fill: var(--muted);
-}
-
-.card.spec {
-  cursor: default;
-}
-
-.card.spec .title {
-  font-size: 11px;
-}
-
-.card.spec .field {
-  font-size: 10px;
-}
-
-.card.spec .title {
-  font-size: 11px;
-}
-
-.card.error .shape { fill: var(--danger-fill); stroke: var(--danger-stroke); }
-.card.error .title { fill: var(--danger-ink); }
-.card.error .field { fill: var(--danger-ink); }
-
-.card.ui .shape { fill: var(--ui-fill); stroke: var(--ui-stroke); }
-.card.ui .title { fill: var(--ui-ink); }
-.card.command .shape { fill: var(--command-fill); stroke: var(--command-stroke); }
-.card.command .title { fill: var(--command-ink); }
-.card.event .shape,
-.card.external .shape { fill: var(--event-fill); stroke: var(--event-stroke); }
-.card.event .title,
-.card.external .title { fill: var(--event-ink); }
+.card.ui { --fill: var(--ui-fill); --stroke: var(--ui-stroke); color: var(--ui-ink); }
+.card.command { --fill: var(--command-fill); --stroke: var(--command-stroke); color: var(--command-ink); }
+.card.event { --fill: var(--event-fill); --stroke: var(--event-stroke); color: var(--event-ink); }
+.card.external { --fill: var(--external-fill); --stroke: var(--external-stroke); color: var(--external-ink); }
+.card.readModel { --fill: var(--view-fill); --stroke: var(--view-stroke); color: var(--view-ink); }
+.card.automation { --fill: var(--automation-fill); --stroke: var(--automation-stroke); color: var(--automation-ink); }
 .card.external .shape { stroke-dasharray: 5 3; }
-.card.readModel .shape { fill: var(--readModel-fill); stroke: var(--readModel-stroke); }
-.card.readModel .title { fill: var(--readModel-ink); }
-.card.automation .shape { fill: var(--automation-fill); stroke: var(--automation-stroke); }
-.card.automation .title { fill: var(--automation-ink); }
 
+/* A key column is tagged KEY, as a kind is: small caps in the kind's ink. Only a view has keys. */
 .card .key-mark {
-  font-size: 9px;
-  fill: var(--muted);
+  fill: var(--view-ink);
 }
 
 /* detail panel */
@@ -672,69 +779,43 @@ svg .warn-dot {
   padding: 18px 20px 32px;
 }
 
+/* The panel's header: the kind tag left and the actions right, then the name on a line of its own. */
 .detail header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   margin-bottom: 14px;
 }
 
-.detail .kind {
+.detail header .close {
+  margin-left: auto;
+}
+
+.kind {
   padding: 3px 7px;
   border-radius: var(--radius-sm);
 }
 
-.detail .kind.ui,
-.detail .kind.slice { background: #f1f5f9; color: var(--ui-ink); }
-.detail .kind.command { background: var(--command-fill); color: var(--command-ink); }
-.detail .kind.event,
-.detail .kind.external { background: var(--event-fill); color: var(--event-ink); }
-.detail .kind.readModel { background: var(--readModel-fill); color: var(--readModel-ink); }
-.detail .kind.automation { background: var(--automation-fill); color: var(--automation-ink); }
+.kind.ui,
+.kind.slice { background: #f1f5f9; color: var(--ui-ink); }
+.kind.command { background: var(--command-fill); color: var(--command-ink); }
+.kind.event { background: var(--event-fill); color: var(--event-ink); }
+.kind.external { background: var(--external-fill); color: var(--external-ink); }
+.kind.readModel { background: var(--view-fill); color: var(--view-ink); }
+.kind.automation { background: var(--automation-fill); color: var(--automation-ink); }
 
+/* The kind tag, the name (a link that opens the slice) and close, on one row; a long name wraps. */
 .detail h2 {
   margin: 0;
+  flex: 1 1 0;
+  min-width: 0;
   font-size: 16px;
   font-weight: 600;
-  flex: 1;
 }
 
-.detail .open {
-  border: 1px solid var(--line);
-  background: var(--panel);
-  color: var(--accent);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 3px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.detail .open:hover {
-  border-color: var(--accent);
-}
-
-.detail .group {
-  display: block;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  margin: 12px 0 6px;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.detail .group:hover {
-  color: var(--accent);
-}
-
-.spec .step code.mark {
-  color: var(--accent);
-  font-weight: 600;
+.detail h2 .link {
+  font-size: inherit;
 }
 
 .detail .close {
@@ -758,28 +839,38 @@ svg .warn-dot {
 
 .detail .note {
   margin: 0;
+  white-space: pre-line;
   color: var(--ink);
   line-height: 1.5;
 }
 
-.detail .note.warning .badge,
-.facts .note.warning .badge {
-  background: var(--warn-mark);
+/* What is wrong or unfinished in the slice, under the element each is about. */
+:is(.messages, .facts) .about {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
 }
 
-.detail .note .badge {
-  display: inline-grid;
-  place-items: center;
-  width: 14px;
-  height: 14px;
-  margin-right: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #ffffff;
-  font-size: 9px;
-  font-weight: 700;
-  vertical-align: 1px;
+:is(.messages, .facts) .about:first-child,
+.facts h3 + .about {
+  padding-top: 0;
 }
+
+:is(.messages, .facts) .element {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.messages .message {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 4px 0 0;
+  line-height: 1.45;
+}
+
+.messages .message b { font-weight: 600; }
 
 .detail table {
   border-collapse: collapse;
@@ -798,174 +889,47 @@ svg .warn-dot {
   font-size: 12px;
 }
 
+.detail td.type {
+  padding-left: 12px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
 .detail td.hint {
+  padding-left: 12px;
   color: var(--muted);
   text-align: right;
   font-size: 12px;
 }
 
-.detail dl {
+.detail td.hint .said {
+  text-align: left;
+}
+
+/* A list of facts, in the detail and the opened slice alike: names in sans, values in mono, each
+   pair on one baseline. */
+:is(.detail, .facts) dl {
   margin: 0;
   display: grid;
   grid-template-columns: max-content 1fr;
-  gap: 4px 12px;
-  font-size: 13px;
-}
-
-.detail dt {
-  color: var(--muted);
-}
-
-.detail dd {
-  margin: 0;
-  font-family: var(--mono);
-  font-size: 12px;
-}
-
-.spec {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px 12px;
-  margin-bottom: 10px;
-}
-
-.spec .name {
-  font-weight: 600;
-  margin-bottom: 8px;
-}
-
-.spec .step {
-  display: grid;
-  grid-template-columns: 44px 1fr;
-  gap: 8px;
-  font-size: 12px;
-  margin-top: 4px;
-}
-
-.spec .step .word {
-  color: var(--muted);
-  font-weight: 600;
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking);
-  text-transform: uppercase;
-  padding-top: 2px;
-}
-
-.spec .step code {
-  font-family: var(--mono);
-  display: block;
-  color: var(--ink);
-  overflow-wrap: anywhere;
-}
-
-.spec .step code.rejected {
-  color: var(--danger);
-}
-
-/* the slice at full width */
-.slice-view {
-  overflow: auto;
-  padding: 20px 28px 40px;
-  min-width: 0;
-}
-
-.slice-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.slice-header .crumbs {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.slice-header .chapter {
-  color: var(--muted);
-  font-weight: 500;
-}
-
-.slice-header .sep {
-  color: var(--faint);
-}
-
-.slice-header .controls {
-  display: flex;
-  gap: 6px;
-}
-
-.slice-header button {
-  border: 1px solid var(--line);
-  background: var(--panel);
-  color: var(--ink);
-  font: inherit;
-  font-size: 13px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.slice-header button:disabled {
-  color: var(--faint);
-  cursor: default;
-}
-
-.slice-header button:not(:disabled):hover {
-  border-color: var(--accent);
-}
-
-.slice-header .canvas-btn {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.slice-body {
-  display: grid;
-  grid-template-columns: minmax(240px, 340px) 1fr;
-  gap: 28px;
-  align-items: start;
-}
-
-.slice-right {
-  min-width: 0;
-}
-
-.slice-right .specs-title {
-  margin-top: 24px;
-}
-
-.slice-body .column {
-  width: 100%;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-}
-
-.slice-body .lane-tag {
-  font-size: 7px;
-  fill: var(--muted);
-}
-
-.facts dl {
-  margin: 0;
-  display: grid;
-  grid-template-columns: max-content 1fr;
+  align-items: baseline;
   gap: 6px 14px;
   font-size: 13px;
 }
 
-.facts dt {
+:is(.detail, .facts) dt {
   color: var(--muted);
 }
 
-.facts dd {
+:is(.detail, .facts) dd {
   margin: 0;
   font-family: var(--mono);
   font-size: 12px;
+}
+
+.facts .messages {
+  margin-bottom: 14px;
 }
 
 .facts h3 {
@@ -973,49 +937,9 @@ svg .warn-dot {
   color: var(--muted);
 }
 
-.facts .note {
-  margin: 0 0 14px;
-  line-height: 1.5;
-}
-
-.facts .note .badge {
-  display: inline-grid;
-  place-items: center;
-  width: 14px;
-  height: 14px;
-  margin-right: 8px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #ffffff;
-  font-size: 9px;
-  font-weight: 700;
-  vertical-align: 1px;
-}
-
-.facts .ref {
-  border: 0;
-  background: transparent;
-  padding: 0;
-  margin-right: 10px;
-  font: inherit;
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--accent);
-  cursor: pointer;
-}
-
-.facts .ref:hover {
-  text-decoration: underline;
-}
-
-.specs-title {
-  margin: 28px 0 12px;
-  color: var(--muted);
-}
-
 .specs-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 16px;
 }
 
@@ -1057,6 +981,20 @@ svg .warn-dot {
   font-size: var(--text-sm);
 }
 
+/* An element's name: words, bold, in its kind's ink; one that goes somewhere is a link, the same everywhere. */
+.named { font-family: var(--sans); font-weight: 600; }
+.named.link { border: 0; background: none; padding: 0; font-size: inherit; color: var(--accent); text-align: left; cursor: pointer; }
+.named.link:hover { text-decoration: underline; }
+.named.link + .named.link { margin-left: 10px; }
+.detail .named.group { display: block; margin: 12px 0 6px; }
+.named.ui { color: var(--ui-ink); }
+.named.command { color: var(--command-ink); }
+.named.event { color: var(--event-ink); }
+.named.external { color: var(--external-ink); }
+.named.readModel { color: var(--view-ink); }
+.named.automation { color: var(--automation-ink); }
+.named.error { color: var(--danger-ink); }
+
 .hcard .hname {
   font-weight: 600;
   margin-bottom: 2px;
@@ -1079,10 +1017,29 @@ svg .warn-dot {
   overflow-wrap: anywhere;
 }
 
+.hcard .hline .v span {
+  display: block;
+  white-space: pre-wrap;
+}
+
 .hcard.command { background: var(--command-fill); border-color: var(--command-stroke); color: var(--command-ink); }
-.hcard.event,
-.hcard.external { background: var(--event-fill); border-color: var(--event-stroke); color: var(--event-ink); }
-.hcard.readModel { background: var(--readModel-fill); border-color: var(--readModel-stroke); color: var(--readModel-ink); }
+.hcard.event { background: var(--event-fill); border-color: var(--event-stroke); color: var(--event-ink); }
+.hcard.external { background: var(--external-fill); border-color: var(--external-stroke); color: var(--external-ink); }
+.hcard.readModel { background: var(--view-fill); border-color: var(--view-stroke); color: var(--view-ink); }
 .hcard.automation { background: var(--automation-fill); border-color: var(--automation-stroke); color: var(--automation-ink); }
 .hcard.ui { background: var(--ui-fill); border-color: var(--ui-stroke); color: var(--ui-ink); }
 .hcard.error { background: var(--danger-fill); border-color: var(--danger-stroke); color: var(--danger-ink); }
+
+/* The selected element's cards in the detail's specifications. */
+.hcard.mark { box-shadow: 0 0 0 2px var(--accent); }
+
+/* A described outcome: an example's box with no name, neutral and solid (dashed is external). */
+.hcard.outcome { background: var(--bg); border-color: var(--line); color: var(--ink); }
+
+.hcard .hsaid {
+  font-size: 12px;
+}
+
+/* The model's to-do list: each slice with something left, by name, a link to it, then its messages. */
+.detail .todo { margin-top: 14px; }
+.detail .todo h3 { margin: 0 0 6px; text-transform: none; letter-spacing: 0; font-size: var(--text-md); }

@@ -1,116 +1,180 @@
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
+import { spawnSync } from "node:child_process"
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { test } from "node:test"
 import { fileURLToPath } from "node:url"
-import { z } from "zod"
-import { m } from "#em"
+import { t } from "#em"
 
-import { load } from "../src/assemble.ts"
+import { load, loadModules } from "../src/assemble.ts"
 import { generateProto } from "../src/proto.ts"
-import { META, type ModelData, type Named } from "../src/types.ts"
+import type { Assembled } from "../src/types.ts"
+import { d, m } from "./loose.ts"
 
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url))
 
 test("the checked-in proto is what the model generates", async () => {
-  const { model } = await load(here("../examples/todo-app"))
-  const files = generateProto(model)
-  assert.equal(files.length, 1)
-  assert.equal(files[0]?.path, "todo/v1/todo_service.proto")
-  assert.equal(
-    files[0]?.source,
-    readFileSync(here("../examples/proto/todo/v1/todo_service.proto"), "utf8"),
-  )
+  assert.deepEqual(generateProto(await load(here("../examples/todo-app"))), [
+    {
+      path: "todo/v1/todo_service.proto",
+      service: "TodoService",
+      source: readFileSync(here("../examples/proto/todo/v1/todo_service.proto"), "utf8"),
+    },
+  ])
 })
 
 // --- The generator reads the named model. Assembly's checks are another test's
-// business, so these fixtures name their exports by hand and skip them. -------
+// business, so these fixtures assemble partially and pass on no dead end. -----
 
-const User = m.actor()
-const Svc = m.service("t.v1")
+type Chapters = Pick<Assembled, "chapters" | "unchaptered" | "errors">
 
-type Slices = Parameters<typeof m.chapter>[0]
-
-/** A one-service model of `slices`; `exports` are named as a module would name them. */
-function modelOf(
-  exports: Record<string, { readonly [META]: Named }>,
-  ...slices: Slices
-): ModelData {
-  for (const [name, decl] of Object.entries({ Svc, ...exports })) decl[META].name = name
-  return m.model("x", { chapters: [m.chapter(slices)] })[META]
+/** A one-service model of what the test declared and wrote, with the names every test shares. */
+function modelOf(): Chapters {
+  m.actor("User")
+  m.service("TestService", "t.v1")
+  // What builds each state view's view; the generator never reads it.
+  m.event("Created", { id: t.string() })
+  // What a state change records; the generator never reads it.
+  m.event("Done", {})
+  const { chapters, unchaptered } = loadModules([{ default: m.model("x") }], { partial: true })
+  return { chapters, unchaptered, errors: new Map() }
 }
 
-const source = (model: ModelData) => generateProto(model)[0]?.source ?? ""
+/** The first file's source, or else what stopped it. */
+function source(model: Chapters): string {
+  const file = generateProto(model)[0]
+  return file === undefined ? "" : "source" in file ? file.source : file.errors.join("\n")
+}
 
-const stateChange = (Create: ReturnType<typeof m.command>) =>
-  m.slice().actor(User).service(Svc).command(Create).emits(m.event({}))
+const stateChange = () =>
+  m.slice().command(d.Create).event(d.Done).actor(d.User).service(d.TestService)
 
 test("field numbers follow declaration order", () => {
-  const Create = m.command({ userId: z.string(), listId: z.string(), name: z.string() })
+  m.command("Create", { userId: t.string(), listId: t.string(), name: t.string() })
+  stateChange()
   assert.match(
-    source(modelOf({ Create }, stateChange(Create))),
+    source(modelOf()),
     /message CreateRequest \{\n {2}string user_id = 1;\n {2}string list_id = 2;\n {2}string name = 3;\n\}/,
   )
 })
 
-test("every Zod type in the table maps as documented", () => {
-  const Create = m.command({
-    text: z.string(),
-    kind: z.enum(["a", "b"]),
-    fractional: z.number(),
-    whole: z.number().int(),
-    flag: z.boolean(),
-    many: z.array(z.string()),
-    owner: z.object({ id: z.string(), nick: z.string().optional() }),
-    maybe: z.string().optional(),
+test("every field t builds maps as the table says, and buf lint passes it", () => {
+  m.command("Create", {
+    text: t.string(),
+    id: t.uuid(),
+    email: t.email(),
+    site: t.url(),
+    day: t.date(),
+    at: t.datetime(),
+    takes: t.duration(),
+    kind: t.enum(["a", "b"]),
+    only: t.literal("x"),
+    fractional: t.number(),
+    whole: t.int(),
+    flag: t.boolean(),
+    many: t.array(t.string()),
+    rows: t.array({ sku: t.string() }),
+    owner: t.object({ id: t.string(), nick: t.string().optional() }),
+    maybe: t.string().optional(),
+    labels: t.record(t.string()),
+    counts: t.record(t.int()).optional(),
+    outcome: t.oneOf({ win: t.enum(["white", "black"]), draw: t.object({ reason: t.string() }) }),
+    since: t.datetime().optional(),
   })
+  stateChange()
+  const proto = source(modelOf())
   assert.equal(
-    source(modelOf({ Create }, stateChange(Create))),
+    proto,
     [
       'syntax = "proto3";',
       "",
       "package t.v1;",
       "",
-      "service Svc {",
+      'import "google/protobuf/timestamp.proto";',
+      'import "google/protobuf/duration.proto";',
+      "",
+      "service TestService {",
       "  rpc Create(CreateRequest) returns (CreateResponse);",
       "}",
       "",
       "message CreateRequest {",
+      "  message Rows {",
+      "    string sku = 1;",
+      "  }",
       "  message Owner {",
       "    string id = 1;",
       "    optional string nick = 2;",
       "  }",
+      "  message Draw {",
+      "    string reason = 1;",
+      "  }",
       "  string text = 1;",
-      "  string kind = 2;",
-      "  double fractional = 3;",
-      "  int32 whole = 4;",
-      "  bool flag = 5;",
-      "  repeated string many = 6;",
-      "  Owner owner = 7;",
-      "  optional string maybe = 8;",
+      "  string id = 2;",
+      "  string email = 3;",
+      "  string site = 4;",
+      "  string day = 5;",
+      "  google.protobuf.Timestamp at = 6;",
+      "  google.protobuf.Duration takes = 7;",
+      "  string kind = 8;",
+      "  string only = 9;",
+      "  double fractional = 10;",
+      "  int32 whole = 11;",
+      "  bool flag = 12;",
+      "  repeated string many = 13;",
+      "  repeated Rows rows = 14;",
+      "  Owner owner = 15;",
+      "  optional string maybe = 16;",
+      "  map<string, string> labels = 17;",
+      "  map<string, int32> counts = 18;",
+      "  oneof outcome {",
+      "    string win = 19;",
+      "    Draw draw = 20;",
+      "  }",
+      "  optional google.protobuf.Timestamp since = 21;",
       "}",
       "",
       "message CreateResponse {}",
       "",
     ].join("\n"),
   )
+  const dir = mkdtempSync(join(tmpdir(), "em-buf-"))
+  try {
+    cpSync(here("../examples/proto/buf.yaml"), join(dir, "buf.yaml"))
+    mkdirSync(join(dir, "t", "v1"), { recursive: true })
+    writeFileSync(join(dir, "t", "v1", "svc.proto"), proto)
+    const lint = spawnSync(here("../node_modules/.bin/buf"), ["lint", dir], { encoding: "utf8" })
+    assert.equal(lint.status, 0, lint.stdout + lint.stderr)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
-test("a type outside the table is an error naming the declaration and the field", () => {
-  const Create = m.command({ id: z.string(), when: z.date() })
-  assert.throws(
-    () => source(modelOf({ Create }, stateChange(Create))),
-    /Create\.when has no protobuf type/,
-  )
-  const Table = m.readModel({ id: m.key(z.string()), amount: z.bigint() })
-  assert.throws(
-    () => source(modelOf({ Table }, m.slice().actor(User).reads(Table).service(Svc, "Get"))),
-    /Table\.amount has no protobuf type/,
+test("a field's description is the comment above it", () => {
+  m.command("Create", { id: t.string(), pageId: t.string().describe("Set once synced") })
+  stateChange()
+  assert.match(
+    source(modelOf()),
+    /message CreateRequest \{\n {2}string id = 1;\n {2}\/\/ Set once synced\n {2}string page_id = 2;\n\}/,
   )
 })
 
-test("a view with no .query() has an empty request", () => {
-  const Table = m.readModel({ id: m.key(z.string()) })
-  const proto = source(modelOf({ Table }, m.slice().actor(User).reads(Table).service(Svc, "Get")))
+test("a field protobuf has no form for stops its service, naming the declaration and the field", () => {
+  m.command("Create", { id: t.string(), tags: t.array(t.record(t.string())) })
+  stateChange()
+  assert.match(source(modelOf()), /^Create\.tags: no protobuf type for a list of records\./)
+  m.view("Table", { id: t.string().key(), end: t.oneOf({ moves: t.array(t.string()) }) })
+  m.slice().view(d.Table).event(d.Created).actor(d.User).service(d.TestService, "Get")
+  assert.match(
+    source(modelOf()),
+    /^Table\.end\.moves: no protobuf type for a oneOf case that is a list or a record\./,
+  )
+})
+
+test("a view with no .context() has an empty request", () => {
+  m.view("Table", { id: t.string().key() })
+  m.slice().view(d.Table).event(d.Created).actor(d.User).service(d.TestService, "Get")
+  const proto = source(modelOf())
   assert.match(proto, /rpc Get\(GetRequest\) returns \(GetResponse\);/)
   assert.match(
     proto,
@@ -119,48 +183,75 @@ test("a view with no .query() has an empty request", () => {
 })
 
 test("a service with no procedures produces no file", () => {
-  const Table = m.readModel({ id: m.key(z.string()) })
-  const Created = m.event({ id: z.string() })
-  assert.deepEqual(
-    generateProto(modelOf({ Table, Created }, m.slice().projects(Table).on(Created))),
-    [],
+  m.view("Table", { id: t.string().key() })
+  m.slice().view(d.Table).event(d.Created)
+  assert.deepEqual(generateProto(modelOf()), [])
+})
+
+test("a slice without a service has no procedure", () => {
+  m.view("Table", { id: t.string().key() })
+  m.command("Create", { id: t.string() })
+  m.slice().view(d.Table).event(d.Created).actor(d.User)
+  m.slice().command(d.Create).event(d.Done)
+  assert.deepEqual(generateProto(modelOf()), [])
+})
+
+test("two state views on one screen are two methods, each returning its own view", () => {
+  m.view("Lists", { id: t.string().key() })
+  m.view("Items", { id: t.string().key(), listId: t.string() })
+  m.screen("Board")
+  const view = (shown: ReturnType<typeof m.slice>, method: string) =>
+    shown
+      .event(d.Created)
+      .context({ listId: t.string() })
+      .actor(d.User)
+      .screen(d.Board)
+      .service(d.TestService, method)
+  view(m.slice().view(d.Lists), "Get")
+  view(m.slice().view(d.Items), "GetItems")
+  const proto = source(modelOf())
+  assert.match(
+    proto,
+    /message Lists \{[\s\S]*message GetResponse \{\n {2}repeated Lists lists = 1;\n\}/,
+  )
+  assert.match(
+    proto,
+    /message Items \{[\s\S]*message GetItemsResponse \{\n {2}repeated Items items = 1;\n\}/,
   )
 })
 
-test("two read models read by one view both appear in the response", () => {
-  const Lists = m.readModel({ id: m.key(z.string()) })
-  const Items = m.readModel({ id: m.key(z.string()), listId: z.string() })
-  const view = m
-    .slice()
-    .actor(User)
-    .query({ listId: z.string() })
-    .reads(Lists)
-    .reads(Items)
-    .service(Svc, "Get")
-  const again = m.slice().actor(User).reads(Items).service(Svc, "GetItems")
-  const proto = source(modelOf({ Lists, Items }, view, again))
-  assert.match(
-    proto,
-    /message GetResponse \{\n {2}repeated Lists lists = 1;\n {2}repeated Items items = 2;\n\}/,
-  )
-  assert.equal(proto.match(/^message Items \{/gm)?.length, 1, "a read model prints once")
-  assert.match(
-    proto,
-    /message Items \{[\s\S]*message GetResponse/,
-    "before the response that repeats it",
-  )
-})
-
-test("a query that names every key column returns one row, not a list", () => {
-  const Table = m.readModel({ userId: m.key(z.string()), id: m.key(z.string()), name: z.string() })
-  const one = m
-    .slice()
-    .actor(User)
-    .query({ userId: z.string(), id: z.string() })
-    .reads(Table)
-    .service(Svc, "Get")
-  const many = m.slice().actor(User).query({ userId: z.string() }).reads(Table).service(Svc, "List")
-  const proto = source(modelOf({ Table }, one, many))
+test("a context that names every key column returns one row, not a list", () => {
+  const fields = { userId: t.string().key(), id: t.string().key(), name: t.string() }
+  m.view("Table", fields)
+  m.view("Rows", fields)
+  m.slice()
+    .view(d.Table)
+    .event(d.Created)
+    .context({ userId: t.string(), id: t.string() })
+    .actor(d.User)
+    .service(d.TestService, "Get")
+  m.slice()
+    .view(d.Rows)
+    .event(d.Created)
+    .context({ userId: t.string() })
+    .actor(d.User)
+    .service(d.TestService, "List")
+  const proto = source(modelOf())
   assert.match(proto, /message GetResponse \{\n {2}Table table = 1;\n\}/)
-  assert.match(proto, /message ListResponse \{\n {2}repeated Table table = 1;\n\}/)
+  assert.match(proto, /message ListResponse \{\n {2}repeated Rows rows = 1;\n\}/)
+})
+
+test("a list view's response is a list, whatever its context names; a view with no key column's, its one row", () => {
+  m.view("Notes", t.array({ id: t.string().key(), what: t.string() }))
+  m.view("Revenue", { total: t.int() })
+  m.slice()
+    .view(d.Notes)
+    .event(d.Created)
+    .context({ id: t.string() })
+    .actor(d.User)
+    .service(d.TestService, "ListNotes")
+  m.slice().view(d.Revenue).event(d.Created).actor(d.User).service(d.TestService, "Get")
+  const proto = source(modelOf())
+  assert.match(proto, /message ListNotesResponse \{\n {2}repeated Notes notes = 1;\n\}/)
+  assert.match(proto, /message GetResponse \{\n {2}Revenue revenue = 1;\n\}/)
 })

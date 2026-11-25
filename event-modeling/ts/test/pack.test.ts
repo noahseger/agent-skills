@@ -2,7 +2,7 @@
 // run the scaffold in a project of their own, on a node that strips no types.
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
@@ -30,25 +30,32 @@ test("the packed tarball installs into a project and em runs there", () => {
     )
     const install = npm(["install", "--prefer-offline", tarball], dir)
     assert.equal(install.status, 0, install.stderr)
+    assert.ok(existsSync(join(dir, "node_modules", "@noahseger", "event-modeling", "LICENSE")))
 
     const em = join(dir, "node_modules", ".bin", "em")
     const init = spawnSync(em, ["init", "model"], { cwd: dir, encoding: "utf8" })
     assert.equal(init.status, 0, init.stderr)
-    // The model gets z from the package: nothing else was installed.
+    // The model gets t from the package: nothing else was installed.
     writeFileSync(
       join(dir, "model", "events.ts"),
-      'import { m, z } from "@noahseger/event-modeling"\nexport const Started = m.event({ id: z.string() })\n',
+      'import { m, t } from "@noahseger/event-modeling"\nm.event("Started", { id: t.string() })\n',
     )
     const json = spawnSync(em, ["json", "--partial", "model"], { cwd: dir, encoding: "utf8" })
     assert.equal(json.status, 0, json.stderr)
-    const out = JSON.parse(json.stdout) as { chapters: unknown[]; loose: { element: string }[] }
+    const out = JSON.parse(json.stdout) as {
+      chapters: unknown[]
+      model: { slices: { title: string }[] }
+    }
     assert.deepEqual(out.chapters, [])
     assert.deepEqual(
-      out.loose.map((l) => l.element),
-      ["Started(id)"],
+      out.model.slices.map((s) => s.title),
+      ["Started"],
     )
-    // stderr carries what is left to do, and nothing else: no node warning.
-    assert.equal(json.stderr.trim(), "Started is in no slice yet.")
+    // A lone event is storming: stderr holds its warning and nothing else, no node warning.
+    assert.equal(
+      json.stderr,
+      "Started: nothing records it. Add .event(d.Started) to the slice that causes it.\n",
+    )
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

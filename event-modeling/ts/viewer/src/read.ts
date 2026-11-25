@@ -1,0 +1,410 @@
+// Reads the spec JSON into what the layout draws. A model written by hand, or extracted from
+// another tool, carries only what the spec has: then lanes, chapters and actors come from the
+// slices in order. Pure, so it is tested without a browser.
+import type {
+  Comment,
+  Feed,
+  JsonSchema,
+  SpecActor,
+  SpecElement,
+  SpecSlice,
+  SpecStep,
+} from "../../src/spec.ts"
+import { type Message, type Note, type Source, slug } from "../../src/types.ts"
+import type { Board, BoardActor, BoardField, BoardSlice, BoardTest, Loose } from "./board.ts"
+
+const SYSTEM: BoardActor = { id: "system", name: "System", type: "system" }
+
+/** A list view's fields are an array's: its rows are the items. */
+const listed = (el: SpecElement) => el.fields.type === "array"
+const row = (el: SpecElement): JsonSchema => (listed(el) ? (el.fields.items ?? {}) : el.fields)
+const names = (el: SpecElement) => Object.keys(row(el).properties ?? {})
+/** `Name`, or `Name[]` for a list view. */
+const titled = (el: SpecElement) => (listed(el) ? `${el.title}[]` : el.title)
+
+/** `Name(field, *key)`. */
+function element(el: SpecElement): string {
+  const fields = names(el).map((f) => (el.key?.includes(f) ? `*${f}` : f))
+  return fields.length > 0 ? `${titled(el)}(${fields.join(", ")})` : titled(el)
+}
+
+/** Each property, an object's own beneath it, and a oneOf's cases. */
+function fieldsOf(schema: JsonSchema): BoardField[] {
+  return Object.entries(schema.properties ?? {}).map(([name, s]) => {
+    let leaf = s
+    let lists = ""
+    while (leaf.type === "array") {
+      leaf = leaf.items ?? {}
+      lists += "[]"
+    }
+    const type = leaf.enum
+      ? leaf.enum.join(" | ")
+      : leaf.const !== undefined
+        ? JSON.stringify(leaf.const)
+        : leaf.oneOf
+          ? "one of"
+          : (leaf.format ?? leaf.type ?? "any")
+    const fields = leaf.oneOf ? leaf.oneOf.flatMap(fieldsOf) : fieldsOf(leaf)
+    return {
+      name,
+      type: type + lists,
+      ...(!schema.required?.includes(name) && { optional: true }),
+      ...(s.description !== undefined && { description: s.description }),
+      ...(fields.length > 0 && { fields }),
+    }
+  })
+}
+
+function value(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(value).join(", ")}]`
+  if (v?.constructor === Object) {
+    const pairs = Object.entries(v as object).map(([k, x]) => `${k}: ${value(x)}`)
+    return `{${pairs.join(", ")}}`
+  }
+  return String(v)
+}
+
+/** `Name(field=value)`, `Error: reason`, or `Described: outcome`. */
+function clause(step: SpecStep): string {
+  if (step.type === "SPEC_ERROR") return `Error: ${step.title}`
+  if (step.type === "SPEC_DESCRIPTION") return `Described: ${step.title}`
+  const pairs = Object.entries(step.examples?.[0] ?? {}).map(([k, v]) => `${k}=${value(v)}`)
+  return `${step.title}(${pairs.join(", ")})`
+}
+
+function test(spec: SpecSlice["specifications"][number]): BoardTest {
+  return {
+    name: spec.title,
+    given: (spec.given ?? []).map(clause),
+    when: spec.when?.[0] ? clause(spec.when[0]) : "",
+    then: (spec.then ?? []).map(clause),
+  }
+}
+
+/** The grammar `spec.ts` writes: a source field's name, `= <JSON>`, or `generate(<inputs>)`. */
+function source(text: string): Source {
+  const generated = /^generate\((.*)\)$/.exec(text)
+  if (generated) return { generate: generated[1] ? generated[1].split(", ") : [] }
+  if (text.startsWith("=")) {
+    try {
+      return { value: JSON.parse(text.slice(1)) }
+    } catch {
+      return { value: text.slice(1).trim() }
+    }
+  }
+  return { from: text }
+}
+
+const points = (el: SpecElement, type: string) =>
+  (el.dependencies ?? []).some((d) => d.type === "OUTBOUND" && d.elementType === type)
+const external = (el: SpecElement) => el.context === "EXTERNAL"
+/** A system is named by the `service` of its events; an unnamed one is just External. */
+const systemOf = (el: SpecElement) => el.service ?? "External"
+
+function actorType(a: SpecActor): BoardActor["type"] {
+  const tags = a.tags ?? []
+  if (tags.includes("external")) return "external"
+  if (tags.includes("admin")) return "admin"
+  if (tags.includes("system")) return "system"
+  return "user"
+}
+
+/** What each slice's elements are to it, by its type and the arrows between them. */
+function parts(s: SpecSlice) {
+  const events = s.events ?? []
+  const readmodels = s.readmodels ?? []
+  const command = s.commands?.[0]
+  const automated = s.sliceType === "AUTOMATION" || s.sliceType === "TRANSLATION"
+  const trigger = automated
+    ? (events.find((e) => points(e, "AUTOMATION")) ??
+      (s.sliceType === "TRANSLATION" ? events.find(external) : undefined))
+    : undefined
+  const polled = automated ? readmodels.find((r) => points(r, "AUTOMATION")) : undefined
+  const view = s.sliceType === "STATE_VIEW"
+  const heard = view ? events : trigger ? [trigger] : []
+  const recorded = view ? [] : events.filter((e) => e !== trigger)
+  const projection = view && events.length > 0 ? readmodels[0] : undefined
+  const shows = view ? readmodels : []
+  const reads = view ? [] : readmodels.filter((r) => r !== polled)
+  return { command, trigger, polled, heard, recorded, projection, shows, reads }
+}
+
+const isObject = (x: unknown): x is object => typeof x === "object" && x !== null
+
+/** Comments as notes; one with no kind, or a kind we don't know, is info. */
+const said = (comments: unknown): Note[] =>
+  list<Comment>(comments).map((c) => ({
+    text: String(c.description),
+    kind: c.kind === "question" || c.kind === "critical" ? c.kind : "info",
+  }))
+
+/** The objects in what should be a list of them; anything else in a file that breaks the schema is skipped. */
+function list<T>(written: unknown): T[] {
+  return Array.isArray(written) ? written.filter((x): x is T => isObject(x)) : []
+}
+
+const elements = (written: unknown): SpecElement[] =>
+  list<SpecElement>(written).map((el) => ({
+    ...el,
+    fields: isObject(el.fields) ? el.fields : {},
+    dependencies: list(el.dependencies),
+  }))
+
+/** A slice with only the lists, and the objects in them, the reading below expects. */
+function usable(s: SpecSlice): SpecSlice {
+  return {
+    ...s,
+    commands: elements(s.commands),
+    events: elements(s.events),
+    readmodels: elements(s.readmodels),
+    screens: elements(s.screens),
+    actors: list(s.actors),
+    storylines: list(s.storylines),
+    specifications: list<SpecSlice["specifications"][number]>(s.specifications).map((spec) => ({
+      ...spec,
+      given: list(spec.given),
+      when: list(spec.when),
+      then: list(spec.then),
+    })),
+  }
+}
+
+/**
+ * The slices less each event's implicit fields no mapping reads, from its cards and examples. A
+ * state view's step reads its event; any other step what starts its slice or what a call brings back.
+ */
+function presented(slices: SpecSlice[]): SpecSlice[] {
+  const read = new Set<string>()
+  for (const s of slices) {
+    const { trigger, heard, recorded } = parts(s)
+    const readable = [...(trigger ? [trigger] : []), ...recorded.filter(external)]
+    for (const [step, fields] of Object.entries(isObject(s.mappings) ? s.mappings : {})) {
+      const from = heard.filter((e) => e.title === step)
+      for (const text of Object.values(isObject(fields) ? fields : {})) {
+        const got = source(String(text))
+        const names = "from" in got ? [got.from] : "generate" in got ? got.generate : []
+        for (const e of from.length > 0 ? from : readable)
+          for (const n of names) read.add(`${e.title}.${n}`)
+      }
+    }
+  }
+  const implicit = new Set(
+    slices.flatMap((s) =>
+      (s.events ?? []).flatMap((e) =>
+        Object.entries(e.fields.properties ?? {}).flatMap(([n, p]) =>
+          p.implicit ? [`${e.title}.${n}`] : [],
+        ),
+      ),
+    ),
+  )
+  const shows = (title: string) => (name: string) =>
+    !implicit.has(`${title}.${name}`) || read.has(`${title}.${name}`)
+  const only = <T>(o: Record<string, T>, show: (name: string) => boolean) =>
+    Object.fromEntries(Object.entries(o).filter(([n]) => show(n)))
+  const unread = (el: SpecElement): SpecElement => {
+    const { properties, required } = el.fields
+    const show = shows(el.title)
+    return {
+      ...el,
+      fields: {
+        ...el.fields,
+        ...(properties && { properties: only(properties, show) }),
+        ...(required && { required: required.filter(show) }),
+      },
+    }
+  }
+  const shown = (step: SpecStep): SpecStep =>
+    step.type === "SPEC_EVENT" && step.examples
+      ? { ...step, examples: step.examples.map((x) => only(x, shows(step.title))) }
+      : step
+  return slices.map((s) => ({
+    ...s,
+    events: (s.events ?? []).map(unread),
+    specifications: (s.specifications ?? []).map((spec) => ({
+      ...spec,
+      given: spec.given.map(shown),
+      then: spec.then.map(shown),
+    })),
+  }))
+}
+
+export function read(written: Feed): Board {
+  // A file that breaks the schema is drawn as far as its lists go.
+  const feed: Feed = {
+    ...written,
+    ...(written.chapters !== undefined && { chapters: list(written.chapters) }),
+    ...(written.streams !== undefined && {
+      streams: Array.isArray(written.streams) ? written.streams.map(String) : [],
+    }),
+    ...(written.actors !== undefined && { actors: list(written.actors) }),
+  }
+  const slices = presented(
+    list<SpecSlice>(written.model?.slices)
+      .map(usable)
+      .sort((a, b) => (a.index ?? 0) - (b.index ?? 0)),
+  )
+
+  // Lanes in the order declared, then as the slices first name them. Without any, one: Events.
+  const lanes = [...(feed.streams ?? [])]
+  const lane = (name: string | undefined) => {
+    if (name !== undefined && !lanes.includes(name)) lanes.push(name)
+  }
+  for (const s of slices) for (const e of s.events ?? []) if (!external(e)) lane(e.aggregate)
+  const aggregates =
+    lanes.length > 0
+      ? lanes.map((name) => ({ id: slug(name), name }))
+      : [{ id: "events", name: "Events" }]
+  const fallback = aggregates[0]?.id ?? ""
+
+  const actors = new Map<string, BoardActor>()
+  const add = (actor: BoardActor): string => {
+    if (!actors.has(actor.id)) actors.set(actor.id, actor)
+    return actor.id
+  }
+  const system = (name: string) => add({ id: slug(name), name, type: "external" })
+  const person = (a: SpecActor) => add({ id: slug(a.name), name: a.name, type: actorType(a) })
+
+  const notes: Record<string, Note[]> = {}
+  for (const c of feed.chapters ?? []) if (c.comments) notes[c.name] = said(c.comments)
+  const fields: Record<string, BoardField[]> = {}
+  const noted = (el: SpecElement) => {
+    const described: Note[] =
+      el.description === undefined ? [] : [{ text: el.description, kind: "info" }]
+    const own = [...described, ...said(el.comments)]
+    if (own.length > 0) notes[el.title] = own
+    if (names(el).length > 0) fields[el.title] = fieldsOf(row(el))
+  }
+
+  const boardSlice = (s: SpecSlice): BoardSlice => {
+    const { command, trigger, polled, heard, recorded, projection, shows, reads } = parts(s)
+    for (const el of [
+      ...(s.commands ?? []),
+      ...(s.events ?? []),
+      ...(s.readmodels ?? []),
+      ...(s.screens ?? []),
+    ])
+      noted(el)
+    // A screen is seen by someone; a model from elsewhere may not say who, so a User. No one sees
+    // an automation, or a view with no screen: its actor is the machine of ours that runs it.
+    const screen = s.screens?.[0]
+    const people = (s.actors ?? []).filter((a) => actorType(a) !== "external")
+    const runs = Boolean(trigger || polled || (projection && !screen))
+    const runner = runs ? people[0] : undefined
+    const seers = runs
+      ? []
+      : people.length > 0 || !screen
+        ? people
+        : [{ name: "User", authRequired: false }]
+
+    const outside = trigger && external(trigger) ? trigger : undefined
+    // Only what runs on its own needs System; a slice no one acts in has no actor.
+    const actor = outside
+      ? system(systemOf(outside))
+      : ((runner ? [runner] : seers).map(person)[0] ?? (runs ? add(SYSTEM) : ""))
+    const laneOf = [...recorded, ...heard].find((e) => !external(e) && e.aggregate !== undefined)
+    const out: BoardSlice = {
+      id: s.id,
+      name: s.title,
+      actor,
+      aggregate: laneOf?.aggregate !== undefined ? slug(laneOf.aggregate) : fallback,
+      tests: (s.specifications ?? []).map(test),
+    }
+    if (seers.length > 1) out.actors = seers.map((a) => slug(a.name))
+    if (seers.length > 0) {
+      const head = command ?? shows[0]
+      const method = head?.apiEndpoint ?? head?.title ?? ""
+      out.ui = head?.service ? `${head.service}/${method}` : method
+      if (screen && screen.title !== method) out.screen = screen.title
+    }
+    if (outside) out.external_event = element(outside)
+    if (outside && runner) out.runner = person(runner)
+    if ((trigger && !outside) || polled) out.automation = s.title
+    if (trigger && !outside) out.trigger = element(trigger)
+    if (projection) out.trigger = heard.map(element)
+    if (command) out.command = element(command)
+    const ours = recorded.filter((e) => !external(e))
+    if (ours.length > 0) out.events = ours.map(element)
+    const calls = recorded.filter(external).map((e) => {
+      const kept = e.dependencies.flatMap((d) =>
+        d.type === "OUTBOUND" && d.elementType === "EVENT" ? [d.title] : [],
+      )
+      return { actor: system(systemOf(e)), event: element(e), ...(kept.length > 0 && { kept }) }
+    })
+    if (calls.length > 0) out.calls = calls
+    if (reads.length > 0) out.reads = reads.map((r) => r.title)
+    if (shows.length > 0) out.read_models = shows.map(element)
+    if (shows.length > 0 && screen && names(screen).length > 0) out.context = names(screen)
+    if (polled) out.polls = polled.title
+    const own = said(s.comments)
+    if (own.length > 0) out.notes = own
+
+    const mapping = Object.entries(isObject(s.mappings) ? s.mappings : {}).map(
+      ([step, fields]): [string, Record<string, Source>] => [
+        step,
+        Object.fromEntries(
+          Object.entries(isObject(fields) ? fields : {}).map(([f, text]) => [
+            f,
+            source(String(text)),
+          ]),
+        ),
+      ],
+    )
+    if (mapping.length > 0) out.mapping = Object.fromEntries(mapping)
+    return out
+  }
+
+  // Chapters in the order declared, then as the slices name them. A slice in no chapter follows
+  // the chapter of the slice before it, in a nameless one.
+  const order = (feed.chapters ?? []).map((c) => c.name)
+  for (const s of slices)
+    if (s.context !== undefined && !order.includes(s.context)) order.push(s.context)
+  const drawn = slices.map((s) => ({ context: s.context, slice: boardSlice(s) }))
+  const after = new Map<string | undefined, BoardSlice[]>()
+  let last: string | undefined
+  for (const d of drawn) {
+    if (d.context !== undefined) last = d.context
+    else after.set(last, [...(after.get(last) ?? []), d.slice])
+  }
+  const nameless = (name: string | undefined) => {
+    const run = after.get(name)
+    return run ? [{ name: "", slices: run }] : []
+  }
+  const chapters = [
+    ...nameless(undefined),
+    ...order.flatMap((name) => [
+      { name, slices: drawn.filter((d) => d.context === name).map((d) => d.slice) },
+      ...nameless(name),
+    ]),
+  ]
+
+  // An event heard and never recorded stands alone, so the arrow into what hears it has a start.
+  const recordedNames = new Set(slices.flatMap((s) => parts(s).recorded.map((e) => e.title)))
+  const unrecorded = new Map<string, SpecElement>()
+  for (const s of slices)
+    for (const e of parts(s).heard)
+      if (!external(e) && !recordedNames.has(e.title) && !unrecorded.has(e.title))
+        unrecorded.set(e.title, e)
+  const loose: Loose[] = [...unrecorded.values()].map((el) => {
+    noted(el)
+    const aggregate = el.aggregate === undefined ? fallback : slug(el.aggregate)
+    return { kind: "event", element: element(el), aggregate }
+  })
+  for (const a of feed.actors ?? []) person(a)
+  // A feed from before errors were split from warnings has only warnings, with no kind.
+  const messages: Message[] = [
+    ...list<Message>(feed.errors).map((m) => ({ ...m, kind: "error" as const })),
+    ...list<Message>(feed.warnings).map((m) => ({ ...m, kind: "warning" as const })),
+  ]
+
+  return {
+    name: feed.name,
+    ...(feed.description !== undefined && { description: feed.description }),
+    actors: [...actors.values()],
+    aggregates,
+    chapters,
+    notes,
+    fields,
+    ...(loose.length > 0 && { loose }),
+    ...(messages.length > 0 && { messages }),
+  }
+}

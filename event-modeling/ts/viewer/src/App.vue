@@ -1,111 +1,113 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue"
-import type { ModelJson } from "../../src/json.ts"
+import { computed, onMounted, onUnmounted, ref, watch } from "vue"
+import type { Feed } from "../../src/spec.ts"
+import type { Board } from "./board.ts"
 import Canvas from "./Canvas.vue"
 import Detail from "./Detail.vue"
-import { type Box, layout } from "./layout.ts"
+import {
+  type Box,
+  boxOf,
+  crumbs,
+  fromHash,
+  hashOf,
+  ICON,
+  layout,
+  type Mark as MarkKind,
+  nextMark,
+  type Scope,
+  type Selection,
+} from "./layout.ts"
+import Mark from "./Mark.vue"
+import Messages from "./Messages.vue"
+import { measure } from "./measure.ts"
 import Nav from "./Nav.vue"
-import SliceView from "./SliceView.vue"
+import { read } from "./read.ts"
 
-const model = ref<ModelJson | null>(null)
+const model = ref<Board | null>(null)
 const error = ref<string | null>(null)
 const live = ref(false)
 
-/** A slice, within it a card by kind and name, and whether the slice is open at full width. */
-interface Selection {
-  column: number
-  kind?: Box["kind"]
-  name?: string
-  view?: "slice"
-}
 const selection = ref<Selection | null>(null)
+const picked = computed(() =>
+  typeof selection.value === "object" && selection.value && "column" in selection.value
+    ? selection.value
+    : null,
+)
+/** The selected slice or chapter, which the canvas fits. */
+const scope = computed<Scope | null>(() =>
+  typeof selection.value === "object" ? selection.value : null,
+)
 const hovered = ref<string | null>(null)
-const focus = ref<{ column: number | null; seq: number }>({ column: null, seq: 0 })
+/** The keyboard leads, so hover shows nothing, from a key press until the mouse next moves. */
+const keyed = ref(false)
+/** Bumping `seq` fits the slice or chapter. */
+const focus = ref<{ scope: Scope | null; seq: number }>({ scope: null, seq: 0 })
 
-const drawn = computed(() => (model.value ? layout(model.value) : null))
-const selectedBox = computed<Box | null>(() => {
-  const sel = selection.value
-  if (!sel?.name) return null
-  return (
-    drawn.value?.boxes.find(
-      (b) => b.column === sel.column && b.kind === sel.kind && b.name === sel.name,
-    ) ?? null
-  )
-})
+/** The header's panels (click or key): the legend open or closed as it was left, open at first; the shortcuts closed. */
+const legend = ref(localStorage.getItem("em.legend") !== "closed")
+watch(legend, (open) => localStorage.setItem("em.legend", open ? "open" : "closed"))
+const shortcuts = ref(false)
+
+const drawn = computed(() => (model.value ? layout(model.value, measure) : null))
+const selectedBox = computed(() => (drawn.value && boxOf(drawn.value, picked.value)) ?? null)
 const selectedColumn = computed(() => {
-  const sel = selection.value
+  const sel = picked.value
   return sel && drawn.value?.columns[sel.column] ? drawn.value.columns[sel.column] : null
 })
-const sliceOpen = computed(() => selection.value?.view === "slice")
+const path = computed(() =>
+  crumbs(model.value?.name ?? "Event model", drawn.value, selection.value),
+)
 
 const LEGEND: [string, string][] = [
   ["ui", "screen"],
   ["command", "command"],
   ["event", "event"],
-  ["readModel", "read model"],
+  ["external", "external event"],
+  ["readModel", "view"],
   ["automation", "automation"],
 ]
+const MARKS: MarkKind[] = ["error", "warning"]
 
 // The selection lives in the URL hash, so Back works and every view is a link.
-function hashOf(sel: Selection | null): string {
-  if (!sel) return ""
-  const card = sel.kind && sel.name ? `/${sel.kind}/${encodeURIComponent(sel.name)}` : ""
-  return `#${sel.view === "slice" ? "s" : "c"}${sel.column}${card}`
-}
-function fromHash(): Selection | null {
-  const m = location.hash.match(/^#([cs])(\d+)(?:\/(\w+)\/(.*))?$/)
-  if (!m) return null
-  const sel: Selection = { column: Number(m[2]) }
-  if (m[1] === "s") sel.view = "slice"
-  if (m[3] && m[4]) {
-    sel.kind = m[3] as Box["kind"]
-    sel.name = decodeURIComponent(m[4])
-  }
-  return sel
-}
 function go(sel: Selection | null, options: { push?: boolean; zoom?: boolean } = {}) {
   selection.value = sel
   const hash = hashOf(sel)
   if (options.push !== false && hash !== location.hash) {
     history.pushState(null, "", hash || location.pathname)
   }
-  if (options.zoom && sel && sel.view !== "slice") {
-    focus.value = { column: sel.column, seq: focus.value.seq + 1 }
+  if (options.zoom && sel && sel !== "model") {
+    focus.value = { scope: sel, seq: focus.value.seq + 1 }
   }
 }
-function step(delta: number) {
-  const count = drawn.value?.columns.length ?? 0
-  if (count === 0) return
-  const current = selection.value?.column ?? (delta > 0 ? -1 : count)
-  const column = Math.min(count - 1, Math.max(0, current + delta))
-  go({ column, ...(sliceOpen.value ? { view: "slice" } : {}) }, { zoom: true })
+function selectChapter(chapter: number) {
+  go({ chapter }, { zoom: true })
 }
-function pick(box: Box) {
-  go({
-    column: box.column,
-    kind: box.kind,
-    name: box.name,
-    ...(sliceOpen.value ? { view: "slice" } : {}),
-  })
+function step(delta: number) {
+  const columns = drawn.value?.columns ?? []
+  if (columns.length === 0) return
+  // From a chapter, or from nothing the whole board, → steps to its first slice and ← to its last.
+  const sel = scope.value
+  const inside =
+    sel && "chapter" in sel ? columns.filter((c) => c.chapter === sel.chapter) : columns
+  const edge = (delta > 0 ? inside[0] : inside.at(-1))?.index ?? 0
+  const current = picked.value?.column ?? edge - delta
+  const column = Math.min(columns.length - 1, Math.max(0, current + delta))
+  go({ column }, { zoom: true })
+}
+function stepMark(kind: "error" | "warning", delta: 1 | -1) {
+  if (!drawn.value) return
+  const at = selection.value === "model" ? "model" : (picked.value?.column ?? null)
+  const next = nextMark(drawn.value, kind, at, delta)
+  if (next === "model") go("model")
+  else if (next !== undefined) go({ column: next }, { zoom: true })
+}
+function pick(box: Box, zoom = false) {
+  go({ column: box.column, kind: box.kind, name: box.name }, { zoom })
 }
 function follow(canonical: string) {
   const box = drawn.value?.boxes.find((b) => b.id === canonical)
-  if (box) {
-    go(
-      {
-        column: box.column,
-        kind: box.kind,
-        name: box.name,
-        ...(sliceOpen.value ? { view: "slice" } : {}),
-      },
-      { zoom: true },
-    )
-  }
+  if (box) pick(box, true)
 }
-function openSlice(column: number) {
-  go({ column, view: "slice" })
-}
-
 // An exported page carries the model in a script tag: no server, no feed.
 const embedded = document.getElementById("model")
 const snapshot = embedded !== null
@@ -114,16 +116,16 @@ const snapshot = embedded !== null
 let loaded = false
 async function refresh() {
   if (embedded) {
-    model.value = JSON.parse(embedded.textContent ?? "null") as ModelJson
-    go(fromHash(), { push: false, zoom: !loaded })
+    model.value = read(JSON.parse(embedded.textContent ?? "null") as Feed)
+    go(fromHash(location.hash), { push: false, zoom: !loaded })
     loaded = true
     return
   }
   const res = await fetch("/model.json", { cache: "no-store" })
   if (res.ok) {
-    model.value = (await res.json()) as ModelJson
+    model.value = read((await res.json()) as Feed)
     error.value = null
-    go(fromHash(), { push: false, zoom: !loaded })
+    go(fromHash(location.hash), { push: false, zoom: !loaded })
     loaded = true
   } else {
     error.value = await res.text()
@@ -131,19 +133,26 @@ async function refresh() {
 }
 
 let feed: EventSource | undefined
-const onPop = () => go(fromHash(), { push: false, zoom: true })
+const onPop = () => go(fromHash(location.hash), { push: false, zoom: true })
 function onKey(e: KeyboardEvent) {
   if (e.target instanceof HTMLInputElement) return
+  // A letter with a modifier is the browser's.
+  const letter = e.metaKey || e.ctrlKey || e.altKey ? "" : e.key.toLowerCase()
   // Left and right move between slices; up and down are left to the page.
   if (e.key === "ArrowRight") step(1)
   else if (e.key === "ArrowLeft") step(-1)
-  else if (e.key === "Enter" && selection.value && !sliceOpen.value) {
-    openSlice(selection.value.column)
-  } else if (e.key === "Escape") {
-    const sel = selection.value
-    go(sel?.view === "slice" ? { column: sel.column } : null, { zoom: true })
-  } else return
+  else if (letter === "e") stepMark("error", e.shiftKey ? -1 : 1)
+  else if (letter === "w") stepMark("warning", e.shiftKey ? -1 : 1)
+  else if (letter === "s") shortcuts.value = !shortcuts.value
+  else if (letter === "l") legend.value = !legend.value
+  else if (e.key === "Escape") go(null)
+  else return
   e.preventDefault()
+  keyed.value = true
+}
+// A real move: the browser also sends moves of none when the canvas slides under a resting pointer.
+function onMove(e: PointerEvent) {
+  if (e.movementX || e.movementY) keyed.value = false
 }
 onMounted(() => {
   refresh()
@@ -160,62 +169,77 @@ onMounted(() => {
     feed.onmessage = () => refresh()
   }
   window.addEventListener("keydown", onKey)
+  window.addEventListener("pointermove", onMove)
   window.addEventListener("popstate", onPop)
 })
 onUnmounted(() => {
   feed?.close()
   window.removeEventListener("keydown", onKey)
+  window.removeEventListener("pointermove", onMove)
   window.removeEventListener("popstate", onPop)
 })
 </script>
 
 <template>
-  <div class="app">
+  <div class="app" :class="{ keyed }">
+    <!-- Arrowheads, once for every drawing: the canvas and the opened slice. -->
+    <svg class="markers" aria-hidden="true">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
+        </marker>
+        <marker id="arrow-lit" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#2563eb" />
+        </marker>
+      </defs>
+    </svg>
     <header class="top">
-      <h1>{{ model?.name ?? "Event model" }}</h1>
-      <span v-if="model?.description" class="description">{{ model.description }}</span>
-      <span class="legend">
+      <h1 class="crumbs">
+        <template v-for="(crumb, i) in path" :key="crumb.level">
+          <span v-if="i > 0" class="sep" aria-hidden="true">›</span>
+          <button v-if="i === 0" type="button" :title="`${crumb.text}: everything left to do`" @click="go('model')">{{ crumb.text }}<Mark :mark="drawn?.model.mark" /></button>
+          <button v-else-if="i < path.length - 1" type="button" :title="crumb.text" @click="go(crumb.to, { zoom: true })">{{ crumb.text }}</button>
+          <span v-else :title="crumb.text">{{ crumb.text }}</span>
+        </template>
+      </h1>
+      <span v-if="model?.description" class="description" :title="model.description">{{ model.description }}</span>
+      <div class="tools">
+      <details class="legend" :open="legend" @toggle="legend = ($event.target as HTMLDetailsElement).open">
+        <summary><u>L</u>egend</summary>
         <span v-for="[kind, label] in LEGEND" :key="kind" class="swatch" :class="kind">{{ label }}</span>
-      </span>
+        <span v-for="mark in MARKS" :key="mark"><Mark :mark="mark" />{{ mark }}</span>
+        <span v-for="(_, kind) in ICON" :key="kind"><Mark :mark="kind" />{{ kind }}</span>
+      </details>
+      <details class="keys" :open="shortcuts" @toggle="shortcuts = ($event.target as HTMLDetailsElement).open">
+        <summary><u>S</u>hortcuts</summary>
+        <dl>
+          <dt>← →</dt><dd>move between slices</dd>
+          <dt>Esc</dt><dd>go back</dd>
+          <dt>E</dt><dd>next error (Shift-E: previous)</dd>
+          <dt>W</dt><dd>next warning (Shift-W: previous)</dd>
+          <dt>S</dt><dd>show or hide these shortcuts</dd>
+          <dt>L</dt><dd>show or hide the legend</dd>
+        </dl>
+      </details>
       <span class="status" role="status">
         <span class="dot" :class="{ off: !live && !snapshot, error: error !== null }" aria-hidden="true"></span>
-        {{ error !== null ? "assembly failed" : snapshot ? "snapshot" : live ? "live" : "disconnected" }}
+        {{ error !== null ? "Model didn't load" : snapshot ? "Exported copy" : live ? "Live" : "Disconnected" }}
       </span>
+      </div>
     </header>
     <pre v-if="error !== null" class="error" role="alert">{{ error }}</pre>
-    <ul v-if="model?.warnings?.length" class="warnings" role="status" aria-label="Still to do">
-      <li v-for="w in model.warnings" :key="w.message">{{ w.message }}</li>
-    </ul>
     <main class="body">
-      <Nav
-        v-if="drawn"
-        :layout="drawn"
-        :selected-column="selection?.column ?? null"
-        @select="openSlice"
-      />
-      <SliceView
-        v-if="drawn && model && sliceOpen && selectedColumn"
-        :layout="drawn"
-        :model="model"
-        :column="selectedColumn"
-        :selected-box="selectedBox?.id ?? null"
-        :hovered="hovered"
-        @select-card="pick"
-        @hover="hovered = $event"
-        @link="follow"
-        @step="step"
-        @close="go({ column: selectedColumn.index }, { zoom: true })"
-      />
+      <Nav v-if="drawn" :layout="drawn" :selected="selection" @select="(column: number) => go({ column }, { zoom: true })" @chapter="selectChapter" />
       <Canvas
-        v-else-if="drawn && model"
+        v-if="drawn && model"
         :layout="drawn"
-        :selected-column="selection?.column ?? null"
+        :selected="scope"
         :selected-box="selectedBox?.id ?? null"
-        :hovered="hovered"
+        :hovered="keyed ? null : hovered"
         :focus="focus"
         @select-card="pick"
         @select-slice="go({ column: $event }, { zoom: true })"
-        @open-slice="openSlice"
+        @select-chapter="selectChapter"
         @link="follow"
         @hover="hovered = $event"
         @clear="go(null)"
@@ -227,11 +251,23 @@ onUnmounted(() => {
         :column="selectedColumn"
         :layout="drawn"
         :model="model"
-        :open="sliceOpen"
-        @close="go(sliceOpen ? { column: selectedColumn.index, view: 'slice' } : null)"
-        @open="openSlice(selectedColumn.index)"
-        @goto="openSlice"
+        @close="go(null)"
+        @goto="(column: number) => go({ column }, { zoom: true })"
+        @link="follow"
       />
+      <aside v-else-if="selection === 'model' && drawn" class="detail" aria-label="Details">
+        <header>
+          <span class="kind slice">model</span>
+          <h2>{{ model?.name }}</h2>
+          <button class="close" type="button" title="Close (Esc)" @click="go(null)">×</button>
+        </header>
+        <Messages :messages="drawn.model.messages" :boxes="drawn.boxes" />
+        <section v-for="col in drawn.columns.filter((c) => c.messages.length > 0)" :key="col.index" class="todo">
+          <h3><button type="button" class="named link" @click="go({ column: col.index }, { zoom: true })">{{ col.title }}</button></h3>
+          <Messages :messages="col.messages" :boxes="drawn.boxes" />
+        </section>
+        <p v-if="!drawn.model.mark && drawn.columns.every((c) => c.messages.length === 0)" class="note">Nothing left to do.</p>
+      </aside>
     </main>
   </div>
 </template>

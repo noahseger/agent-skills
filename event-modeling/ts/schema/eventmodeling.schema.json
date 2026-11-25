@@ -1,0 +1,285 @@
+{
+  "$comment": "Diverged from https://github.com/dilgerma/event-modeling-spec/blob/724059e9bc9bec09d72c15991d1ca205c7b7966c/eventmodeling.schema.json: fields are one object's JSON Schema, not a Field list; an element names its key; a slice's mappings say where each field a step sets comes from; an element and a slice carry their notes as comments, each with its kind.",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "slices": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Slice" }
+    }
+  },
+  "required": ["slices"],
+  "additionalProperties": false,
+
+  "$defs": {
+    "Slice": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": [
+            "Created",
+            "Done",
+            "InProgress",
+            "Assigned",
+            "Review",
+            "Blocked",
+            "Planned",
+            "Informational"
+          ]
+        },
+        "index": { "type": "integer" },
+        "title": { "type": "string" },
+        "context": { "type": "string" },
+        "sliceType": {
+          "type": "string",
+          "enum": ["STATE_CHANGE", "STATE_VIEW", "AUTOMATION", "TRANSLATION"]
+        },
+        "assignee": { "type": "string" },
+        "ticketNumber": { "type": "string" },
+        "commands": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Element" }
+        },
+        "events": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Element" }
+        },
+        "readmodels": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Element" }
+        },
+        "screens": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Element" }
+        },
+        "screenImages": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ScreenImage" }
+        },
+        "processors": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Element" }
+        },
+        "tables": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Table" }
+        },
+        "specifications": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Specification" }
+        },
+        "mappings": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          }
+        },
+        "storylines": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Storyline" }
+        },
+        "comments": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Comment" }
+        },
+        "actors": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Actor" }
+        },
+        "aggregates": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "sliceType",
+        "commands",
+        "events",
+        "readmodels",
+        "screens",
+        "processors",
+        "tables",
+        "specifications"
+      ],
+      "additionalProperties": false
+    },
+
+    "Element": {
+      "type": "object",
+      "properties": {
+        "groupId": { "type": "string" },
+        "id": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "domain": { "type": "string" },
+        "modelContext": { "type": "string" },
+        "context": { "type": "string", "enum": ["INTERNAL", "EXTERNAL"] },
+        "slice": { "type": "string" },
+        "title": { "type": "string" },
+        "fields": { "$ref": "#/$defs/Fields" },
+        "key": { "type": "array", "items": { "type": "string" } },
+        "type": {
+          "type": "string",
+          "enum": ["COMMAND", "EVENT", "READMODEL", "SCREEN", "AUTOMATION"]
+        },
+        "description": { "type": "string" },
+        "comments": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Comment" }
+        },
+        "aggregate": { "type": "string" },
+        "aggregateDependencies": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "dependencies": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Dependency" }
+        },
+        "apiEndpoint": { "type": "string" },
+        "service": { "type": ["string", "null"] },
+        "createsAggregate": { "type": "boolean" },
+        "triggers": { "type": "array", "items": { "type": "string" } },
+        "sketched": { "type": "boolean" },
+        "prototype": { "type": "object" },
+        "listElement": { "type": "boolean" },
+        "linkedId": { "type": "string" },
+        "elementCopy": { "type": "boolean" }
+      },
+      "required": ["id", "title", "fields", "type", "dependencies"],
+      "additionalProperties": false
+    },
+
+    "ScreenImage": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "url": { "type": "string" }
+      },
+      "required": ["id", "title"],
+      "additionalProperties": false
+    },
+
+    "Table": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "fields": { "$ref": "#/$defs/Fields" }
+      },
+      "required": ["id", "title", "fields"],
+      "additionalProperties": false
+    },
+
+    "Specification": {
+      "type": "object",
+      "properties": {
+        "vertical": { "type": "boolean" },
+        "id": { "type": "string" },
+        "sliceName": { "type": "string" },
+        "title": { "type": "string" },
+        "given": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/SpecificationStep" }
+        },
+        "when": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/SpecificationStep" }
+        },
+        "then": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/SpecificationStep" }
+        },
+        "comments": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Comment" }
+        },
+        "linkedId": { "type": "string" }
+      },
+      "required": ["id", "title", "given", "when", "then", "linkedId"],
+      "additionalProperties": false
+    },
+
+    "SpecificationStep": {
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "examples": { "type": "array", "items": { "type": "object" } },
+        "id": { "type": "string" },
+        "index": { "type": "integer" },
+        "specRow": { "type": "integer" },
+        "type": {
+          "type": "string",
+          "enum": ["SPEC_EVENT", "SPEC_COMMAND", "SPEC_READMODEL", "SPEC_ERROR", "SPEC_DESCRIPTION"]
+        },
+        "fields": { "$ref": "#/$defs/Fields" },
+        "linkedId": { "type": "string" },
+        "expectEmptyList": { "type": "boolean" }
+      },
+      "required": ["title", "id", "type"],
+      "additionalProperties": false
+    },
+
+    "Comment": {
+      "type": "object",
+      "properties": {
+        "description": { "type": "string" },
+        "kind": { "type": "string", "enum": ["question", "critical", "info"] }
+      },
+      "required": ["description"],
+      "additionalProperties": false
+    },
+
+    "Actor": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "authRequired": { "type": "boolean" },
+        "rolesRequired": { "type": "array", "items": { "type": "string" } },
+        "tags": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["name", "authRequired"],
+      "additionalProperties": false
+    },
+
+    "Storyline": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "elements": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Element" }
+        }
+      },
+      "required": ["id", "title", "elements"],
+      "additionalProperties": false
+    },
+
+    "Dependency": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["INBOUND", "OUTBOUND"] },
+        "title": { "type": "string" },
+        "elementType": {
+          "type": "string",
+          "enum": ["EVENT", "COMMAND", "READMODEL", "SCREEN", "AUTOMATION"]
+        }
+      },
+      "required": ["id", "type", "title", "elementType"],
+      "additionalProperties": false
+    },
+
+    "Fields": {
+      "$comment": "An object's JSON Schema, or a list view's: an array of them",
+      "type": "object"
+    }
+  }
+}

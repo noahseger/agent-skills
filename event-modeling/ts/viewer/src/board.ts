@@ -1,0 +1,88 @@
+// What the layout draws: the model as columns and lanes, read from the spec JSON by `read.ts`.
+// An element is written `Name(field, *key)`, a clause `Name(field=value)`, `Error: reason` or
+// `Described: outcome`.
+import type { Message, Note, Source } from "../../src/types.ts"
+
+/** A field as the card detail shows it: `type` is a format, enum values or a JSON type, `[]` per list. */
+export interface BoardField {
+  name: string
+  type: string
+  optional?: boolean
+  description?: string
+  /** An object's own fields. */
+  fields?: BoardField[]
+}
+
+export interface BoardTest {
+  name: string
+  given: string[]
+  when: string
+  then: string[]
+}
+
+export interface BoardSlice {
+  /** The spec JSON's id, which a message names its slice by. */
+  id?: string
+  name: string
+  /** The first of `actors`, or who else starts the slice. */
+  actor: string
+  /** Every actor with a screen in this slice, when there is more than one. */
+  actors?: string[]
+  /** The lane of what the slice records. */
+  aggregate: string
+  /** `Service/Method`, or the method alone; only a slice with an actor has one. */
+  ui?: string
+  /** The screen the actors see the slice on; several slices can share one. */
+  screen?: string
+  external_event?: string
+  /** The machine of ours that runs a translation, when not System. */
+  runner?: string
+  automation?: string
+  trigger?: string | string[]
+  command?: string
+  events?: string[]
+  /**
+   * The external events the command ends in, each with the system it comes from and the events of
+   * ours that keep what it brings back.
+   */
+  calls?: { actor: string; event: string; kept?: string[] }[]
+  reads?: string[]
+  read_models?: string[]
+  tests: BoardTest[]
+  context?: string[]
+  polls?: string
+  notes?: Note[]
+  /** Per event or command, the fields a mapping filled and where each came from. */
+  mapping?: Record<string, Record<string, Source>>
+}
+
+export interface BoardActor {
+  id: string
+  name: string
+  type: "user" | "admin" | "system" | "external"
+}
+
+/** An element drawn on its own, such as an event a slice hears and none records. */
+export interface Loose {
+  kind: "event" | "external" | "command" | "readModel"
+  element: string
+  aggregate: string
+  /** The system an external event comes from. */
+  actor?: string
+}
+
+export interface Board {
+  name: string
+  description?: string
+  actors: BoardActor[]
+  aggregates: { id: string; name: string }[]
+  /** In order; the slices in no chapter come last, in a nameless one. */
+  chapters: { name: string; slices: BoardSlice[] }[]
+  /** Each element's and each chapter's notes, by its name. */
+  notes: Record<string, Note[]>
+  /** Per element, its fields as its schema types them. */
+  fields?: Record<string, BoardField[]>
+  loose?: Loose[]
+  /** The errors, then the warnings. */
+  messages?: Message[]
+}

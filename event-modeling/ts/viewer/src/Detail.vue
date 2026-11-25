@@ -1,153 +1,120 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import type { ModelJson } from "../../src/json.ts"
-import { type Box, type Column, type Layout, parse, parseClause, words } from "./layout.ts"
+import type { Board, BoardField } from "./board.ts"
+import { type Box, type Column, firstCard, KIND, type Layout, type Spec, source } from "./layout.ts"
+import Messages from "./Messages.vue"
+import Name from "./Name.vue"
+import SliceFacts from "./SliceFacts.vue"
+import Specs from "./Specs.vue"
 
 const props = defineProps<{
   box: Box | null
   column: Column
   layout: Layout
-  model: ModelJson
-  /** Whether the slice is already open at full width. */
-  open: boolean
+  model: Board
 }>()
-defineEmits<{ close: []; open: []; goto: [column: number] }>()
-
-const KIND: Record<Box["kind"], string> = {
-  ui: "screen",
-  external: "external event",
-  command: "command",
-  event: "event",
-  readModel: "read model",
-  automation: "automation",
-}
-
+const emit = defineEmits<{
+  close: []
+  goto: [column: number]
+  link: [canonical: string]
+}>()
 const slice = computed(() => props.column.slice)
-
-// A compact card is a reference; its fields are where the element is drawn in full.
-const fields = computed(() => {
-  const box = props.box
-  if (!box) return { fields: [], keys: [] }
-  if (!box.compact) return { fields: box.fields, keys: box.keys }
-  const full = props.layout.boxes.find((b) => b.name === box.name && !b.compact)
-  return full ? { fields: full.fields, keys: full.keys } : { fields: [], keys: [] }
-})
-
-const note = computed(() => (props.box ? props.model.notes[props.box.name] : undefined))
-// What is unfinished about the element, then about the rest of the slice.
-const elementWarnings = computed(() =>
-  (props.model.warnings ?? []).filter((w) => props.box && w.element === props.box.name),
-)
-const sliceWarnings = computed(() =>
-  (props.model.warnings ?? []).filter(
-    (w) => w.slice === slice.value.name && !elementWarnings.value.includes(w),
-  ),
-)
-const actor = computed(() => props.model.actors.find((a) => a.id === slice.value.actor)?.name)
-const mapping = computed(() =>
-  props.box?.kind === "event" ? slice.value.mapping?.[props.box.name] : undefined,
-)
-const triggers = computed(() => {
-  const t = slice.value.trigger
-  return t ? (Array.isArray(t) ? t : [t]).map((x) => parse(x).name).join(", ") : ""
-})
-
-// The element's specifications, or the slice's when nothing is selected.
-interface Group {
-  column: number
-  heading: string
-  tests: { name: string; given: string[]; when: string; then: string[] }[]
-}
-const groups = computed<Group[]>(() => {
+// Everything said about the selected element, in whichever slice says it; a slice's own are in its facts.
+const said = computed(() => {
   const name = props.box?.name
-  const out: Group[] = []
-  for (const col of props.layout.columns) {
-    const tests = name
-      ? col.slice.tests.filter((t) =>
-          [...t.given, t.when, ...t.then].some((c) => c && parseClause(c).name === name),
-        )
-      : col.index === props.column.index
-        ? col.slice.tests
-        : []
-    if (tests.length === 0) continue
-    const chapter = props.layout.chapters[col.chapter]?.name ?? ""
-    out.push({ column: col.index, heading: `${words(chapter)} › ${col.title}`, tests })
-  }
-  return out
+  if (!name) return []
+  const all = [...props.layout.columns.flatMap((c) => c.messages), ...props.layout.model.messages]
+  return [...new Set(all)].filter((m) => m.element === name)
 })
 
-function source(s: { from?: string; value?: unknown; count?: string }): string {
-  if (s.from !== undefined) return `← ${s.from}`
-  if (s.count !== undefined) return `count of ${s.count}`
-  return `= ${JSON.stringify(s.value)}`
-}
-const isError = (clause: string) => clause.startsWith("Error:")
-/** The JSON says `Error:`; the model and the manual say rejected. */
-const show = (clause: string) => clause.replace(/^Error:/, "Rejected:")
-const mentions = (clause: string) =>
-  props.box !== null && parseClause(clause).name === props.box.name
+// A compact card is a reference; its fields and notes are where the element is drawn in full.
+const full = computed(() => {
+  const box = props.box
+  return box?.compact ? firstCard(props.layout, box.name) : box
+})
+const fields = computed(() => ({ fields: full.value?.fields ?? [], keys: full.value?.keys ?? [] }))
+
+// Each field with its type, then an object's own fields beneath it, indented.
+const rows = computed(() => {
+  const typed = props.box ? (props.model.fields?.[props.box.name] ?? []) : []
+  const flat = (f: BoardField, depth: number): { f: BoardField; depth: number }[] => [
+    { f, depth },
+    ...(f.fields ?? []).flatMap((s) => flat(s, depth + 1)),
+  ]
+  return fields.value.fields.flatMap((name) => {
+    const f = typed.find((t) => t.name === name)
+    return f ? flat(f, 0) : [{ f: { name, type: "" }, depth: 0 }]
+  })
+})
+
+const mapping = computed(() =>
+  props.box?.kind === "event" || props.box?.kind === "command"
+    ? slice.value.mapping?.[props.box.name]
+    : undefined,
+)
+
+// The element's specifications, its slice's first, or the slice's when nothing is selected.
+const groups = computed(() => {
+  const name = props.box?.name
+  const here = props.column.index
+  const mine = (s: Spec) =>
+    name ? s.steps.some((st) => st.cards.some((c) => c.name === name)) : s.column === here
+  const columns = [
+    ...props.layout.columns.filter((col) => col.index === here),
+    ...props.layout.columns.filter((col) => col.index !== here),
+  ]
+  return columns.flatMap((col) => {
+    const specs = props.layout.specs.filter((s) => s.column === col.index && mine(s))
+    if (specs.length === 0) return []
+    const chapter = props.layout.chapters[col.chapter]?.title ?? ""
+    return [
+      { column: col.index, heading: chapter ? `${chapter} › ${col.title}` : col.title, specs },
+    ]
+  })
+})
 </script>
 
 <template>
   <aside class="detail" aria-label="Details">
     <header>
       <span class="kind" :class="box?.kind ?? 'slice'">{{ box ? KIND[box.kind] : "slice" }}</span>
-      <h2>{{ box ? box.name : column.title }}</h2>
-      <button v-if="!open" class="open" type="button" title="Open the slice" @click="$emit('open')">Open</button>
+      <h2><Name v-if="box" :name="box.name" /><template v-else>{{ column.title }}</template></h2>
       <button class="close" type="button" title="Close (Esc)" @click="$emit('close')">×</button>
     </header>
 
-    <p v-if="note" class="note"><span class="badge" aria-hidden="true">i</span>{{ note }}</p>
-    <p v-for="w in elementWarnings" :key="w.message" class="note warning"><span class="badge" aria-hidden="true">!</span>{{ w.message }}</p>
+    <SliceFacts v-if="!box" :layout="layout" :column="column" />
 
     <template v-if="fields.fields.length">
       <h3>{{ box?.kind === "ui" ? "Query" : "Fields" }}</h3>
       <table>
-        <tr v-for="f in fields.fields" :key="f">
-          <td class="name">{{ f }}</td>
+        <tr v-for="({ f, depth }, i) in rows" :key="i">
+          <td class="name" :style="{ paddingLeft: `${depth * 14}px` }">{{ f.name }}{{ f.optional ? "?" : "" }}</td>
+          <td class="type">{{ f.type }}</td>
           <td class="hint">
-            <template v-if="fields.keys.includes(f)">key</template>
-            <template v-else-if="mapping?.[f]">{{ source(mapping[f]!) }}</template>
+            <span v-if="depth === 0 && fields.keys.includes(f.name)" class="kind" :class="box?.kind">KEY</span>
+            <template v-else-if="depth === 0 && mapping?.[f.name]">{{ source(mapping[f.name]!) }}</template>
+            <div v-if="f.description" class="said">{{ f.description }}</div>
           </td>
         </tr>
       </table>
     </template>
 
-    <h3>Slice</h3>
-    <dl>
-      <dt>Name</dt>
-      <dd>{{ column.label }}</dd>
-      <template v-if="actor"><dt>Actor</dt><dd>{{ actor }}</dd></template>
-      <template v-if="slice.ui"><dt>Service</dt><dd>{{ slice.ui }}</dd></template>
-      <template v-if="slice.query?.length"><dt>Query</dt><dd>{{ slice.query.join(", ") }}</dd></template>
-      <template v-if="slice.polls"><dt>Polls</dt><dd>{{ slice.polls }}</dd></template>
-      <template v-if="slice.reads?.length"><dt>Reads</dt><dd>{{ slice.reads.join(", ") }}</dd></template>
-      <template v-if="triggers"><dt>On</dt><dd>{{ triggers }}</dd></template>
-    </dl>
-    <p v-if="slice.note" class="note" style="margin-top: 10px"><span class="badge" aria-hidden="true">i</span>{{ slice.note }}</p>
-    <p v-for="w in sliceWarnings" :key="w.message" class="note warning" style="margin-top: 10px"><span class="badge" aria-hidden="true">!</span>{{ w.message }}</p>
+    <!-- A declaration in no slice has no slice to name. -->
+    <template v-if="box && layout.boxes.some((b) => b.column === column.index && b.id !== box?.id)">
+      <h3>Slice</h3>
+      <dl><dt>Name</dt><dd><Name :name="column.label" link @click="$emit('goto', column.index)" /></dd></dl>
+    </template>
+
+    <template v-if="said.length">
+      <h3>Validation</h3>
+      <Messages :messages="said" :boxes="layout.boxes" :self="box?.name" />
+    </template>
 
     <template v-if="groups.length">
       <h3>Specifications</h3>
       <template v-for="g in groups" :key="g.column">
-        <button v-if="box" type="button" class="group" @click="$emit('goto', g.column)">{{ g.heading }}</button>
-        <div v-for="t in g.tests" :key="t.name" class="spec">
-          <div class="name">{{ t.name }}</div>
-          <div v-if="t.given.length" class="step">
-            <span class="word">given</span>
-            <span><code v-for="c in t.given" :key="c" :class="{ mark: mentions(c) }">{{ c }}</code></span>
-          </div>
-          <div v-if="t.when" class="step">
-            <span class="word">when</span>
-            <span><code :class="{ mark: mentions(t.when) }">{{ t.when }}</code></span>
-          </div>
-          <div class="step">
-            <span class="word">then</span>
-            <span>
-              <code v-for="c in t.then" :key="c" :class="{ rejected: isError(c), mark: mentions(c) }">{{ show(c) }}</code>
-            </span>
-          </div>
-        </div>
+        <Name v-if="box" class="group" :name="g.heading" link @click="$emit('goto', g.column)" />
+        <Specs :specs="g.specs" :mark="box?.name" />
       </template>
     </template>
   </aside>

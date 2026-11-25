@@ -1,17 +1,29 @@
 <script setup lang="ts">
-import type { Layout } from "./layout.ts"
+import { computed } from "vue"
+import type { Layout, Selection } from "./layout.ts"
+import Mark from "./Mark.vue"
 
-defineProps<{ layout: Layout; selectedColumn: number | null }>()
-defineEmits<{ select: [column: number] }>()
+const props = defineProps<{ layout: Layout; selected: Selection | null }>()
+const sel = computed(() => (typeof props.selected === "object" ? props.selected : null))
+const selectedColumn = computed(() =>
+  sel.value && "column" in sel.value ? sel.value.column : null,
+)
+const selectedChapter = computed(() =>
+  sel.value && "chapter" in sel.value ? sel.value.chapter : null,
+)
+defineEmits<{ select: [column: number]; chapter: [chapter: number] }>()
 </script>
 
 <template>
   <nav class="nav" aria-label="Chapters and slices">
     <template v-for="(chapter, ci) in layout.chapters" :key="chapter.name + ci">
       <button
+        v-if="chapter.title"
         type="button"
         class="chapter"
-        @click="$emit('select', layout.columns.find((c) => c.chapter === ci)?.index ?? 0)"
+        :class="{ selected: ci === selectedChapter }"
+        :aria-current="ci === selectedChapter ? 'true' : undefined"
+        @click="$emit('chapter', ci)"
       >
         {{ chapter.title }}
       </button>
@@ -20,15 +32,14 @@ defineEmits<{ select: [column: number] }>()
         :key="col.index"
         type="button"
         class="slice"
-        :class="{ selected: col.index === selectedColumn }"
+        :class="{ selected: col.index === selectedColumn, inside: chapter.title }"
         :aria-current="col.index === selectedColumn ? 'true' : undefined"
         @click="$emit('select', col.index)"
       >
         {{ col.title }}
-        <span v-if="col.noted" class="note-dot" role="img" aria-label="has a note"></span>
-        <span v-if="col.warned" class="warn-dot" role="img" aria-label="not finished"></span>
+        <span class="said-slot"><Mark :mark="col.note" /></span>
+        <span class="mark-slot"><Mark :mark="col.mark" /></span>
       </button>
     </template>
-    <p class="hint">← → move between slices · Enter or double click opens one · Esc back to the canvas</p>
   </nav>
 </template>

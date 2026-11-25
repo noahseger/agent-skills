@@ -1,132 +1,135 @@
 // The story starts with a user, the API they use, and what they do to lists.
 
-import { m, z } from "#em"
+import { d, m, t } from "#em"
 
 // A person who keeps todo lists.
-export const User = m.actor()
+m.actor("User")
 
 // The API every list operation goes through.
-export const TodoService = m.service("todo.v1")
+m.service("TodoService", "todo.v1")
+
+// One list, open: its items are added, completed and deleted here.
+m.screen("ListScreen")
+
+// Two lanes in the diagram: what happens to items, and what happens to the lists that hold them.
+m.stream("Items")
+m.stream("Lists")
 
 // A user creates a named list.
-export const CreateList = m.command({ userId: z.string(), listId: z.string(), name: z.string() })
-export const ListCreated = m
-  .event({ listId: z.string(), userId: z.string(), name: z.string() })
+m.command("CreateList", { userId: t.string(), listId: t.string(), name: t.string() })
+m.event("ListCreated", { listId: t.string(), userId: t.string(), name: t.string() })
   .note("Names are unique per user.")
-export const DuplicateName = m.rejected("list name already exists")
+  .stream(d.Lists)
 
 // A user adds an item to a list. A list holds at most 3.
-export const AddItem = m.command({
-  userId: z.string(),
-  listId: z.string(),
-  itemId: z.string(),
-  text: z.string(),
+m.command("AddItem", {
+  userId: t.string(),
+  listId: t.string(),
+  itemId: t.string(),
+  text: t.string(),
 })
-export const ItemAdded = m.event({
-  userId: z.string(),
-  listId: z.string(),
-  itemId: z.string(),
-  title: z.string(),
-})
-export const TooManyItems = m.rejected("maximum 3 items per list")
+m.event("ItemAdded", {
+  userId: t.string(),
+  listId: t.string(),
+  itemId: t.string(),
+  title: t.string(),
+}).stream(d.Items)
 
 // A user marks an item done.
-export const CompleteItem = m.command({ listId: z.string(), itemId: z.string() })
-export const ItemCompleted = m.event({ listId: z.string(), itemId: z.string() })
+m.command("CompleteItem", {
+  userId: t.string(),
+  listId: t.string(),
+  itemId: t.string(),
+})
+m.event("ItemCompleted", { userId: t.string(), listId: t.string(), itemId: t.string() }).stream(
+  d.Items,
+)
 
 // A user removes an item from a list.
-export const DeleteItem = m.command({ listId: z.string(), itemId: z.string() })
-export const ItemDeleted = m.event({ listId: z.string(), itemId: z.string() })
+m.command("DeleteItem", { listId: t.string(), itemId: t.string() })
+m.event("ItemDeleted", { listId: t.string(), itemId: t.string() }).stream(d.Items)
 
 // A user deletes a whole list, items included.
-export const DeleteList = m.command({ listId: z.string() })
-export const ListDeleted = m.event({ listId: z.string() })
+m.command("DeleteList", { userId: t.string(), listId: t.string() })
+m.event("ListDeleted", { userId: t.string(), listId: t.string() }).stream(d.Lists)
 
-const groceries = ListCreated.with({ listId: "list-1", userId: "u-1", name: "Groceries" })
-const milk = ItemAdded.with({ userId: "u-1", listId: "list-1", itemId: "item-1", title: "Milk" })
+const groceries = d.ListCreated({ listId: "list-1", userId: "u-1", name: "Groceries" })
+const milk = d.ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-1", title: "Milk" })
 
-export const ListManagement = m.chapter([
-  m
-    .slice()
-    .actor(User)
-    .service(TodoService)
-    .command(CreateList)
-    .emits(ListCreated)
-    .test("User creates a new list", {
-      when: CreateList.with({ userId: "u-1", listId: "list-1", name: "Groceries" }),
-      then: groceries,
-    })
-    .test("Duplicate list name rejected", {
-      given: groceries,
-      when: CreateList.with({ userId: "u-1", listId: "list-2", name: "Groceries" }),
-      then: DuplicateName,
-    }),
+m.chapter("ListManagement", 1)
 
-  m
-    .slice()
-    .actor(User)
-    .service(TodoService)
-    .command(AddItem)
-    .emits(ItemAdded, (c) => ({ title: c.text }))
-    .test("User adds an item to a list", {
-      given: groceries,
-      when: AddItem.with({ userId: "u-1", listId: "list-1", itemId: "item-1", text: "Milk" }),
-      then: milk,
-    })
-    .test("Adding a fourth item is rejected", {
-      given: [
-        milk,
-        ItemAdded.with({ userId: "u-1", listId: "list-1", itemId: "item-2", title: "Eggs" }),
-        ItemAdded.with({ userId: "u-1", listId: "list-1", itemId: "item-3", title: "Bread" }),
-      ],
-      when: AddItem.with({ userId: "u-1", listId: "list-1", itemId: "item-4", text: "Butter" }),
-      then: TooManyItems,
-    }),
+m.slice()
+  .command(d.CreateList)
+  .event(d.ListCreated)
+  .chapter(d.ListManagement)
+  .actor(d.User)
+  .service(d.TodoService)
+  .spec("User creates a new list", {
+    when: d.CreateList({ userId: "u-1", listId: "list-1", name: "Groceries" }),
+    then: groceries,
+  })
+  .spec("Duplicate list name rejected", {
+    given: groceries,
+    when: d.CreateList({ userId: "u-1", listId: "list-2", name: "Groceries" }),
+    reject: "list name already exists",
+  })
 
-  m
-    .slice()
-    .actor(User)
-    .service(TodoService)
-    .command(CompleteItem)
-    .emits(ItemCompleted)
-    .test("User completes an item", {
-      given: milk,
-      when: CompleteItem.with({ listId: "list-1", itemId: "item-1" }),
-      then: ItemCompleted.with({ listId: "list-1", itemId: "item-1" }),
-    }),
+m.slice()
+  .command(d.AddItem)
+  .event(d.ItemAdded, (c) => ({ title: c.AddItem.text }))
+  .chapter(d.ListManagement)
+  .actor(d.User)
+  .screen(d.ListScreen)
+  .service(d.TodoService)
+  .spec("User adds an item to a list", {
+    given: groceries,
+    when: d.AddItem({ userId: "u-1", listId: "list-1", itemId: "item-1", text: "Milk" }),
+    then: milk,
+  })
+  .spec("Adding a fourth item is rejected", {
+    given: [
+      milk,
+      d.ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-2", title: "Eggs" }),
+      d.ItemAdded({ userId: "u-1", listId: "list-1", itemId: "item-3", title: "Bread" }),
+    ],
+    when: d.AddItem({ userId: "u-1", listId: "list-1", itemId: "item-4", text: "Butter" }),
+    reject: "maximum 3 items per list",
+  })
 
-  m
-    .slice()
-    .actor(User)
-    .service(TodoService)
-    .command(DeleteItem)
-    .emits(ItemDeleted)
-    .test("User deletes an item from a list", {
-      given: milk,
-      when: DeleteItem.with({ listId: "list-1", itemId: "item-1" }),
-      then: ItemDeleted.with({ listId: "list-1", itemId: "item-1" }),
-    }),
+m.slice()
+  .command(d.CompleteItem)
+  .event(d.ItemCompleted)
+  .chapter(d.ListManagement)
+  .actor(d.User)
+  .screen(d.ListScreen)
+  .service(d.TodoService)
+  .spec("User completes an item", {
+    given: milk,
+    when: d.CompleteItem({ userId: "u-1", listId: "list-1", itemId: "item-1" }),
+    then: d.ItemCompleted({ userId: "u-1", listId: "list-1", itemId: "item-1" }),
+  })
 
-  m
-    .slice()
-    .actor(User)
-    .service(TodoService)
-    .command(DeleteList)
-    .emits(ListDeleted)
-    .test("User deletes a list", {
-      given: groceries,
-      when: DeleteList.with({ listId: "list-1" }),
-      then: ListDeleted.with({ listId: "list-1" }),
-    }),
-])
+m.slice()
+  .command(d.DeleteItem)
+  .event(d.ItemDeleted)
+  .chapter(d.ListManagement)
+  .actor(d.User)
+  .screen(d.ListScreen)
+  .service(d.TodoService)
+  .spec("User deletes an item from a list", {
+    given: milk,
+    when: d.DeleteItem({ listId: "list-1", itemId: "item-1" }),
+    then: d.ItemDeleted({ listId: "list-1", itemId: "item-1" }),
+  })
 
-// Two lanes in the diagram: what happens to lists, and what happens to items.
-export const Lists = m.stream({ CreateList, ListCreated, DeleteList, ListDeleted })
-export const Items = m.stream({
-  AddItem,
-  ItemAdded,
-  CompleteItem,
-  ItemCompleted,
-  DeleteItem,
-  ItemDeleted,
-})
+m.slice()
+  .command(d.DeleteList)
+  .event(d.ListDeleted)
+  .chapter(d.ListManagement)
+  .actor(d.User)
+  .service(d.TodoService)
+  .spec("User deletes a list", {
+    given: groceries,
+    when: d.DeleteList({ userId: "u-1", listId: "list-1" }),
+    then: d.ListDeleted({ userId: "u-1", listId: "list-1" }),
+  })

@@ -1,31 +1,39 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue"
 import Card from "./Card.vue"
+import Fit from "./Fit.vue"
 import {
   ARROW_H,
   type Box,
-  HEADER_H,
+  fitLines,
+  fitTo,
+  LABEL_W,
   type Layout,
+  markAt,
   NAME_H,
-  path,
+  outside,
   polyline,
-  SPEC_CARD_TITLE,
-  SPEC_LINE_H,
-  SPEC_TITLE_LINE,
+  type Row,
+  type Scope,
+  usedLanes,
 } from "./layout.ts"
+import Mark from "./Mark.vue"
+import { measure } from "./measure.ts"
+import Sticky from "./Sticky.vue"
 
 const props = defineProps<{
   layout: Layout
-  selectedColumn: number | null
+  /** The selected slice or chapter. */
+  selected: Scope | null
   selectedBox: string | null
   hovered: string | null
-  /** Bumping `seq` brings the column into view. */
-  focus: { column: number | null; seq: number }
+  /** Bumping `seq` fits the slice or chapter top to bottom. */
+  focus: { scope: Scope | null; seq: number }
 }>()
 const emit = defineEmits<{
   selectCard: [box: Box]
   selectSlice: [column: number]
-  openSlice: [column: number]
+  selectChapter: [chapter: number]
   link: [canonical: string]
   hover: [name: string | null]
   clear: []
@@ -36,7 +44,9 @@ const view = ref({ x: 0, y: 0, k: 1 })
 const animate = ref(false)
 const dragging = ref(false)
 const hoverColumn = ref<number | null>(null)
-const byId = computed(() => new Map(props.layout.boxes.map((b) => [b.id, b])))
+const selectedColumn = computed(() =>
+  props.selected && "column" in props.selected ? props.selected.column : null,
+)
 
 // Fit the whole model when it first arrives; a redraw keeps the user's view.
 function fit() {
@@ -51,30 +61,26 @@ function fit() {
 }
 onMounted(() => {
   fit()
-  if (props.focus.column !== null) focusColumn(props.focus.column)
+  if (props.focus.scope !== null) focusOn(props.focus.scope)
 })
 
-function focusColumn(index: number) {
-  const col = props.layout.columns[index]
+function focusOn(scope: Scope) {
   const box = el.value?.getBoundingClientRect()
-  if (!col || !box) return
-  const rect = { x: col.x - 16, y: 0, w: col.w + 32, h: props.layout.height }
-  const k = Math.min(1.25, (box.width - 40) / rect.w, (box.height - 40) / rect.h)
+  const fitted = box && fitTo(props.layout, scope, { w: box.width, h: box.height })
+  if (!fitted) return
   animate.value = true
-  view.value = {
-    x: box.width / 2 - k * (rect.x + rect.w / 2),
-    y: Math.max(20, box.height / 2 - k * (rect.h / 2)),
-    k,
-  }
+  view.value = fitted
   setTimeout(() => {
     animate.value = false
   }, 350)
 }
+// After the DOM updates, so a canvas that just grew is measured at its new size.
 watch(
   () => props.focus.seq,
   () => {
-    if (props.focus.column !== null) focusColumn(props.focus.column)
+    if (props.focus.scope !== null) focusOn(props.focus.scope)
   },
+  { flush: "post" },
 )
 
 let last: { x: number; y: number } | null = null
@@ -85,14 +91,21 @@ function down(e: PointerEvent) {
   moved = false
   dragging.value = true
 }
-function columnAt(clientX: number): number | null {
+/** A point on the screen as a point on the board. */
+function at(e: MouseEvent) {
   const box = el.value?.getBoundingClientRect()
-  if (!box) return null
-  const x = (clientX - box.left - view.value.x) / view.value.k
-  return props.layout.columns.find((c) => x >= c.x && x < c.x + c.w)?.index ?? null
+  return {
+    x: (e.clientX - (box?.left ?? 0) - view.value.x) / view.value.k,
+    y: (e.clientY - (box?.top ?? 0) - view.value.y) / view.value.k,
+  }
+}
+const within = (x: number, c: { x: number; w: number }) => x >= c.x && x < c.x + c.w
+function columnAt(e: MouseEvent): number | null {
+  const { x } = at(e)
+  return props.layout.columns.find((c) => within(x, c))?.index ?? null
 }
 function move(e: PointerEvent) {
-  hoverColumn.value = columnAt(e.clientX)
+  hoverColumn.value = columnAt(e)
   if (!last) return
   const dx = e.clientX - last.x
   const dy = e.clientY - last.y
@@ -108,8 +121,20 @@ function leave() {
   up()
   hoverColumn.value = null
 }
-function background() {
-  if (!moved) emit("clear")
+/** The slice whose column a point below the slice names is in, empty space included. */
+function sliceAt(e: MouseEvent): number | null {
+  return at(e).y >= props.layout.nameY ? columnAt(e) : null
+}
+// A click selects what is under it: above the slice names a chapter, below them a slice, anywhere
+// in its column; a card selects itself. Nothing there clears the selection.
+function click(e: MouseEvent) {
+  if (moved) return
+  const { x, y } = at(e)
+  const chapter = props.layout.chapters.findIndex((c) => c.title && within(x, c))
+  const column = sliceAt(e)
+  if (y < props.layout.nameY && chapter >= 0) emit("selectChapter", chapter)
+  else if (column !== null) emit("selectSlice", column)
+  else emit("clear")
 }
 function wheel(e: WheelEvent) {
   e.preventDefault()
@@ -146,8 +171,25 @@ const lit = computed(() => {
   return { named: ids, cards, edges }
 })
 
+// Selecting a chapter dims the arrows from and to other chapters; selecting a slice, every arrow
+// that neither starts nor ends in it.
+const away = computed(() => {
+  const sel = props.selected
+  if (!sel) return new Set<number>()
+  if ("chapter" in sel) return outside(props.layout, sel.chapter)
+  const inSlice = new Set(
+    props.layout.boxes.filter((b) => b.column === sel.column).map((b) => b.id),
+  )
+  return new Set(
+    props.layout.edges.flatMap((e, i) => (inSlice.has(e.from) || inSlice.has(e.to) ? [] : [i])),
+  )
+})
+
+// A selection dims the lanes it has no card in.
+const used = computed(() => (props.selected ? usedLanes(props.layout, props.selected) : null))
+
 function edgeClass(i: number) {
-  if (!lit.value) return {}
+  if (!lit.value) return { dim: away.value.has(i) }
   return { lit: lit.value.edges.has(i), dim: !lit.value.edges.has(i) }
 }
 function cardClass(b: Box) {
@@ -161,35 +203,38 @@ function cardClass(b: Box) {
 function edgePath(i: number) {
   const e = props.layout.edges[i]
   if (!e) return ""
-  if (e.points) return polyline(e.points)
-  const a = byId.value.get(e.from)
-  const b = byId.value.get(e.to)
-  return a && b ? path(a, b) : ""
+  return polyline(e.points)
 }
 function hoverCard(b: Box | null) {
   emit("hover", b?.name ?? null)
 }
 
-// A double click anywhere in a column opens that slice.
-function open(e: MouseEvent) {
-  const col = columnAt(e.clientX)
-  if (col !== null) emit("openSlice", col)
-}
-
-function firstSlice(chapter: number) {
-  const col = props.layout.columns.find((c) => c.chapter === chapter)
-  if (col) emit("selectSlice", col.index)
+// A slice's header: the top of its outline, rounded above and square below, where the column goes on.
+const SLICE_R = 10
+function head(x: number, y: number, w: number) {
+  const r = SLICE_R
+  return `M${x} ${y + NAME_H} V${y + r} A${r} ${r} 0 0 1 ${x + r} ${y} H${x + w - r} A${r} ${r} 0 0 1 ${x + w} ${y + r} V${y + NAME_H} Z`
 }
 
 // A chapter is an arrow along the time line; the first has a flat start.
 function arrow(x: number, w: number, first: boolean) {
-  const y = HEADER_H - ARROW_H - 12
+  const y = props.layout.nameY - ARROW_H - 12
   const h = ARROW_H
   const n = 12
   const start = first ? `M${x} ${y}` : `M${x} ${y} L${x + n} ${y + h / 2} L${x} ${y + h}`
   const body = first ? `L${x} ${y + h}` : ""
   return `${start} ${body} L${x + w - n - 4} ${y + h} L${x + w - 4} ${y + h / 2} L${x + w - n - 4} ${y} Z`
 }
+/** A lane's name wraps in the label column as far as its lane is tall, its kind under it. */
+const LANE_ROOM = LABEL_W - 24
+const laneLines = (row: Row) => Math.max(1, Math.floor((row.h - 45) / 15) + 1)
+const drawnLines = (row: Row) =>
+  fitLines(row.label, LANE_ROOM, laneLines(row), (s) => measure(s, "lane")).length
+const notes = computed(() =>
+  [...props.layout.chapters, ...props.layout.columns].flatMap((c) => c.notes ?? []),
+)
+// Lane names stay at the viewport's left edge, so every lane is named wherever the canvas is panned.
+const pin = computed(() => `translateX(${Math.max(0, -view.value.x / view.value.k)}px)`)
 const transform = computed(
   () => `translate(${view.value.x}px, ${view.value.y}px) scale(${view.value.k})`,
 )
@@ -206,62 +251,71 @@ const transform = computed(
     @pointerleave="leave"
     @wheel="wheel"
   >
-    <svg role="img" :aria-label="`Event model canvas, ${layout.columns.length} slices`" @click.self="background" @dblclick="open">
+    <svg role="img" :aria-label="`Event model canvas, ${layout.columns.length} slices`" @click="click">
       <defs>
-        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
-        </marker>
-        <marker id="arrow-lit" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="#2563eb" />
-        </marker>
+        <!-- A lane name's backing ends in a fade, so the cards it cuts read as passing under it. -->
+        <linearGradient id="pin-fade">
+          <stop :offset="(LABEL_W - 8) / (LABEL_W + 16)" stop-color="white" />
+          <stop offset="1" stop-color="white" stop-opacity="0" />
+        </linearGradient>
+        <mask id="pin-mask" maskContentUnits="objectBoundingBox">
+          <rect width="1" height="1" fill="url(#pin-fade)" />
+        </mask>
       </defs>
       <g class="world" :class="{ animate }" :style="{ transform }">
-        <rect class="page" :x="0" :y="0" :width="layout.width" :height="layout.height" @click="background" />
+        <rect class="page" :x="0" :y="0" :width="layout.width" :height="layout.height" />
         <g v-for="row in layout.rows" :key="row.id">
-          <rect class="lane" :class="row.kind" :x="0" :y="row.y" :width="layout.width" :height="row.h" @click="background" />
+          <rect class="lane" :class="[row.kind, { idle: used && !used.has(row.id) }]" :x="0" :y="row.y" :width="layout.width" :height="row.h" />
           <line class="lane-line" :x1="0" :x2="layout.width" :y1="row.y" :y2="row.y" />
-          <text v-if="row.label" class="lane-label" :x="16" :y="row.y + 22">{{ row.label }}</text>
-          <text v-if="row.sub" class="lane-kind" :x="16" :y="row.y + 37">{{ row.sub }}</text>
         </g>
         <line class="lane-line" :x1="0" :x2="layout.width" :y1="layout.height" :y2="layout.height" />
 
         <g v-for="col in layout.columns" :key="col.index">
-          <rect
-            class="slice-outline"
-            :class="{ hover: hoverColumn === col.index, selected: selectedColumn === col.index }"
-            :x="col.x + 4"
-            :y="layout.nameY + NAME_H + 4"
-            :width="col.w - 8"
-            :height="layout.height - layout.nameY - NAME_H - 8"
-            rx="10"
-          />
           <g
             class="slice-head"
             :class="{ selected: selectedColumn === col.index, hover: hoverColumn === col.index }"
             role="button"
             tabindex="0"
             :aria-label="`Slice ${col.title}`"
-            @click.stop="emit('selectSlice', col.index)"
-            @keydown.enter.stop="emit('openSlice', col.index)"
+            @keydown.enter.stop="emit('selectSlice', col.index)"
           >
-            <rect :x="col.x + 4" :y="layout.nameY" :width="col.w - 8" :height="NAME_H" rx="10" />
-            <text text-anchor="middle" :x="col.x + col.w / 2" :y="layout.nameY + NAME_H / 2 + 4.5">
-              {{ col.title }}
-            </text>
-            <circle v-if="col.noted" class="note-dot" :cx="col.x + col.w - 16" :cy="layout.nameY + NAME_H / 2" r="3.5" />
-            <circle v-if="col.warned" class="warn-dot" :cx="col.x + 16" :cy="layout.nameY + NAME_H / 2" r="3.5" />
+            <path :d="head(col.x + 4, layout.nameY, col.w - 8)" />
+            <Fit
+              text-anchor="middle"
+              :text="col.title"
+              :room="col.w - 60"
+              font="slice"
+              :x="col.x + col.w / 2"
+              :y="layout.nameY + NAME_H / 2 + 4.5"
+            />
+            <Mark :mark="col.mark" :at="markAt(col.x + col.w / 2 + measure(fitLines(col.title, col.w - 60, 1, (s) => measure(s, 'slice'))[0] ?? '', 'slice') / 2, layout.nameY + NAME_H / 2 + 4.5, 12)" />
           </g>
+          <!-- Above the header, so the header never cuts it. -->
+          <rect
+            class="slice-outline"
+            :class="{ hover: hoverColumn === col.index, selected: selectedColumn === col.index }"
+            :x="col.x + 4"
+            :y="layout.nameY"
+            :width="col.w - 8"
+            :height="layout.height - layout.nameY - 4"
+            :rx="SLICE_R"
+          />
         </g>
 
-        <g
-          v-for="(chapter, i) in layout.chapters"
-          :key="chapter.name + chapter.x"
-          class="chapter"
-          @click.stop="firstSlice(i)"
-        >
-          <path :d="arrow(chapter.x, chapter.w, i === 0)" />
-          <text :x="chapter.x + (i === 0 ? 16 : 24)" :y="HEADER_H - 12 - ARROW_H / 2 + 5">{{ chapter.title }}</text>
-        </g>
+        <Sticky v-for="(note, i) in notes" :key="i" :sticky="note" />
+
+        <template v-for="(chapter, i) in layout.chapters" :key="chapter.name + chapter.x">
+          <g v-if="chapter.title" class="chapter">
+            <path :d="arrow(chapter.x, chapter.w, i === 0)" />
+            <Fit
+              :text="chapter.title"
+              :room="chapter.w - (i === 0 ? 38 : 46)"
+              font="chapter"
+              :x="chapter.x + (i === 0 ? 16 : 24)"
+              :y="layout.nameY - 12 - ARROW_H / 2 + 5"
+            />
+          </g>
+        </template>
 
         <path
           v-for="(edge, i) in layout.edges"
@@ -283,41 +337,18 @@ const transform = computed(
           @pointerleave="hoverCard(null)"
         />
 
-        <g v-for="spec in layout.specs" :key="spec.column + spec.title.join()" class="spec-block">
-          <text
-            v-for="(line, i) in spec.title"
-            :key="i"
-            class="spec-title"
-            :x="spec.x"
-            :y="spec.y + 11 + i * SPEC_TITLE_LINE"
-          >
-            {{ line }}
+        <g
+          v-for="row in layout.rows"
+          :key="row.id"
+          class="lane-name"
+          :class="[row.kind, { idle: used && !used.has(row.id) }]"
+          :style="{ transform: pin }"
+        >
+          <rect :x="0" :y="row.y + 1" :width="LABEL_W + 16" :height="row.h - 1" mask="url(#pin-mask)" />
+          <Fit v-if="row.label" class="lane-label" :text="row.label" :room="LANE_ROOM" font="lane" :lines="laneLines(row)" :x="16" :y="row.y + 22" />
+          <text v-if="row.sub" class="lane-kind" :x="16" :y="row.y + 37 + (drawnLines(row) - 1) * 15">
+            {{ row.sub }}
           </text>
-          <g v-for="step in spec.steps" :key="step.word">
-            <text class="spec-word" :x="spec.x" :y="step.y + 10">{{ step.word }}</text>
-            <g
-              v-for="(card, ci) in step.cards"
-              :key="ci"
-              class="card spec"
-              :class="[card.kind, { lit: hovered === card.name, dim: lit !== null && hovered !== card.name }]"
-              :transform="`translate(${card.x} ${card.y})`"
-              @pointerenter="emit('hover', card.name)"
-              @pointerleave="emit('hover', null)"
-            >
-              <rect class="shape" :width="card.w" :height="card.h" rx="6" />
-              <text class="title" :x="10" :y="16">{{ card.name }}</text>
-              <text
-                v-for="(line, li) in card.lines"
-                :key="li"
-                class="field"
-                style="white-space: pre"
-                :x="10"
-                :y="SPEC_CARD_TITLE + li * SPEC_LINE_H"
-              >
-                {{ line }}
-              </text>
-            </g>
-          </g>
         </g>
       </g>
     </svg>
