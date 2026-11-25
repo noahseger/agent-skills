@@ -121,16 +121,25 @@ function leave() {
   up()
   hoverColumn.value = null
 }
+/** The slice whose column a point below the slice names is in, empty space included. */
+function sliceAt(e: MouseEvent): number | null {
+  return at(e).y >= props.layout.nameY ? columnAt(e) : null
+}
 // A click selects what is under it: above the slice names a chapter, below them a slice, anywhere
 // in its column; a card selects itself. Nothing there clears the selection.
 function click(e: MouseEvent) {
   if (moved) return
   const { x, y } = at(e)
   const chapter = props.layout.chapters.findIndex((c) => c.title && within(x, c))
-  const column = columnAt(e)
+  const column = sliceAt(e)
   if (y < props.layout.nameY && chapter >= 0) emit("selectChapter", chapter)
-  else if (y >= props.layout.nameY && column !== null) emit("selectSlice", column)
+  else if (column !== null) emit("selectSlice", column)
   else emit("clear")
+}
+// A double click opens the slice it lands in, anywhere in its column.
+function dblclick(e: MouseEvent) {
+  const column = sliceAt(e)
+  if (!moved && column !== null) emit("openSlice", column)
 }
 function wheel(e: WheelEvent) {
   e.preventDefault()
@@ -234,7 +243,7 @@ const transform = computed(
     @pointerleave="leave"
     @wheel="wheel"
   >
-    <svg role="img" :aria-label="`Event model canvas, ${layout.columns.length} slices`" @click="click">
+    <svg role="img" :aria-label="`Event model canvas, ${layout.columns.length} slices`" @click="click" @dblclick="dblclick">
       <defs>
         <!-- A lane name's backing ends in a fade, so the cards it cuts read as passing under it. -->
         <linearGradient id="pin-fade">
