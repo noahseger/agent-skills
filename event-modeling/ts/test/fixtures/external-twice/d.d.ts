@@ -14,4 +14,4 @@ declare module "#em" {
     Recorded: EventDecl<"Recorded", { id: Field<string> }>
   }
 }
-//# sourceMappingURL=em-registry.d.ts.map
+//# sourceMappingURL=d.d.ts.map

@@ -9,4 +9,4 @@ declare module "#em" {
     User: Actor
   }
 }
-//# sourceMappingURL=em-registry.d.ts.map
+//# sourceMappingURL=d.d.ts.map

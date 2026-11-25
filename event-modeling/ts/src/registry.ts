@@ -8,7 +8,7 @@ import type { z } from "zod"
 import { isKey } from "./t.ts"
 import { type Exported, type Fields, REGISTRY, type Registered, WRITTEN } from "./types.ts"
 
-export const GENERATED = "em-registry.d.ts"
+export const GENERATED = "d.d.ts"
 
 type Def = {
   type: string

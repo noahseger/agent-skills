@@ -9,7 +9,7 @@
       "!viewer/dist",
       "!dist",
       "!test/*.json",
-      "!**/em-registry.d.ts"
+      "!**/d.d.ts"
     ]
   },
   "formatter": {

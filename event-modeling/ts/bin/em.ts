@@ -2,7 +2,7 @@
 // em <command> <path> [options]
 //
 //   init   <dir>                  scaffold a model directory
-//   types  <path> [--check]       write em-registry.d.ts beside the model, so d is typed; --check
+//   types  <path> [--check]       write d.d.ts beside the model, so d is typed; --check
 //                                 exits 1 if it is out of date
 //   json   <path> [--partial]     print the model as event-modeling-spec JSON; --partial keeps
 //                                 going past errors and prints what the viewer reads
@@ -70,7 +70,7 @@ const INDEX_TS = `import { m } from "@noahseger/event-modeling"
 export default m.model("My System")
 `
 
-// One model per tsconfig: its modules and the em-registry.d.ts that types its d.
+// One model per tsconfig: its modules and the d.d.ts that types its d.
 const TSCONFIG = `${JSON.stringify({ compilerOptions: COMPILER_OPTIONS, include: ["**/*.ts"] }, null, 2)}\n`
 
 // Without its own "type": "module", node warns and reparses the model on every save.
@@ -83,7 +83,7 @@ const { values, positionals } = parseArgs({
     open: { type: "boolean", default: true },
     partial: { type: "boolean", default: false },
     check: { type: "boolean", default: false },
-    // em view's: write em-registry.d.ts once the modules have run.
+    // em view's: write d.d.ts once the modules have run.
     types: { type: "boolean", default: false },
     help: { type: "boolean", short: "h" },
   },
@@ -197,14 +197,14 @@ async function reload(path: string, types: Checker, cause = "Started"): Promise<
   const read = () => (existsSync(generated) ? readFileSync(generated, "utf8") : undefined)
   const before = read()
   const [run, first] = await Promise.all([assembleFresh(path), check()])
-  // The run writes em-registry.d.ts when a declaration changed, after the check beside it read it.
+  // The run writes d.d.ts when a declaration changed, after the check beside it read it.
   const errors = read() === before ? first : await check()
   if (run.ok) {
     const { errors: wrong = [], warnings = [], ...feed } = JSON.parse(run.stdout) as Feed
     return report(cause, started, { ...feed, ...kinds(merged(errors, [...wrong, ...warnings])) })
   }
   // A compiler error says where and why; the JavaScript error it caused only says what broke. The
-  // modules stopped where one threw, so em-registry.d.ts lacks what they declare after it: a name
+  // modules stopped where one threw, so d.d.ts lacks what they declare after it: a name
   // missing from it is that error's, not one of its own.
   const roots = errors.filter((e) => !UNREGISTERED.test(e.message))
   const shown = roots.length > 0 ? roots : errors

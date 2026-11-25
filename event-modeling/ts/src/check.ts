@@ -51,7 +51,7 @@ export function checker(path: string): Checker {
   return {
     async check() {
       const files = single ? [resolve(path)] : modelFiles(root)
-      // em-registry.d.ts types d; it is no model module, but the program reads it.
+      // d.d.ts types d; it is no model module, but the program reads it.
       const generated = join(root, GENERATED)
       const read = existsSync(generated) ? [...files, generated] : files
       const now = new Map(read.map((f) => [f, statSync(f).mtimeMs]))

@@ -49,4 +49,4 @@ declare module "#em" {
     Wiki: External
   }
 }
-//# sourceMappingURL=em-registry.d.ts.map
+//# sourceMappingURL=d.d.ts.map

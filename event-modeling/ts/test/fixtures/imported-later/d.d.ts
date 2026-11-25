@@ -15,4 +15,4 @@ declare module "#em" {
     Writer: Actor
   }
 }
-//# sourceMappingURL=em-registry.d.ts.map
+//# sourceMappingURL=d.d.ts.map

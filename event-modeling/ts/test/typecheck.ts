@@ -4,7 +4,7 @@
 // binds to the next line, and moving a call off that line disarms the check.
 import { type Commanded, d, m, type Start, t, type Triggered, type Viewing } from "#em"
 
-// The declarations are in typecheck/model.ts, and em-registry.d.ts beside it types d.
+// The declarations are in typecheck/model.ts, and d.d.ts beside it types d.
 
 /** A step's parameter when it is called bare: the editor's error is this type, the sentence. */
 type Bare<F> = F extends { (a: infer A): unknown; (a: never, b: never): unknown } ? A : never

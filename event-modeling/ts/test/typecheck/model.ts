@@ -1,4 +1,4 @@
-// The declarations test/typecheck.ts checks against. em types writes em-registry.d.ts beside it,
+// The declarations test/typecheck.ts checks against. em types writes d.d.ts beside it,
 // which types d for test/typecheck.ts; this module runs, and that file does not.
 import { d, m, t } from "#em"
 

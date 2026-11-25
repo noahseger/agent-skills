@@ -98,7 +98,7 @@ export async function serve(options: ServeOptions): Promise<Server> {
   const saw = (file: string) => {
     // A hidden file is an editor's temporary copy; the rename onto the model file follows it.
     if (basename(file).startsWith(".")) return
-    // A load writes em-registry.d.ts, and type-checks again itself when it changed.
+    // A load writes d.d.ts, and type-checks again itself when it changed.
     if (basename(file).startsWith(GENERATED)) return
     changed.push(file)
     if (changed.length > 1) return

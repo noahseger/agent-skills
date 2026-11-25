@@ -64,7 +64,7 @@ test("init scaffolds a model that assembles, and refuses to overwrite it", () =>
     // name, so the model gets the dependency the way a user's would.
     mkdirSync(join(dir, "node_modules", "@noahseger"), { recursive: true })
     symlinkSync(here(".."), join(dir, "node_modules", "@noahseger", "event-modeling"))
-    for (const f of ["index.ts", "tsconfig.json", "package.json", "em-registry.d.ts"])
+    for (const f of ["index.ts", "tsconfig.json", "package.json", "d.d.ts"])
       assert.ok(existsSync(join(dir, f)), f)
     assert.deepEqual(JSON.parse(em("json", dir).stdout), { slices: [] })
     // The model types d from the start: what init writes is what em types would.
@@ -86,7 +86,7 @@ test("an assembly error is one line and exit 1; d types a name declared twice as
     "Created: declared twice, at index.ts:5 and index.ts:6. Keep one.",
   )
   assert.ok(
-    readFileSync(here("./fixtures/declared-twice/em-registry.d.ts"), "utf8").includes(
+    readFileSync(here("./fixtures/declared-twice/d.d.ts"), "utf8").includes(
       '    Created: EventDecl<"Created", { id: Field<string> }> & EventDecl<"Created", { id: Field<string>; at: Field<string, "datetime"> }>\n',
     ),
   )
@@ -94,11 +94,11 @@ test("an assembly error is one line and exit 1; d types a name declared twice as
 
 /** Each name the declaration map maps, and the text at the position it maps to. */
 function mapped(dir: string): [string, string][] {
-  const map = JSON.parse(readFileSync(join(dir, "em-registry.d.ts.map"), "utf8")) as {
+  const map = JSON.parse(readFileSync(join(dir, "d.d.ts.map"), "utf8")) as {
     sources: string[]
     mappings: string
   }
-  const lines = readFileSync(join(dir, "em-registry.d.ts"), "utf8").split("\n")
+  const lines = readFileSync(join(dir, "d.d.ts"), "utf8").split("\n")
   const digits = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
   const at = [0, 0, 0]
   return map.mappings.split(";").flatMap((segment, line) => {
@@ -141,11 +141,11 @@ m.actor("Filer", { icon: "system" })
     writeFileSync(join(dir, "index.ts"), model())
     const stale = em("types", "--check", dir)
     assert.equal(stale.status, 1)
-    assert.match(stale.stderr, /em-registry\.d\.ts: out of date\. Run em types /)
+    assert.match(stale.stderr, /d\.d\.ts: out of date\. Run em types /)
     const wrote = em("types", dir)
     assert.equal(wrote.status, 0, wrote.stderr)
-    assert.match(wrote.stdout, /^Wrote .*em-registry\.d\.ts\n$/)
-    const text = readFileSync(join(dir, "em-registry.d.ts"), "utf8")
+    assert.match(wrote.stdout, /^Wrote .*d\.d\.ts\n$/)
+    const text = readFileSync(join(dir, "d.d.ts"), "utf8")
     for (const member of [
       'CaptureNote: CommandDecl<"CaptureNote", { text: Field<string> }>',
       "Filer: SystemActor",
@@ -430,7 +430,7 @@ export default m.model("Chess")
     await reloaded(server.url, () => rmSync(join(dir, "extra.ts")))
     assert.match(server.log(), /\d Deleted extra\.ts \(/)
 
-    // A save that declares a name types it at once: the load writes em-registry.d.ts, and checks again.
+    // A save that declares a name types it at once: the load writes d.d.ts, and checks again.
     await reloaded(server.url, () =>
       writeFileSync(
         join(dir, "ending.ts"),
@@ -441,7 +441,7 @@ m.event("GameEnded", { gameId: t.string() }).stream(d.Games)
 `,
       ),
     )
-    assert.match(readFileSync(join(dir, "em-registry.d.ts"), "utf8"), /GameEnded: EventDecl/)
+    assert.match(readFileSync(join(dir, "d.d.ts"), "utf8"), /GameEnded: EventDecl/)
     const ended = (await messages(server.url)).filter((m) => m.startsWith("ending.ts"))
     assert.deepEqual(ended, [])
   } finally {

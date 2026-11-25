@@ -10,4 +10,4 @@ declare module "#em" {
     WeekPlanning: Chapter
   }
 }
-//# sourceMappingURL=em-registry.d.ts.map
+//# sourceMappingURL=d.d.ts.map

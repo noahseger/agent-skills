@@ -127,9 +127,9 @@ npx em view model
 
 If `npm install` answers `401` or `404`, the token is missing or lacks `read:packages`. `init`
 writes `model/index.ts`; a `tsconfig.json` that lets node run the model with no build step and
-type-checks the directory, `em-registry.d.ts` included; that file, which types `d`; and a
+type-checks the directory, `d.d.ts` included; that file, which types `d`; and a
 `package.json` that marks the directory as ES modules. Leave `view` running in its own terminal: on
-every save it rewrites `em-registry.d.ts`, redraws, and logs its errors, then its warnings. The
+every save it rewrites `d.d.ts`, redraws, and logs its errors, then its warnings. The
 picture marks a slice with an error with a red "!" and an unfinished one with a grey ring.
 
 ### 3. Write the model
@@ -330,10 +330,12 @@ m.command("ArchiveItem", { aggregateId: t.uuid(), productId: t.uuid() })
 ```
 
 A declaration is a call with its name, and `d.ArchiveItem` is every use of it. `em types` writes
-`em-registry.d.ts` beside the model, which tells the editor what each name is, so it checks and
+`d.d.ts` beside the model, which tells the editor what each name is, so it checks and
 completes `d`, and a declaration map, so go-to-definition and rename on `d.ArchiveItem` reach the
-string. `em view` rewrites it on every save. Commit it, so a fresh clone type-checks, and run
-`em types model --check` in CI: it exits 1 when the file is out of date.
+string. `em view` rewrites it on every save. It is named for `d`, and stays beside the model
+because it must be inside the `tsconfig.json`'s `include`, so `d` is typed with no extra
+configuration. Commit it, so CI type-checks a fresh clone without running `em`, and run
+`em types model --check` there: it exits 1 when the file is out of date.
 
 A name nothing declares is a compiler error, `Property 'ArchivItem' does not exist on type
 'Registry'`, and a step refuses a declaration of another kind. Two declarations
@@ -717,8 +719,8 @@ title has no source`.
 
 | What | Why the compiler cannot |
 |---|---|
-| A `d.Name` nothing declares: the diagram draws the call without it | `em-registry.d.ts` can be older than the model, and `em json` runs the model without `tsc`. |
-| A name declared twice, such as `ListCreated`, other than a stream, an External System or a chapter | `em-registry.d.ts` types the name as each of its declarations at once, so every use compiles. |
+| A `d.Name` nothing declares: the diagram draws the call without it | `d.d.ts` can be older than the model, and `em json` runs the model without `tsc`. |
+| A name declared twice, such as `ListCreated`, other than a stream, an External System or a chapter | `d.d.ts` types the name as each of its declarations at once, so every use compiles. |
 | A column no event of the view's `m.slice().view()` calls writes | The calls can be in several modules. |
 | An optional field no slice fills | Same. |
 | A slice with no command, or no event | An incomplete slice compiles, so the diagram can draw it while you write it. |
@@ -810,8 +812,8 @@ output is `examples/proto`.
 
 ```bash
 npx em init   model/                 # scaffold a model directory
-npx em types  model/                 # write em-registry.d.ts, which types d
-npx em types  model/ --check         # exit 1 if em-registry.d.ts is out of date, for CI
+npx em types  model/                 # write d.d.ts, which types d
+npx em types  model/ --check         # exit 1 if d.d.ts is out of date, for CI
 npx em view   model/                 # live diagram; runs until Ctrl-C
 npx em view   model.json             # the same for a model written as spec JSON
 npx em export model/ -o model.html   # one self-contained page, for sharing; takes model.json too
@@ -827,11 +829,11 @@ Every command also accepts a single self-contained file.
 beside it what the spec has no place for, the `errors` and `warnings` among it. `view` and `export`
 assemble that way.
 
-`view` rewrites `em-registry.d.ts` and type-checks the model on every save, with the
+`view` rewrites `d.d.ts` and type-checks the model on every save, with the
 `tsconfig.json` that `init` wrote. It logs each compiler error as `file:line`, with what assembly
 finds, in the terminal under a count such as `2 errors, 3 warnings:`, errors first, or `Nothing
 left to do.` An example used above its declaration is one line per file, listing what to move up.
-When a module throws, the model doesn't load and `em-registry.d.ts` lacks what the modules declare
+When a module throws, the model doesn't load and `d.d.ts` lacks what the modules declare
 after it, so the log leaves out the names it lacks.
 
 The picture marks the same: a red disc with "!" for an error, a grey ring for a warning, on the
@@ -857,9 +859,9 @@ npm ci
 npm test
 ```
 
-`npm test` checks that each model's `em-registry.d.ts` is current, type-checks, lints, builds the
+`npm test` checks that each model's `d.d.ts` is current, type-checks, lints, builds the
 viewer and the package, runs the node tests, and lints the generated proto. Each example, each test
-fixture and `test/typecheck` is a model with its own `tsconfig.json` and `em-registry.d.ts`; after
+fixture and `test/typecheck` is a model with its own `tsconfig.json` and `d.d.ts`; after
 changing one, `npm run types -- examples/todo-app` writes its file again.
 
 To model against the checkout, with nothing published, build it once and install it into a new

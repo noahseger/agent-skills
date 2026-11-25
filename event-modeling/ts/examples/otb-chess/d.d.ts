@@ -53,4 +53,4 @@ declare module "#em" {
     TimeForfeited: EventDecl<"TimeForfeited", { gameId: Field<string>; flaggedSide: Field<"white" | "black">; result: Field<"white_won" | "black_won" | "draw">; termination: Field<"checkmate" | "stalemate" | "dead_position" | "resignation" | "agreement" | "time_forfeit" | "illegal_move_forfeit"> }>
   }
 }
-//# sourceMappingURL=em-registry.d.ts.map
+//# sourceMappingURL=d.d.ts.map

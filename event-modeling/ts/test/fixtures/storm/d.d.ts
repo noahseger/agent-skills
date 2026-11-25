@@ -9,4 +9,4 @@ declare module "#em" {
     MoveMade: EventDecl<"MoveMade", { gameId: Field<string>; san: Field<string> }>
   }
 }
-//# sourceMappingURL=em-registry.d.ts.map
+//# sourceMappingURL=d.d.ts.map

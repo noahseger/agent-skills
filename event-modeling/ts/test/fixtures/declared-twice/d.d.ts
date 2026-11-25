@@ -8,4 +8,4 @@ declare module "#em" {
     Table: ViewDecl<"Table", { id: Field<string, string, true> }, false>
   }
 }
-//# sourceMappingURL=em-registry.d.ts.map
+//# sourceMappingURL=d.d.ts.map
