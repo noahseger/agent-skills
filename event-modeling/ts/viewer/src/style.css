@@ -908,19 +908,22 @@ svg .chapter {
   text-align: left;
 }
 
-.detail dl {
+/* A list of facts, in the detail and the opened slice alike: names in sans, values in mono, each
+   pair on one baseline. */
+:is(.detail, .facts) dl {
   margin: 0;
   display: grid;
   grid-template-columns: max-content 1fr;
-  gap: 4px 12px;
+  align-items: baseline;
+  gap: 6px 14px;
   font-size: 13px;
 }
 
-.detail dt {
+:is(.detail, .facts) dt {
   color: var(--muted);
 }
 
-.detail dd {
+:is(.detail, .facts) dd {
   margin: 0;
   font-family: var(--mono);
   font-size: 12px;
@@ -978,9 +981,11 @@ svg .chapter {
   align-items: flex-start;
 }
 
+/* The opened slice is drawn at one scale, whatever its width, so a card is the same size in every
+   slice; a slice too wide for its room scrolls. */
 .slice-body > .column {
-  flex: 1 1 240px;
-  max-width: 340px;
+  flex: none;
+  max-width: 100%;
 }
 
 .slice-right {
@@ -993,7 +998,6 @@ svg .chapter {
 }
 
 .slice-body .column {
-  width: 100%;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -1002,24 +1006,6 @@ svg .chapter {
 .slice-body .lane-tag {
   font: var(--font-laneTag);
   fill: var(--muted);
-}
-
-.facts dl {
-  margin: 0;
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 6px 14px;
-  font-size: 13px;
-}
-
-.facts dt {
-  color: var(--muted);
-}
-
-.facts dd {
-  margin: 0;
-  font-family: var(--mono);
-  font-size: 12px;
 }
 
 .facts .messages {

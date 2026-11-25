@@ -14,6 +14,7 @@ import {
   LANE_PAD,
   type Layout,
   type Link,
+  MAX_ZOOM,
   polyline,
   STACK_GAP,
   titled,
@@ -112,6 +113,10 @@ function route(e: Link) {
 const specs = computed(() => props.layout.specs.filter((s) => s.column === props.column.index))
 const selectedName = computed(() => local.value.boxes.find((b) => b.id === props.selectedBox)?.name)
 const viewBox = computed(() => `${props.column.x} 0 ${props.column.w} ${local.value.height}`)
+// One scale for every opened slice, the canvas's fitted zoom, so cards match from slice to slice.
+const SCALE = MAX_ZOOM
+// A lane's tag stands clear of the drawing's rounded corner.
+const TAG_INSET = 12
 
 const slice = computed(() => props.column.slice)
 const first = props.layout.columns.length > 0 ? 0 : -1
@@ -133,10 +138,10 @@ function cardClass(b: Box) {
     </header>
 
     <div class="slice-body">
-      <svg class="column" :viewBox="viewBox">
+      <svg class="column" :viewBox="viewBox" :width="column.w * SCALE" :height="local.height * SCALE">
         <g v-for="lane in local.lanes" :key="lane.label + lane.y">
           <line class="lane-line" :x1="column.x" :x2="column.x + column.w" :y1="lane.y" :y2="lane.y" />
-          <Fit v-if="lane.label" class="lane-tag" :text="lane.label" :room="column.w - 12" font="laneTag" :x="column.x + 6" :y="lane.y + 11" />
+          <Fit v-if="lane.label" class="lane-tag" :text="lane.label" :room="column.w - 2 * TAG_INSET" font="laneTag" :x="column.x + TAG_INSET" :y="lane.y + 14" />
         </g>
         <path
           v-for="(e, i) in edges"
