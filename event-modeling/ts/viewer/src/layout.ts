@@ -746,7 +746,12 @@ export function layout(model: Board, measure: Measure): Layout {
         label: labelOf(slice),
         title: words(labelOf(slice)),
         note: gravest(slice.notes),
-        ...marked(messages.filter((m) => m.slice === slice.id)),
+        // A declaration in no slice is a slice of it alone; what is said about it is said there.
+        ...marked(
+          messages.filter(
+            (m) => m.slice === slice.id || (m.slice === undefined && m.element === alone(slice)),
+          ),
+        ),
         x,
         w,
       })
@@ -1344,23 +1349,25 @@ export function fromHash(hash: string): Selection | null {
   }
 }
 
+/** The one element a slice of a declaration in no slice holds, if that is what it is. */
+function alone(s: BoardSlice): string | undefined {
+  if (s.screen || s.automation || s.trigger) return undefined
+  const all = [
+    ...(s.command ? [s.command] : []),
+    ...(s.events ?? []),
+    ...(s.read_models ?? []),
+    ...(s.external_event ? [s.external_event] : []),
+  ]
+  return all.length === 1 && all[0] ? parse(all[0]).name : undefined
+}
+
 /** The card a selection names, if it is drawn. */
 export function boxOf(layout: Layout, sel: Selection | null): Box | undefined {
   if (!sel || sel === "model" || !("column" in sel)) return undefined
   // A declaration in no slice is a slice of that one element alone: selecting it selects the element.
   if (!sel.name) {
     const s = layout.columns[sel.column]?.slice
-    const alone =
-      s &&
-      !s.screen &&
-      !s.automation &&
-      !s.trigger &&
-      (s.command ? 1 : 0) +
-        (s.events?.length ?? 0) +
-        (s.read_models?.length ?? 0) +
-        (s.external_event ? 1 : 0) ===
-        1
-    return alone ? layout.boxes.find((b) => b.column === sel.column) : undefined
+    return s && alone(s) ? layout.boxes.find((b) => b.column === sel.column) : undefined
   }
   return layout.boxes.find(
     (b) => b.column === sel.column && b.kind === sel.kind && b.name === sel.name,

@@ -1240,3 +1240,30 @@ test("the lane of commands and views is Interaction, and their cards name the se
     "a name-only card has none",
   )
 })
+
+test("what is said about a declaration in no slice stands on its column and its card, not the model", () => {
+  const copy: Board = JSON.parse(JSON.stringify(model))
+  copy.chapters.push({
+    name: "",
+    slices: [
+      {
+        id: "orphan",
+        name: "Orphan",
+        actor: "",
+        aggregate: copy.chapters[0]?.slices[0]?.aggregate ?? "",
+        tests: [],
+        events: ["Orphan(id)"],
+      },
+    ],
+  })
+  copy.messages = [said("error", "Orphan")]
+  const out = layout(copy)
+  const column = out.columns.find((c) => c.slice.id === "orphan")
+  assert.deepEqual(
+    column?.messages.map((m) => m.element),
+    ["Orphan"],
+  )
+  assert.equal(column?.mark, "error")
+  assert.equal(out.boxes.find((b) => b.name === "Orphan")?.mark, "error")
+  assert.deepEqual(out.model.messages, [])
+})
